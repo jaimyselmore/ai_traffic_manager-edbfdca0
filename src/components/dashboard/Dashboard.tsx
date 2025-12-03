@@ -73,26 +73,26 @@ export function Dashboard({ selectedEmployeeId }: DashboardProps) {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <RequestBlock
             label="Nieuw project"
-            description="Start een nieuw project met alle benodigde informatie voor het team."
+            description="Maak een nieuw project aan in de planning met klant, team en globale timing."
             icon={Plus}
             onClick={() => navigate('/nieuw-project')}
             variant="primary"
           />
           <RequestBlock
-            label="Wijzigingsverzoek"
-            description="Vraag een wijziging aan voor een bestaand project of deliverable."
+            label="Wijziging"
+            description="Pas de planning van een bestaand project aan (scope, timing, team of uren)."
             icon={FileEdit}
             onClick={() => navigate('/wijzigingsverzoek')}
           />
           <RequestBlock
             label="Meeting / Presentatie"
-            description="Plan een meeting of presentatie in met collega's of klanten."
+            description="Plan een interne of externe meeting of presentatie en koppel die aan het juiste project en team."
             icon={Users}
             onClick={() => navigate('/meeting')}
           />
           <RequestBlock
-            label="Ziek / Verlof"
-            description="Meld je ziek of vraag verlof aan voor een bepaalde periode."
+            label="Beschikbaarheid medewerker"
+            description="Leg afwezigheid, vakantie, verlof of een gewijzigde parttime-dag van een medewerker vast."
             icon={CalendarOff}
             onClick={() => navigate('/verlof')}
           />
