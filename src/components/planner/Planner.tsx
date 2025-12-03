@@ -77,36 +77,43 @@ export function Planner() {
         onWeekChange={setCurrentWeekStart}
       />
 
-      {/* Toolbar: Legend and controls in one row */}
-      <div className="flex items-start gap-6">
-        <TaskLegend />
-        <div className="flex items-center gap-4">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline">
-                <Download className="mr-2 h-4 w-4" />
-                Download
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem onClick={handleDownloadCSV}>
-                Deze week als CSV
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleDownloadPDF}>
-                Deze week als PDF
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+      {/* Toolbar: Legend (left) and buttons (right) */}
+      <div className="grid grid-cols-2 gap-8 mt-6 items-start">
+        {/* Left column: Legend */}
+        <div>
+          <TaskLegend />
+        </div>
 
-          <Button variant="outline" onClick={() => setIsFullscreen(true)}>
-            <Maximize2 className="mr-2 h-4 w-4" />
-            Vergroot planner
-          </Button>
+        {/* Right column: buttons */}
+        <div className="flex flex-col items-start gap-3">
+          <div className="flex gap-3">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline">
+                  <Download className="mr-2 h-4 w-4" />
+                  Download
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem onClick={handleDownloadCSV}>
+                  Deze week als CSV
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleDownloadPDF}>
+                  Deze week als PDF
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <Button variant="outline" onClick={() => setIsFullscreen(true)}>
+              <Maximize2 className="mr-2 h-4 w-4" />
+              Vergroot planner
+            </Button>
+          </div>
         </div>
       </div>
 
-      {/* Filters on second row */}
-      <div className="mt-4 flex gap-4">
+      {/* Filters below */}
+      <div className="flex gap-6 mt-6">
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">Medewerker:</span>
           <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
