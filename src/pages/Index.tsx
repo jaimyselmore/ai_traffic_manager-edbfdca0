@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { AppSidebar } from '@/components/layout/AppSidebar';
+import { TopBar } from '@/components/layout/TopBar';
 import { Dashboard } from '@/components/dashboard/Dashboard';
 import { Planner } from '@/components/planner/Planner';
 import { Agendas } from '@/components/agendas/Agendas';
@@ -29,12 +30,16 @@ const Index = () => {
       <AppSidebar 
         activeTab={activeTab} 
         onTabChange={setActiveTab}
-        selectedEmployee={selectedEmployee}
-        onEmployeeChange={setSelectedEmployee}
       />
-      <main className="flex-1 overflow-auto p-6">
-        {renderContent()}
-      </main>
+      <div className="flex flex-1 flex-col">
+        <TopBar
+          selectedEmployee={selectedEmployee}
+          onEmployeeChange={setSelectedEmployee}
+        />
+        <main className="flex-1 overflow-auto p-6">
+          {renderContent()}
+        </main>
+      </div>
     </div>
   );
 };
