@@ -1,9 +1,7 @@
-import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, Clock, Eye, Bell, FolderOpen, Plus, FileEdit, Users, CalendarOff } from 'lucide-react';
 import { StatCard } from './StatCard';
 import { RequestBlock } from './RequestBlock';
-import { RequestPanel } from './RequestPanel';
 import { mockDashboardStats, mockEmployees, getWeekNumber, getWeekStart, formatDateRange } from '@/lib/mockData';
 
 type RequestType = 'project' | 'wijziging' | 'meeting' | 'verlof';
@@ -14,7 +12,6 @@ interface DashboardProps {
 
 export function Dashboard({ selectedEmployeeId }: DashboardProps) {
   const navigate = useNavigate();
-  const [openPanel, setOpenPanel] = useState<RequestType | null>(null);
   
   const today = new Date();
   const weekStart = getWeekStart(today);
@@ -85,31 +82,22 @@ export function Dashboard({ selectedEmployeeId }: DashboardProps) {
             label="Wijzigingsverzoek"
             description="Vraag een wijziging aan voor een bestaand project of deliverable."
             icon={FileEdit}
-            onClick={() => setOpenPanel('wijziging')}
+            onClick={() => navigate('/wijzigingsverzoek')}
           />
           <RequestBlock
             label="Meeting / Presentatie"
             description="Plan een meeting of presentatie in met collega's of klanten."
             icon={Users}
-            onClick={() => setOpenPanel('meeting')}
+            onClick={() => navigate('/meeting')}
           />
           <RequestBlock
             label="Ziek / Verlof"
             description="Meld je ziek of vraag verlof aan voor een bepaalde periode."
             icon={CalendarOff}
-            onClick={() => setOpenPanel('verlof')}
+            onClick={() => navigate('/verlof')}
           />
         </div>
       </div>
-
-      {/* Request Panel */}
-      {openPanel && (
-        <RequestPanel
-          type={openPanel}
-          isOpen={true}
-          onClose={() => setOpenPanel(null)}
-        />
-      )}
     </div>
   );
 }
