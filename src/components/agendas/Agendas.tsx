@@ -102,15 +102,10 @@ export function Agendas() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Agenda's</h1>
-        <p className="mt-1 text-lg text-muted-foreground">
-          Week {weekNumber} – {dateRange}
-        </p>
-        <p className="text-sm text-muted-foreground">
-          Synchroniseer de planning met Microsoft Outlook kalenders
-        </p>
+      {/* Header with Week Info */}
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="text-2xl font-bold text-foreground">Week {weekNumber}</span>
+        <span className="text-lg text-muted-foreground">– {dateRange}</span>
       </div>
 
       {/* Week Selector */}
@@ -118,6 +113,10 @@ export function Agendas() {
         currentWeekStart={currentWeekStart}
         onWeekChange={setCurrentWeekStart}
       />
+
+      <p className="text-sm text-muted-foreground">
+        Synchroniseer de planning met Microsoft Outlook kalenders
+      </p>
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Employee Selection */}

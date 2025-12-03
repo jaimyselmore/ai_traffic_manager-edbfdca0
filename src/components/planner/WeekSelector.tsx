@@ -92,11 +92,6 @@ export function WeekSelector({ currentWeekStart, onWeekChange }: WeekSelectorPro
         </Select>
       </div>
 
-      <div className="ml-4 rounded-lg bg-accent px-4 py-2">
-        <span className="font-medium text-accent-foreground">
-          Week {weekNumber} – {dateRange}
-        </span>
-      </div>
     </div>
   );
 }
