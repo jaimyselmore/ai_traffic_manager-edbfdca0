@@ -64,11 +64,11 @@ export function Planner() {
   return (
     <div className="space-y-6">
       {/* Header with Week Info */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Planner</h1>
-        <p className="mt-1 text-lg text-muted-foreground">
-          Week {weekNumber} – {dateRange}
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <span className="text-2xl font-bold text-foreground">Week {weekNumber}</span>
+          <span className="text-lg text-muted-foreground">– {dateRange}</span>
+        </div>
       </div>
 
       {/* Week Selector */}
@@ -77,8 +77,12 @@ export function Planner() {
         onWeekChange={setCurrentWeekStart}
       />
 
-      {/* Filters and Actions */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      {/* Toolbar: Legend left, Controls right */}
+      <div className="flex flex-wrap items-start justify-between gap-6">
+        {/* Legend - Left side */}
+        <TaskLegend />
+
+        {/* Controls - Right side */}
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">Medewerker:</span>
@@ -113,9 +117,7 @@ export function Planner() {
               </SelectContent>
             </Select>
           </div>
-        </div>
 
-        <div className="flex items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline">
@@ -139,9 +141,6 @@ export function Planner() {
           </Button>
         </div>
       </div>
-
-      {/* Legend - Above Grid, Vertical */}
-      <TaskLegend />
 
       {/* Grid */}
       <PlannerGrid
