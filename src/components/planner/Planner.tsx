@@ -140,15 +140,15 @@ export function Planner() {
         </div>
       </div>
 
+      {/* Legend - Above Grid, Vertical */}
+      <TaskLegend />
+
       {/* Grid */}
       <PlannerGrid
         weekStart={currentWeekStart}
         employees={filteredEmployees}
         tasks={filteredTasks}
       />
-
-      {/* Legend - Below Grid, Vertical */}
-      <TaskLegend />
 
       {/* Fullscreen Mode */}
       {isFullscreen && (

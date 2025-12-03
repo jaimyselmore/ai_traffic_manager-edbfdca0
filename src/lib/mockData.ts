@@ -138,6 +138,7 @@ export const formatDateRange = (weekStart: Date): string => {
   const startDay = weekStart.getDate();
   const endDay = weekEnd.getDate();
   const month = months[weekEnd.getMonth()];
+  const year = weekEnd.getFullYear();
   
-  return `${startDay} t/m ${endDay} ${month}`;
+  return `${startDay} t/m ${endDay} ${month} ${year}`;
 };
