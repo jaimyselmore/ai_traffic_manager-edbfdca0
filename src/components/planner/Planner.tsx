@@ -14,6 +14,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { WeekSelector } from './WeekSelector';
 import { TaskLegend } from './TaskLegend';
 import { PlannerGrid } from './PlannerGrid';
 import { FullscreenPlanner } from './FullscreenPlanner';
@@ -115,43 +116,28 @@ export function Planner() {
       {/* Filter card left + Legend right */}
       <div className="mt-4 flex items-start gap-8">
         {/* Left: Filter card */}
-        <div className="w-80 rounded-xl border border-border bg-card px-6 py-4 shadow-sm">
-          {/* Row 1: Week button + week select with label */}
-          <div className="flex gap-3 mb-4">
-            <Button variant="outline" onClick={() => {
-              const today = new Date();
-              const day = today.getDay();
-              const diff = today.getDate() - day + (day === 0 ? -6 : 1);
-              const weekStart = new Date(today);
-              weekStart.setDate(diff);
-              weekStart.setHours(0, 0, 0, 0);
-              setCurrentWeekStart(weekStart);
-            }}>
-              Huidige week
-            </Button>
+        <div className="rounded-xl border border-border bg-card px-6 py-4 shadow-sm">
+          {/* Week controls */}
+          <div className="flex items-center gap-3 mb-4">
+            <WeekSelector
+              currentWeekStart={currentWeekStart}
+              onWeekChange={setCurrentWeekStart}
+            />
+          </div>
 
-            <div className="flex-1">
-              <div className="text-sm text-muted-foreground mb-1">Ga naar week:</div>
-              <Select value={weekNumber.toString()} onValueChange={(weekNum) => {
-                const targetWeek = parseInt(weekNum);
-                const currentYear = new Date().getFullYear();
-                const jan1 = new Date(currentYear, 0, 1);
-                const days = (targetWeek - 1) * 7;
-                const targetDate = new Date(jan1);
-                targetDate.setDate(jan1.getDate() + days);
-                const day = targetDate.getDay();
-                const diff = targetDate.getDate() - day + (day === 0 ? -6 : 1);
-                targetDate.setDate(diff);
-                targetDate.setHours(0, 0, 0, 0);
-                setCurrentWeekStart(targetDate);
-              }}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
+          {/* Employee filter */}
+          <div className="mb-3">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground w-24">Medewerker:</span>
+              <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Alle medewerkers" />
                 </SelectTrigger>
                 <SelectContent>
-                  {Array.from({ length: 52 }, (_, i) => i + 1).map((week) => (
-                    <SelectItem key={week} value={week.toString()}>
-                      {week}
+                  <SelectItem value="all">Alle medewerkers</SelectItem>
+                  {mockEmployees.map((emp) => (
+                    <SelectItem key={emp.id} value={emp.id}>
+                      {emp.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -159,40 +145,24 @@ export function Planner() {
             </div>
           </div>
 
-          {/* Employee filter */}
-          <div className="mb-3">
-            <div className="text-sm text-muted-foreground mb-1">Medewerker:</div>
-            <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Alle medewerkers" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Alle medewerkers</SelectItem>
-                {mockEmployees.map((emp) => (
-                  <SelectItem key={emp.id} value={emp.id}>
-                    {emp.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
           {/* Client filter */}
           <div>
-            <div className="text-sm text-muted-foreground mb-1">Klant:</div>
-            <Select value={selectedClient} onValueChange={setSelectedClient}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Alle klanten" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Alle klanten</SelectItem>
-                {mockClients.map((client) => (
-                  <SelectItem key={client.id} value={client.id}>
-                    {client.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground w-24">Klant:</span>
+              <Select value={selectedClient} onValueChange={setSelectedClient}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Alle klanten" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Alle klanten</SelectItem>
+                  {mockClients.map((client) => (
+                    <SelectItem key={client.id} value={client.id}>
+                      {client.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
 
