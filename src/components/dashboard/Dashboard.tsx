@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, Clock, Eye, Bell, FolderOpen, Plus, FileEdit, Users, CalendarOff } from 'lucide-react';
 import { StatCard } from './StatCard';
 import { RequestBlock } from './RequestBlock';
@@ -12,6 +13,7 @@ interface DashboardProps {
 }
 
 export function Dashboard({ selectedEmployeeId }: DashboardProps) {
+  const navigate = useNavigate();
   const [openPanel, setOpenPanel] = useState<RequestType | null>(null);
   
   const today = new Date();
@@ -76,7 +78,7 @@ export function Dashboard({ selectedEmployeeId }: DashboardProps) {
             label="Nieuw project"
             description="Start een nieuw project met alle benodigde informatie voor het team."
             icon={Plus}
-            onClick={() => setOpenPanel('project')}
+            onClick={() => navigate('/nieuw-project')}
             variant="primary"
           />
           <RequestBlock
