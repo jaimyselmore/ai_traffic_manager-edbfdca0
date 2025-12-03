@@ -1,4 +1,3 @@
-import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -7,7 +6,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { getWeekNumber, formatDateRange } from '@/lib/mockData';
+import { getWeekNumber } from '@/lib/mockData';
 
 interface WeekSelectorProps {
   currentWeekStart: Date;
@@ -16,19 +15,6 @@ interface WeekSelectorProps {
 
 export function WeekSelector({ currentWeekStart, onWeekChange }: WeekSelectorProps) {
   const weekNumber = getWeekNumber(currentWeekStart);
-  const dateRange = formatDateRange(currentWeekStart);
-
-  const goToPreviousWeek = () => {
-    const newDate = new Date(currentWeekStart);
-    newDate.setDate(newDate.getDate() - 7);
-    onWeekChange(newDate);
-  };
-
-  const goToNextWeek = () => {
-    const newDate = new Date(currentWeekStart);
-    newDate.setDate(newDate.getDate() + 7);
-    onWeekChange(newDate);
-  };
 
   const goToCurrentWeek = () => {
     const today = new Date();
@@ -63,20 +49,12 @@ export function WeekSelector({ currentWeekStart, onWeekChange }: WeekSelectorPro
   const weekOptions = Array.from({ length: 52 }, (_, i) => i + 1);
 
   return (
-    <div className="flex items-center gap-2">
-      <Button variant="outline" size="icon" onClick={goToPreviousWeek}>
-        <ChevronLeft className="h-4 w-4" />
-      </Button>
-      
+    <div className="flex items-center gap-3">
       <Button variant="outline" onClick={goToCurrentWeek}>
         Huidige week
       </Button>
-      
-      <Button variant="outline" size="icon" onClick={goToNextWeek}>
-        <ChevronRight className="h-4 w-4" />
-      </Button>
 
-      <div className="ml-4 flex items-center gap-2">
+      <div className="flex items-center gap-2">
         <span className="text-sm text-muted-foreground">Ga naar week:</span>
         <Select value={weekNumber.toString()} onValueChange={handleWeekSelect}>
           <SelectTrigger className="w-20">
@@ -91,7 +69,6 @@ export function WeekSelector({ currentWeekStart, onWeekChange }: WeekSelectorPro
           </SelectContent>
         </Select>
       </div>
-
     </div>
   );
 }

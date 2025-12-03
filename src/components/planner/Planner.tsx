@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Maximize2, Download } from 'lucide-react';
+import { Maximize2, Download, ZoomIn, ZoomOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -26,6 +26,7 @@ export function Planner() {
   const [selectedEmployee, setSelectedEmployee] = useState<string>('all');
   const [selectedClient, setSelectedClient] = useState<string>('all');
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [zoom, setZoom] = useState<number>(100);
 
   const weekNumber = getWeekNumber(currentWeekStart);
   const dateRange = formatDateRange(currentWeekStart);
@@ -50,7 +51,6 @@ export function Planner() {
       title: 'Export gestart',
       description: 'CSV wordt gedownload...',
     });
-    // Mock: GET /api/planner/export?format=csv
   };
 
   const handleDownloadPDF = () => {
@@ -58,62 +58,72 @@ export function Planner() {
       title: 'Export gestart',
       description: 'PDF wordt gegenereerd...',
     });
-    // Mock: GET /api/planner/export?format=pdf
   };
 
+  const zoomOptions = [100, 75, 50, 25];
+
   return (
-    <div className="space-y-6">
-      {/* Header with Week Info */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
+    <div className="space-y-4">
+      {/* Row 1: Title + Zoom & Download */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold text-foreground">
+          <span className="font-bold">Week {weekNumber}</span>
+          <span className="font-normal text-muted-foreground"> – {dateRange}</span>
+        </h1>
+
         <div className="flex items-center gap-3">
-          <span className="text-2xl font-bold text-foreground">Week {weekNumber}</span>
-          <span className="text-lg text-muted-foreground">– {dateRange}</span>
-        </div>
-      </div>
-
-      {/* Week Selector */}
-      <WeekSelector
-        currentWeekStart={currentWeekStart}
-        onWeekChange={setCurrentWeekStart}
-      />
-
-      {/* Toolbar: Legend (left) and buttons (right) */}
-      <div className="grid grid-cols-2 gap-8 mt-6 items-start">
-        {/* Left column: Legend */}
-        <div>
-          <TaskLegend />
-        </div>
-
-        {/* Right column: buttons */}
-        <div className="flex flex-col items-start gap-3">
-          <div className="flex gap-3">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline">
-                  <Download className="mr-2 h-4 w-4" />
-                  Download
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuItem onClick={handleDownloadCSV}>
-                  Deze week als CSV
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleDownloadPDF}>
-                  Deze week als PDF
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            <Button variant="outline" onClick={() => setIsFullscreen(true)}>
-              <Maximize2 className="mr-2 h-4 w-4" />
-              Vergroot planner
-            </Button>
+          <div className="flex items-center gap-2">
+            <ZoomOut className="h-4 w-4 text-muted-foreground" />
+            <Select value={zoom.toString()} onValueChange={(v) => setZoom(parseInt(v))}>
+              <SelectTrigger className="w-20">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {zoomOptions.map((z) => (
+                  <SelectItem key={z} value={z.toString()}>
+                    {z}%
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <ZoomIn className="h-4 w-4 text-muted-foreground" />
           </div>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">
+                <Download className="mr-2 h-4 w-4" />
+                Download
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={handleDownloadCSV}>
+                Deze week als CSV
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleDownloadPDF}>
+                Deze week als PDF
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <Button variant="outline" onClick={() => setIsFullscreen(true)}>
+            <Maximize2 className="mr-2 h-4 w-4" />
+            Vergroot planner
+          </Button>
         </div>
       </div>
 
-      {/* Filters below */}
-      <div className="flex gap-6 mt-6">
+      {/* Row 2: Legend + Week controls */}
+      <div className="flex items-start gap-6">
+        <TaskLegend />
+        <WeekSelector
+          currentWeekStart={currentWeekStart}
+          onWeekChange={setCurrentWeekStart}
+        />
+      </div>
+
+      {/* Row 3: Filters */}
+      <div className="flex items-center gap-4">
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">Medewerker:</span>
           <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
@@ -149,12 +159,17 @@ export function Planner() {
         </div>
       </div>
 
-      {/* Grid */}
-      <PlannerGrid
-        weekStart={currentWeekStart}
-        employees={filteredEmployees}
-        tasks={filteredTasks}
-      />
+      {/* Grid with zoom */}
+      <div
+        style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top left' }}
+        className="transition-transform"
+      >
+        <PlannerGrid
+          weekStart={currentWeekStart}
+          employees={filteredEmployees}
+          tasks={filteredTasks}
+        />
+      </div>
 
       {/* Fullscreen Mode */}
       {isFullscreen && (
