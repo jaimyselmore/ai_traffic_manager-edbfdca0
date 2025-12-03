@@ -113,25 +113,24 @@ export function Planner() {
         </div>
       </div>
 
-      {/* Row 2: Legend left / Week + Filters right in column */}
+      {/* Filter card left + Legend right */}
       <div className="mt-4 flex items-start gap-8">
-        {/* Left: Legend */}
-        <TaskLegend />
-
-        {/* Right: Week + Filters stacked */}
-        <div className="flex flex-col gap-4">
+        {/* Left: Filter card */}
+        <div className="rounded-xl border border-border bg-card px-6 py-4 shadow-sm">
           {/* Week controls */}
-          <WeekSelector
-            currentWeekStart={currentWeekStart}
-            onWeekChange={setCurrentWeekStart}
-          />
+          <div className="flex items-center gap-3 mb-4">
+            <WeekSelector
+              currentWeekStart={currentWeekStart}
+              onWeekChange={setCurrentWeekStart}
+            />
+          </div>
 
           {/* Employee filter */}
-          <div className="w-64">
+          <div className="mb-3">
             <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Medewerker:</span>
+              <span className="text-sm text-muted-foreground w-24">Medewerker:</span>
               <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
-                <SelectTrigger className="flex-1">
+                <SelectTrigger className="w-48">
                   <SelectValue placeholder="Alle medewerkers" />
                 </SelectTrigger>
                 <SelectContent>
@@ -147,11 +146,11 @@ export function Planner() {
           </div>
 
           {/* Client filter */}
-          <div className="w-64">
+          <div>
             <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Klant:</span>
+              <span className="text-sm text-muted-foreground w-24">Klant:</span>
               <Select value={selectedClient} onValueChange={setSelectedClient}>
-                <SelectTrigger className="flex-1">
+                <SelectTrigger className="w-48">
                   <SelectValue placeholder="Alle klanten" />
                 </SelectTrigger>
                 <SelectContent>
@@ -166,6 +165,9 @@ export function Planner() {
             </div>
           </div>
         </div>
+
+        {/* Right: Legend */}
+        <TaskLegend />
       </div>
 
       {/* Grid with zoom */}
