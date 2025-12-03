@@ -1,0 +1,156 @@
+import { useState, useMemo } from 'react';
+import { Maximize2, Download } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { WeekSelector } from './WeekSelector';
+import { TaskLegend } from './TaskLegend';
+import { PlannerGrid } from './PlannerGrid';
+import { FullscreenPlanner } from './FullscreenPlanner';
+import { mockEmployees, mockClients, generateMockTasks, getWeekStart } from '@/lib/mockData';
+import { toast } from '@/hooks/use-toast';
+
+export function Planner() {
+  const [currentWeekStart, setCurrentWeekStart] = useState(() => getWeekStart(new Date()));
+  const [selectedEmployee, setSelectedEmployee] = useState<string>('all');
+  const [selectedClient, setSelectedClient] = useState<string>('all');
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  const tasks = useMemo(() => generateMockTasks(currentWeekStart), [currentWeekStart]);
+
+  const filteredTasks = useMemo(() => {
+    return tasks.filter((task) => {
+      if (selectedEmployee !== 'all' && task.employeeId !== selectedEmployee) return false;
+      if (selectedClient !== 'all' && task.clientId !== selectedClient) return false;
+      return true;
+    });
+  }, [tasks, selectedEmployee, selectedClient]);
+
+  const filteredEmployees = useMemo(() => {
+    if (selectedEmployee === 'all') return mockEmployees;
+    return mockEmployees.filter((emp) => emp.id === selectedEmployee);
+  }, [selectedEmployee]);
+
+  const handleDownloadCSV = () => {
+    toast({
+      title: 'Export gestart',
+      description: 'CSV wordt gedownload...',
+    });
+    // Mock: GET /api/planner/export?format=csv
+  };
+
+  const handleDownloadPDF = () => {
+    toast({
+      title: 'Export gestart',
+      description: 'PDF wordt gegenereerd...',
+    });
+    // Mock: GET /api/planner/export?format=pdf
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <h1 className="text-2xl font-bold text-foreground">Planner</h1>
+        
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setIsFullscreen(true)}>
+            <Maximize2 className="mr-2 h-4 w-4" />
+            Vergroot planner
+          </Button>
+          
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">
+                <Download className="mr-2 h-4 w-4" />
+                Download
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={handleDownloadCSV}>
+                Deze week als CSV
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleDownloadPDF}>
+                Deze week als PDF
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+
+      {/* Week Selector */}
+      <WeekSelector
+        currentWeekStart={currentWeekStart}
+        onWeekChange={setCurrentWeekStart}
+      />
+
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-4">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Medewerker:</span>
+          <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="Alle medewerkers" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Alle medewerkers</SelectItem>
+              {mockEmployees.map((emp) => (
+                <SelectItem key={emp.id} value={emp.id}>
+                  {emp.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Klant:</span>
+          <Select value={selectedClient} onValueChange={setSelectedClient}>
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="Alle klanten" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Alle klanten</SelectItem>
+              {mockClients.map((client) => (
+                <SelectItem key={client.id} value={client.id}>
+                  {client.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {/* Legend */}
+      <TaskLegend />
+
+      {/* Grid */}
+      <PlannerGrid
+        weekStart={currentWeekStart}
+        employees={filteredEmployees}
+        tasks={filteredTasks}
+      />
+
+      {/* Fullscreen Mode */}
+      {isFullscreen && (
+        <FullscreenPlanner
+          currentWeekStart={currentWeekStart}
+          employees={mockEmployees}
+          onClose={() => setIsFullscreen(false)}
+          onWeekSelect={setCurrentWeekStart}
+        />
+      )}
+    </div>
+  );
+}
