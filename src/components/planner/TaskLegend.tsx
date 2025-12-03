@@ -9,14 +9,16 @@ const legendItems = [
 
 export function TaskLegend() {
   return (
-    <div className="flex flex-wrap items-center gap-4 rounded-lg bg-card border border-border p-4">
-      <span className="text-sm font-medium text-muted-foreground">Legenda:</span>
-      {legendItems.map((item) => (
-        <div key={item.type} className="flex items-center gap-2">
-          <div className={`h-4 w-4 rounded ${item.color}`} />
-          <span className="text-sm text-foreground">{item.label}</span>
-        </div>
-      ))}
+    <div className="rounded-lg bg-card border border-border p-4">
+      <h3 className="text-sm font-medium text-muted-foreground mb-3">Legenda</h3>
+      <div className="flex flex-col gap-2">
+        {legendItems.map((item) => (
+          <div key={item.type} className="flex items-center gap-3">
+            <div className={`h-4 w-6 rounded ${item.color}`} />
+            <span className="text-sm text-foreground">{item.label}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
