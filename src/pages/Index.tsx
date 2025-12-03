@@ -1,31 +1,41 @@
 import { useState } from 'react';
-import { AppLayout } from '@/components/layout/AppLayout';
+import { AppSidebar } from '@/components/layout/AppSidebar';
 import { Dashboard } from '@/components/dashboard/Dashboard';
 import { Planner } from '@/components/planner/Planner';
-import { OutlookSync } from '@/components/outlook/OutlookSync';
+import { Agendas } from '@/components/agendas/Agendas';
+import { mockEmployees } from '@/lib/mockData';
 
-type Tab = 'overzicht' | 'planner' | 'outlook';
+type Tab = 'overzicht' | 'planner' | 'agendas';
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState<Tab>('overzicht');
+  const [selectedEmployee, setSelectedEmployee] = useState<string>(mockEmployees[0].id);
 
   const renderContent = () => {
     switch (activeTab) {
       case 'overzicht':
-        return <Dashboard />;
+        return <Dashboard selectedEmployeeId={selectedEmployee} />;
       case 'planner':
         return <Planner />;
-      case 'outlook':
-        return <OutlookSync />;
+      case 'agendas':
+        return <Agendas />;
       default:
-        return <Dashboard />;
+        return <Dashboard selectedEmployeeId={selectedEmployee} />;
     }
   };
 
   return (
-    <AppLayout activeTab={activeTab} onTabChange={setActiveTab}>
-      {renderContent()}
-    </AppLayout>
+    <div className="flex min-h-screen bg-background">
+      <AppSidebar 
+        activeTab={activeTab} 
+        onTabChange={setActiveTab}
+        selectedEmployee={selectedEmployee}
+        onEmployeeChange={setSelectedEmployee}
+      />
+      <main className="flex-1 overflow-auto p-6">
+        {renderContent()}
+      </main>
+    </div>
   );
 };
 

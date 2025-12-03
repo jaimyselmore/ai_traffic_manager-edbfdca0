@@ -1,13 +1,17 @@
 import { useState } from 'react';
 import { AlertTriangle, Clock, Eye, Bell, FolderOpen, Plus, FileEdit, Users, CalendarOff } from 'lucide-react';
 import { StatCard } from './StatCard';
-import { RequestButton } from './RequestButton';
+import { RequestBlock } from './RequestBlock';
 import { RequestPanel } from './RequestPanel';
-import { mockDashboardStats, getWeekNumber, getWeekStart, formatDateRange } from '@/lib/mockData';
+import { mockDashboardStats, mockEmployees, getWeekNumber, getWeekStart, formatDateRange } from '@/lib/mockData';
 
 type RequestType = 'project' | 'wijziging' | 'meeting' | 'verlof';
 
-export function Dashboard() {
+interface DashboardProps {
+  selectedEmployeeId: string;
+}
+
+export function Dashboard({ selectedEmployeeId }: DashboardProps) {
   const [openPanel, setOpenPanel] = useState<RequestType | null>(null);
   
   const today = new Date();
@@ -15,15 +19,18 @@ export function Dashboard() {
   const weekNumber = getWeekNumber(today);
   const dateRange = formatDateRange(weekStart);
 
+  const currentEmployee = mockEmployees.find(emp => emp.id === selectedEmployeeId);
+  const employeeName = currentEmployee?.name.split(' ')[0] || 'Gebruiker';
+
   return (
     <div className="space-y-8">
-      {/* Week Header */}
+      {/* Welcome Header */}
       <div>
-        <h1 className="text-2xl font-bold text-foreground">
-          Week {weekNumber} – {dateRange}
+        <h1 className="text-3xl font-bold text-foreground">
+          Welkom, {employeeName}
         </h1>
-        <p className="mt-1 text-muted-foreground">
-          Welkom terug! Hier is je overzicht van deze week.
+        <p className="mt-2 text-lg text-muted-foreground">
+          Week {weekNumber} – {dateRange}
         </p>
       </div>
 
@@ -61,28 +68,32 @@ export function Dashboard() {
         />
       </div>
 
-      {/* Request Buttons */}
+      {/* Request Blocks */}
       <div>
         <h2 className="mb-4 text-lg font-semibold text-foreground">Nieuwe aanvraag</h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <RequestButton
+          <RequestBlock
             label="Nieuw project"
+            description="Start een nieuw project met alle benodigde informatie voor het team."
             icon={Plus}
             onClick={() => setOpenPanel('project')}
             variant="primary"
           />
-          <RequestButton
+          <RequestBlock
             label="Wijzigingsverzoek"
+            description="Vraag een wijziging aan voor een bestaand project of deliverable."
             icon={FileEdit}
             onClick={() => setOpenPanel('wijziging')}
           />
-          <RequestButton
+          <RequestBlock
             label="Meeting / Presentatie"
+            description="Plan een meeting of presentatie in met collega's of klanten."
             icon={Users}
             onClick={() => setOpenPanel('meeting')}
           />
-          <RequestButton
+          <RequestBlock
             label="Ziek / Verlof"
+            description="Meld je ziek of vraag verlof aan voor een bepaalde periode."
             icon={CalendarOff}
             onClick={() => setOpenPanel('verlof')}
           />

@@ -18,7 +18,7 @@ import { WeekSelector } from './WeekSelector';
 import { TaskLegend } from './TaskLegend';
 import { PlannerGrid } from './PlannerGrid';
 import { FullscreenPlanner } from './FullscreenPlanner';
-import { mockEmployees, mockClients, generateMockTasks, getWeekStart } from '@/lib/mockData';
+import { mockEmployees, mockClients, generateMockTasks, getWeekStart, getWeekNumber, formatDateRange } from '@/lib/mockData';
 import { toast } from '@/hooks/use-toast';
 
 export function Planner() {
@@ -26,6 +26,9 @@ export function Planner() {
   const [selectedEmployee, setSelectedEmployee] = useState<string>('all');
   const [selectedClient, setSelectedClient] = useState<string>('all');
   const [isFullscreen, setIsFullscreen] = useState(false);
+
+  const weekNumber = getWeekNumber(currentWeekStart);
+  const dateRange = formatDateRange(currentWeekStart);
 
   const tasks = useMemo(() => generateMockTasks(currentWeekStart), [currentWeekStart]);
 
@@ -60,16 +63,59 @@ export function Planner() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      {/* Header with Week Info */}
+      <div>
         <h1 className="text-2xl font-bold text-foreground">Planner</h1>
-        
+        <p className="mt-1 text-lg text-muted-foreground">
+          Week {weekNumber} – {dateRange}
+        </p>
+      </div>
+
+      {/* Week Selector */}
+      <WeekSelector
+        currentWeekStart={currentWeekStart}
+        onWeekChange={setCurrentWeekStart}
+      />
+
+      {/* Filters and Actions */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Medewerker:</span>
+            <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Alle medewerkers" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Alle medewerkers</SelectItem>
+                {mockEmployees.map((emp) => (
+                  <SelectItem key={emp.id} value={emp.id}>
+                    {emp.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Klant:</span>
+            <Select value={selectedClient} onValueChange={setSelectedClient}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Alle klanten" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Alle klanten</SelectItem>
+                {mockClients.map((client) => (
+                  <SelectItem key={client.id} value={client.id}>
+                    {client.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => setIsFullscreen(true)}>
-            <Maximize2 className="mr-2 h-4 w-4" />
-            Vergroot planner
-          </Button>
-          
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline">
@@ -86,54 +132,13 @@ export function Planner() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+
+          <Button variant="outline" onClick={() => setIsFullscreen(true)}>
+            <Maximize2 className="mr-2 h-4 w-4" />
+            Vergroot planner
+          </Button>
         </div>
       </div>
-
-      {/* Week Selector */}
-      <WeekSelector
-        currentWeekStart={currentWeekStart}
-        onWeekChange={setCurrentWeekStart}
-      />
-
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-4">
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Medewerker:</span>
-          <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="Alle medewerkers" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Alle medewerkers</SelectItem>
-              {mockEmployees.map((emp) => (
-                <SelectItem key={emp.id} value={emp.id}>
-                  {emp.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Klant:</span>
-          <Select value={selectedClient} onValueChange={setSelectedClient}>
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="Alle klanten" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Alle klanten</SelectItem>
-              {mockClients.map((client) => (
-                <SelectItem key={client.id} value={client.id}>
-                  {client.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      {/* Legend */}
-      <TaskLegend />
 
       {/* Grid */}
       <PlannerGrid
@@ -141,6 +146,9 @@ export function Planner() {
         employees={filteredEmployees}
         tasks={filteredTasks}
       />
+
+      {/* Legend - Below Grid, Vertical */}
+      <TaskLegend />
 
       {/* Fullscreen Mode */}
       {isFullscreen && (

@@ -3,7 +3,7 @@ import { RefreshCw, Upload, Check, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { WeekSelector } from '@/components/planner/WeekSelector';
-import { mockEmployees, getWeekStart } from '@/lib/mockData';
+import { mockEmployees, getWeekStart, getWeekNumber, formatDateRange } from '@/lib/mockData';
 import { cn } from '@/lib/utils';
 
 interface SyncStatus {
@@ -11,11 +11,20 @@ interface SyncStatus {
   message: string;
 }
 
-export function OutlookSync() {
+interface AvailabilityInfo {
+  employeeId: string;
+  status: 'free' | 'busy' | 'partial';
+}
+
+export function Agendas() {
   const [currentWeekStart, setCurrentWeekStart] = useState(() => getWeekStart(new Date()));
   const [selectedEmployees, setSelectedEmployees] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [statusMessages, setStatusMessages] = useState<SyncStatus[]>([]);
+  const [availability, setAvailability] = useState<AvailabilityInfo[]>([]);
+
+  const weekNumber = getWeekNumber(currentWeekStart);
+  const dateRange = formatDateRange(currentWeekStart);
 
   const toggleEmployee = (employeeId: string) => {
     setSelectedEmployees((prev) =>
@@ -45,6 +54,13 @@ export function OutlookSync() {
     // Mock API call: GET /api/outlook/availability
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
+    // Mock availability data
+    const mockAvailability: AvailabilityInfo[] = selectedEmployees.map(empId => ({
+      employeeId: empId,
+      status: ['free', 'busy', 'partial'][Math.floor(Math.random() * 3)] as 'free' | 'busy' | 'partial'
+    }));
+    setAvailability(mockAvailability);
+
     setStatusMessages([
       { type: 'success', message: `Beschikbaarheid bijgewerkt voor ${selectedEmployees.length} medewerker(s)` },
       { type: 'info', message: '3 conflicten gevonden in de planning' },
@@ -72,12 +88,27 @@ export function OutlookSync() {
     setIsLoading(false);
   };
 
+  const getAvailabilityStatus = (employeeId: string) => {
+    const info = availability.find(a => a.employeeId === employeeId);
+    if (!info) return null;
+    
+    const statusLabels = {
+      free: { label: 'Beschikbaar', color: 'bg-success text-success-foreground' },
+      busy: { label: 'Bezet', color: 'bg-destructive text-destructive-foreground' },
+      partial: { label: 'Deels bezet', color: 'bg-warning text-warning-foreground' }
+    };
+    return statusLabels[info.status];
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Outlook synchronisatie</h1>
-        <p className="mt-1 text-muted-foreground">
+        <h1 className="text-2xl font-bold text-foreground">Agenda's</h1>
+        <p className="mt-1 text-lg text-muted-foreground">
+          Week {weekNumber} – {dateRange}
+        </p>
+        <p className="text-sm text-muted-foreground">
           Synchroniseer de planning met Microsoft Outlook kalenders
         </p>
       </div>
@@ -99,24 +130,32 @@ export function OutlookSync() {
           </div>
 
           <div className="space-y-3">
-            {mockEmployees.map((employee) => (
-              <label
-                key={employee.id}
-                className="flex cursor-pointer items-center gap-3 rounded-lg border border-border p-3 transition-colors hover:bg-secondary"
-              >
-                <Checkbox
-                  checked={selectedEmployees.includes(employee.id)}
-                  onCheckedChange={() => toggleEmployee(employee.id)}
-                />
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
-                  {employee.name.split(' ').map(n => n[0]).join('')}
-                </div>
-                <div>
-                  <div className="font-medium text-foreground">{employee.name}</div>
-                  <div className="text-sm text-muted-foreground">{employee.role}</div>
-                </div>
-              </label>
-            ))}
+            {mockEmployees.map((employee) => {
+              const availabilityStatus = getAvailabilityStatus(employee.id);
+              return (
+                <label
+                  key={employee.id}
+                  className="flex cursor-pointer items-center gap-3 rounded-lg border border-border p-3 transition-colors hover:bg-secondary"
+                >
+                  <Checkbox
+                    checked={selectedEmployees.includes(employee.id)}
+                    onCheckedChange={() => toggleEmployee(employee.id)}
+                  />
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
+                    {employee.name.split(' ').map(n => n[0]).join('')}
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-medium text-foreground">{employee.name}</div>
+                    <div className="text-sm text-muted-foreground">{employee.role}</div>
+                  </div>
+                  {availabilityStatus && (
+                    <span className={cn('rounded-full px-2 py-0.5 text-xs font-medium', availabilityStatus.color)}>
+                      {availabilityStatus.label}
+                    </span>
+                  )}
+                </label>
+              );
+            })}
           </div>
         </div>
 
