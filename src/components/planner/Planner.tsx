@@ -113,49 +113,58 @@ export function Planner() {
         </div>
       </div>
 
-      {/* Row 2: Legend + Week controls */}
-      <div className="flex items-start gap-6">
+      {/* Row 2: Legend left / Week + Filters right in column */}
+      <div className="mt-4 flex items-start gap-8">
+        {/* Left: Legend */}
         <TaskLegend />
-        <WeekSelector
-          currentWeekStart={currentWeekStart}
-          onWeekChange={setCurrentWeekStart}
-        />
-      </div>
 
-      {/* Row 3: Filters */}
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Medewerker:</span>
-          <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="Alle medewerkers" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Alle medewerkers</SelectItem>
-              {mockEmployees.map((emp) => (
-                <SelectItem key={emp.id} value={emp.id}>
-                  {emp.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {/* Right: Week + Filters stacked */}
+        <div className="flex flex-col gap-4">
+          {/* Week controls */}
+          <WeekSelector
+            currentWeekStart={currentWeekStart}
+            onWeekChange={setCurrentWeekStart}
+          />
 
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Klant:</span>
-          <Select value={selectedClient} onValueChange={setSelectedClient}>
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="Alle klanten" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Alle klanten</SelectItem>
-              {mockClients.map((client) => (
-                <SelectItem key={client.id} value={client.id}>
-                  {client.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {/* Employee filter */}
+          <div className="w-64">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Medewerker:</span>
+              <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue placeholder="Alle medewerkers" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Alle medewerkers</SelectItem>
+                  {mockEmployees.map((emp) => (
+                    <SelectItem key={emp.id} value={emp.id}>
+                      {emp.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Client filter */}
+          <div className="w-64">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Klant:</span>
+              <Select value={selectedClient} onValueChange={setSelectedClient}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue placeholder="Alle klanten" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Alle klanten</SelectItem>
+                  {mockClients.map((client) => (
+                    <SelectItem key={client.id} value={client.id}>
+                      {client.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </div>
       </div>
 
