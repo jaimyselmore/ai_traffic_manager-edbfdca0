@@ -21,12 +21,14 @@ import { FullscreenPlanner } from './FullscreenPlanner';
 import { mockEmployees, mockClients, generateMockTasks, getWeekStart, getWeekNumber, formatDateRange } from '@/lib/mockData';
 import { toast } from '@/hooks/use-toast';
 
+const zoomLevels = [50, 75, 100, 125, 150];
+
 export function Planner() {
   const [currentWeekStart, setCurrentWeekStart] = useState(() => getWeekStart(new Date()));
   const [selectedEmployee, setSelectedEmployee] = useState<string>('all');
   const [selectedClient, setSelectedClient] = useState<string>('all');
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [zoom, setZoom] = useState<number>(100);
+  const [plannerZoom, setPlannerZoom] = useState<number>(100);
 
   const weekNumber = getWeekNumber(currentWeekStart);
   const dateRange = formatDateRange(currentWeekStart);
@@ -60,7 +62,19 @@ export function Planner() {
     });
   };
 
-  const zoomOptions = [100, 75, 50, 25];
+  const handleZoomOut = () => {
+    const currentIndex = zoomLevels.indexOf(plannerZoom);
+    if (currentIndex > 0) {
+      setPlannerZoom(zoomLevels[currentIndex - 1]);
+    }
+  };
+
+  const handleZoomIn = () => {
+    const currentIndex = zoomLevels.indexOf(plannerZoom);
+    if (currentIndex < zoomLevels.length - 1) {
+      setPlannerZoom(zoomLevels[currentIndex + 1]);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -72,21 +86,37 @@ export function Planner() {
         </h1>
 
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <ZoomOut className="h-4 w-4 text-muted-foreground" />
-            <Select value={zoom.toString()} onValueChange={(v) => setZoom(parseInt(v))}>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={handleZoomOut}
+              disabled={plannerZoom === 50}
+            >
+              <ZoomOut className="h-4 w-4" />
+            </Button>
+            <Select value={plannerZoom.toString()} onValueChange={(v) => setPlannerZoom(parseInt(v))}>
               <SelectTrigger className="w-20">
-                <SelectValue />
+                <SelectValue>{plannerZoom}%</SelectValue>
               </SelectTrigger>
               <SelectContent>
-                {zoomOptions.map((z) => (
+                {zoomLevels.map((z) => (
                   <SelectItem key={z} value={z.toString()}>
                     {z}%
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            <ZoomIn className="h-4 w-4 text-muted-foreground" />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={handleZoomIn}
+              disabled={plannerZoom === 150}
+            >
+              <ZoomIn className="h-4 w-4" />
+            </Button>
           </div>
 
           <DropdownMenu>
@@ -200,15 +230,17 @@ export function Planner() {
       </div>
 
       {/* Grid with zoom */}
-      <div
-        style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top left' }}
-        className="transition-transform"
-      >
-        <PlannerGrid
-          weekStart={currentWeekStart}
-          employees={filteredEmployees}
-          tasks={filteredTasks}
-        />
+      <div className="origin-top-left overflow-auto">
+        <div
+          style={{ transform: `scale(${plannerZoom / 100})`, transformOrigin: 'top left' }}
+          className="transition-transform"
+        >
+          <PlannerGrid
+            weekStart={currentWeekStart}
+            employees={filteredEmployees}
+            tasks={filteredTasks}
+          />
+        </div>
       </div>
 
       {/* Fullscreen Mode */}
@@ -218,6 +250,8 @@ export function Planner() {
           employees={mockEmployees}
           onClose={() => setIsFullscreen(false)}
           onWeekSelect={setCurrentWeekStart}
+          initialZoom={plannerZoom}
+          onZoomChange={setPlannerZoom}
         />
       )}
     </div>
