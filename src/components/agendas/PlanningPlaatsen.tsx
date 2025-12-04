@@ -1,14 +1,13 @@
 import { useState } from 'react';
 import { ArrowLeft, Calendar, Upload, Info, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { mockEmployees, mockClients, getWeekStart, getWeekNumber, formatDateRange } from '@/lib/mockData';
 import { addWeeks, addDays, format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
-interface OutlookEvent {
+interface MicrosoftEvent {
   id: string;
   title: string;
   day: number;
@@ -39,7 +38,7 @@ export function PlanningPlaatsen({ onBack }: PlanningPlaatsenProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
-  const [outlookEvents, setOutlookEvents] = useState<OutlookEvent[]>([]);
+  const [microsoftEvents, setMicrosoftEvents] = useState<MicrosoftEvent[]>([]);
   const [plannerTasks, setPlannerTasks] = useState<PlannerTask[]>([]);
   const [syncResult, setSyncResult] = useState<string | null>(null);
 
@@ -48,7 +47,7 @@ export function PlanningPlaatsen({ onBack }: PlanningPlaatsenProps) {
 
   const goToCurrentWeek = () => {
     setCurrentWeekStart(getWeekStart(new Date()));
-    setOutlookEvents([]);
+    setMicrosoftEvents([]);
     setPlannerTasks([]);
     setHasLoaded(false);
     setSyncResult(null);
@@ -62,7 +61,7 @@ export function PlanningPlaatsen({ onBack }: PlanningPlaatsenProps) {
     const targetDate = new Date(startOfYear);
     targetDate.setDate(startOfYear.getDate() + daysOffset);
     setCurrentWeekStart(getWeekStart(targetDate));
-    setOutlookEvents([]);
+    setMicrosoftEvents([]);
     setPlannerTasks([]);
     setHasLoaded(false);
     setSyncResult(null);
@@ -75,8 +74,8 @@ export function PlanningPlaatsen({ onBack }: PlanningPlaatsenProps) {
     setSyncResult(null);
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
-    // Generate mock Outlook events
-    const mockOutlook: OutlookEvent[] = [];
+    // Generate mock Microsoft events
+    const mockMicrosoft: MicrosoftEvent[] = [];
     const eventTitles = ['Team standup', 'Client call', 'Project review', '1-on-1'];
 
     for (let w = 0; w < weekCount; w++) {
@@ -84,8 +83,8 @@ export function PlanningPlaatsen({ onBack }: PlanningPlaatsenProps) {
       for (let i = 0; i < numEvents; i++) {
         const day = Math.floor(Math.random() * 5);
         const startHour = 9 + Math.floor(Math.random() * 7);
-        mockOutlook.push({
-          id: `outlook-${w}-${i}`,
+        mockMicrosoft.push({
+          id: `microsoft-${w}-${i}`,
           title: eventTitles[Math.floor(Math.random() * eventTitles.length)],
           day,
           startHour,
@@ -118,7 +117,7 @@ export function PlanningPlaatsen({ onBack }: PlanningPlaatsenProps) {
       }
     }
 
-    setOutlookEvents(mockOutlook);
+    setMicrosoftEvents(mockMicrosoft);
     setPlannerTasks(mockPlanner);
     setHasLoaded(true);
     setIsLoading(false);
@@ -132,7 +131,7 @@ export function PlanningPlaatsen({ onBack }: PlanningPlaatsenProps) {
     );
   };
 
-  const handleSyncToOutlook = async () => {
+  const handleSyncToMicrosoft = async () => {
     const selectedTasks = plannerTasks.filter(t => t.selected);
     if (selectedTasks.length === 0) return;
 
@@ -144,7 +143,7 @@ export function PlanningPlaatsen({ onBack }: PlanningPlaatsenProps) {
     let conflicts = 0;
 
     selectedTasks.forEach(task => {
-      const hasConflict = outlookEvents.some(
+      const hasConflict = microsoftEvents.some(
         e => e.week === task.week && e.day === task.day && e.startHour === task.startHour
       );
       if (hasConflict) {
@@ -158,7 +157,7 @@ export function PlanningPlaatsen({ onBack }: PlanningPlaatsenProps) {
     if (conflicts > 0) {
       setSyncResult(`${synced} blokken geplaatst voor ${employee?.name}. ${conflicts} overgeslagen wegens conflicten.`);
     } else {
-      setSyncResult(`${synced} blokken succesvol geplaatst in de Outlook-agenda van ${employee?.name}.`);
+      setSyncResult(`${synced} blokken succesvol geplaatst in de Microsoft-agenda van ${employee?.name}.`);
     }
 
     // Deselect synced tasks
@@ -175,8 +174,8 @@ export function PlanningPlaatsen({ onBack }: PlanningPlaatsenProps) {
     const weekStart = addWeeks(currentWeekStart, weekIndex);
     const wn = getWeekNumber(weekStart);
 
-    const getOutlookEventsForCell = (day: number, hour: number) => {
-      return outlookEvents.filter(e => e.week === weekIndex && e.day === day && e.startHour === hour);
+    const getMicrosoftEventsForCell = (day: number, hour: number) => {
+      return microsoftEvents.filter(e => e.week === weekIndex && e.day === day && e.startHour === hour);
     };
 
     const getPlannerTasksForCell = (day: number, hour: number) => {
@@ -211,7 +210,7 @@ export function PlanningPlaatsen({ onBack }: PlanningPlaatsenProps) {
                   {hour}:00
                 </div>
                 {days.map((_, dayIndex) => {
-                  const outlookEvts = getOutlookEventsForCell(dayIndex, hour);
+                  const microsoftEvts = getMicrosoftEventsForCell(dayIndex, hour);
                   const plannerTsks = getPlannerTasksForCell(dayIndex, hour);
                   
                   return (
@@ -219,8 +218,8 @@ export function PlanningPlaatsen({ onBack }: PlanningPlaatsenProps) {
                       key={dayIndex} 
                       className="min-h-[50px] border-l border-border p-0.5 relative"
                     >
-                      {/* Outlook events (grey/blue) */}
-                      {outlookEvts.map((event) => (
+                      {/* Microsoft events (grey/blue) */}
+                      {microsoftEvts.map((event) => (
                         <div
                           key={event.id}
                           className="absolute inset-x-0.5 bg-muted border border-border rounded px-1 py-0.5 text-xs text-muted-foreground overflow-hidden z-10"
@@ -243,7 +242,7 @@ export function PlanningPlaatsen({ onBack }: PlanningPlaatsenProps) {
                           )}
                           style={{ 
                             height: `${task.duration * 50 - 4}px`,
-                            top: outlookEvts.length > 0 ? '2px' : undefined
+                            top: microsoftEvts.length > 0 ? '2px' : undefined
                           }}
                         >
                           <div className="flex items-center gap-1">
@@ -279,9 +278,9 @@ export function PlanningPlaatsen({ onBack }: PlanningPlaatsenProps) {
 
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Planning plaatsen in Outlook</h1>
+        <h1 className="text-2xl font-bold text-foreground">Planning plaatsen in Microsoft-agenda's</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Kies een medewerker en periode. Selecteer planningsblokken om in de Outlook-agenda te zetten.
+          Kies een medewerker en periode. Selecteer planningsblokken om in de Microsoft-agenda te zetten.
         </p>
       </div>
 
@@ -358,7 +357,7 @@ export function PlanningPlaatsen({ onBack }: PlanningPlaatsenProps) {
         <div className="rounded-xl border border-dashed border-border bg-card/50 p-12 text-center">
           <Calendar className="mx-auto h-12 w-12 text-muted-foreground/50" />
           <p className="mt-4 text-muted-foreground">
-            Selecteer een medewerker en periode om de planning en agenda te bekijken.
+            Selecteer een medewerker en periode om de planning en Microsoft-agenda te bekijken.
           </p>
         </div>
       )}
@@ -373,7 +372,7 @@ export function PlanningPlaatsen({ onBack }: PlanningPlaatsenProps) {
           {/* Sync panel */}
           <div className="space-y-4">
             <div className="rounded-xl border border-border bg-card p-6">
-              <h3 className="font-semibold text-foreground mb-4">Plaatsen in Outlook</h3>
+              <h3 className="font-semibold text-foreground mb-4">Plaatsen in Microsoft-agenda's</h3>
               
               <div className="mb-4">
                 <div className="text-sm text-muted-foreground">
@@ -385,12 +384,12 @@ export function PlanningPlaatsen({ onBack }: PlanningPlaatsenProps) {
               </div>
 
               <Button
-                onClick={handleSyncToOutlook}
+                onClick={handleSyncToMicrosoft}
                 disabled={selectedCount === 0 || isSyncing}
                 className="w-full mb-4"
               >
                 <Upload className="mr-2 h-4 w-4" />
-                {isSyncing ? 'Plaatsen...' : 'Plaats selectie in Outlook'}
+                {isSyncing ? 'Plaatsen...' : 'Plaats selectie in Microsoft-agenda'}
               </Button>
 
               <div className="space-y-2 text-xs text-muted-foreground">
@@ -400,7 +399,7 @@ export function PlanningPlaatsen({ onBack }: PlanningPlaatsenProps) {
                 </div>
                 <div className="flex items-start gap-2">
                   <Info className="h-3 w-3 mt-0.5 flex-shrink-0" />
-                  <span>Bestaande Outlook-afspraken worden niet overschreven.</span>
+                  <span>Bestaande Microsoft-afspraken worden niet overschreven.</span>
                 </div>
                 <div className="flex items-start gap-2">
                   <Info className="h-3 w-3 mt-0.5 flex-shrink-0" />
@@ -422,7 +421,7 @@ export function PlanningPlaatsen({ onBack }: PlanningPlaatsenProps) {
               <div className="space-y-2 text-xs">
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 rounded bg-muted border border-border"></div>
-                  <span className="text-muted-foreground">Bestaande Outlook-afspraak</span>
+                  <span className="text-muted-foreground">Bestaande Microsoft-afspraak</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 rounded bg-primary/20 border border-primary/30"></div>

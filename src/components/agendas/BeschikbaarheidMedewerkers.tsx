@@ -6,7 +6,7 @@ import { mockEmployees, getWeekStart, getWeekNumber, formatDateRange } from '@/l
 import { addWeeks, addDays, format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 
-interface OutlookEvent {
+interface MicrosoftEvent {
   id: string;
   title: string;
   day: number; // 0-6 (Mon-Sun)
@@ -24,7 +24,7 @@ export function BeschikbaarheidMedewerkers({ onBack }: BeschikbaarheidMedewerker
   const [selectedEmployee, setSelectedEmployee] = useState<string>('');
   const [weekCount, setWeekCount] = useState<number>(1);
   const [isLoading, setIsLoading] = useState(false);
-  const [events, setEvents] = useState<OutlookEvent[]>([]);
+  const [events, setEvents] = useState<MicrosoftEvent[]>([]);
   const [hasLoaded, setHasLoaded] = useState(false);
 
   const weekNumber = getWeekNumber(currentWeekStart);
@@ -54,8 +54,8 @@ export function BeschikbaarheidMedewerkers({ onBack }: BeschikbaarheidMedewerker
     setIsLoading(true);
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
-    // Generate mock Outlook events
-    const mockEvents: OutlookEvent[] = [];
+    // Generate mock Microsoft events
+    const mockEvents: MicrosoftEvent[] = [];
     const eventTitles = [
       'Team standup', 'Client call', 'Project review', 'Lunch meeting',
       '1-on-1', 'Sprint planning', 'Design review', 'Focus time'
@@ -174,7 +174,7 @@ export function BeschikbaarheidMedewerkers({ onBack }: BeschikbaarheidMedewerker
       <div>
         <h1 className="text-2xl font-bold text-foreground">Beschikbaarheid medewerkers</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Kies een medewerker en periode. We tonen de bestaande Outlook-afspraken als weekagenda.
+          Kies een medewerker en periode. We tonen de bestaande Microsoft-afspraken als weekagenda.
         </p>
       </div>
 
@@ -251,7 +251,7 @@ export function BeschikbaarheidMedewerkers({ onBack }: BeschikbaarheidMedewerker
         <div className="rounded-xl border border-dashed border-border bg-card/50 p-12 text-center">
           <Calendar className="mx-auto h-12 w-12 text-muted-foreground/50" />
           <p className="mt-4 text-muted-foreground">
-            Selecteer een medewerker en periode om de Outlook-agenda te bekijken.
+            Selecteer een medewerker en periode om de Microsoft-agenda te bekijken.
           </p>
         </div>
       )}
