@@ -1,4 +1,4 @@
-import { Calendar, Eye, Upload } from 'lucide-react';
+import { Eye, Upload } from 'lucide-react';
 
 interface AgendaCardProps {
   title: string;
@@ -35,9 +35,9 @@ export function Agendas({ onNavigate }: AgendasProps) {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Agenda's (Outlook)</h1>
+        <h1 className="text-2xl font-bold text-foreground">Agenda's (Microsoft)</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Werk met de Outlook-agenda's van medewerkers: beschikbaarheid ophalen en planning plaatsen.
+          Werk met de Microsoft-agenda's van medewerkers: beschikbaarheid ophalen en planning plaatsen.
         </p>
       </div>
 
@@ -45,13 +45,13 @@ export function Agendas({ onNavigate }: AgendasProps) {
       <div className="grid gap-6 md:grid-cols-2 max-w-3xl">
         <AgendaCard
           title="Beschikbaarheid medewerkers"
-          description="Haal de beschikbaarheid van een medewerker op uit Outlook en bekijk 1–4 weken in een agenda-overzicht."
+          description="Haal de beschikbaarheid van een medewerker op uit Microsoft-agenda's en bekijk 1–4 weken in een agenda-overzicht."
           icon={<Eye className="h-6 w-6 text-foreground" />}
           onClick={() => onNavigate('beschikbaarheid')}
         />
         <AgendaCard
-          title="Planning plaatsen in Outlook"
-          description="Plaats bevestigde planningsblokken in de Outlook-agenda van een medewerker."
+          title="Planning plaatsen in Microsoft-agenda's"
+          description="Plaats bevestigde planningsblokken in de Microsoft-agenda van een medewerker."
           icon={<Upload className="h-6 w-6 text-foreground" />}
           onClick={() => onNavigate('planning-plaatsen')}
         />
