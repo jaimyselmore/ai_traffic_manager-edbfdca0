@@ -1,26 +1,37 @@
 import { useState, useRef, useEffect } from 'react';
 import { X, ZoomIn, ZoomOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { PlannerGrid } from './PlannerGrid';
-import { Employee, Task, generateMockTasks, getWeekNumber, formatDateRange } from '@/lib/mockData';
+import { Employee, generateMockTasks, getWeekNumber, formatDateRange } from '@/lib/mockData';
 
 interface FullscreenPlannerProps {
   currentWeekStart: Date;
   employees: Employee[];
   onClose: () => void;
   onWeekSelect: (weekStart: Date) => void;
+  initialZoom?: number;
+  onZoomChange?: (zoom: number) => void;
 }
 
-const zoomLevels = [100, 75, 50, 25];
+const zoomLevels = [50, 75, 100, 125, 150];
 
 export function FullscreenPlanner({
   currentWeekStart,
   employees,
   onClose,
   onWeekSelect,
+  initialZoom = 100,
+  onZoomChange,
 }: FullscreenPlannerProps) {
   const [weeksToShow, setWeeksToShow] = useState(1);
-  const [zoom, setZoom] = useState(100);
+  const [plannerZoom, setPlannerZoom] = useState(initialZoom);
   const [isPanning, setIsPanning] = useState(false);
   const [panPosition, setPanPosition] = useState({ x: 0, y: 0 });
   const [startPan, setStartPan] = useState({ x: 0, y: 0 });
@@ -42,8 +53,27 @@ export function FullscreenPlanner({
     onClose();
   };
 
+  const handleZoomChange = (newZoom: number) => {
+    setPlannerZoom(newZoom);
+    onZoomChange?.(newZoom);
+  };
+
+  const handleZoomOut = () => {
+    const currentIndex = zoomLevels.indexOf(plannerZoom);
+    if (currentIndex > 0) {
+      handleZoomChange(zoomLevels[currentIndex - 1]);
+    }
+  };
+
+  const handleZoomIn = () => {
+    const currentIndex = zoomLevels.indexOf(plannerZoom);
+    if (currentIndex < zoomLevels.length - 1) {
+      handleZoomChange(zoomLevels[currentIndex + 1]);
+    }
+  };
+
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (zoom < 100) {
+    if (plannerZoom < 100) {
       setIsPanning(true);
       setStartPan({ x: e.clientX - panPosition.x, y: e.clientY - panPosition.y });
     }
@@ -65,14 +95,18 @@ export function FullscreenPlanner({
   useEffect(() => {
     // Reset pan position when zoom changes
     setPanPosition({ x: 0, y: 0 });
-  }, [zoom]);
+  }, [plannerZoom]);
 
-  // Grid layout: 4 weeks = 2x2, otherwise single row
-  const getGridStyle = () => {
+  // Grid layout based on weeks and zoom
+  const getGridClasses = () => {
+    if (weeksToShow === 1) return '';
+    if (weeksToShow === 2) return 'grid grid-cols-2 gap-6';
+    if (weeksToShow === 3) return 'grid grid-cols-3 gap-6';
     if (weeksToShow === 4) {
-      return { gridTemplateColumns: 'repeat(2, 1fr)' };
+      // At zoom <= 75, show all 4 in one row; otherwise 2x2
+      return plannerZoom <= 75 ? 'grid grid-cols-4 gap-6' : 'grid grid-cols-2 gap-6';
     }
-    return { gridTemplateColumns: `repeat(${weeksToShow}, 1fr)` };
+    return '';
   };
 
   return (
@@ -102,31 +136,32 @@ export function FullscreenPlanner({
             <span className="text-sm text-muted-foreground">Zoom:</span>
             <div className="flex items-center gap-1">
               <Button
-                variant="outline"
+                variant="ghost"
                 size="icon"
                 className="h-8 w-8"
-                onClick={() => {
-                  const currentIndex = zoomLevels.indexOf(zoom);
-                  if (currentIndex < zoomLevels.length - 1) {
-                    setZoom(zoomLevels[currentIndex + 1]);
-                  }
-                }}
-                disabled={zoom === 25}
+                onClick={handleZoomOut}
+                disabled={plannerZoom === 50}
               >
                 <ZoomOut className="h-4 w-4" />
               </Button>
-              <span className="w-12 text-center text-sm font-medium">{zoom}%</span>
+              <Select value={plannerZoom.toString()} onValueChange={(v) => handleZoomChange(parseInt(v))}>
+                <SelectTrigger className="w-20">
+                  <SelectValue>{plannerZoom}%</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {zoomLevels.map((z) => (
+                    <SelectItem key={z} value={z.toString()}>
+                      {z}%
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <Button
-                variant="outline"
+                variant="ghost"
                 size="icon"
                 className="h-8 w-8"
-                onClick={() => {
-                  const currentIndex = zoomLevels.indexOf(zoom);
-                  if (currentIndex > 0) {
-                    setZoom(zoomLevels[currentIndex - 1]);
-                  }
-                }}
-                disabled={zoom === 100}
+                onClick={handleZoomIn}
+                disabled={plannerZoom === 150}
               >
                 <ZoomIn className="h-4 w-4" />
               </Button>
@@ -144,7 +179,7 @@ export function FullscreenPlanner({
         ref={containerRef}
         className="h-[calc(100vh-73px)] overflow-auto"
         style={{
-          cursor: zoom < 100 ? (isPanning ? 'grabbing' : 'grab') : 'default',
+          cursor: plannerZoom < 100 ? (isPanning ? 'grabbing' : 'grab') : 'default',
         }}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
@@ -154,32 +189,51 @@ export function FullscreenPlanner({
         <div
           className="p-6 origin-top-left transition-transform duration-200"
           style={{
-            transform: `scale(${zoom / 100}) translate(${panPosition.x / (zoom / 100)}px, ${panPosition.y / (zoom / 100)}px)`,
-            width: zoom < 100 ? `${100 / (zoom / 100)}%` : '100%',
+            transform: `scale(${plannerZoom / 100}) translate(${panPosition.x / (plannerZoom / 100)}px, ${panPosition.y / (plannerZoom / 100)}px)`,
+            width: plannerZoom < 100 ? `${100 / (plannerZoom / 100)}%` : '100%',
           }}
         >
-          <div className="grid gap-6" style={getGridStyle()}>
-            {weeks.map((week) => (
-              <div
-                key={week.start.toISOString()}
-                className="rounded-xl border border-border bg-card p-4 cursor-pointer hover:border-primary transition-colors"
-                onClick={() => handleWeekClick(week.start)}
-              >
-                <div className="mb-4 flex items-center justify-between">
-                  <h3 className="font-semibold text-foreground">
-                    Week {week.number}
-                  </h3>
-                  <span className="text-sm text-muted-foreground">{week.dateRange}</span>
-                </div>
-                <PlannerGrid
-                  weekStart={week.start}
-                  employees={employees}
-                  tasks={week.tasks}
-                  compact={weeksToShow > 1}
-                />
+          {weeksToShow === 1 ? (
+            <div
+              className="rounded-xl border border-border bg-card p-4 cursor-pointer hover:border-primary transition-colors"
+              onClick={() => handleWeekClick(weeks[0].start)}
+            >
+              <div className="mb-4 flex items-center justify-between">
+                <h3 className="font-semibold text-foreground">
+                  Week {weeks[0].number}
+                </h3>
+                <span className="text-sm text-muted-foreground">{weeks[0].dateRange}</span>
               </div>
-            ))}
-          </div>
+              <PlannerGrid
+                weekStart={weeks[0].start}
+                employees={employees}
+                tasks={weeks[0].tasks}
+              />
+            </div>
+          ) : (
+            <div className={getGridClasses()}>
+              {weeks.map((week) => (
+                <div
+                  key={week.start.toISOString()}
+                  className="rounded-xl border border-border bg-card p-4 cursor-pointer hover:border-primary transition-colors"
+                  onClick={() => handleWeekClick(week.start)}
+                >
+                  <div className="mb-4 flex items-center justify-between">
+                    <h3 className="font-semibold text-foreground">
+                      Week {week.number}
+                    </h3>
+                    <span className="text-sm text-muted-foreground">{week.dateRange}</span>
+                  </div>
+                  <PlannerGrid
+                    weekStart={week.start}
+                    employees={employees}
+                    tasks={week.tasks}
+                    compact={weeksToShow > 1}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
