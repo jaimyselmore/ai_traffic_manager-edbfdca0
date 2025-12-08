@@ -1,5 +1,4 @@
 import { useMemo } from 'react';
-import { mockEmployees, mockClients } from '@/lib/mockData';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -13,6 +12,14 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/lib/utils';
+import {
+  useEmployees,
+  useClients,
+  useProjectTypes,
+  useIndicatievePeriodes,
+  useEffortEenheden,
+  usePrioriteiten,
+} from '@/lib/data';
 
 export interface ProjectFormData {
   klant: string;
@@ -36,26 +43,6 @@ interface ProjectFormProps {
   errors?: Record<string, string>;
 }
 
-const PROJECT_TYPES = [
-  'Campagne',
-  'Website',
-  'Branding',
-  'Content',
-  'Video',
-  'Event',
-  'Other',
-];
-
-const INDICATIEVE_PERIODES = [
-  'Q1 2026',
-  'Q2 2026',
-  'Q3 2026',
-  'Q4 2026',
-  'Geen voorkeur',
-];
-
-const EFFORT_EENHEDEN = ['uren', 'dagen', 'weken'];
-
 function AvailabilityDot({ availability }: { availability: 'available' | 'busy' | 'full' }) {
   const colors = {
     available: 'bg-green-500',
@@ -76,6 +63,14 @@ function AvailabilityDot({ availability }: { availability: 'available' | 'busy' 
 }
 
 export function ProjectForm({ data, onChange, errors = {} }: ProjectFormProps) {
+  // Fetch configurable data from data layer
+  const { data: employees = [] } = useEmployees();
+  const { data: clients = [] } = useClients();
+  const { data: projectTypes = [] } = useProjectTypes();
+  const { data: indicatievePeriodes = [] } = useIndicatievePeriodes();
+  const { data: effortEenheden = [] } = useEffortEenheden();
+  const { data: prioriteiten = [] } = usePrioriteiten();
+
   const handleFieldChange = (field: keyof ProjectFormData, value: string | string[] | boolean) => {
     onChange({ ...data, [field]: value });
   };
@@ -117,7 +112,7 @@ export function ProjectForm({ data, onChange, errors = {} }: ProjectFormProps) {
                 <SelectValue placeholder="Selecteer klant" />
               </SelectTrigger>
               <SelectContent>
-                {mockClients.map((client) => (
+                {clients.map((client) => (
                   <SelectItem key={client.id} value={client.id}>
                     {client.name}
                   </SelectItem>
@@ -160,9 +155,9 @@ export function ProjectForm({ data, onChange, errors = {} }: ProjectFormProps) {
               <SelectValue placeholder="Selecteer type" />
             </SelectTrigger>
             <SelectContent>
-              {PROJECT_TYPES.map((type) => (
-                <SelectItem key={type} value={type}>
-                  {type}
+              {projectTypes.map((type) => (
+                <SelectItem key={type.id} value={type.id}>
+                  {type.label}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -234,9 +229,9 @@ export function ProjectForm({ data, onChange, errors = {} }: ProjectFormProps) {
                   <SelectValue placeholder="Selecteer periode" />
                 </SelectTrigger>
                 <SelectContent>
-                  {INDICATIEVE_PERIODES.map((periode) => (
-                    <SelectItem key={periode} value={periode}>
-                      {periode}
+                  {indicatievePeriodes.map((periode) => (
+                    <SelectItem key={periode.id} value={periode.id}>
+                      {periode.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -264,9 +259,9 @@ export function ProjectForm({ data, onChange, errors = {} }: ProjectFormProps) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {EFFORT_EENHEDEN.map((eenheid) => (
-                  <SelectItem key={eenheid} value={eenheid}>
-                    {eenheid}
+                {effortEenheden.map((eenheid) => (
+                  <SelectItem key={eenheid.id} value={eenheid.id}>
+                    {eenheid.label}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -280,15 +275,15 @@ export function ProjectForm({ data, onChange, errors = {} }: ProjectFormProps) {
         <div className="space-y-2">
           <Label>Prioriteit</Label>
           <RadioGroup
-            value={data.prioriteit || 'Normaal'}
+            value={data.prioriteit || 'normaal'}
             onValueChange={(value) => handleFieldChange('prioriteit', value)}
             className="flex gap-6"
           >
-            {['Hoog', 'Normaal', 'Laag'].map((prio) => (
-              <div key={prio} className="flex items-center space-x-2">
-                <RadioGroupItem value={prio} id={`prio-${prio}`} />
-                <Label htmlFor={`prio-${prio}`} className="cursor-pointer font-normal">
-                  {prio}
+            {prioriteiten.map((prio) => (
+              <div key={prio.id} className="flex items-center space-x-2">
+                <RadioGroupItem value={prio.id} id={`prio-${prio.id}`} />
+                <Label htmlFor={`prio-${prio.id}`} className="cursor-pointer font-normal">
+                  {prio.label}
                 </Label>
               </div>
             ))}
@@ -316,7 +311,7 @@ export function ProjectForm({ data, onChange, errors = {} }: ProjectFormProps) {
             'grid grid-cols-2 gap-3 rounded-lg border border-input p-4',
             data.letEllenKiezen && 'opacity-50 pointer-events-none'
           )}>
-            {mockEmployees.map((emp) => (
+            {employees.map((emp) => (
               <div key={emp.id} className="flex items-center space-x-2">
                 <Checkbox
                   id={`emp-${emp.id}`}

@@ -1,4 +1,3 @@
-import { mockEmployees } from '@/lib/mockData';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -9,6 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useEmployees, useVerlofTypes } from '@/lib/data';
 
 export interface VerlofFormData {
   medewerker: string;
@@ -24,6 +24,9 @@ interface VerlofFormProps {
 }
 
 export function VerlofForm({ data, onChange }: VerlofFormProps) {
+  const { data: employees = [] } = useEmployees();
+  const { data: verlofTypes = [] } = useVerlofTypes();
+
   const handleFieldChange = (field: keyof VerlofFormData, value: string) => {
     onChange({ ...data, [field]: value });
   };
@@ -40,7 +43,7 @@ export function VerlofForm({ data, onChange }: VerlofFormProps) {
             <SelectValue placeholder="Selecteer medewerker" />
           </SelectTrigger>
           <SelectContent>
-            {mockEmployees.map((emp) => (
+            {employees.map((emp) => (
               <SelectItem key={emp.id} value={emp.id}>
                 {emp.name} <span className="text-muted-foreground">({emp.role})</span>
               </SelectItem>
@@ -59,10 +62,11 @@ export function VerlofForm({ data, onChange }: VerlofFormProps) {
             <SelectValue placeholder="Selecteer type" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="ziek">Ziekmelding</SelectItem>
-            <SelectItem value="vakantie">Vakantie</SelectItem>
-            <SelectItem value="persoonlijk">Persoonlijk verlof</SelectItem>
-            <SelectItem value="bijzonder">Bijzonder verlof</SelectItem>
+            {verlofTypes.map((type) => (
+              <SelectItem key={type.id} value={type.id}>
+                {type.label}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>

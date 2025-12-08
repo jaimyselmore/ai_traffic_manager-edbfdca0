@@ -1,4 +1,3 @@
-import { mockEmployees, mockClients } from '@/lib/mockData';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -10,6 +9,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
+import { useEmployees, useClients, useWijzigingTypes } from '@/lib/data';
 
 export interface WijzigingsverzoekFormData {
   klant: string;
@@ -27,6 +27,10 @@ interface WijzigingsverzoekFormProps {
 }
 
 export function WijzigingsverzoekForm({ data, onChange }: WijzigingsverzoekFormProps) {
+  const { data: employees = [] } = useEmployees();
+  const { data: clients = [] } = useClients();
+  const { data: wijzigingTypes = [] } = useWijzigingTypes();
+
   const handleFieldChange = (field: keyof WijzigingsverzoekFormData, value: string | string[]) => {
     onChange({ ...data, [field]: value });
   };
@@ -52,7 +56,7 @@ export function WijzigingsverzoekForm({ data, onChange }: WijzigingsverzoekFormP
               <SelectValue placeholder="Selecteer klant" />
             </SelectTrigger>
             <SelectContent>
-              {mockClients.map((client) => (
+              {clients.map((client) => (
                 <SelectItem key={client.id} value={client.id}>
                   {client.name}
                 </SelectItem>
@@ -82,11 +86,11 @@ export function WijzigingsverzoekForm({ data, onChange }: WijzigingsverzoekFormP
             <SelectValue placeholder="Selecteer type wijziging" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="content">Content aanpassing</SelectItem>
-            <SelectItem value="design">Design wijziging</SelectItem>
-            <SelectItem value="deadline">Deadline verschuiving</SelectItem>
-            <SelectItem value="scope">Scope uitbreiding</SelectItem>
-            <SelectItem value="anders">Anders</SelectItem>
+            {wijzigingTypes.map((type) => (
+              <SelectItem key={type.id} value={type.id}>
+                {type.label}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
@@ -115,7 +119,7 @@ export function WijzigingsverzoekForm({ data, onChange }: WijzigingsverzoekFormP
       <div className="space-y-2">
         <Label>Betrokken medewerkers</Label>
         <div className="grid grid-cols-2 gap-3 rounded-lg border border-input p-4">
-          {mockEmployees.map((emp) => (
+          {employees.map((emp) => (
             <div key={emp.id} className="flex items-center space-x-2">
               <Checkbox
                 id={`emp-${emp.id}`}

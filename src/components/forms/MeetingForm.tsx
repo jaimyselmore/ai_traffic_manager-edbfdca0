@@ -1,4 +1,3 @@
-import { mockEmployees, mockClients } from '@/lib/mockData';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -10,6 +9,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
+import { useEmployees, useClients, useMeetingTypes } from '@/lib/data';
 
 export interface MeetingFormData {
   klant: string;
@@ -29,6 +29,10 @@ interface MeetingFormProps {
 }
 
 export function MeetingForm({ data, onChange }: MeetingFormProps) {
+  const { data: employees = [] } = useEmployees();
+  const { data: clients = [] } = useClients();
+  const { data: meetingTypes = [] } = useMeetingTypes();
+
   const handleFieldChange = (field: keyof MeetingFormData, value: string | string[]) => {
     onChange({ ...data, [field]: value });
   };
@@ -55,7 +59,7 @@ export function MeetingForm({ data, onChange }: MeetingFormProps) {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="intern">Intern (geen klant)</SelectItem>
-              {mockClients.map((client) => (
+              {clients.map((client) => (
                 <SelectItem key={client.id} value={client.id}>
                   {client.name}
                 </SelectItem>
@@ -74,11 +78,11 @@ export function MeetingForm({ data, onChange }: MeetingFormProps) {
               <SelectValue placeholder="Selecteer type" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="meeting">Meeting</SelectItem>
-              <SelectItem value="presentatie">Presentatie</SelectItem>
-              <SelectItem value="brainstorm">Brainstorm</SelectItem>
-              <SelectItem value="review">Review</SelectItem>
-              <SelectItem value="kickoff">Kickoff</SelectItem>
+              {meetingTypes.map((type) => (
+                <SelectItem key={type.id} value={type.id}>
+                  {type.label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
@@ -137,7 +141,7 @@ export function MeetingForm({ data, onChange }: MeetingFormProps) {
       <div className="space-y-2">
         <Label>Deelnemers *</Label>
         <div className="grid grid-cols-2 gap-3 rounded-lg border border-input p-4">
-          {mockEmployees.map((emp) => (
+          {employees.map((emp) => (
             <div key={emp.id} className="flex items-center space-x-2">
               <Checkbox
                 id={`emp-${emp.id}`}
