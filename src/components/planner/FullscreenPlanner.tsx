@@ -151,8 +151,12 @@ export function FullscreenPlanner({
         }`}
       >
         <div
-          className="p-6 origin-top-left inline-block"
-          style={{ transform: `scale(${plannerZoom / 100})` }}
+          className="p-6 origin-top-left w-full"
+          style={{ 
+            transform: `scale(${plannerZoom / 100})`,
+            transformOrigin: 'top left',
+            width: `${100 / (plannerZoom / 100)}%`
+          }}
         >
           {weeksToShow === 1 ? (
             <div

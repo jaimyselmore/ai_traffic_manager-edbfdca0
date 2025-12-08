@@ -62,8 +62,8 @@ export function PlannerGrid({ weekStart, employees, tasks, compact = false }: Pl
   };
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-border bg-card">
-      <table className="w-full border-collapse">
+    <div className="w-full rounded-lg border border-border bg-card">
+      <table className="w-full border-collapse table-fixed">
         <thead>
           <tr className="bg-secondary">
             <th className="sticky left-0 z-10 bg-secondary border-b border-r border-border px-4 py-3 text-left text-sm font-medium text-muted-foreground w-48">
