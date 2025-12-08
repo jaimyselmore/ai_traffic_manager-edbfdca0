@@ -63,24 +63,26 @@ export default function Verlof() {
 
   return (
     <div className="h-full overflow-y-auto bg-background">
-      <div className="max-w-3xl mx-auto px-8 py-8">
-        {/* Header: back link + title on one line */}
-        <div className="flex items-center gap-4 mb-8">
-          <button
-            type="button"
-            className="text-sm text-muted-foreground hover:text-foreground"
-            onClick={() => navigate('/')}
-          >
-            ← Terug naar overzicht
-          </button>
-          <h1 className="text-2xl font-semibold text-foreground">Beschikbaarheid medewerker</h1>
-        </div>
+      {/* Top: back link on its own row, far left */}
+      <div className="w-full px-6 pt-6 mb-4">
+        <button
+          type="button"
+          className="text-sm text-muted-foreground hover:text-foreground"
+          onClick={() => navigate('/')}
+        >
+          ← Terug naar overzicht
+        </button>
+      </div>
 
-        {/* Form */}
+      {/* Form container with title */}
+      <div className="max-w-3xl mx-auto px-6 pb-8">
+        <h1 className="text-2xl font-semibold text-foreground mb-6">Beschikbaarheid medewerker</h1>
         <VerlofForm data={formData} onChange={setFormData} />
+      </div>
 
-        {/* Action buttons - right aligned */}
-        <div className="mt-10 flex justify-end gap-3">
+      {/* Bottom buttons: true bottom-right of the page */}
+      <div className="w-full px-6 pb-8 flex justify-end">
+        <div className="flex gap-3">
           <Button variant="outline" onClick={handleSaveConcept}>
             <Save className="mr-2 h-4 w-4" />
             Opslaan als concept
