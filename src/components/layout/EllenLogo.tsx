@@ -1,25 +1,33 @@
 import { useState, useEffect } from 'react';
 
 export function EllenLogo() {
-  const [showIntro, setShowIntro] = useState(true);
+  const [showE, setShowE] = useState(false);
 
   useEffect(() => {
-    const timer = setTimeout(() => setShowIntro(false), 1200);
+    const timer = setTimeout(() => setShowE(true), 700);
     return () => clearTimeout(timer);
   }, []);
 
   return (
     <div className="flex items-center gap-3">
-      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
-        <span className="text-sm font-semibold text-primary-foreground">AI</span>
+      {/* Blue AI square */}
+      <div className="h-9 w-9 rounded-xl bg-sky-500 flex items-center justify-center text-white font-semibold text-xs">
+        AI
       </div>
-      <span className="text-xl font-semibold text-foreground overflow-hidden">
-        {showIntro ? (
-          <span className="inline-block animate-flip-up">AI LLEN</span>
-        ) : (
-          <span className="inline-block animate-flip-up">ELLEN</span>
-        )}
-      </span>
+
+      {/* Wordmark: LLEN + animated E */}
+      <div className="font-semibold text-lg tracking-wide text-foreground">
+        <span
+          className={
+            showE
+              ? "inline-block animate-slide-in-up"
+              : "inline-block opacity-0 translate-y-1.5"
+          }
+        >
+          E
+        </span>
+        LLEN
+      </div>
     </div>
   );
 }
