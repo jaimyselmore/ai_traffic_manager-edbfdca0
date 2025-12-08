@@ -92,8 +92,8 @@ export default function NieuwProject() {
     // Clear localStorage after successful submit
     localStorage.removeItem(STORAGE_KEY);
 
-    // Navigate to Ellen working page with form data
-    navigate('/ellen-working', { 
+    // Navigate to Ellen conversation page with form data
+    navigate('/ellen-session', { 
       state: { 
         requestType: 'project',
         formData: formData

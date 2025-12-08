@@ -58,7 +58,7 @@ export function EllenChat({
   };
 
   return (
-    <section className="flex flex-col h-[70vh] bg-card rounded-2xl border border-border shadow-sm">
+    <section className="flex flex-col h-full min-h-[60vh] max-h-[75vh] bg-card rounded-2xl border border-border shadow-sm">
       {/* Context summary at top if provided */}
       {contextSummary && (
         <div className="border-b border-border p-4">
