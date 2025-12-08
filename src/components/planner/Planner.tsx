@@ -236,8 +236,12 @@ export function Planner() {
         }`}
       >
         <div
-          className="origin-top-left inline-block"
-          style={{ transform: `scale(${plannerZoom / 100})` }}
+          className="origin-top-left w-full"
+          style={{ 
+            transform: `scale(${plannerZoom / 100})`,
+            transformOrigin: 'top left',
+            width: `${100 / (plannerZoom / 100)}%`
+          }}
         >
           <PlannerGrid
             weekStart={currentWeekStart}
