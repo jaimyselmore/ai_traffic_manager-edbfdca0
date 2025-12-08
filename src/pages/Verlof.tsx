@@ -52,8 +52,8 @@ export default function Verlof() {
     await new Promise((resolve) => setTimeout(resolve, 1500));
     localStorage.removeItem(STORAGE_KEY);
 
-    // Navigate to Ellen working page with form data
-    navigate('/ellen-working', { 
+    // Navigate to Ellen conversation page with form data
+    navigate('/ellen-session', { 
       state: { 
         requestType: 'verlof',
         formData: formData
