@@ -1,115 +1,24 @@
-export interface Employee {
-  id: string;
-  name: string;
-  role: string;
-  avatar?: string;
-  availability: 'available' | 'busy' | 'full';
-}
+// ===========================================
+// BACKWARD COMPATIBILITY LAYER
+// Re-exports from new data layer for existing imports
+// ===========================================
 
-export interface Client {
-  id: string;
-  name: string;
-}
+// Re-export everything from new data layer
+export {
+  mockEmployees,
+  mockClients,
+  mockDashboardStats,
+  generateMockTasks,
+} from './data/mockData';
 
-export interface Task {
-  id: string;
-  title: string;
-  clientId: string;
-  employeeId: string;
-  type: 'concept' | 'review' | 'uitwerking' | 'productie' | 'extern' | 'optie';
-  date: string;
-  startTime: string;
-  endTime: string;
-}
+export type {
+  Employee,
+  Client,
+  Task,
+  DashboardStats,
+} from './data/types';
 
-export interface DashboardStats {
-  overdue: number;
-  upcoming: number;
-  reviews: number;
-  changes: number;
-  activeProjects: number;
-}
-
-export const mockEmployees: Employee[] = [
-  { id: '1', name: 'Anna de Vries', role: 'Art Director', availability: 'available' },
-  { id: '2', name: 'Bas Jansen', role: 'Copywriter', availability: 'busy' },
-  { id: '3', name: 'Carmen van Dijk', role: 'Designer', availability: 'available' },
-  { id: '4', name: 'Dennis Bakker', role: 'Project Manager', availability: 'full' },
-  { id: '5', name: 'Eva Smit', role: 'Motion Designer', availability: 'busy' },
-  { id: '6', name: 'Frank Peters', role: 'Developer', availability: 'available' },
-];
-
-export const mockClients: Client[] = [
-  { id: '1', name: 'HEMA' },
-  { id: '2', name: 'Jumbo' },
-  { id: '3', name: 'Albert Heijn' },
-  { id: '4', name: 'Rabobank' },
-  { id: '5', name: 'KLM' },
-  { id: '6', name: 'Philips' },
-];
-
-export const mockDashboardStats: DashboardStats = {
-  overdue: 3,
-  upcoming: 8,
-  reviews: 5,
-  changes: 2,
-  activeProjects: 12,
-};
-
-export const generateMockTasks = (weekStart: Date): Task[] => {
-  const tasks: Task[] = [];
-  const types: Task['type'][] = ['concept', 'review', 'uitwerking', 'productie', 'extern', 'optie'];
-  
-  mockEmployees.forEach((employee) => {
-    for (let day = 0; day < 5; day++) {
-      const date = new Date(weekStart);
-      date.setDate(date.getDate() + day);
-      const dateStr = date.toISOString().split('T')[0];
-      
-      // Add 1-3 tasks per day per employee
-      const numTasks = Math.floor(Math.random() * 3) + 1;
-      const usedSlots: { start: number; end: number }[] = [];
-      
-      for (let t = 0; t < numTasks; t++) {
-        const client = mockClients[Math.floor(Math.random() * mockClients.length)];
-        const type = types[Math.floor(Math.random() * types.length)];
-        
-        let startHour = 9 + Math.floor(Math.random() * 7);
-        let duration = Math.floor(Math.random() * 3) + 1;
-        
-        // Avoid lunch time
-        if (startHour === 13) startHour = 14;
-        if (startHour < 13 && startHour + duration > 13) {
-          duration = 13 - startHour;
-        }
-        
-        const endHour = Math.min(startHour + duration, 18);
-        
-        // Check for overlap
-        const hasOverlap = usedSlots.some(
-          slot => !(endHour <= slot.start || startHour >= slot.end)
-        );
-        
-        if (!hasOverlap && startHour < 18) {
-          usedSlots.push({ start: startHour, end: endHour });
-          tasks.push({
-            id: `${employee.id}-${dateStr}-${t}`,
-            title: `${client.name} - ${type}`,
-            clientId: client.id,
-            employeeId: employee.id,
-            type,
-            date: dateStr,
-            startTime: `${startHour.toString().padStart(2, '0')}:00`,
-            endTime: `${endHour.toString().padStart(2, '0')}:00`,
-          });
-        }
-      }
-    }
-  });
-  
-  return tasks;
-};
-
+// Keep date utility functions here (not configurable data)
 export const getWeekNumber = (date: Date): number => {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
   const dayNum = d.getUTCDay() || 7;
