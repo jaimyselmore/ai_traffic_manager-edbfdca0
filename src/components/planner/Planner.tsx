@@ -230,25 +230,19 @@ export function Planner() {
       </div>
 
       {/* Grid with zoom */}
-      <div 
-        className={`w-full ${
-          plannerZoom <= 75 ? 'h-[calc(100vh-320px)] overflow-hidden' : 'h-[calc(100vh-320px)] overflow-auto'
-        }`}
+      <div
+        className="origin-top-left inline-block w-full"
+        style={{ 
+          transform: `scale(${plannerZoom / 100})`,
+          transformOrigin: 'top left',
+          width: `${100 / (plannerZoom / 100)}%`
+        }}
       >
-        <div
-          className="origin-top-left w-full"
-          style={{ 
-            transform: `scale(${plannerZoom / 100})`,
-            transformOrigin: 'top left',
-            width: `${100 / (plannerZoom / 100)}%`
-          }}
-        >
-          <PlannerGrid
-            weekStart={currentWeekStart}
-            employees={filteredEmployees}
-            tasks={filteredTasks}
-          />
-        </div>
+        <PlannerGrid
+          weekStart={currentWeekStart}
+          employees={filteredEmployees}
+          tasks={filteredTasks}
+        />
       </div>
 
       {/* Fullscreen Mode */}
