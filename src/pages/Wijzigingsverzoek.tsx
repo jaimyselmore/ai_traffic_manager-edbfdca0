@@ -54,12 +54,8 @@ export default function Wijzigingsverzoek() {
     await new Promise((resolve) => setTimeout(resolve, 1500));
     localStorage.removeItem(STORAGE_KEY);
 
-    toast({
-      title: 'Wijzigingsverzoek ingediend',
-      description: 'Je verzoek is succesvol ingediend en wordt verwerkt.',
-    });
-
-    navigate('/');
+    // Navigate to Ellen working page
+    navigate('/ellen-working', { state: { requestType: 'wijziging' } });
   };
 
   return (
@@ -81,7 +77,8 @@ export default function Wijzigingsverzoek() {
 
         <WijzigingsverzoekForm data={formData} onChange={setFormData} />
 
-        <div className="flex justify-end gap-4 mt-10 pt-6 border-t border-border">
+        {/* Action buttons - right aligned */}
+        <div className="mt-10 flex justify-end gap-3">
           <Button variant="outline" onClick={handleSaveConcept}>
             <Save className="mr-2 h-4 w-4" />
             Opslaan als concept
