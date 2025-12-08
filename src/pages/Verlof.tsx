@@ -52,12 +52,8 @@ export default function Verlof() {
     await new Promise((resolve) => setTimeout(resolve, 1500));
     localStorage.removeItem(STORAGE_KEY);
 
-    toast({
-      title: 'Verlof aangevraagd',
-      description: 'Het verlof is succesvol geregistreerd.',
-    });
-
-    navigate('/');
+    // Navigate to Ellen working page
+    navigate('/ellen-working', { state: { requestType: 'verlof' } });
   };
 
   return (
@@ -79,13 +75,14 @@ export default function Verlof() {
 
         <VerlofForm data={formData} onChange={setFormData} />
 
-        <div className="flex justify-end gap-4 mt-10 pt-6 border-t border-border">
+        {/* Action buttons - right aligned */}
+        <div className="mt-10 flex justify-end gap-3">
           <Button variant="outline" onClick={handleSaveConcept}>
             <Save className="mr-2 h-4 w-4" />
             Opslaan als concept
           </Button>
           <Button onClick={handleSubmit}>
-            Verlof aanvragen
+            Verzoek indienen
           </Button>
         </div>
       </div>

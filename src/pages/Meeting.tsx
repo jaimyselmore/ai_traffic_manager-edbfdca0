@@ -56,12 +56,8 @@ export default function Meeting() {
     await new Promise((resolve) => setTimeout(resolve, 1500));
     localStorage.removeItem(STORAGE_KEY);
 
-    toast({
-      title: 'Meeting ingepland',
-      description: 'De meeting is succesvol toegevoegd aan de planning.',
-    });
-
-    navigate('/');
+    // Navigate to Ellen working page
+    navigate('/ellen-working', { state: { requestType: 'meeting' } });
   };
 
   return (
@@ -83,13 +79,14 @@ export default function Meeting() {
 
         <MeetingForm data={formData} onChange={setFormData} />
 
-        <div className="flex justify-end gap-4 mt-10 pt-6 border-t border-border">
+        {/* Action buttons - right aligned */}
+        <div className="mt-10 flex justify-end gap-3">
           <Button variant="outline" onClick={handleSaveConcept}>
             <Save className="mr-2 h-4 w-4" />
             Opslaan als concept
           </Button>
           <Button onClick={handleSubmit}>
-            Meeting inplannen
+            Verzoek indienen
           </Button>
         </div>
       </div>

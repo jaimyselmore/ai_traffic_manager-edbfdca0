@@ -59,13 +59,8 @@ export default function NieuwProject() {
     // Clear localStorage after successful submit
     localStorage.removeItem(STORAGE_KEY);
 
-    toast({
-      title: 'Project ingediend',
-      description: 'Je project is succesvol ingediend en wordt verwerkt.',
-    });
-
-    // Navigate back to dashboard
-    navigate('/');
+    // Navigate to Ellen working page
+    navigate('/ellen-working', { state: { requestType: 'project' } });
   };
 
   return (
@@ -88,8 +83,8 @@ export default function NieuwProject() {
         {/* Form */}
         <ProjectForm data={formData} onChange={setFormData} />
 
-        {/* Action buttons */}
-        <div className="flex justify-end gap-4 mt-10 pt-6 border-t border-border">
+        {/* Action buttons - right aligned */}
+        <div className="mt-10 flex justify-end gap-3">
           <Button variant="outline" onClick={handleSaveConcept}>
             <Save className="mr-2 h-4 w-4" />
             Opslaan als concept

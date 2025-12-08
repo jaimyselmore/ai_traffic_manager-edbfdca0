@@ -104,6 +104,16 @@ export default {
           from: { opacity: "0" },
           to: { opacity: "1" },
         },
+        "flip-up": {
+          "0%": { 
+            opacity: "0",
+            transform: "translateY(8px) rotateX(-10deg)"
+          },
+          "100%": { 
+            opacity: "1",
+            transform: "translateY(0) rotateX(0)"
+          },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -111,6 +121,7 @@ export default {
         "slide-in-right": "slide-in-right 0.3s ease-out",
         "slide-out-right": "slide-out-right 0.3s ease-out",
         "fade-in": "fade-in 0.2s ease-out",
+        "flip-up": "flip-up 0.4s ease-out forwards",
       },
     },
   },

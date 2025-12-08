@@ -1,5 +1,6 @@
 import { LayoutDashboard, Calendar, CalendarSync } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { EllenLogo } from './EllenLogo';
 
 type Tab = 'overzicht' | 'planner' | 'agendas';
 
@@ -18,11 +19,8 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
   return (
     <aside className="flex h-screen w-64 flex-col border-r border-border bg-card">
       {/* Logo */}
-      <div className="flex h-14 items-center gap-3 border-b border-border px-6">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
-          <span className="text-lg font-bold text-primary-foreground">T</span>
-        </div>
-        <span className="text-xl font-semibold text-foreground">Traffic Tool</span>
+      <div className="flex h-14 items-center border-b border-border px-6">
+        <EllenLogo />
       </div>
 
       {/* Navigation */}
@@ -50,7 +48,6 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
           })}
         </ul>
       </nav>
-
     </aside>
   );
 }
