@@ -67,12 +67,16 @@ export default function Meeting() {
   return (
     <div className="min-h-screen bg-background">
       <div className="mx-auto max-w-3xl p-8">
-        <Button variant="ghost" className="mb-6" onClick={() => navigate('/')}>
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Terug naar overzicht
-        </Button>
-
-        <h1 className="text-2xl font-semibold text-foreground mb-8">Meeting / Presentatie</h1>
+        {/* Header */}
+        <div className="flex flex-col gap-4 mb-8">
+          <div className="flex justify-start">
+            <Button variant="ghost" onClick={() => navigate('/')}>
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Terug naar overzicht
+            </Button>
+          </div>
+          <h1 className="text-2xl font-semibold text-foreground">Meeting / Presentatie</h1>
+        </div>
 
         <MeetingForm data={formData} onChange={setFormData} />
 
