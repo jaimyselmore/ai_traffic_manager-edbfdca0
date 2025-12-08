@@ -62,18 +62,20 @@ export default function Verlof() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="max-w-3xl mx-auto px-6 py-8">
-        {/* Header */}
-        <div className="flex flex-col gap-4 mb-8">
-          <button
-            type="button"
-            className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground self-start"
-            onClick={() => navigate('/')}
-          >
-            ← Terug naar overzicht
-          </button>
-          <h1 className="text-2xl font-semibold text-foreground">Beschikbaarheid medewerker</h1>
-        </div>
+      {/* Back link - absolute top-left */}
+      <div className="px-6 pt-6">
+        <button
+          type="button"
+          className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground"
+          onClick={() => navigate('/')}
+        >
+          ← Terug naar overzicht
+        </button>
+      </div>
+
+      {/* Main content */}
+      <div className="max-w-3xl mx-auto px-6 py-6">
+        <h1 className="text-2xl font-semibold text-foreground mb-8">Beschikbaarheid medewerker</h1>
 
         <VerlofForm data={formData} onChange={setFormData} />
 
