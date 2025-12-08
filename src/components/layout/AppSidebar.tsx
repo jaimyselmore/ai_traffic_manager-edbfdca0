@@ -17,7 +17,7 @@ const navItems = [
 
 export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
   return (
-    <aside className="flex h-screen w-64 flex-col border-r border-border bg-card">
+    <aside className="flex h-full w-64 flex-col shrink-0 border-r border-border bg-card overflow-y-auto">
       {/* Logo */}
       <div className="flex h-14 items-center border-b border-border px-6">
         <EllenLogo />

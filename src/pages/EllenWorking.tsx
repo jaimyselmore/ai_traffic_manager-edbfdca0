@@ -30,11 +30,11 @@ export default function EllenWorking() {
   };
 
   return (
-    <div className="flex min-h-screen w-full bg-background">
+    <div className="h-full flex overflow-hidden bg-background">
       <AppSidebar activeTab="overzicht" onTabChange={() => {}} />
-      <div className="flex flex-1 flex-col">
+      <div className="flex flex-1 flex-col h-full overflow-hidden">
         <TopBar selectedEmployee={selectedEmployee} onEmployeeChange={() => {}} />
-        <main className="flex-1 p-6">
+        <main className="flex-1 overflow-y-auto p-6">
           {/* Back link */}
           <div className="mb-8">
             <button

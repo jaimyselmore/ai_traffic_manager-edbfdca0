@@ -26,17 +26,17 @@ const Index = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="h-full flex overflow-hidden bg-background">
       <AppSidebar 
         activeTab={activeTab} 
         onTabChange={setActiveTab}
       />
-      <div className="flex flex-1 flex-col">
+      <div className="flex flex-1 flex-col h-full overflow-hidden">
         <TopBar
           selectedEmployee={selectedEmployee}
           onEmployeeChange={setSelectedEmployee}
         />
-        <main className="flex-1 overflow-auto p-6">
+        <main className="flex-1 overflow-y-auto p-6">
           {renderContent()}
         </main>
       </div>
