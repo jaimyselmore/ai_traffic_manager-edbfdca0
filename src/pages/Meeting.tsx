@@ -85,7 +85,7 @@ export default function Meeting() {
       </div>
 
       {/* Bottom buttons: true bottom-right of the page */}
-      <div className="w-full px-6 pb-8 flex justify-end">
+      <div className="w-full pr-4 pb-4 flex justify-end">
         <div className="flex gap-3">
           <Button variant="outline" onClick={handleSaveConcept}>
             <Save className="mr-2 h-4 w-4" />
