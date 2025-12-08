@@ -106,8 +106,14 @@
     @apply border-border;
   }
 
+  html,
+  body,
+  #root {
+    @apply h-full;
+  }
+
   body {
-    @apply bg-background text-foreground font-sans antialiased;
+    @apply bg-background text-foreground font-sans antialiased overflow-hidden;
     font-family: 'Inter', sans-serif;
   }
 }

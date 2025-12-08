@@ -59,7 +59,7 @@ export default function Wijzigingsverzoek() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="h-full overflow-y-auto bg-background">
       {/* Back link - absolute top-left */}
       <div className="px-6 pt-6">
         <button
@@ -72,7 +72,7 @@ export default function Wijzigingsverzoek() {
       </div>
 
       {/* Main content */}
-      <div className="max-w-3xl mx-auto px-6 py-6">
+      <div className="max-w-3xl mx-auto px-6 py-6 pb-12">
         <h1 className="text-2xl font-semibold text-foreground mb-8">Wijzigingsverzoek</h1>
 
         <WijzigingsverzoekForm data={formData} onChange={setFormData} />
