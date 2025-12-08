@@ -12,7 +12,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import { mockEmployees, mockClients, generateMockTasks, getWeekStart, getWeekNumber, formatDateRange, Task, Employee } from '@/lib/mockData';
 import { TaskLegend } from '@/components/planner/TaskLegend';
-import { toast } from '@/hooks/use-toast';
+import { Loader2, CheckCircle2, XCircle } from 'lucide-react';
 
 const dayNames = ['Ma', 'Di', 'Wo', 'Do', 'Vr'];
 const timeSlots = [9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
@@ -74,18 +74,184 @@ const generateMockAgendaEvents = (weekStart: Date, employeeId: string): AgendaEv
   return events;
 };
 
+// Confirmation Modal Component
+interface ConfirmModalProps {
+  isOpen: boolean;
+  title: string;
+  description: string;
+  confirmLabel: string;
+  cancelLabel: string;
+  variant: 'destructive' | 'default';
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+function ConfirmModal({ 
+  isOpen, 
+  title, 
+  description, 
+  confirmLabel, 
+  cancelLabel,
+  variant,
+  onConfirm, 
+  onCancel 
+}: ConfirmModalProps) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="bg-card rounded-xl shadow-lg max-w-md w-full mx-4 p-6 border border-border">
+        <h2 className="text-lg font-semibold text-foreground mb-2">{title}</h2>
+        <p className="text-sm text-muted-foreground mb-6">{description}</p>
+        <div className="flex justify-end gap-3">
+          <Button variant="outline" onClick={onCancel}>
+            {cancelLabel}
+          </Button>
+          <Button 
+            variant={variant === 'destructive' ? 'destructive' : 'default'} 
+            onClick={onConfirm}
+          >
+            {confirmLabel}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Ellen Popup Modal Component
+type EllenStatus = 'idle' | 'busy' | 'success' | 'error';
+type EllenAction = 'add' | 'delete';
+
+interface EllenPopupProps {
+  isOpen: boolean;
+  status: EllenStatus;
+  action: EllenAction;
+  onClose: () => void;
+  onRetry: () => void;
+  onCancel: () => void;
+}
+
+function EllenPopup({ isOpen, status, action, onClose, onRetry, onCancel }: EllenPopupProps) {
+  if (!isOpen) return null;
+
+  const getContent = () => {
+    switch (status) {
+      case 'busy':
+        return {
+          bgClass: 'bg-card',
+          icon: (
+            <div className="relative">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary text-primary-foreground text-lg font-semibold">
+                AI
+              </div>
+              <Loader2 className="absolute -top-1 -right-1 h-6 w-6 animate-spin text-primary" />
+            </div>
+          ),
+          title: 'Ellen is aan het werk',
+          description: 'Ellen verwerkt je actie. Even geduld…',
+          actions: (
+            <Button variant="outline" onClick={onCancel}>
+              Actie annuleren
+            </Button>
+          ),
+        };
+      case 'success':
+        return {
+          bgClass: 'bg-green-50 dark:bg-green-950/30',
+          icon: (
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-500 text-white">
+              <CheckCircle2 className="h-8 w-8" />
+            </div>
+          ),
+          title: action === 'delete' 
+            ? 'Afspraken verwijderd uit de agenda' 
+            : 'Planning toegevoegd aan de agenda',
+          description: 'De actie is succesvol uitgevoerd. Je kunt de agenda opnieuw openen om de wijzigingen te zien.',
+          actions: (
+            <Button onClick={onClose}>
+              Terug naar agenda's
+            </Button>
+          ),
+        };
+      case 'error':
+        return {
+          bgClass: 'bg-red-50 dark:bg-red-950/30',
+          icon: (
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-destructive text-destructive-foreground">
+              <XCircle className="h-8 w-8" />
+            </div>
+          ),
+          title: 'Actie is niet gelukt',
+          description: 'Ellen kon de actie niet uitvoeren. Probeer het later opnieuw.',
+          actions: (
+            <div className="flex gap-3">
+              <Button variant="outline" onClick={onClose}>
+                Terug naar agenda's
+              </Button>
+              <Button onClick={onRetry}>
+                Opnieuw proberen
+              </Button>
+            </div>
+          ),
+        };
+      default:
+        return null;
+    }
+  };
+
+  const content = getContent();
+  if (!content) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className={cn(
+        "rounded-xl shadow-lg max-w-md w-full mx-4 p-8 border border-border text-center",
+        content.bgClass
+      )}>
+        <div className="flex justify-center mb-4">
+          {content.icon}
+        </div>
+        <h2 className="text-xl font-semibold text-foreground mb-2">{content.title}</h2>
+        <p className="text-sm text-muted-foreground mb-6">{content.description}</p>
+        <div className="flex justify-center">
+          {content.actions}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function AgendasFlow() {
   const navigate = useNavigate();
   const [currentWeekStart, setCurrentWeekStart] = useState(() => getWeekStart(new Date()));
   const [selectedEmployee, setSelectedEmployee] = useState<string>('');
   const [showPlanner, setShowPlanner] = useState(false);
-  const [selectionMode, setSelectionMode] = useState(false);
+  
+  // Selection states for Huidige agenda
+  const [isSelectingCurrent, setIsSelectingCurrent] = useState(false);
+  const [selectedAgendaEvents, setSelectedAgendaEvents] = useState<Set<string>>(new Set());
+  
+  // Selection states for Nieuwe planning
+  const [isSelectingNew, setIsSelectingNew] = useState(false);
   const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set());
   
   // View options
   const [showCurrentAgenda, setShowCurrentAgenda] = useState(true);
   const [showNewPlanning, setShowNewPlanning] = useState(true);
   const [validationMessage, setValidationMessage] = useState('');
+
+  // Modal states
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    type: 'delete' | 'add';
+  }>({ isOpen: false, type: 'add' });
+  
+  const [ellenPopup, setEllenPopup] = useState<{
+    isOpen: boolean;
+    status: EllenStatus;
+    action: EllenAction;
+  }>({ isOpen: false, status: 'idle', action: 'add' });
 
   const weekNumber = getWeekNumber(currentWeekStart);
   const dateRange = formatDateRange(currentWeekStart);
@@ -120,20 +286,53 @@ export function AgendasFlow() {
   const handleShowPlanner = () => {
     if (selectedEmployee) {
       setShowPlanner(true);
-      setSelectionMode(false);
+      // Reset all selection states
+      setIsSelectingCurrent(false);
+      setIsSelectingNew(false);
+      setSelectedAgendaEvents(new Set());
       setSelectedTasks(new Set());
     }
   };
 
-  const toggleSelectionMode = () => {
-    if (selectionMode) {
+  // Huidige agenda selection handlers
+  const toggleCurrentSelectionMode = () => {
+    if (isSelectingCurrent) {
+      setSelectedAgendaEvents(new Set());
+    }
+    setIsSelectingCurrent(!isSelectingCurrent);
+  };
+
+  const toggleAgendaEventSelection = (eventId: string) => {
+    if (!isSelectingCurrent) return;
+    const newSelection = new Set(selectedAgendaEvents);
+    if (newSelection.has(eventId)) {
+      newSelection.delete(eventId);
+    } else {
+      newSelection.add(eventId);
+    }
+    setSelectedAgendaEvents(newSelection);
+  };
+
+  const selectAllAgendaEvents = () => {
+    const allIds = new Set(agendaEvents.map(e => e.id));
+    setSelectedAgendaEvents(allIds);
+  };
+
+  const handleDeleteAgendaEvents = () => {
+    if (selectedAgendaEvents.size === 0) return;
+    setConfirmModal({ isOpen: true, type: 'delete' });
+  };
+
+  // Nieuwe planning selection handlers
+  const toggleNewSelectionMode = () => {
+    if (isSelectingNew) {
       setSelectedTasks(new Set());
     }
-    setSelectionMode(!selectionMode);
+    setIsSelectingNew(!isSelectingNew);
   };
 
   const toggleTaskSelection = (taskId: string) => {
-    if (!selectionMode) return;
+    if (!isSelectingNew) return;
     const newSelection = new Set(selectedTasks);
     if (newSelection.has(taskId)) {
       newSelection.delete(taskId);
@@ -143,15 +342,68 @@ export function AgendasFlow() {
     setSelectedTasks(newSelection);
   };
 
+  const selectAllTasks = () => {
+    const allIds = new Set(filteredTasks.map(t => t.id));
+    setSelectedTasks(allIds);
+  };
+
   const handleAddToAgenda = () => {
-    if (selectedTasks.size === 0 || !selectedEmployeeData) return;
+    if (selectedTasks.size === 0) return;
+    setConfirmModal({ isOpen: true, type: 'add' });
+  };
+
+  // Confirm modal handlers
+  const handleConfirmAction = () => {
+    const actionType = confirmModal.type;
+    setConfirmModal({ isOpen: false, type: 'add' });
     
-    navigate('/agenda-resultaat', {
-      state: {
-        employeeName: selectedEmployeeData.name,
-        taskCount: selectedTasks.size,
-      }
+    // Open Ellen popup in busy state
+    setEllenPopup({ 
+      isOpen: true, 
+      status: 'busy', 
+      action: actionType === 'delete' ? 'delete' : 'add' 
     });
+
+    // Simulate processing (2 seconds, then random success/error)
+    setTimeout(() => {
+      const isSuccess = Math.random() > 0.3; // 70% success rate
+      setEllenPopup(prev => ({
+        ...prev,
+        status: isSuccess ? 'success' : 'error'
+      }));
+    }, 2000);
+  };
+
+  const handleCancelConfirm = () => {
+    setConfirmModal({ isOpen: false, type: 'add' });
+  };
+
+  // Ellen popup handlers
+  const handleEllenClose = () => {
+    setEllenPopup({ isOpen: false, status: 'idle', action: 'add' });
+    // Reset all states and go back to initial state
+    setShowPlanner(false);
+    setSelectedEmployee('');
+    setIsSelectingCurrent(false);
+    setIsSelectingNew(false);
+    setSelectedAgendaEvents(new Set());
+    setSelectedTasks(new Set());
+  };
+
+  const handleEllenRetry = () => {
+    // Retry the action
+    setEllenPopup(prev => ({ ...prev, status: 'busy' }));
+    setTimeout(() => {
+      const isSuccess = Math.random() > 0.3;
+      setEllenPopup(prev => ({
+        ...prev,
+        status: isSuccess ? 'success' : 'error'
+      }));
+    }, 2000);
+  };
+
+  const handleEllenCancel = () => {
+    setEllenPopup({ isOpen: false, status: 'idle', action: 'add' });
   };
 
   const goToWeek = (week: number) => {
@@ -279,12 +531,46 @@ export function AgendasFlow() {
           {/* Current Agenda view */}
           {showCurrentAgenda && (
             <div className="mb-6">
-              <h2 className="text-lg font-semibold text-foreground mb-3">Huidige agenda</h2>
+              {/* Header with selection controls */}
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-base font-semibold text-foreground">Huidige agenda</h2>
+                <div className="flex items-center gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={toggleCurrentSelectionMode}
+                  >
+                    {isSelectingCurrent ? 'Selectie annuleren' : 'Selecteren'}
+                  </Button>
+                  {isSelectingCurrent && (
+                    <>
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={selectAllAgendaEvents}
+                      >
+                        Alles selecteren
+                      </Button>
+                      <Button 
+                        variant="destructive" 
+                        size="sm"
+                        disabled={selectedAgendaEvents.size === 0}
+                        onClick={handleDeleteAgendaEvents}
+                      >
+                        Verwijderen
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
               <div className="w-full overflow-auto">
                 <AgendaGrid
                   weekStart={currentWeekStart}
                   employee={selectedEmployeeData}
                   events={agendaEvents}
+                  selectionMode={isSelectingCurrent}
+                  selectedEvents={selectedAgendaEvents}
+                  onEventClick={toggleAgendaEventSelection}
                 />
               </div>
             </div>
@@ -293,56 +579,92 @@ export function AgendasFlow() {
           {/* New Planning view */}
           {showNewPlanning && (
             <div className="mb-6">
-              {/* Header with title and Selecteren button */}
+              {/* Header with selection controls */}
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-lg font-semibold text-foreground">Nieuwe planning</h2>
-                <Button 
-                  variant={selectionMode ? "secondary" : "outline"}
-                  size="sm"
-                  onClick={toggleSelectionMode}
-                >
-                  {selectionMode ? 'Selectie annuleren' : 'Selecteren'}
-                </Button>
+                <h2 className="text-base font-semibold text-foreground">Nieuwe planning</h2>
+                <div className="flex items-center gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={toggleNewSelectionMode}
+                  >
+                    {isSelectingNew ? 'Selectie annuleren' : 'Selecteren'}
+                  </Button>
+                  {isSelectingNew && (
+                    <>
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={selectAllTasks}
+                      >
+                        Alles selecteren
+                      </Button>
+                      <Button 
+                        size="sm"
+                        disabled={selectedTasks.size === 0}
+                        onClick={handleAddToAgenda}
+                      >
+                        Toevoegen
+                      </Button>
+                    </>
+                  )}
+                </div>
               </div>
               <div className="w-full overflow-auto">
                 <PlanningGrid
                   weekStart={currentWeekStart}
                   employee={selectedEmployeeData}
                   tasks={filteredTasks}
-                  selectionMode={selectionMode}
+                  selectionMode={isSelectingNew}
                   selectedTasks={selectedTasks}
                   onTaskClick={toggleTaskSelection}
                 />
               </div>
             </div>
           )}
-
-          {/* Add to agenda button - right aligned */}
-          {showNewPlanning && (
-            <div className="flex justify-end">
-              <Button 
-                disabled={selectedTasks.size === 0}
-                onClick={handleAddToAgenda}
-              >
-                Aan agenda toevoegen
-                {selectedTasks.size > 0 && ` (${selectedTasks.size})`}
-              </Button>
-            </div>
-          )}
         </>
       )}
+
+      {/* Confirmation Modal */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        title={confirmModal.type === 'delete' 
+          ? 'Weet je zeker dat je deze afspraken wilt verwijderen?' 
+          : 'Weet je zeker dat je deze planning wilt toevoegen?'}
+        description={confirmModal.type === 'delete'
+          ? 'Deze afspraken worden uit de agenda verwijderd. Dit kan niet ongedaan worden gemaakt.'
+          : 'De geselecteerde planningsblokken worden toegevoegd aan de agenda.'}
+        confirmLabel={confirmModal.type === 'delete' ? 'Ja, verwijderen' : 'Ja, toevoegen'}
+        cancelLabel="Annuleren"
+        variant={confirmModal.type === 'delete' ? 'destructive' : 'default'}
+        onConfirm={handleConfirmAction}
+        onCancel={handleCancelConfirm}
+      />
+
+      {/* Ellen Popup Modal */}
+      <EllenPopup
+        isOpen={ellenPopup.isOpen}
+        status={ellenPopup.status}
+        action={ellenPopup.action}
+        onClose={handleEllenClose}
+        onRetry={handleEllenRetry}
+        onCancel={handleEllenCancel}
+      />
     </div>
   );
 }
 
-// Agenda Grid - shows current calendar events in neutral colors
+// Agenda Grid - shows current calendar events with selection support
 interface AgendaGridProps {
   weekStart: Date;
   employee: Employee;
   events: AgendaEvent[];
+  selectionMode: boolean;
+  selectedEvents: Set<string>;
+  onEventClick: (eventId: string) => void;
 }
 
-function AgendaGrid({ weekStart, employee, events }: AgendaGridProps) {
+function AgendaGrid({ weekStart, employee, events, selectionMode, selectedEvents, onEventClick }: AgendaGridProps) {
   const weekDates = useMemo(() => {
     return dayNames.map((_, index) => {
       const date = new Date(weekStart);
@@ -434,10 +756,17 @@ function AgendaGrid({ weekStart, employee, events }: AgendaGridProps) {
                       const isStart = getEventStart(event, hour);
                       if (!isStart) return null;
                       
+                      const isSelected = selectedEvents.has(event.id);
+                      
                       return (
                         <div
                           key={event.id}
-                          className="rounded px-1.5 py-0.5 text-xs text-white overflow-hidden h-full bg-slate-500"
+                          onClick={() => onEventClick(event.id)}
+                          className={cn(
+                            "rounded px-1.5 py-0.5 text-xs text-white overflow-hidden h-full bg-slate-500 transition-all",
+                            selectionMode && 'cursor-pointer hover:ring-2 hover:ring-primary',
+                            isSelected && 'ring-2 ring-blue-500 ring-offset-1'
+                          )}
                           title={`${event.title}\n${event.startTime} - ${event.endTime}`}
                         >
                           <div className="truncate font-medium">
