@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save } from 'lucide-react';
+import { Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { VerlofForm, VerlofFormData } from '@/components/forms/VerlofForm';
 import { toast } from '@/hooks/use-toast';
@@ -62,16 +62,17 @@ export default function Verlof() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="mx-auto max-w-3xl p-8">
+      <div className="max-w-3xl mx-auto px-6 py-8">
         {/* Header */}
         <div className="flex flex-col gap-4 mb-8">
-          <div className="flex justify-start">
-            <Button variant="ghost" onClick={() => navigate('/')}>
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Terug naar overzicht
-            </Button>
-          </div>
-          <h1 className="text-2xl font-semibold text-foreground">Ziek / Verlof</h1>
+          <button
+            type="button"
+            className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground self-start"
+            onClick={() => navigate('/')}
+          >
+            ← Terug naar overzicht
+          </button>
+          <h1 className="text-2xl font-semibold text-foreground">Beschikbaarheid medewerker</h1>
         </div>
 
         <VerlofForm data={formData} onChange={setFormData} />
