@@ -275,18 +275,7 @@ export function AgendasFlow() {
 
       {/* Planner views for selected employee */}
       {showPlanner && selectedEmployeeData && (
-        <div>
-          {/* Selection controls - right aligned */}
-          <div className="flex items-center justify-end mb-4">
-            <Button 
-              variant={selectionMode ? "secondary" : "outline"}
-              onClick={toggleSelectionMode}
-              disabled={!showNewPlanning}
-            >
-              {selectionMode ? 'Selectie annuleren' : 'Selecteren'}
-            </Button>
-          </div>
-
+        <>
           {/* Current Agenda view */}
           {showCurrentAgenda && (
             <div className="mb-6">
@@ -304,7 +293,17 @@ export function AgendasFlow() {
           {/* New Planning view */}
           {showNewPlanning && (
             <div className="mb-6">
-              <h2 className="text-lg font-semibold text-foreground mb-3">Nieuwe planning</h2>
+              {/* Header with title and Selecteren button */}
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-lg font-semibold text-foreground">Nieuwe planning</h2>
+                <Button 
+                  variant={selectionMode ? "secondary" : "outline"}
+                  size="sm"
+                  onClick={toggleSelectionMode}
+                >
+                  {selectionMode ? 'Selectie annuleren' : 'Selecteren'}
+                </Button>
+              </div>
               <div className="w-full overflow-auto">
                 <PlanningGrid
                   weekStart={currentWeekStart}
@@ -319,16 +318,18 @@ export function AgendasFlow() {
           )}
 
           {/* Add to agenda button - right aligned */}
-          <div className="flex justify-end">
-            <Button 
-              disabled={selectedTasks.size === 0}
-              onClick={handleAddToAgenda}
-            >
-              Aan agenda toevoegen
-              {selectedTasks.size > 0 && ` (${selectedTasks.size})`}
-            </Button>
-          </div>
-        </div>
+          {showNewPlanning && (
+            <div className="flex justify-end">
+              <Button 
+                disabled={selectedTasks.size === 0}
+                onClick={handleAddToAgenda}
+              >
+                Aan agenda toevoegen
+                {selectedTasks.size > 0 && ` (${selectedTasks.size})`}
+              </Button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
