@@ -60,21 +60,20 @@ export default function Wijzigingsverzoek() {
 
   return (
     <div className="h-full overflow-y-auto bg-background">
-      {/* Back link - absolute top-left */}
-      <div className="px-6 pt-6">
-        <button
-          type="button"
-          className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground"
-          onClick={() => navigate('/')}
-        >
-          ← Terug naar overzicht
-        </button>
-      </div>
+      <div className="max-w-3xl mx-auto px-8 py-8">
+        {/* Header: back link + title on one line */}
+        <div className="flex items-center gap-4 mb-8">
+          <button
+            type="button"
+            className="text-sm text-muted-foreground hover:text-foreground"
+            onClick={() => navigate('/')}
+          >
+            ← Terug naar overzicht
+          </button>
+          <h1 className="text-2xl font-semibold text-foreground">Wijzigingsverzoek</h1>
+        </div>
 
-      {/* Main content */}
-      <div className="max-w-3xl mx-auto px-6 py-6 pb-12">
-        <h1 className="text-2xl font-semibold text-foreground mb-8">Wijzigingsverzoek</h1>
-
+        {/* Form */}
         <WijzigingsverzoekForm data={formData} onChange={setFormData} />
 
         {/* Action buttons - right aligned */}
