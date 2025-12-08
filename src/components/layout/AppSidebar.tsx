@@ -51,12 +51,6 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
         </ul>
       </nav>
 
-      {/* Footer */}
-      <div className="border-t border-border p-4">
-        <p className="text-xs text-muted-foreground text-center">
-          © 2024 Traffic Tool
-        </p>
-      </div>
     </aside>
   );
 }
