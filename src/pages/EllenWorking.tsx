@@ -1,16 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { toast } from '@/hooks/use-toast';
 import { mockEmployees } from '@/lib/mockData';
-
-interface ChatMessage {
-  id: string;
-  role: 'ellen' | 'user';
-  content: string;
-  isProposal?: boolean;
-}
+import { EllenChat, ChatMessage } from '@/components/chat/EllenChat';
 
 interface RequestData {
   requestType: 'project' | 'wijziging' | 'meeting' | 'verlof';
@@ -54,7 +47,6 @@ function ConfirmModal({
 export default function EllenWorking() {
   const navigate = useNavigate();
   const location = useLocation();
-  const chatEndRef = useRef<HTMLDivElement>(null);
   
   const { requestType, formData } = (location.state as RequestData) || { 
     requestType: 'project', 
@@ -62,7 +54,6 @@ export default function EllenWorking() {
   };
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [isApproved, setIsApproved] = useState(false);
@@ -154,22 +145,15 @@ export default function EllenWorking() {
     return () => clearTimeout(timer);
   }, []);
 
-  // Scroll to bottom on new messages
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  const handleSendMessage = () => {
-    if (!inputValue.trim()) return;
-
+  const handleSendMessage = (message: string) => {
     // Add user message
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
       role: 'user',
-      content: inputValue
+      content: message
     };
     setMessages(prev => [...prev, userMessage]);
-    setInputValue('');
+    setIsLoading(true);
 
     // Simulate Ellen response
     setTimeout(() => {
@@ -186,6 +170,7 @@ export default function EllenWorking() {
         role: 'ellen',
         content: randomResponse
       }]);
+      setIsLoading(false);
     }, 1000);
   };
 
@@ -280,6 +265,44 @@ export default function EllenWorking() {
     }
   };
 
+  // Context summary component
+  const contextSummary = (
+    <div className="space-y-3">
+      <h2 className="text-sm font-semibold text-foreground">Samenvatting van de aanvraag</h2>
+      <dl className="space-y-2">
+        {getSummaryFields().map((field, index) => (
+          <div key={index} className="flex justify-between gap-2 text-sm">
+            <dt className="text-muted-foreground shrink-0">{field.label}</dt>
+            <dd className="text-foreground font-medium text-right truncate">
+              {field.value}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+
+  // Extra actions for this context
+  const extraActions = !isApproved ? (
+    <>
+      <Button variant="outline" size="sm" onClick={handleNewProposal} disabled={isLoading}>
+        Nieuw voorstel vragen
+      </Button>
+      <Button size="sm" onClick={handleApprove} disabled={!hasProposal || isLoading}>
+        Voorstel goedkeuren
+      </Button>
+    </>
+  ) : (
+    <div className="w-full text-center py-2">
+      <p className="text-sm text-muted-foreground mb-3">
+        ✓ Het voorstel van Ellen is toegevoegd aan de planner.
+      </p>
+      <Button onClick={() => navigate('/?tab=planner')}>
+        Ga naar planner
+      </Button>
+    </div>
+  );
+
   return (
     <div className="h-full overflow-y-auto bg-background">
       {/* Top: back link on its own row, far left */}
@@ -298,7 +321,7 @@ export default function EllenWorking() {
         {/* Left: summary */}
         <section>
           <div className="flex items-center gap-3 mb-3">
-            <div className="h-9 w-9 rounded-xl bg-sky-500 flex items-center justify-center text-white font-semibold text-xs">
+            <div className="h-9 w-9 rounded-xl bg-primary flex items-center justify-center text-primary-foreground font-semibold text-xs">
               AI
             </div>
             <h1 className="text-xl font-semibold text-foreground">Ellen is aan het werk</h1>
@@ -310,17 +333,7 @@ export default function EllenWorking() {
           </p>
 
           <div className="bg-card rounded-xl shadow-sm border border-border p-4 mb-4">
-            <h2 className="text-sm font-semibold text-foreground mb-3">Samenvatting van de aanvraag</h2>
-            <dl className="space-y-2">
-              {getSummaryFields().map((field, index) => (
-                <div key={index} className="flex justify-between gap-2 text-sm">
-                  <dt className="text-muted-foreground shrink-0">{field.label}</dt>
-                  <dd className="text-foreground font-medium text-right truncate">
-                    {field.value}
-                  </dd>
-                </div>
-              ))}
-            </dl>
+            {contextSummary}
           </div>
 
           <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
@@ -330,88 +343,12 @@ export default function EllenWorking() {
         </section>
 
         {/* Right: chat with Ellen */}
-        <section className="flex flex-col h-[65vh] bg-card rounded-2xl shadow-sm border border-border">
-          {/* Chat messages */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            {messages.map((message) => (
-              <div 
-                key={message.id} 
-                className={`flex items-start gap-2 ${message.role === 'user' ? 'justify-end' : ''}`}
-              >
-                {message.role === 'ellen' && (
-                  <div className="h-7 w-7 rounded-full bg-sky-500 flex items-center justify-center text-white text-[10px] font-semibold shrink-0">
-                    E
-                  </div>
-                )}
-                <div 
-                  className={`rounded-2xl px-3 py-2 text-sm max-w-[80%] whitespace-pre-wrap ${
-                    message.role === 'ellen' 
-                      ? 'bg-slate-100 dark:bg-slate-800 text-foreground' 
-                      : 'bg-sky-500 text-white'
-                  }`}
-                >
-                  {message.content}
-                </div>
-              </div>
-            ))}
-            
-            {isLoading && (
-              <div className="flex items-start gap-2">
-                <div className="h-7 w-7 rounded-full bg-sky-500 flex items-center justify-center text-white text-[10px] font-semibold">
-                  E
-                </div>
-                <div className="bg-slate-100 dark:bg-slate-800 rounded-2xl px-3 py-2 text-sm text-muted-foreground">
-                  <span className="inline-flex gap-1">
-                    <span className="animate-bounce">.</span>
-                    <span className="animate-bounce" style={{ animationDelay: '0.1s' }}>.</span>
-                    <span className="animate-bounce" style={{ animationDelay: '0.2s' }}>.</span>
-                  </span>
-                </div>
-              </div>
-            )}
-            
-            <div ref={chatEndRef} />
-          </div>
-
-          {/* Input + actions */}
-          <div className="border-t border-border p-3">
-            {!isApproved ? (
-              <>
-                <div className="flex gap-2 mb-2">
-                  <Input
-                    type="text"
-                    placeholder="Stel een vraag of vraag om een ander voorstel..."
-                    value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                    className="flex-1 rounded-full text-sm h-9"
-                  />
-                  <Button size="sm" onClick={handleSendMessage} className="h-9">
-                    Stuur
-                  </Button>
-                </div>
-
-                <div className="flex justify-end gap-2 pt-1">
-                  <Button variant="outline" size="sm" onClick={handleNewProposal} disabled={isLoading}>
-                    Nieuw voorstel vragen
-                  </Button>
-                  <Button size="sm" onClick={handleApprove} disabled={!hasProposal || isLoading}>
-                    Voorstel goedkeuren
-                  </Button>
-                </div>
-              </>
-            ) : (
-              <div className="text-center py-3">
-                <p className="text-sm text-muted-foreground mb-3">
-                  ✓ Het voorstel van Ellen is toegevoegd aan de planner.
-                </p>
-                <Button onClick={() => navigate('/?tab=planner')}>
-                  Ga naar planner
-                </Button>
-              </div>
-            )}
-          </div>
-        </section>
+        <EllenChat
+          initialMessages={messages}
+          isLoading={isLoading}
+          onSendMessage={handleSendMessage}
+          extraActions={extraActions}
+        />
       </div>
 
       {/* Confirmation Modal */}
