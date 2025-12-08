@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { X, ZoomIn, ZoomOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -32,10 +32,9 @@ export function FullscreenPlanner({
 }: FullscreenPlannerProps) {
   const [weeksToShow, setWeeksToShow] = useState(1);
   const [plannerZoom, setPlannerZoom] = useState(initialZoom);
-  const [isPanning, setIsPanning] = useState(false);
-  const [panPosition, setPanPosition] = useState({ x: 0, y: 0 });
-  const [startPan, setStartPan] = useState({ x: 0, y: 0 });
-  const containerRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const plannerContentRef = useRef<HTMLDivElement>(null);
+  const [computedZoom, setComputedZoom] = useState(initialZoom / 100);
 
   const weeks = Array.from({ length: weeksToShow }, (_, i) => {
     const weekStart = new Date(currentWeekStart);
@@ -72,30 +71,56 @@ export function FullscreenPlanner({
     }
   };
 
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (plannerZoom < 100) {
-      setIsPanning(true);
-      setStartPan({ x: e.clientX - panPosition.x, y: e.clientY - panPosition.y });
+  // Auto-fit calculation
+  const calculateFit = useCallback(() => {
+    if (!viewportRef.current || !plannerContentRef.current) {
+      setComputedZoom(plannerZoom / 100);
+      return;
     }
-  };
 
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (isPanning) {
-      setPanPosition({
-        x: e.clientX - startPan.x,
-        y: e.clientY - startPan.y,
-      });
+    const viewportWidth = viewportRef.current.clientWidth;
+    const viewportHeight = viewportRef.current.clientHeight;
+    
+    // Temporarily reset scale to measure natural size
+    plannerContentRef.current.style.transform = 'scale(1)';
+    const plannerWidth = plannerContentRef.current.scrollWidth;
+    const plannerHeight = plannerContentRef.current.scrollHeight;
+
+    const baseScale = plannerZoom / 100;
+    
+    // Only apply fit constraint when zooming out (baseScale < 1)
+    if (baseScale < 1) {
+      const widthRatio = viewportWidth / plannerWidth;
+      const heightRatio = viewportHeight / plannerHeight;
+      const fitScale = Math.min(widthRatio, heightRatio);
+      const finalScale = Math.min(baseScale, fitScale);
+      setComputedZoom(Math.max(0.1, finalScale));
+    } else {
+      setComputedZoom(baseScale);
     }
-  };
-
-  const handleMouseUp = () => {
-    setIsPanning(false);
-  };
+  }, [plannerZoom]);
 
   useEffect(() => {
-    // Reset pan position when zoom changes
-    setPanPosition({ x: 0, y: 0 });
-  }, [plannerZoom]);
+    calculateFit();
+
+    const handleResize = () => calculateFit();
+    window.addEventListener('resize', handleResize);
+    
+    const resizeObserver = new ResizeObserver(() => calculateFit());
+    if (viewportRef.current) {
+      resizeObserver.observe(viewportRef.current);
+    }
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      resizeObserver.disconnect();
+    };
+  }, [calculateFit]);
+
+  useEffect(() => {
+    const timer = setTimeout(calculateFit, 50);
+    return () => clearTimeout(timer);
+  }, [plannerZoom, weeksToShow, calculateFit]);
 
   // Grid layout based on weeks and zoom
   const getGridClasses = () => {
@@ -103,7 +128,6 @@ export function FullscreenPlanner({
     if (weeksToShow === 2) return 'grid grid-cols-2 gap-6';
     if (weeksToShow === 3) return 'grid grid-cols-3 gap-6';
     if (weeksToShow === 4) {
-      // At zoom <= 75, show all 4 in one row; otherwise 2x2
       return plannerZoom <= 75 ? 'grid grid-cols-4 gap-6' : 'grid grid-cols-2 gap-6';
     }
     return '';
@@ -174,24 +198,15 @@ export function FullscreenPlanner({
         </Button>
       </div>
 
-      {/* Pannable/Scrollable Content */}
+      {/* Viewport for auto-fit */}
       <div
-        ref={containerRef}
-        className="h-[calc(100vh-73px)] overflow-auto"
-        style={{
-          cursor: plannerZoom < 100 ? (isPanning ? 'grabbing' : 'grab') : 'default',
-        }}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
+        ref={viewportRef}
+        className="w-full h-[calc(100vh-73px)] overflow-hidden"
       >
         <div
-          className="p-6 origin-top-left transition-transform duration-200"
-          style={{
-            transform: `scale(${plannerZoom / 100}) translate(${panPosition.x / (plannerZoom / 100)}px, ${panPosition.y / (plannerZoom / 100)}px)`,
-            width: plannerZoom < 100 ? `${100 / (plannerZoom / 100)}%` : '100%',
-          }}
+          ref={plannerContentRef}
+          className="p-6 origin-top-left inline-block transition-transform duration-200"
+          style={{ transform: `scale(${computedZoom})` }}
         >
           {weeksToShow === 1 ? (
             <div
