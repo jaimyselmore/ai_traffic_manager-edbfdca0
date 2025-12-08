@@ -10,9 +10,16 @@ const STORAGE_KEY = 'concept_nieuw_project';
 const emptyFormData: ProjectFormData = {
   klant: '',
   projectnaam: '',
+  projectType: '',
   deliverables: '',
   deadline: '',
+  deadlineOnbekend: false,
+  indicatievePeriode: '',
+  geschatteEffortWaarde: '',
+  geschatteEffortEenheid: 'uren',
+  letEllenKiezen: false,
   medewerkers: [],
+  prioriteit: 'Normaal',
   opmerkingen: '',
 };
 
@@ -20,8 +27,13 @@ export default function NieuwProject() {
   const navigate = useNavigate();
   const [formData, setFormData] = useState<ProjectFormData>(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? JSON.parse(stored) : emptyFormData;
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      return { ...emptyFormData, ...parsed };
+    }
+    return emptyFormData;
   });
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   // Autosave to localStorage on change
   useEffect(() => {
@@ -36,24 +48,45 @@ export default function NieuwProject() {
     });
   };
 
+  const validateForm = (): boolean => {
+    const newErrors: Record<string, string> = {};
+
+    if (!formData.klant) {
+      newErrors.klant = 'Selecteer een klant';
+    }
+    if (!formData.projectnaam) {
+      newErrors.projectnaam = 'Voer een projectnaam in';
+    }
+    if (!formData.projectType) {
+      newErrors.projectType = 'Selecteer een project type';
+    }
+    if (!formData.deliverables) {
+      newErrors.deliverables = 'Voer deliverables in';
+    }
+    if (!formData.deadlineOnbekend && !formData.deadline) {
+      newErrors.deadline = 'Selecteer een deadline of markeer als onbekend';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleSubmit = async () => {
-    // Validate required fields
-    if (!formData.klant || !formData.projectnaam || !formData.deliverables || !formData.deadline) {
+    if (!validateForm()) {
       toast({
         title: 'Vul alle verplichte velden in',
-        description: 'Klant, projectnaam, deliverables en deadline zijn verplicht.',
+        description: 'Controleer de gemarkeerde velden.',
         variant: 'destructive',
       });
       return;
     }
 
-    // Mock API call
     toast({
       title: 'Plan wordt ingediend...',
       description: 'Even geduld alstublieft.',
     });
 
-    // Simulate API call: POST /api/plan/submit
+    // Simulate API call
     await new Promise((resolve) => setTimeout(resolve, 1500));
 
     // Clear localStorage after successful submit
@@ -82,9 +115,9 @@ export default function NieuwProject() {
       </div>
 
       {/* Form container with title */}
-      <div className="max-w-3xl mx-auto px-6 pb-8">
+      <div className="max-w-3xl mx-auto px-6 pb-24">
         <h1 className="text-2xl font-semibold text-foreground mb-6">Nieuw project</h1>
-        <ProjectForm data={formData} onChange={setFormData} />
+        <ProjectForm data={formData} onChange={setFormData} errors={errors} />
       </div>
 
       {/* Fixed bottom-right buttons */}

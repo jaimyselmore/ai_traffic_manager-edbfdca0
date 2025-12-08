@@ -3,6 +3,7 @@ export interface Employee {
   name: string;
   role: string;
   avatar?: string;
+  availability: 'available' | 'busy' | 'full';
 }
 
 export interface Client {
@@ -30,12 +31,12 @@ export interface DashboardStats {
 }
 
 export const mockEmployees: Employee[] = [
-  { id: '1', name: 'Anna de Vries', role: 'Art Director' },
-  { id: '2', name: 'Bas Jansen', role: 'Copywriter' },
-  { id: '3', name: 'Carmen van Dijk', role: 'Designer' },
-  { id: '4', name: 'Dennis Bakker', role: 'Project Manager' },
-  { id: '5', name: 'Eva Smit', role: 'Motion Designer' },
-  { id: '6', name: 'Frank Peters', role: 'Developer' },
+  { id: '1', name: 'Anna de Vries', role: 'Art Director', availability: 'available' },
+  { id: '2', name: 'Bas Jansen', role: 'Copywriter', availability: 'busy' },
+  { id: '3', name: 'Carmen van Dijk', role: 'Designer', availability: 'available' },
+  { id: '4', name: 'Dennis Bakker', role: 'Project Manager', availability: 'full' },
+  { id: '5', name: 'Eva Smit', role: 'Motion Designer', availability: 'busy' },
+  { id: '6', name: 'Frank Peters', role: 'Developer', availability: 'available' },
 ];
 
 export const mockClients: Client[] = [
