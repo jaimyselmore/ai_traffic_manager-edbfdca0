@@ -4,9 +4,10 @@ import { TopBar } from '@/components/layout/TopBar';
 import { Dashboard } from '@/components/dashboard/Dashboard';
 import { Planner } from '@/components/planner/Planner';
 import { AgendasFlow } from '@/components/agendas/AgendasFlow';
+import EllenChatPage from '@/pages/EllenChatPage';
 import { mockEmployees } from '@/lib/mockData';
 
-type Tab = 'overzicht' | 'planner' | 'agendas';
+type Tab = 'overzicht' | 'planner' | 'agendas' | 'ellen';
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState<Tab>('overzicht');
@@ -20,6 +21,8 @@ const Index = () => {
         return <Planner />;
       case 'agendas':
         return <AgendasFlow />;
+      case 'ellen':
+        return <EllenChatPage />;
       default:
         return <Dashboard selectedEmployeeId={selectedEmployee} />;
     }

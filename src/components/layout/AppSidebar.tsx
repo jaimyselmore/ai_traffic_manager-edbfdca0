@@ -1,8 +1,8 @@
-import { LayoutDashboard, Calendar, CalendarSync } from 'lucide-react';
+import { LayoutDashboard, Calendar, CalendarSync, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { EllenLogo } from './EllenLogo';
 
-type Tab = 'overzicht' | 'planner' | 'agendas';
+type Tab = 'overzicht' | 'planner' | 'agendas' | 'ellen';
 
 interface AppSidebarProps {
   activeTab: Tab;
@@ -13,6 +13,7 @@ const navItems = [
   { id: 'overzicht' as const, label: 'Overzicht', icon: LayoutDashboard },
   { id: 'planner' as const, label: 'Planner', icon: Calendar },
   { id: 'agendas' as const, label: "Agenda's", icon: CalendarSync },
+  { id: 'ellen' as const, label: 'Ellen', icon: Sparkles },
 ];
 
 export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
