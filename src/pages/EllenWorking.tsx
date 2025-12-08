@@ -9,6 +9,7 @@ interface ChatMessage {
   id: string;
   role: 'ellen' | 'user';
   content: string;
+  isProposal?: boolean;
 }
 
 interface RequestData {
@@ -65,6 +66,7 @@ export default function EllenWorking() {
   const [isLoading, setIsLoading] = useState(true);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [isApproved, setIsApproved] = useState(false);
+  const [hasProposal, setHasProposal] = useState(false);
 
   // Get employee names from IDs
   const getEmployeeNames = (ids: string[] = []) => {
@@ -87,37 +89,37 @@ export default function EllenWorking() {
     switch (requestType) {
       case 'project':
         return `Op basis van je aanvraag voor "${formData.projectnaam || 'het project'}" stel ik de volgende planning voor:\n\n` +
-          `📅 **Fasering:**\n` +
+          `📅 Fasering:\n` +
           `• Week 1-2: Conceptontwikkeling\n` +
           `• Week 3: Interne review\n` +
           `• Week 4-5: Conceptuitwerking\n` +
           `• Week 6: Productie en afronding\n\n` +
-          `👥 **Teamverdeling:**\n` +
+          `👥 Teamverdeling:\n` +
           `${formData.medewerkers?.length > 0 ? getEmployeeNames(formData.medewerkers) : 'Nog te bepalen'}\n\n` +
           `Deadline: ${formData.deadline || 'Nog te bepalen'}\n\n` +
           `Laat me weten als je dit voorstel wilt aanpassen!`;
       case 'wijziging':
         return `Ik heb je wijzigingsverzoek bekeken voor "${formData.projectnaam || 'het project'}". ` +
           `Hier is mijn voorstel voor de aangepaste planning:\n\n` +
-          `🔄 **Wijziging:** ${formData.wijzigingType || 'Scope aanpassing'}\n\n` +
-          `📅 **Aangepaste planning:**\n` +
+          `🔄 Wijziging: ${formData.wijzigingType || 'Scope aanpassing'}\n\n` +
+          `📅 Aangepaste planning:\n` +
           `• De huidige taken worden verschoven\n` +
           `• Extra tijd gereserveerd voor: ${formData.beschrijving?.substring(0, 50) || 'de wijzigingen'}...\n\n` +
           `Wil je dat ik dit doorvoer in de planning?`;
       case 'meeting':
         return `Ik heb geschikte momenten gevonden voor je ${formData.meetingType || 'meeting'} over "${formData.onderwerp || 'het onderwerp'}":\n\n` +
-          `📅 **Voorgestelde datum:** ${formData.datum || 'Nog te bepalen'}\n` +
-          `🕐 **Tijd:** ${formData.starttijd || '10:00'} - ${formData.eindtijd || '11:00'}\n` +
-          `📍 **Locatie:** ${formData.locatie || 'Nog te bepalen'}\n\n` +
-          `👥 **Deelnemers:**\n` +
+          `📅 Voorgestelde datum: ${formData.datum || 'Nog te bepalen'}\n` +
+          `🕐 Tijd: ${formData.starttijd || '10:00'} - ${formData.eindtijd || '11:00'}\n` +
+          `📍 Locatie: ${formData.locatie || 'Nog te bepalen'}\n\n` +
+          `👥 Deelnemers:\n` +
           `${formData.medewerkers?.length > 0 ? getEmployeeNames(formData.medewerkers) : 'Nog te bepalen'}\n\n` +
           `Alle deelnemers zijn op dit moment beschikbaar. Zal ik dit inplannen?`;
       case 'verlof':
         const employee = mockEmployees.find(e => e.id === formData.medewerker);
         return `Ik heb de beschikbaarheid van ${employee?.name || 'de medewerker'} bekeken.\n\n` +
-          `📅 **Periode:** ${formData.startdatum || '...'} t/m ${formData.einddatum || '...'}\n` +
-          `📋 **Type:** ${formData.verlofType || 'Verlof'}\n\n` +
-          `**Impact op de planning:**\n` +
+          `📅 Periode: ${formData.startdatum || '...'} t/m ${formData.einddatum || '...'}\n` +
+          `📋 Type: ${formData.verlofType || 'Verlof'}\n\n` +
+          `Impact op de planning:\n` +
           `• 2 taken worden verschoven naar andere teamleden\n` +
           `• 1 deadline blijft haalbaar met huidige bezetting\n\n` +
           `Wil je dat ik deze afwezigheid doorvoer?`;
@@ -132,7 +134,7 @@ export default function EllenWorking() {
       {
         id: '1',
         role: 'ellen',
-        content: 'Hoi, ik ben Ellen. Ik heb je aanvraag bekeken en kom zo met een voorstel voor de planning.'
+        content: 'Hoi! Ik bekijk je aanvraag en kom zo met een voorstel voor de planning.'
       }
     ];
     setMessages(initMessages);
@@ -142,9 +144,11 @@ export default function EllenWorking() {
       setMessages(prev => [...prev, {
         id: '2',
         role: 'ellen',
-        content: getInitialProposal()
+        content: getInitialProposal(),
+        isProposal: true
       }]);
       setIsLoading(false);
+      setHasProposal(true);
     }, 1500);
 
     return () => clearTimeout(timer);
@@ -186,6 +190,7 @@ export default function EllenWorking() {
   };
 
   const handleNewProposal = () => {
+    setIsLoading(true);
     setMessages(prev => [...prev, {
       id: Date.now().toString(),
       role: 'ellen',
@@ -197,13 +202,15 @@ export default function EllenWorking() {
         id: (Date.now() + 1).toString(),
         role: 'ellen',
         content: 'Hier is een alternatief voorstel:\n\n' +
-          '📅 **Aangepaste fasering:**\n' +
+          '📅 Aangepaste fasering:\n' +
           '• Week 1: Kick-off en briefing\n' +
           '• Week 2-3: Conceptontwikkeling\n' +
           '• Week 4: Review met stakeholders\n' +
           '• Week 5-6: Uitwerking en productie\n\n' +
-          'Is dit meer wat je in gedachten had?'
+          'Is dit meer wat je in gedachten had?',
+        isProposal: true
       }]);
+      setIsLoading(false);
     }, 1500);
   };
 
@@ -275,134 +282,136 @@ export default function EllenWorking() {
 
   return (
     <div className="h-full overflow-y-auto bg-background">
-      <div className="max-w-5xl mx-auto px-8 py-8">
-        {/* Header: back link */}
-        <div className="mb-6">
-          <button
-            type="button"
-            className="text-sm text-muted-foreground hover:text-foreground"
-            onClick={handleBack}
-          >
-            ← Terug naar overzicht
-          </button>
-        </div>
+      {/* Top: back link on its own row, far left */}
+      <div className="w-full px-6 pt-6 mb-4">
+        <button
+          type="button"
+          className="text-sm text-muted-foreground hover:text-foreground"
+          onClick={handleBack}
+        >
+          ← Terug naar overzicht
+        </button>
+      </div>
 
-        {/* Two column layout */}
-        <div className="grid grid-cols-1 md:grid-cols-[1.2fr,1.8fr] gap-8">
-          {/* Left: summary */}
-          <section>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="h-10 w-10 rounded-xl bg-sky-500 flex items-center justify-center text-white font-semibold text-xs">
-                AI
-              </div>
-              <h1 className="text-2xl font-semibold text-foreground">Ellen is aan het werk</h1>
+      {/* Two column layout */}
+      <div className="max-w-6xl mx-auto px-8 pb-8 grid grid-cols-1 lg:grid-cols-[1.1fr,1.9fr] gap-8 items-start">
+        {/* Left: summary */}
+        <section>
+          <div className="flex items-center gap-3 mb-3">
+            <div className="h-9 w-9 rounded-xl bg-sky-500 flex items-center justify-center text-white font-semibold text-xs">
+              AI
             </div>
-            
-            <p className="text-sm text-muted-foreground mb-6">
-              Ellen maakt een voorstel voor de planning op basis van je aanvraag.
-              Zij past de planning nooit automatisch aan: jij geeft altijd het laatste akkoord.
-            </p>
+            <h1 className="text-xl font-semibold text-foreground">Ellen is aan het werk</h1>
+          </div>
+          
+          <p className="text-sm text-muted-foreground mb-4 leading-relaxed">
+            Ellen maakt een voorstel voor de planning op basis van je aanvraag.
+            Zij past de planning nooit automatisch aan: jij geeft altijd het laatste akkoord.
+          </p>
 
-            <div className="bg-card rounded-xl shadow-sm border border-border p-4 mb-4">
-              <h2 className="text-sm font-semibold text-foreground mb-3">Samenvatting van de aanvraag</h2>
-              <dl className="space-y-2">
-                {getSummaryFields().map((field, index) => (
-                  <div key={index} className="flex justify-between text-sm">
-                    <dt className="text-muted-foreground">{field.label}</dt>
-                    <dd className="text-foreground font-medium text-right max-w-[60%] truncate">
-                      {field.value}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-            </div>
-
-            <div className="bg-blue-50 dark:bg-blue-950/30 rounded-xl p-3 text-xs text-muted-foreground">
-              <strong className="text-foreground">Belangrijk:</strong> Ellen past de planning pas aan nadat je op{' '}
-              <em>Voorstel goedkeuren</em> klikt.
-            </div>
-          </section>
-
-          {/* Right: chat with Ellen */}
-          <section className="flex flex-col h-[70vh] bg-card rounded-xl shadow-sm border border-border">
-            {/* Chat messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
-              {messages.map((message) => (
-                <div 
-                  key={message.id} 
-                  className={`flex items-start gap-2 ${message.role === 'user' ? 'flex-row-reverse' : ''}`}
-                >
-                  {message.role === 'ellen' && (
-                    <div className="h-8 w-8 rounded-full bg-sky-500 flex items-center justify-center text-white text-xs font-semibold shrink-0">
-                      E
-                    </div>
-                  )}
-                  <div 
-                    className={`rounded-2xl px-3 py-2 text-sm max-w-[85%] whitespace-pre-wrap ${
-                      message.role === 'ellen' 
-                        ? 'bg-secondary text-secondary-foreground' 
-                        : 'bg-primary text-primary-foreground'
-                    }`}
-                  >
-                    {message.content}
-                  </div>
+          <div className="bg-card rounded-xl shadow-sm border border-border p-4 mb-4">
+            <h2 className="text-sm font-semibold text-foreground mb-3">Samenvatting van de aanvraag</h2>
+            <dl className="space-y-2">
+              {getSummaryFields().map((field, index) => (
+                <div key={index} className="flex justify-between gap-2 text-sm">
+                  <dt className="text-muted-foreground shrink-0">{field.label}</dt>
+                  <dd className="text-foreground font-medium text-right truncate">
+                    {field.value}
+                  </dd>
                 </div>
               ))}
-              
-              {isLoading && (
-                <div className="flex items-start gap-2">
-                  <div className="h-8 w-8 rounded-full bg-sky-500 flex items-center justify-center text-white text-xs font-semibold">
+            </dl>
+          </div>
+
+          <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
+            <strong>Belangrijk:</strong> Ellen past de planning pas aan nadat je op{' '}
+            <em>Voorstel goedkeuren</em> klikt.
+          </div>
+        </section>
+
+        {/* Right: chat with Ellen */}
+        <section className="flex flex-col h-[65vh] bg-card rounded-2xl shadow-sm border border-border">
+          {/* Chat messages */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            {messages.map((message) => (
+              <div 
+                key={message.id} 
+                className={`flex items-start gap-2 ${message.role === 'user' ? 'justify-end' : ''}`}
+              >
+                {message.role === 'ellen' && (
+                  <div className="h-7 w-7 rounded-full bg-sky-500 flex items-center justify-center text-white text-[10px] font-semibold shrink-0">
                     E
                   </div>
-                  <div className="bg-secondary rounded-2xl px-3 py-2 text-sm text-muted-foreground">
-                    Ellen is aan het typen...
-                  </div>
+                )}
+                <div 
+                  className={`rounded-2xl px-3 py-2 text-sm max-w-[80%] whitespace-pre-wrap ${
+                    message.role === 'ellen' 
+                      ? 'bg-slate-100 dark:bg-slate-800 text-foreground' 
+                      : 'bg-sky-500 text-white'
+                  }`}
+                >
+                  {message.content}
                 </div>
-              )}
-              
-              <div ref={chatEndRef} />
-            </div>
+              </div>
+            ))}
+            
+            {isLoading && (
+              <div className="flex items-start gap-2">
+                <div className="h-7 w-7 rounded-full bg-sky-500 flex items-center justify-center text-white text-[10px] font-semibold">
+                  E
+                </div>
+                <div className="bg-slate-100 dark:bg-slate-800 rounded-2xl px-3 py-2 text-sm text-muted-foreground">
+                  <span className="inline-flex gap-1">
+                    <span className="animate-bounce">.</span>
+                    <span className="animate-bounce" style={{ animationDelay: '0.1s' }}>.</span>
+                    <span className="animate-bounce" style={{ animationDelay: '0.2s' }}>.</span>
+                  </span>
+                </div>
+              </div>
+            )}
+            
+            <div ref={chatEndRef} />
+          </div>
 
-            {/* Input + actions */}
-            <div className="border-t border-border p-3 space-y-3">
-              {!isApproved ? (
-                <>
-                  <div className="flex gap-2">
-                    <Input
-                      type="text"
-                      placeholder="Stel een vraag aan Ellen of vraag om een ander voorstel..."
-                      value={inputValue}
-                      onChange={(e) => setInputValue(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                      className="flex-1 rounded-full"
-                    />
-                    <Button size="sm" onClick={handleSendMessage}>
-                      Stuur
-                    </Button>
-                  </div>
-
-                  <div className="flex justify-end gap-2">
-                    <Button variant="outline" size="sm" onClick={handleNewProposal}>
-                      Nieuw voorstel vragen
-                    </Button>
-                    <Button size="sm" onClick={handleApprove}>
-                      Voorstel goedkeuren
-                    </Button>
-                  </div>
-                </>
-              ) : (
-                <div className="text-center py-2">
-                  <p className="text-sm text-muted-foreground mb-3">
-                    ✓ Het voorstel van Ellen is toegevoegd aan de planner.
-                  </p>
-                  <Button onClick={() => navigate('/?tab=planner')}>
-                    Ga naar planner
+          {/* Input + actions */}
+          <div className="border-t border-border p-3">
+            {!isApproved ? (
+              <>
+                <div className="flex gap-2 mb-2">
+                  <Input
+                    type="text"
+                    placeholder="Stel een vraag of vraag om een ander voorstel..."
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                    className="flex-1 rounded-full text-sm h-9"
+                  />
+                  <Button size="sm" onClick={handleSendMessage} className="h-9">
+                    Stuur
                   </Button>
                 </div>
-              )}
-            </div>
-          </section>
-        </div>
+
+                <div className="flex justify-end gap-2 pt-1">
+                  <Button variant="outline" size="sm" onClick={handleNewProposal} disabled={isLoading}>
+                    Nieuw voorstel vragen
+                  </Button>
+                  <Button size="sm" onClick={handleApprove} disabled={!hasProposal || isLoading}>
+                    Voorstel goedkeuren
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-3">
+                <p className="text-sm text-muted-foreground mb-3">
+                  ✓ Het voorstel van Ellen is toegevoegd aan de planner.
+                </p>
+                <Button onClick={() => navigate('/?tab=planner')}>
+                  Ga naar planner
+                </Button>
+              </div>
+            )}
+          </div>
+        </section>
       </div>
 
       {/* Confirmation Modal */}
