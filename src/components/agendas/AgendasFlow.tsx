@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import {
@@ -8,9 +8,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import { mockEmployees, mockClients, generateMockTasks, getWeekStart, getWeekNumber, formatDateRange, Task, Employee } from '@/lib/mockData';
 import { TaskLegend } from '@/components/planner/TaskLegend';
+import { toast } from '@/hooks/use-toast';
 
 const dayNames = ['Ma', 'Di', 'Wo', 'Do', 'Vr'];
 const timeSlots = [9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
@@ -24,6 +26,54 @@ const taskColors: Record<string, string> = {
   optie: 'bg-task-optie',
 };
 
+// Mock current agenda events (existing calendar items)
+interface AgendaEvent {
+  id: string;
+  title: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+}
+
+const generateMockAgendaEvents = (weekStart: Date, employeeId: string): AgendaEvent[] => {
+  const events: AgendaEvent[] = [];
+  const eventTypes = ['Vergadering', 'Klantgesprek', 'Teamoverleg', 'Review', 'Stand-up', 'Workshop'];
+  
+  for (let day = 0; day < 5; day++) {
+    const date = new Date(weekStart);
+    date.setDate(date.getDate() + day);
+    const dateStr = date.toISOString().split('T')[0];
+    
+    // Add 0-2 events per day
+    const numEvents = Math.floor(Math.random() * 3);
+    const usedSlots: { start: number; end: number }[] = [];
+    
+    for (let i = 0; i < numEvents; i++) {
+      let startHour = 9 + Math.floor(Math.random() * 7);
+      if (startHour === 13) startHour = 14; // Skip lunch
+      const duration = Math.floor(Math.random() * 2) + 1;
+      const endHour = Math.min(startHour + duration, 18);
+      
+      const hasOverlap = usedSlots.some(
+        slot => !(endHour <= slot.start || startHour >= slot.end)
+      );
+      
+      if (!hasOverlap && startHour < 18) {
+        usedSlots.push({ start: startHour, end: endHour });
+        events.push({
+          id: `agenda-${employeeId}-${dateStr}-${i}`,
+          title: eventTypes[Math.floor(Math.random() * eventTypes.length)],
+          date: dateStr,
+          startTime: `${startHour.toString().padStart(2, '0')}:00`,
+          endTime: `${endHour.toString().padStart(2, '0')}:00`,
+        });
+      }
+    }
+  }
+  
+  return events;
+};
+
 export function AgendasFlow() {
   const navigate = useNavigate();
   const [currentWeekStart, setCurrentWeekStart] = useState(() => getWeekStart(new Date()));
@@ -31,11 +81,21 @@ export function AgendasFlow() {
   const [showPlanner, setShowPlanner] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set());
+  
+  // View options
+  const [showCurrentAgenda, setShowCurrentAgenda] = useState(true);
+  const [showNewPlanning, setShowNewPlanning] = useState(true);
+  const [validationMessage, setValidationMessage] = useState('');
 
   const weekNumber = getWeekNumber(currentWeekStart);
   const dateRange = formatDateRange(currentWeekStart);
 
   const tasks = useMemo(() => generateMockTasks(currentWeekStart), [currentWeekStart]);
+  
+  const agendaEvents = useMemo(() => {
+    if (!selectedEmployee) return [];
+    return generateMockAgendaEvents(currentWeekStart, selectedEmployee);
+  }, [currentWeekStart, selectedEmployee]);
 
   const filteredTasks = useMemo(() => {
     if (!selectedEmployee) return [];
@@ -45,6 +105,17 @@ export function AgendasFlow() {
   const selectedEmployeeData = useMemo(() => {
     return mockEmployees.find(emp => emp.id === selectedEmployee);
   }, [selectedEmployee]);
+
+  // Ensure at least one view is selected
+  useEffect(() => {
+    if (!showCurrentAgenda && !showNewPlanning) {
+      setShowNewPlanning(true);
+      setValidationMessage('Minimaal één weergave moet actief zijn.');
+      setTimeout(() => setValidationMessage(''), 3000);
+    } else {
+      setValidationMessage('');
+    }
+  }, [showCurrentAgenda, showNewPlanning]);
 
   const handleShowPlanner = () => {
     if (selectedEmployee) {
@@ -93,7 +164,7 @@ export function AgendasFlow() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-8 py-2">
+    <div className="max-w-6xl pl-8 pr-8 pt-6 pb-10">
       {/* Header - only week title */}
       <h1 className="text-2xl font-semibold text-foreground mb-6">
         <span className="font-bold">Week {weekNumber}</span>
@@ -107,7 +178,7 @@ export function AgendasFlow() {
           <TaskLegend />
         </div>
 
-        {/* Week + Medewerker + Toon planner card */}
+        {/* Week + Medewerker + Options + Toon planner card */}
         <div className="flex-1 max-w-md">
           <div className="rounded-xl border border-border bg-card px-6 py-5 shadow-sm">
             {/* Week controls */}
@@ -158,9 +229,36 @@ export function AgendasFlow() {
               </div>
             </div>
 
+            {/* View options */}
+            <div className="space-y-3 mb-4">
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="currentAgenda" 
+                  checked={showCurrentAgenda}
+                  onCheckedChange={(checked) => setShowCurrentAgenda(checked === true)}
+                />
+                <label htmlFor="currentAgenda" className="text-sm font-medium leading-none cursor-pointer">
+                  Huidige agenda
+                </label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="newPlanning" 
+                  checked={showNewPlanning}
+                  onCheckedChange={(checked) => setShowNewPlanning(checked === true)}
+                />
+                <label htmlFor="newPlanning" className="text-sm font-medium leading-none cursor-pointer">
+                  Nieuwe planning
+                </label>
+              </div>
+              {validationMessage && (
+                <p className="text-xs text-amber-600">{validationMessage}</p>
+              )}
+            </div>
+
             {/* Description */}
             <p className="text-sm text-muted-foreground mb-4">
-              Kies een week en medewerker om de planning te bekijken en in de agenda te plaatsen.
+              Kies welke weergaven je wilt zien: de huidige agenda, de nieuwe planning, of allebei.
             </p>
 
             {/* Show planner button */}
@@ -175,33 +273,53 @@ export function AgendasFlow() {
         </div>
       </div>
 
-      {/* Planner view for selected employee */}
+      {/* Planner views for selected employee */}
       {showPlanner && selectedEmployeeData && (
         <div>
-          {/* Selection controls */}
+          {/* Selection controls - right aligned */}
           <div className="flex items-center justify-end mb-4">
             <Button 
               variant={selectionMode ? "secondary" : "outline"}
               onClick={toggleSelectionMode}
+              disabled={!showNewPlanning}
             >
               {selectionMode ? 'Selectie annuleren' : 'Selecteren'}
             </Button>
           </div>
 
-          {/* Grid */}
-          <div className="w-full overflow-auto">
-            <SingleEmployeePlannerGrid
-              weekStart={currentWeekStart}
-              employee={selectedEmployeeData}
-              tasks={filteredTasks}
-              selectionMode={selectionMode}
-              selectedTasks={selectedTasks}
-              onTaskClick={toggleTaskSelection}
-            />
-          </div>
+          {/* Current Agenda view */}
+          {showCurrentAgenda && (
+            <div className="mb-6">
+              <h2 className="text-lg font-semibold text-foreground mb-3">Huidige agenda</h2>
+              <div className="w-full overflow-auto">
+                <AgendaGrid
+                  weekStart={currentWeekStart}
+                  employee={selectedEmployeeData}
+                  events={agendaEvents}
+                />
+              </div>
+            </div>
+          )}
 
-          {/* Add to agenda button */}
-          <div className="flex justify-end mt-4">
+          {/* New Planning view */}
+          {showNewPlanning && (
+            <div className="mb-6">
+              <h2 className="text-lg font-semibold text-foreground mb-3">Nieuwe planning</h2>
+              <div className="w-full overflow-auto">
+                <PlanningGrid
+                  weekStart={currentWeekStart}
+                  employee={selectedEmployeeData}
+                  tasks={filteredTasks}
+                  selectionMode={selectionMode}
+                  selectedTasks={selectedTasks}
+                  onTaskClick={toggleTaskSelection}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Add to agenda button - right aligned */}
+          <div className="flex justify-end">
             <Button 
               disabled={selectedTasks.size === 0}
               onClick={handleAddToAgenda}
@@ -216,7 +334,130 @@ export function AgendasFlow() {
   );
 }
 
-interface SingleEmployeePlannerGridProps {
+// Agenda Grid - shows current calendar events in neutral colors
+interface AgendaGridProps {
+  weekStart: Date;
+  employee: Employee;
+  events: AgendaEvent[];
+}
+
+function AgendaGrid({ weekStart, employee, events }: AgendaGridProps) {
+  const weekDates = useMemo(() => {
+    return dayNames.map((_, index) => {
+      const date = new Date(weekStart);
+      date.setDate(date.getDate() + index);
+      return date;
+    });
+  }, [weekStart]);
+
+  const getEventsForCell = (date: Date, hour: number) => {
+    const dateStr = date.toISOString().split('T')[0];
+    return events.filter((event) => {
+      if (event.date !== dateStr) return false;
+      const startHour = parseInt(event.startTime.split(':')[0]);
+      const endHour = parseInt(event.endTime.split(':')[0]);
+      return hour >= startHour && hour < endHour;
+    });
+  };
+
+  const getEventStart = (event: AgendaEvent, hour: number) => {
+    const startHour = parseInt(event.startTime.split(':')[0]);
+    return hour === startHour;
+  };
+
+  return (
+    <div className="rounded-lg border border-border bg-card">
+      <table className="w-full border-collapse table-fixed">
+        <thead>
+          <tr className="bg-secondary">
+            <th className="sticky left-0 z-10 bg-secondary border-b border-r border-border px-4 py-3 text-left text-sm font-medium text-muted-foreground w-48">
+              Medewerker
+            </th>
+            <th className="sticky left-48 z-10 bg-secondary border-b border-r border-border px-2 py-3 text-center text-xs font-medium text-muted-foreground w-14">
+              Uur
+            </th>
+            {weekDates.map((date, index) => (
+              <th
+                key={index}
+                className="border-b border-r border-border px-2 py-3 text-center text-sm font-medium text-foreground"
+              >
+                <div>{dayNames[index]}</div>
+                <div className="text-xs text-muted-foreground">
+                  {date.getDate()}/{date.getMonth() + 1}
+                </div>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {timeSlots.map((hour, hourIndex) => (
+            <tr key={`${employee.id}-${hour}`} className={cn(
+              hour === 13 && 'bg-task-lunch/30'
+            )}>
+              {hourIndex === 0 && (
+                <td 
+                  rowSpan={timeSlots.length}
+                  className="sticky left-0 z-10 bg-card border-b border-r border-border px-4 py-2 align-top"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-500 text-xs font-medium text-white">
+                      {employee.name.split(' ').map(n => n[0]).join('')}
+                    </div>
+                    <div>
+                      <div className="font-medium text-foreground text-sm">{employee.name}</div>
+                      <div className="text-xs text-muted-foreground">{employee.role}</div>
+                    </div>
+                  </div>
+                </td>
+              )}
+              <td className={cn(
+                "sticky left-48 z-10 border-b border-r border-border px-2 py-1 text-center text-xs font-medium",
+                hour === 13 ? 'bg-task-lunch/30 text-muted-foreground' : 'bg-card text-muted-foreground'
+              )}>
+                {hour === 13 ? 'Lunch' : `${hour.toString().padStart(2, '0')}:00`}
+              </td>
+              {weekDates.map((date, dayIndex) => {
+                const cellEvents = getEventsForCell(date, hour);
+                const isLunchHour = hour === 13;
+                
+                return (
+                  <td
+                    key={dayIndex}
+                    className={cn(
+                      "border-b border-r border-border p-0.5",
+                      isLunchHour && 'bg-task-lunch/30'
+                    )}
+                    style={{ height: '32px' }}
+                  >
+                    {cellEvents.map((event) => {
+                      const isStart = getEventStart(event, hour);
+                      if (!isStart) return null;
+                      
+                      return (
+                        <div
+                          key={event.id}
+                          className="rounded px-1.5 py-0.5 text-xs text-white overflow-hidden h-full bg-slate-500"
+                          title={`${event.title}\n${event.startTime} - ${event.endTime}`}
+                        >
+                          <div className="truncate font-medium">
+                            {event.title}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// Planning Grid - shows new planning with task colors and selection
+interface PlanningGridProps {
   weekStart: Date;
   employee: Employee;
   tasks: Task[];
@@ -225,14 +466,14 @@ interface SingleEmployeePlannerGridProps {
   onTaskClick: (taskId: string) => void;
 }
 
-function SingleEmployeePlannerGrid({ 
+function PlanningGrid({ 
   weekStart, 
   employee, 
   tasks, 
   selectionMode,
   selectedTasks,
   onTaskClick 
-}: SingleEmployeePlannerGridProps) {
+}: PlanningGridProps) {
   const weekDates = useMemo(() => {
     return dayNames.map((_, index) => {
       const date = new Date(weekStart);
@@ -274,7 +515,7 @@ function SingleEmployeePlannerGrid({
 
   return (
     <div className="rounded-lg border border-border bg-card">
-      <table className="w-full border-collapse">
+      <table className="w-full border-collapse table-fixed">
         <thead>
           <tr className="bg-secondary">
             <th className="sticky left-0 z-10 bg-secondary border-b border-r border-border px-4 py-3 text-left text-sm font-medium text-muted-foreground w-48">
@@ -286,7 +527,7 @@ function SingleEmployeePlannerGrid({
             {weekDates.map((date, index) => (
               <th
                 key={index}
-                className="border-b border-r border-border px-2 py-3 text-center text-sm font-medium text-foreground min-w-28"
+                className="border-b border-r border-border px-2 py-3 text-center text-sm font-medium text-foreground"
               >
                 <div>{dayNames[index]}</div>
                 <div className="text-xs text-muted-foreground">
