@@ -18,7 +18,6 @@ import {
 import { cn } from '@/lib/utils';
 import { mockEmployees, mockClients, generateMockTasks, getWeekStart, getWeekNumber, formatDateRange, Task, Employee } from '@/lib/mockData';
 import { toast } from '@/hooks/use-toast';
-import { usePlannerAutoFit } from '@/hooks/usePlannerAutoFit';
 import { TaskLegend } from '@/components/planner/TaskLegend';
 
 const zoomLevels = [50, 75, 100, 125, 150];
@@ -42,8 +41,6 @@ export function AgendasFlow() {
   const [showPlanner, setShowPlanner] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set());
-
-  const { viewportRef, plannerRef, computedZoom } = usePlannerAutoFit({ plannerZoom });
 
   const weekNumber = getWeekNumber(currentWeekStart);
   const dateRange = formatDateRange(currentWeekStart);
@@ -286,13 +283,13 @@ export function AgendasFlow() {
 
           {/* Grid with zoom */}
           <div 
-            ref={viewportRef} 
-            className="w-full h-[calc(100vh-480px)] overflow-hidden"
+            className={`w-full ${
+              plannerZoom <= 75 ? 'h-[calc(100vh-520px)] overflow-hidden' : 'h-[calc(100vh-520px)] overflow-auto'
+            }`}
           >
             <div
-              ref={plannerRef}
-              style={{ transform: `scale(${computedZoom})`, transformOrigin: 'top left' }}
-              className="inline-block transition-transform"
+              className="origin-top-left inline-block"
+              style={{ transform: `scale(${plannerZoom / 100})` }}
             >
               <SingleEmployeePlannerGrid
                 weekStart={currentWeekStart}

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { X, ZoomIn, ZoomOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -32,9 +32,6 @@ export function FullscreenPlanner({
 }: FullscreenPlannerProps) {
   const [weeksToShow, setWeeksToShow] = useState(1);
   const [plannerZoom, setPlannerZoom] = useState(initialZoom);
-  const viewportRef = useRef<HTMLDivElement>(null);
-  const plannerContentRef = useRef<HTMLDivElement>(null);
-  const [computedZoom, setComputedZoom] = useState(initialZoom / 100);
 
   const weeks = Array.from({ length: weeksToShow }, (_, i) => {
     const weekStart = new Date(currentWeekStart);
@@ -70,57 +67,6 @@ export function FullscreenPlanner({
       handleZoomChange(zoomLevels[currentIndex + 1]);
     }
   };
-
-  // Auto-fit calculation
-  const calculateFit = useCallback(() => {
-    if (!viewportRef.current || !plannerContentRef.current) {
-      setComputedZoom(plannerZoom / 100);
-      return;
-    }
-
-    const viewportWidth = viewportRef.current.clientWidth;
-    const viewportHeight = viewportRef.current.clientHeight;
-    
-    // Temporarily reset scale to measure natural size
-    plannerContentRef.current.style.transform = 'scale(1)';
-    const plannerWidth = plannerContentRef.current.scrollWidth;
-    const plannerHeight = plannerContentRef.current.scrollHeight;
-
-    const baseScale = plannerZoom / 100;
-    
-    // Only apply fit constraint when zooming out (baseScale < 1)
-    if (baseScale < 1) {
-      const widthRatio = viewportWidth / plannerWidth;
-      const heightRatio = viewportHeight / plannerHeight;
-      const fitScale = Math.min(widthRatio, heightRatio);
-      const finalScale = Math.min(baseScale, fitScale);
-      setComputedZoom(Math.max(0.1, finalScale));
-    } else {
-      setComputedZoom(baseScale);
-    }
-  }, [plannerZoom]);
-
-  useEffect(() => {
-    calculateFit();
-
-    const handleResize = () => calculateFit();
-    window.addEventListener('resize', handleResize);
-    
-    const resizeObserver = new ResizeObserver(() => calculateFit());
-    if (viewportRef.current) {
-      resizeObserver.observe(viewportRef.current);
-    }
-
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      resizeObserver.disconnect();
-    };
-  }, [calculateFit]);
-
-  useEffect(() => {
-    const timer = setTimeout(calculateFit, 50);
-    return () => clearTimeout(timer);
-  }, [plannerZoom, weeksToShow, calculateFit]);
 
   // Grid layout based on weeks and zoom
   const getGridClasses = () => {
@@ -198,15 +144,15 @@ export function FullscreenPlanner({
         </Button>
       </div>
 
-      {/* Viewport for auto-fit */}
+      {/* Viewport with simple zoom */}
       <div
-        ref={viewportRef}
-        className="w-full h-[calc(100vh-73px)] overflow-hidden"
+        className={`w-full ${
+          plannerZoom <= 75 ? 'h-[calc(100vh-73px)] overflow-hidden' : 'h-[calc(100vh-73px)] overflow-auto'
+        }`}
       >
         <div
-          ref={plannerContentRef}
-          className="p-6 origin-top-left inline-block transition-transform duration-200"
-          style={{ transform: `scale(${computedZoom})` }}
+          className="p-6 origin-top-left inline-block"
+          style={{ transform: `scale(${plannerZoom / 100})` }}
         >
           {weeksToShow === 1 ? (
             <div

@@ -20,7 +20,6 @@ import { PlannerGrid } from './PlannerGrid';
 import { FullscreenPlanner } from './FullscreenPlanner';
 import { mockEmployees, mockClients, generateMockTasks, getWeekStart, getWeekNumber, formatDateRange } from '@/lib/mockData';
 import { toast } from '@/hooks/use-toast';
-import { usePlannerAutoFit } from '@/hooks/usePlannerAutoFit';
 
 const zoomLevels = [50, 75, 100, 125, 150];
 
@@ -30,8 +29,6 @@ export function Planner() {
   const [selectedClient, setSelectedClient] = useState<string>('all');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [plannerZoom, setPlannerZoom] = useState<number>(100);
-  
-  const { viewportRef, plannerRef, computedZoom } = usePlannerAutoFit({ plannerZoom });
 
   const weekNumber = getWeekNumber(currentWeekStart);
   const dateRange = formatDateRange(currentWeekStart);
@@ -234,13 +231,13 @@ export function Planner() {
 
       {/* Grid with zoom */}
       <div 
-        ref={viewportRef} 
-        className="w-full h-[calc(100vh-320px)] overflow-hidden"
+        className={`w-full ${
+          plannerZoom <= 75 ? 'h-[calc(100vh-320px)] overflow-hidden' : 'h-[calc(100vh-320px)] overflow-auto'
+        }`}
       >
         <div
-          ref={plannerRef}
-          style={{ transform: `scale(${computedZoom})`, transformOrigin: 'top left' }}
-          className="inline-block transition-transform"
+          className="origin-top-left inline-block"
+          style={{ transform: `scale(${plannerZoom / 100})` }}
         >
           <PlannerGrid
             weekStart={currentWeekStart}
