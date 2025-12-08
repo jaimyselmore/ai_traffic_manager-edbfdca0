@@ -80,17 +80,15 @@ export default function Verlof() {
         <VerlofForm data={formData} onChange={setFormData} />
       </div>
 
-      {/* Bottom buttons: true bottom-right of the page */}
-      <div className="w-full pr-4 pb-4 flex justify-end">
-        <div className="flex gap-3">
-          <Button variant="outline" onClick={handleSaveConcept}>
-            <Save className="mr-2 h-4 w-4" />
-            Opslaan als concept
-          </Button>
-          <Button onClick={handleSubmit}>
-            Verzoek indienen
-          </Button>
-        </div>
+      {/* Fixed bottom-right buttons */}
+      <div className="fixed bottom-4 right-4 flex gap-2">
+        <Button variant="ghost" onClick={handleSaveConcept}>
+          <Save className="mr-2 h-4 w-4" />
+          Opslaan als concept
+        </Button>
+        <Button onClick={handleSubmit}>
+          Verzoek indienen
+        </Button>
       </div>
     </div>
   );
