@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ProjectHeader, ProjectHeaderData, emptyProjectHeaderData } from '@/components/forms/ProjectHeader';
 import { BetrokkenTeam, BetrokkenTeamData, emptyBetrokkenTeamData } from '@/components/forms/BetrokkenTeam';
 import { ProductieFases, ProductieFasesData, emptyProductieFasesData } from '@/components/forms/ProductieFases';
-import { AlgemeenProjectForm, AlgemeenProjectData, emptyAlgemeenProjectData } from '@/components/forms/AlgemeenProjectForm';
+import { PlanningModeForm, PlanningModeData, emptyPlanningModeData } from '@/components/forms/PlanningModeForm';
 import { toast } from '@/hooks/use-toast';
 
 const STORAGE_KEY = 'concept_nieuw_project';
@@ -19,7 +19,7 @@ interface NieuwProjectFormData {
   projectType: ProjectType;
   betrokkenTeam: BetrokkenTeamData;
   productieFases: ProductieFasesData;
-  algemeenProject: AlgemeenProjectData;
+  planningMode: PlanningModeData;
 }
 
 const emptyFormData: NieuwProjectFormData = {
@@ -27,15 +27,11 @@ const emptyFormData: NieuwProjectFormData = {
   projectType: '',
   betrokkenTeam: emptyBetrokkenTeamData,
   productieFases: emptyProductieFasesData,
-  algemeenProject: emptyAlgemeenProjectData,
+  planningMode: emptyPlanningModeData,
 };
 
 export default function NieuwProject() {
   const navigate = useNavigate();
-  const location = useLocation();
-  
-  // Check if coming from a tile with preselected type
-  const preselectedType = (location.state as { projectType?: ProjectType })?.projectType;
 
   const [formData, setFormData] = useState<NieuwProjectFormData>(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -43,20 +39,10 @@ export default function NieuwProject() {
       const parsed = JSON.parse(stored);
       return { ...emptyFormData, ...parsed };
     }
-    return {
-      ...emptyFormData,
-      projectType: preselectedType || '',
-    };
+    return emptyFormData;
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
-
-  // Set preselected type if coming from a tile
-  useEffect(() => {
-    if (preselectedType && !formData.projectType) {
-      setFormData(prev => ({ ...prev, projectType: preselectedType }));
-    }
-  }, [preselectedType]);
 
   // Autosave to localStorage on change
   useEffect(() => {
@@ -172,8 +158,8 @@ export default function NieuwProject() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="algemeen">Algemeen project</SelectItem>
-                <SelectItem value="productie">Productie</SelectItem>
                 <SelectItem value="guiding_idea">Guiding Idea</SelectItem>
+                <SelectItem value="productie">Productie</SelectItem>
               </SelectContent>
             </Select>
             {errors.projectType && (
@@ -185,15 +171,28 @@ export default function NieuwProject() {
         {/* Conditional sections based on project type */}
         {formData.projectType === 'algemeen' && (
           <>
-            <AlgemeenProjectForm
-              data={formData.algemeenProject}
-              onChange={(data) => setFormData({ ...formData, algemeenProject: data })}
+            <PlanningModeForm
+              data={formData.planningMode}
+              onChange={(data) => setFormData({ ...formData, planningMode: data })}
             />
             <BetrokkenTeam
               data={formData.betrokkenTeam}
               onChange={(data) => setFormData({ ...formData, betrokkenTeam: data })}
-              showEllenToggle={true}
-              ellenDefaultOn={true}
+              showEllenToggle={false}
+            />
+          </>
+        )}
+
+        {formData.projectType === 'guiding_idea' && (
+          <>
+            <PlanningModeForm
+              data={formData.planningMode}
+              onChange={(data) => setFormData({ ...formData, planningMode: data })}
+            />
+            <BetrokkenTeam
+              data={formData.betrokkenTeam}
+              onChange={(data) => setFormData({ ...formData, betrokkenTeam: data })}
+              showEllenToggle={false}
             />
           </>
         )}
@@ -209,21 +208,6 @@ export default function NieuwProject() {
             <ProductieFases
               data={formData.productieFases}
               onChange={(data) => setFormData({ ...formData, productieFases: data })}
-            />
-          </>
-        )}
-
-        {formData.projectType === 'guiding_idea' && (
-          <>
-            <AlgemeenProjectForm
-              data={formData.algemeenProject}
-              onChange={(data) => setFormData({ ...formData, algemeenProject: data })}
-            />
-            <BetrokkenTeam
-              data={formData.betrokkenTeam}
-              onChange={(data) => setFormData({ ...formData, betrokkenTeam: data })}
-              showEllenToggle={true}
-              ellenDefaultOn={true}
             />
           </>
         )}

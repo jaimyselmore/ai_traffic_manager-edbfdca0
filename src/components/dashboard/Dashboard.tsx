@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, Clock, Eye, Bell, FolderOpen, Plus, FileEdit, Users, CalendarOff, Film, Lightbulb, Settings } from 'lucide-react';
+import { AlertTriangle, Clock, Eye, Bell, FolderOpen, Plus, FileEdit, Users, CalendarOff, Settings } from 'lucide-react';
 import { StatCard } from './StatCard';
 import { RequestBlock } from './RequestBlock';
 import { NotificationPanel } from './NotificationPanel';
@@ -113,27 +113,6 @@ export function Dashboard({ selectedEmployeeId }: DashboardProps) {
             variant="primary"
           />
           <RequestBlock
-            label="Productie"
-            description="Maak een productieproject aan met fases (PP, shoot, edit, presentaties, deliverables)."
-            icon={Film}
-            onClick={() => navigate('/nieuw-project', { state: { projectType: 'productie' } })}
-          />
-          <RequestBlock
-            label="Guiding Idea"
-            description="Creëer een strategisch Guiding Idea project met conceptuele richting."
-            icon={Lightbulb}
-            onClick={() => navigate('/nieuw-project', { state: { projectType: 'guiding_idea' } })}
-          />
-          <RequestBlock
-            label="Projecttype toevoegen"
-            description="Definieer een nieuw projecttype met standaard fases en betrokken rollen."
-            icon={Settings}
-            onClick={() => navigate('/projecttype-toevoegen')}
-          />
-        </div>
-        
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mt-4">
-          <RequestBlock
             label="Wijziging"
             description="Pas de planning van een bestaand project aan (scope, timing, team of uren)."
             icon={FileEdit}
@@ -150,6 +129,15 @@ export function Dashboard({ selectedEmployeeId }: DashboardProps) {
             description="Leg afwezigheid, vakantie, verlof of een gewijzigde parttime-dag van een medewerker vast."
             icon={CalendarOff}
             onClick={() => navigate('/verlof')}
+          />
+        </div>
+        
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mt-4">
+          <RequestBlock
+            label="Projecttype toevoegen"
+            description="Definieer een nieuw projecttype met standaard fases en betrokken rollen."
+            icon={Settings}
+            onClick={() => navigate('/projecttype-toevoegen')}
           />
         </div>
       </div>
