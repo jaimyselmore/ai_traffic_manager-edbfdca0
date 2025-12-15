@@ -1,39 +1,62 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { ProjectForm, ProjectFormData } from '@/components/forms/ProjectForm';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ProjectHeader, ProjectHeaderData, emptyProjectHeaderData } from '@/components/forms/ProjectHeader';
+import { BetrokkenTeam, BetrokkenTeamData, emptyBetrokkenTeamData } from '@/components/forms/BetrokkenTeam';
+import { ProductieFases, ProductieFasesData, emptyProductieFasesData } from '@/components/forms/ProductieFases';
+import { AlgemeenProjectForm, AlgemeenProjectData, emptyAlgemeenProjectData } from '@/components/forms/AlgemeenProjectForm';
 import { toast } from '@/hooks/use-toast';
 
 const STORAGE_KEY = 'concept_nieuw_project';
 
-const emptyFormData: ProjectFormData = {
-  klant: '',
-  projectnaam: '',
+type ProjectType = 'algemeen' | 'productie' | 'guiding_idea' | '';
+
+interface NieuwProjectFormData {
+  projectHeader: ProjectHeaderData;
+  projectType: ProjectType;
+  betrokkenTeam: BetrokkenTeamData;
+  productieFases: ProductieFasesData;
+  algemeenProject: AlgemeenProjectData;
+}
+
+const emptyFormData: NieuwProjectFormData = {
+  projectHeader: emptyProjectHeaderData,
   projectType: '',
-  deliverables: '',
-  deadline: '',
-  deadlineOnbekend: false,
-  indicatievePeriode: '',
-  geschatteEffortWaarde: '',
-  geschatteEffortEenheid: 'uren',
-  letEllenKiezen: false,
-  medewerkers: [],
-  prioriteit: 'Normaal',
-  opmerkingen: '',
+  betrokkenTeam: emptyBetrokkenTeamData,
+  productieFases: emptyProductieFasesData,
+  algemeenProject: emptyAlgemeenProjectData,
 };
 
 export default function NieuwProject() {
   const navigate = useNavigate();
-  const [formData, setFormData] = useState<ProjectFormData>(() => {
+  const location = useLocation();
+  
+  // Check if coming from a tile with preselected type
+  const preselectedType = (location.state as { projectType?: ProjectType })?.projectType;
+
+  const [formData, setFormData] = useState<NieuwProjectFormData>(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       const parsed = JSON.parse(stored);
       return { ...emptyFormData, ...parsed };
     }
-    return emptyFormData;
+    return {
+      ...emptyFormData,
+      projectType: preselectedType || '',
+    };
   });
+
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Set preselected type if coming from a tile
+  useEffect(() => {
+    if (preselectedType && !formData.projectType) {
+      setFormData(prev => ({ ...prev, projectType: preselectedType }));
+    }
+  }, [preselectedType]);
 
   // Autosave to localStorage on change
   useEffect(() => {
@@ -51,20 +74,17 @@ export default function NieuwProject() {
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.klant) {
-      newErrors.klant = 'Selecteer een klant';
+    if (!formData.projectHeader.klantId) {
+      newErrors.klantId = 'Selecteer een klant';
     }
-    if (!formData.projectnaam) {
-      newErrors.projectnaam = 'Voer een projectnaam in';
+    if (!formData.projectHeader.projectVolgnummer) {
+      newErrors.projectVolgnummer = 'Voer een volgnummer in';
+    }
+    if (!formData.projectHeader.projectomschrijving) {
+      newErrors.projectomschrijving = 'Voer een projectomschrijving in';
     }
     if (!formData.projectType) {
-      newErrors.projectType = 'Selecteer een project type';
-    }
-    if (!formData.deliverables) {
-      newErrors.deliverables = 'Voer deliverables in';
-    }
-    if (!formData.deadlineOnbekend && !formData.deadline) {
-      newErrors.deadline = 'Selecteer een deadline of markeer als onbekend';
+      newErrors.projectType = 'Selecteer een projecttype';
     }
 
     setErrors(newErrors);
@@ -86,24 +106,33 @@ export default function NieuwProject() {
       description: 'Even geduld alstublieft.',
     });
 
-    // Simulate API call
     await new Promise((resolve) => setTimeout(resolve, 1500));
-
-    // Clear localStorage after successful submit
     localStorage.removeItem(STORAGE_KEY);
 
-    // Navigate to Ellen conversation page with form data
-    navigate('/ellen-session', { 
-      state: { 
-        requestType: 'project',
-        formData: formData
-      } 
+    navigate('/ellen-session', {
+      state: {
+        requestType: formData.projectType === 'productie' ? 'productie' : 
+                     formData.projectType === 'guiding_idea' ? 'guiding_idea' : 'project',
+        formData: {
+          ...formData,
+          project_id_volledig: formData.projectHeader.volledigProjectId,
+          project_type: formData.projectType,
+          plan_status: 'concept',
+        },
+      },
     });
+  };
+
+  const getPageTitle = () => {
+    switch (formData.projectType) {
+      case 'productie': return 'Nieuw project – Productie';
+      case 'guiding_idea': return 'Nieuw project – Guiding Idea';
+      default: return 'Nieuw project';
+    }
   };
 
   return (
     <div className="h-full overflow-y-auto bg-background">
-      {/* Top: back link on its own row, far left */}
       <div className="w-full px-6 pt-6 mb-4">
         <button
           type="button"
@@ -114,10 +143,90 @@ export default function NieuwProject() {
         </button>
       </div>
 
-      {/* Form container with title */}
-      <div className="max-w-3xl mx-auto px-6 pb-24">
-        <h1 className="text-2xl font-semibold text-foreground mb-6">Nieuw project</h1>
-        <ProjectForm data={formData} onChange={setFormData} errors={errors} />
+      <div className="max-w-3xl mx-auto px-6 pb-24 space-y-6">
+        <div>
+          <h1 className="text-2xl font-semibold text-foreground">{getPageTitle()}</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Maak een nieuw project aan in de planning met klant, team en globale timing.
+          </p>
+        </div>
+
+        {/* Shared Project Header */}
+        <ProjectHeader
+          data={formData.projectHeader}
+          onChange={(data) => setFormData({ ...formData, projectHeader: data })}
+          errors={errors}
+        />
+
+        {/* Projecttype selector */}
+        <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
+          <h2 className="text-lg font-semibold text-foreground">Projecttype</h2>
+          <div>
+            <Label className="text-sm">Selecteer projecttype *</Label>
+            <Select
+              value={formData.projectType}
+              onValueChange={(value) => setFormData({ ...formData, projectType: value as ProjectType })}
+            >
+              <SelectTrigger className={errors.projectType ? 'border-destructive' : ''}>
+                <SelectValue placeholder="Kies een projecttype" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="algemeen">Algemeen project</SelectItem>
+                <SelectItem value="productie">Productie</SelectItem>
+                <SelectItem value="guiding_idea">Guiding Idea</SelectItem>
+              </SelectContent>
+            </Select>
+            {errors.projectType && (
+              <p className="text-xs text-destructive mt-1">{errors.projectType}</p>
+            )}
+          </div>
+        </div>
+
+        {/* Conditional sections based on project type */}
+        {formData.projectType === 'algemeen' && (
+          <>
+            <AlgemeenProjectForm
+              data={formData.algemeenProject}
+              onChange={(data) => setFormData({ ...formData, algemeenProject: data })}
+            />
+            <BetrokkenTeam
+              data={formData.betrokkenTeam}
+              onChange={(data) => setFormData({ ...formData, betrokkenTeam: data })}
+              showEllenToggle={true}
+              ellenDefaultOn={true}
+            />
+          </>
+        )}
+
+        {formData.projectType === 'productie' && (
+          <>
+            <BetrokkenTeam
+              data={formData.betrokkenTeam}
+              onChange={(data) => setFormData({ ...formData, betrokkenTeam: data })}
+              showEllenToggle={true}
+              ellenDefaultOn={false}
+            />
+            <ProductieFases
+              data={formData.productieFases}
+              onChange={(data) => setFormData({ ...formData, productieFases: data })}
+            />
+          </>
+        )}
+
+        {formData.projectType === 'guiding_idea' && (
+          <>
+            <AlgemeenProjectForm
+              data={formData.algemeenProject}
+              onChange={(data) => setFormData({ ...formData, algemeenProject: data })}
+            />
+            <BetrokkenTeam
+              data={formData.betrokkenTeam}
+              onChange={(data) => setFormData({ ...formData, betrokkenTeam: data })}
+              showEllenToggle={true}
+              ellenDefaultOn={true}
+            />
+          </>
+        )}
       </div>
 
       {/* Fixed bottom-right buttons */}

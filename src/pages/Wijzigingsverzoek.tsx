@@ -2,27 +2,43 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { WijzigingsverzoekForm, WijzigingsverzoekFormData } from '@/components/forms/WijzigingsverzoekForm';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ProjectHeader, ProjectHeaderData, emptyProjectHeaderData } from '@/components/forms/ProjectHeader';
+import { useEmployees, useWijzigingTypes } from '@/lib/data';
 import { toast } from '@/hooks/use-toast';
 
 const STORAGE_KEY = 'concept_wijzigingsverzoek';
 
+interface WijzigingsverzoekFormData {
+  projectHeader: ProjectHeaderData;
+  wijzigingType: string;
+  beschrijving: string;
+  deadline: string;
+  medewerkers: string[];
+}
+
 const emptyFormData: WijzigingsverzoekFormData = {
-  klant: '',
-  projectnaam: '',
+  projectHeader: emptyProjectHeaderData,
   wijzigingType: '',
   beschrijving: '',
   deadline: '',
   medewerkers: [],
-  opmerkingen: '',
 };
 
 export default function Wijzigingsverzoek() {
   const navigate = useNavigate();
+  const { data: employees = [] } = useEmployees();
+  const { data: wijzigingTypes = [] } = useWijzigingTypes();
+
   const [formData, setFormData] = useState<WijzigingsverzoekFormData>(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? JSON.parse(stored) : emptyFormData;
+    return stored ? { ...emptyFormData, ...JSON.parse(stored) } : emptyFormData;
   });
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(formData));
@@ -36,11 +52,34 @@ export default function Wijzigingsverzoek() {
     });
   };
 
+  const handleMedewerkerToggle = (id: string) => {
+    setFormData(prev => ({
+      ...prev,
+      medewerkers: prev.medewerkers.includes(id)
+        ? prev.medewerkers.filter(m => m !== id)
+        : [...prev.medewerkers, id],
+    }));
+  };
+
   const handleSubmit = async () => {
-    if (!formData.klant || !formData.projectnaam || !formData.wijzigingType || !formData.beschrijving) {
+    const newErrors: Record<string, string> = {};
+    
+    if (!formData.projectHeader.klantId) {
+      newErrors.klantId = 'Selecteer een klant';
+    }
+    if (!formData.wijzigingType) {
+      newErrors.wijzigingType = 'Selecteer een type wijziging';
+    }
+    if (!formData.beschrijving) {
+      newErrors.beschrijving = 'Voer een beschrijving in';
+    }
+
+    setErrors(newErrors);
+
+    if (Object.keys(newErrors).length > 0) {
       toast({
         title: 'Vul alle verplichte velden in',
-        description: 'Klant, project, type wijziging en beschrijving zijn verplicht.',
+        description: 'Klant, type wijziging en beschrijving zijn verplicht.',
         variant: 'destructive',
       });
       return;
@@ -54,18 +93,20 @@ export default function Wijzigingsverzoek() {
     await new Promise((resolve) => setTimeout(resolve, 1500));
     localStorage.removeItem(STORAGE_KEY);
 
-    // Navigate to Ellen conversation page with form data
-    navigate('/ellen-session', { 
-      state: { 
+    navigate('/ellen-session', {
+      state: {
         requestType: 'wijziging',
-        formData: formData
-      } 
+        formData: {
+          ...formData,
+          project_id_volledig: formData.projectHeader.volledigProjectId,
+          plan_status: 'concept',
+        },
+      },
     });
   };
 
   return (
     <div className="h-full overflow-y-auto bg-background">
-      {/* Top: back link on its own row, far left */}
       <div className="w-full px-6 pt-6 mb-4">
         <button
           type="button"
@@ -76,10 +117,91 @@ export default function Wijzigingsverzoek() {
         </button>
       </div>
 
-      {/* Form container with title */}
-      <div className="max-w-3xl mx-auto px-6 pb-8">
-        <h1 className="text-2xl font-semibold text-foreground mb-6">Wijzigingsverzoek</h1>
-        <WijzigingsverzoekForm data={formData} onChange={setFormData} />
+      <div className="max-w-3xl mx-auto px-6 pb-24 space-y-6">
+        <div>
+          <h1 className="text-2xl font-semibold text-foreground">Wijzigingsverzoek</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Pas de planning van een bestaand project aan (scope, timing, team of uren).
+          </p>
+        </div>
+
+        {/* Shared Project Header */}
+        <ProjectHeader
+          data={formData.projectHeader}
+          onChange={(data) => setFormData({ ...formData, projectHeader: data })}
+          errors={errors}
+        />
+
+        {/* Wijziging details */}
+        <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
+          <h2 className="text-lg font-semibold text-foreground">Wijzigingsdetails</h2>
+
+          <div>
+            <Label className="text-sm">Type wijziging *</Label>
+            <Select
+              value={formData.wijzigingType}
+              onValueChange={(value) => setFormData({ ...formData, wijzigingType: value })}
+            >
+              <SelectTrigger className={errors.wijzigingType ? 'border-destructive' : ''}>
+                <SelectValue placeholder="Selecteer type" />
+              </SelectTrigger>
+              <SelectContent>
+                {wijzigingTypes.map((type) => (
+                  <SelectItem key={type.id} value={type.id}>{type.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.wijzigingType && (
+              <p className="text-xs text-destructive mt-1">{errors.wijzigingType}</p>
+            )}
+          </div>
+
+          <div>
+            <Label className="text-sm">Beschrijving van de wijziging *</Label>
+            <Textarea
+              value={formData.beschrijving}
+              onChange={(e) => setFormData({ ...formData, beschrijving: e.target.value })}
+              placeholder="Beschrijf wat er moet worden aangepast..."
+              rows={4}
+              className={errors.beschrijving ? 'border-destructive' : ''}
+            />
+            {errors.beschrijving && (
+              <p className="text-xs text-destructive mt-1">{errors.beschrijving}</p>
+            )}
+          </div>
+
+          <div>
+            <Label className="text-sm">Nieuwe deadline (indien van toepassing)</Label>
+            <Input
+              type="date"
+              value={formData.deadline}
+              onChange={(e) => setFormData({ ...formData, deadline: e.target.value })}
+            />
+          </div>
+        </div>
+
+        {/* Betrokken medewerkers */}
+        <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
+          <h2 className="text-lg font-semibold text-foreground">Betrokken medewerkers</h2>
+          <p className="text-sm text-muted-foreground">
+            Selecteer de medewerkers die betrokken zijn bij deze wijziging.
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            {employees.map((emp) => (
+              <div key={emp.id} className="flex items-center gap-2">
+                <Checkbox
+                  id={`emp-${emp.id}`}
+                  checked={formData.medewerkers.includes(emp.id)}
+                  onCheckedChange={() => handleMedewerkerToggle(emp.id)}
+                />
+                <Label htmlFor={`emp-${emp.id}`} className="text-sm">
+                  {emp.name}
+                  <span className="text-muted-foreground ml-1 text-xs">({emp.role})</span>
+                </Label>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* Fixed bottom-right buttons */}

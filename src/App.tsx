@@ -8,8 +8,6 @@ import NieuwProject from "./pages/NieuwProject";
 import Wijzigingsverzoek from "./pages/Wijzigingsverzoek";
 import Meeting from "./pages/Meeting";
 import Verlof from "./pages/Verlof";
-import Productie from "./pages/Productie";
-import GuidingIdea from "./pages/GuidingIdea";
 import ProjecttypeToevoegen from "./pages/ProjecttypeToevoegen";
 import AgendaResultaat from "./pages/AgendaResultaat";
 import EllenConversationPage from "./pages/EllenConversationPage";
@@ -29,8 +27,6 @@ const App = () => (
           <Route path="/wijzigingsverzoek" element={<Wijzigingsverzoek />} />
           <Route path="/meeting" element={<Meeting />} />
           <Route path="/verlof" element={<Verlof />} />
-          <Route path="/productie" element={<Productie />} />
-          <Route path="/guiding-idea" element={<GuidingIdea />} />
           <Route path="/projecttype-toevoegen" element={<ProjecttypeToevoegen />} />
           <Route path="/agenda-resultaat" element={<AgendaResultaat />} />
           <Route path="/ellen-session" element={<EllenConversationPage />} />
