@@ -131,6 +131,9 @@ export interface Task {
   date: string;
   startTime: string;
   endTime: string;
+  planStatus: 'concept' | 'vast'; // concept = semi-transparent, vast = full color
+  projectType?: 'productie' | 'guiding_idea' | 'nieuw_project' | 'meeting' | 'verlof' | 'wijziging';
+  faseNaam?: string; // e.g. 'PP', 'PPM', 'Shoot', etc.
 }
 
 // ---- DASHBOARD STATS (Computed from other sheets) ----
