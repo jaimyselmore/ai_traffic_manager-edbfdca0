@@ -16,6 +16,7 @@ export interface ProjectHeaderData {
   adresKlant: string;
   infoKlant: string;
   datumAanvraag: string;
+  deadline: string;
   opmerkingen: string;
   // New client fields
   nieuweKlantNaam?: string;
@@ -289,6 +290,19 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
         />
       </div>
 
+      {/* Deadline */}
+      <div>
+        <Label className="text-sm">Deadline</Label>
+        <Input
+          type="date"
+          value={data.deadline}
+          onChange={(e) => onChange({ ...data, deadline: e.target.value })}
+        />
+        <p className="text-xs text-muted-foreground mt-1">
+          Gewenste opleverdatum (indien bekend).
+        </p>
+      </div>
+
       {/* Opmerkingen */}
       <div>
         <Label className="text-sm">Opmerkingen</Label>
@@ -312,5 +326,6 @@ export const emptyProjectHeaderData: ProjectHeaderData = {
   adresKlant: '',
   infoKlant: '',
   datumAanvraag: new Date().toISOString().split('T')[0],
+  deadline: '',
   opmerkingen: '',
 };
