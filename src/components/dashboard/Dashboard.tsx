@@ -116,13 +116,13 @@ export function Dashboard({ selectedEmployeeId }: DashboardProps) {
             label="Productie"
             description="Maak een productieproject aan met fases (PP, shoot, edit, presentaties, deliverables)."
             icon={Film}
-            onClick={() => navigate('/productie')}
+            onClick={() => navigate('/nieuw-project', { state: { projectType: 'productie' } })}
           />
           <RequestBlock
             label="Guiding Idea"
             description="Creëer een strategisch Guiding Idea project met conceptuele richting."
             icon={Lightbulb}
-            onClick={() => navigate('/guiding-idea')}
+            onClick={() => navigate('/nieuw-project', { state: { projectType: 'guiding_idea' } })}
           />
           <RequestBlock
             label="Projecttype toevoegen"
