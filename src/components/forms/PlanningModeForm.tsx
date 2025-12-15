@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -10,12 +9,17 @@ import { useEmployees } from '@/lib/data';
 
 export type PlanningMode = 'ellen' | 'handmatig';
 
+export interface MedewerkerEffort {
+  medewerkerId: string;
+  medewerkerNaam: string;
+  effort: string;
+  periodeStart?: string;
+  periodeEind?: string;
+}
+
 export interface FaseData {
   enabled: boolean;
-  medewerkers: string[];
-  duur: string;
-  periodeStart: string;
-  periodeEind: string;
+  medewerkers: MedewerkerEffort[];
 }
 
 export interface PresentatieMoment {
@@ -71,7 +75,6 @@ const LOCATIES = [
 
 export function PlanningModeForm({ data, onChange }: PlanningModeFormProps) {
   const { data: employees = [] } = useEmployees();
-  const uniqueRoles = [...new Set(employees.map(e => e.role))];
 
   const updateFase = (fase: 'conceptontwikkeling' | 'conceptuitwerking', updates: Partial<FaseData>) => {
     onChange({
@@ -80,12 +83,34 @@ export function PlanningModeForm({ data, onChange }: PlanningModeFormProps) {
     });
   };
 
-  const toggleMedewerker = (fase: 'conceptontwikkeling' | 'conceptuitwerking', medewerker: string) => {
+  const toggleMedewerker = (fase: 'conceptontwikkeling' | 'conceptuitwerking', empId: string, empName: string) => {
     const current = data[fase].medewerkers;
-    const updated = current.includes(medewerker)
-      ? current.filter(m => m !== medewerker)
-      : [...current, medewerker];
-    updateFase(fase, { medewerkers: updated });
+    const exists = current.find(m => m.medewerkerId === empId);
+    
+    if (exists) {
+      updateFase(fase, { medewerkers: current.filter(m => m.medewerkerId !== empId) });
+    } else {
+      updateFase(fase, { 
+        medewerkers: [...current, { 
+          medewerkerId: empId, 
+          medewerkerNaam: empName, 
+          effort: '' 
+        }] 
+      });
+    }
+  };
+
+  const updateMedewerkerEffort = (
+    fase: 'conceptontwikkeling' | 'conceptuitwerking', 
+    empId: string, 
+    updates: Partial<MedewerkerEffort>
+  ) => {
+    const current = data[fase].medewerkers;
+    updateFase(fase, {
+      medewerkers: current.map(m => 
+        m.medewerkerId === empId ? { ...m, ...updates } : m
+      )
+    });
   };
 
   const addPresentatieMoment = () => {
@@ -131,6 +156,114 @@ export function PlanningModeForm({ data, onChange }: PlanningModeFormProps) {
     updatePresentatieMoment(momentId, { medewerkers: updated });
   };
 
+  const renderFaseSection = (
+    fase: 'conceptontwikkeling' | 'conceptuitwerking',
+    label: string
+  ) => {
+    const faseData = data[fase];
+    const isHandmatig = data.mode === 'handmatig';
+
+    return (
+      <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
+        <div className="flex items-center gap-3">
+          <Checkbox
+            id={`${fase}-enabled`}
+            checked={faseData.enabled}
+            onCheckedChange={(checked) => updateFase(fase, { enabled: !!checked })}
+          />
+          <Label htmlFor={`${fase}-enabled`} className="text-lg font-semibold cursor-pointer">
+            {label}
+          </Label>
+        </div>
+
+        {faseData.enabled && (
+          <div className="pl-6 space-y-4">
+            <div>
+              <Label className="text-sm">Betrokken medewerkers</Label>
+              <div className="grid grid-cols-2 gap-2 mt-2">
+                {employees.map((emp) => (
+                  <div key={emp.id} className="flex items-center gap-2">
+                    <Checkbox
+                      id={`${fase}-emp-${emp.id}`}
+                      checked={faseData.medewerkers.some(m => m.medewerkerId === emp.id)}
+                      onCheckedChange={() => toggleMedewerker(fase, emp.id, emp.name)}
+                    />
+                    <Label htmlFor={`${fase}-emp-${emp.id}`} className="text-sm cursor-pointer">
+                      {emp.name}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Per-medewerker effort table */}
+            {faseData.medewerkers.length > 0 && (
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Inspanning per medewerker</Label>
+                <div className="border border-border rounded-lg overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/50">
+                      <tr>
+                        <th className="text-left p-3 font-medium">Medewerker</th>
+                        <th className="text-left p-3 font-medium">Inspanning</th>
+                        {isHandmatig && (
+                          <th className="text-left p-3 font-medium">Periode</th>
+                        )}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {faseData.medewerkers.map((m) => (
+                        <tr key={m.medewerkerId} className="border-t border-border">
+                          <td className="p-3">{m.medewerkerNaam}</td>
+                          <td className="p-3">
+                            <Select
+                              value={m.effort}
+                              onValueChange={(value) => updateMedewerkerEffort(fase, m.medewerkerId, { effort: value })}
+                            >
+                              <SelectTrigger className="w-32">
+                                <SelectValue placeholder="Selecteer" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {DUUR_OPTIONS.map((opt) => (
+                                  <SelectItem key={opt.value} value={opt.value}>
+                                    {opt.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </td>
+                          {isHandmatig && (
+                            <td className="p-3">
+                              <div className="flex gap-2 items-center">
+                                <Input
+                                  type="date"
+                                  className="w-36"
+                                  value={m.periodeStart || ''}
+                                  onChange={(e) => updateMedewerkerEffort(fase, m.medewerkerId, { periodeStart: e.target.value })}
+                                />
+                                <span className="text-muted-foreground">–</span>
+                                <Input
+                                  type="date"
+                                  className="w-36"
+                                  value={m.periodeEind || ''}
+                                  onChange={(e) => updateMedewerkerEffort(fase, m.medewerkerId, { periodeEind: e.target.value })}
+                                />
+                              </div>
+                            </td>
+                          )}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6">
       {/* Planning Mode Selection */}
@@ -161,7 +294,7 @@ export function PlanningModeForm({ data, onChange }: PlanningModeFormProps) {
                 Handmatig invullen
               </Label>
               <p className="text-sm text-muted-foreground mt-1">
-                Je geeft zelf per fase en rol aan wie wanneer hoeveel tijd nodig heeft.
+                Je geeft zelf per fase en medewerker aan wie wanneer hoeveel tijd nodig heeft.
               </p>
             </div>
           </div>
@@ -178,193 +311,9 @@ export function PlanningModeForm({ data, onChange }: PlanningModeFormProps) {
         </div>
       )}
 
-      {/* Conceptontwikkeling */}
-      <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
-        <div className="flex items-center gap-3">
-          <Checkbox
-            id="conceptontwikkeling-enabled"
-            checked={data.conceptontwikkeling.enabled}
-            onCheckedChange={(checked) => updateFase('conceptontwikkeling', { enabled: !!checked })}
-          />
-          <Label htmlFor="conceptontwikkeling-enabled" className="text-lg font-semibold cursor-pointer">
-            Conceptontwikkeling
-          </Label>
-        </div>
-
-        {data.conceptontwikkeling.enabled && (
-          <div className="pl-6 space-y-4">
-            <div>
-              <Label className="text-sm">Betrokken rollen/medewerkers</Label>
-              <div className="grid grid-cols-2 gap-2 mt-2">
-                {data.mode === 'ellen' ? (
-                  uniqueRoles.map((role) => (
-                    <div key={role} className="flex items-center gap-2">
-                      <Checkbox
-                        id={`concept-role-${role}`}
-                        checked={data.conceptontwikkeling.medewerkers.includes(role)}
-                        onCheckedChange={() => toggleMedewerker('conceptontwikkeling', role)}
-                      />
-                      <Label htmlFor={`concept-role-${role}`} className="text-sm cursor-pointer">
-                        {role}
-                      </Label>
-                    </div>
-                  ))
-                ) : (
-                  employees.map((emp) => (
-                    <div key={emp.id} className="flex items-center gap-2">
-                      <Checkbox
-                        id={`concept-emp-${emp.id}`}
-                        checked={data.conceptontwikkeling.medewerkers.includes(emp.id)}
-                        onCheckedChange={() => toggleMedewerker('conceptontwikkeling', emp.id)}
-                      />
-                      <Label htmlFor={`concept-emp-${emp.id}`} className="text-sm cursor-pointer">
-                        {emp.name}
-                      </Label>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            <div>
-              <Label className="text-sm">Inschatting duur</Label>
-              <Select
-                value={data.conceptontwikkeling.duur}
-                onValueChange={(value) => updateFase('conceptontwikkeling', { duur: value })}
-              >
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Selecteer" />
-                </SelectTrigger>
-                <SelectContent>
-                  {DUUR_OPTIONS.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {data.mode === 'handmatig' && (
-              <div>
-                <Label className="text-sm">Periode</Label>
-                <div className="grid grid-cols-2 gap-3 mt-2">
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Start</Label>
-                    <Input
-                      type="date"
-                      value={data.conceptontwikkeling.periodeStart}
-                      onChange={(e) => updateFase('conceptontwikkeling', { periodeStart: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Eind</Label>
-                    <Input
-                      type="date"
-                      value={data.conceptontwikkeling.periodeEind}
-                      onChange={(e) => updateFase('conceptontwikkeling', { periodeEind: e.target.value })}
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Conceptuitwerking */}
-      <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
-        <div className="flex items-center gap-3">
-          <Checkbox
-            id="conceptuitwerking-enabled"
-            checked={data.conceptuitwerking.enabled}
-            onCheckedChange={(checked) => updateFase('conceptuitwerking', { enabled: !!checked })}
-          />
-          <Label htmlFor="conceptuitwerking-enabled" className="text-lg font-semibold cursor-pointer">
-            Conceptuitwerking
-          </Label>
-        </div>
-
-        {data.conceptuitwerking.enabled && (
-          <div className="pl-6 space-y-4">
-            <div>
-              <Label className="text-sm">Betrokken rollen/medewerkers</Label>
-              <div className="grid grid-cols-2 gap-2 mt-2">
-                {data.mode === 'ellen' ? (
-                  uniqueRoles.map((role) => (
-                    <div key={role} className="flex items-center gap-2">
-                      <Checkbox
-                        id={`uitwerking-role-${role}`}
-                        checked={data.conceptuitwerking.medewerkers.includes(role)}
-                        onCheckedChange={() => toggleMedewerker('conceptuitwerking', role)}
-                      />
-                      <Label htmlFor={`uitwerking-role-${role}`} className="text-sm cursor-pointer">
-                        {role}
-                      </Label>
-                    </div>
-                  ))
-                ) : (
-                  employees.map((emp) => (
-                    <div key={emp.id} className="flex items-center gap-2">
-                      <Checkbox
-                        id={`uitwerking-emp-${emp.id}`}
-                        checked={data.conceptuitwerking.medewerkers.includes(emp.id)}
-                        onCheckedChange={() => toggleMedewerker('conceptuitwerking', emp.id)}
-                      />
-                      <Label htmlFor={`uitwerking-emp-${emp.id}`} className="text-sm cursor-pointer">
-                        {emp.name}
-                      </Label>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            <div>
-              <Label className="text-sm">Inschatting duur</Label>
-              <Select
-                value={data.conceptuitwerking.duur}
-                onValueChange={(value) => updateFase('conceptuitwerking', { duur: value })}
-              >
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Selecteer" />
-                </SelectTrigger>
-                <SelectContent>
-                  {DUUR_OPTIONS.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {data.mode === 'handmatig' && (
-              <div>
-                <Label className="text-sm">Periode</Label>
-                <div className="grid grid-cols-2 gap-3 mt-2">
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Start</Label>
-                    <Input
-                      type="date"
-                      value={data.conceptuitwerking.periodeStart}
-                      onChange={(e) => updateFase('conceptuitwerking', { periodeStart: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Eind</Label>
-                    <Input
-                      type="date"
-                      value={data.conceptuitwerking.periodeEind}
-                      onChange={(e) => updateFase('conceptuitwerking', { periodeEind: e.target.value })}
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+      {/* Phase sections */}
+      {renderFaseSection('conceptontwikkeling', 'Conceptontwikkeling')}
+      {renderFaseSection('conceptuitwerking', 'Conceptuitwerking')}
 
       {/* Presentatie / meetingmomenten */}
       <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
@@ -523,19 +472,13 @@ export function PlanningModeForm({ data, onChange }: PlanningModeFormProps) {
 export const emptyPlanningModeData: PlanningModeData = {
   mode: 'ellen',
   conceptontwikkeling: {
-    enabled: true,
+    enabled: false,
     medewerkers: [],
-    duur: '',
-    periodeStart: '',
-    periodeEind: '',
   },
   conceptuitwerking: {
-    enabled: true,
+    enabled: false,
     medewerkers: [],
-    duur: '',
-    periodeStart: '',
-    periodeEind: '',
   },
-  presentatiesEnabled: true,
+  presentatiesEnabled: false,
   presentatieMomenten: [],
 };

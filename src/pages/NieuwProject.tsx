@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ProjectHeader, ProjectHeaderData, emptyProjectHeaderData } from '@/components/forms/ProjectHeader';
 import { BetrokkenTeam, BetrokkenTeamData, emptyBetrokkenTeamData } from '@/components/forms/BetrokkenTeam';
@@ -13,6 +16,7 @@ import { toast } from '@/hooks/use-toast';
 const STORAGE_KEY = 'concept_nieuw_project';
 
 type ProjectType = 'algemeen' | 'productie' | 'guiding_idea' | '';
+type SaveAsType = 'alleen_project' | 'nieuw_type' | '';
 
 interface NieuwProjectFormData {
   projectHeader: ProjectHeaderData;
@@ -20,6 +24,9 @@ interface NieuwProjectFormData {
   betrokkenTeam: BetrokkenTeamData;
   productieFases: ProductieFasesData;
   planningMode: PlanningModeData;
+  saveAsType: SaveAsType;
+  nieuwTypenaam: string;
+  nieuwTypeOmschrijving: string;
 }
 
 const emptyFormData: NieuwProjectFormData = {
@@ -28,6 +35,9 @@ const emptyFormData: NieuwProjectFormData = {
   betrokkenTeam: emptyBetrokkenTeamData,
   productieFases: emptyProductieFasesData,
   planningMode: emptyPlanningModeData,
+  saveAsType: '',
+  nieuwTypenaam: '',
+  nieuwTypeOmschrijving: '',
 };
 
 export default function NieuwProject() {
@@ -70,7 +80,13 @@ export default function NieuwProject() {
       newErrors.projectomschrijving = 'Voer een projectomschrijving in';
     }
     if (!formData.projectType) {
-      newErrors.projectType = 'Selecteer een projecttype';
+      newErrors.projectType = 'Selecteer eerst een projecttype.';
+    }
+    if (!formData.saveAsType) {
+      newErrors.saveAsType = 'Kies of je dit alleen voor dit project wilt gebruiken of wilt opslaan als projecttype.';
+    }
+    if (formData.saveAsType === 'nieuw_type' && !formData.nieuwTypenaam) {
+      newErrors.nieuwTypenaam = 'Voer een naam in voor het projecttype';
     }
 
     setErrors(newErrors);
@@ -117,6 +133,8 @@ export default function NieuwProject() {
     }
   };
 
+  const isSubmitDisabled = !formData.projectType || !formData.saveAsType;
+
   return (
     <div className="h-full overflow-y-auto bg-background">
       <div className="w-full px-6 pt-6 mb-4">
@@ -150,11 +168,11 @@ export default function NieuwProject() {
           <div>
             <Label className="text-sm">Selecteer projecttype *</Label>
             <Select
-              value={formData.projectType}
+              value={formData.projectType || undefined}
               onValueChange={(value) => setFormData({ ...formData, projectType: value as ProjectType })}
             >
               <SelectTrigger className={errors.projectType ? 'border-destructive' : ''}>
-                <SelectValue placeholder="Kies een projecttype" />
+                <SelectValue placeholder="Selecteer projecttype…" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="algemeen">Algemeen project</SelectItem>
@@ -211,6 +229,80 @@ export default function NieuwProject() {
             />
           </>
         )}
+
+        {/* Opslaan als projecttype section - only show when projectType is selected */}
+        {formData.projectType && (
+          <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
+            <h2 className="text-lg font-semibold text-foreground">Opslaan als projecttype</h2>
+            <p className="text-sm text-muted-foreground">
+              Kies hoe je deze instellingen wilt gebruiken.
+            </p>
+            
+            <RadioGroup
+              value={formData.saveAsType}
+              onValueChange={(value) => setFormData({ ...formData, saveAsType: value as SaveAsType })}
+              className="space-y-3"
+            >
+              <div className={`flex items-start gap-3 p-4 rounded-lg border ${
+                formData.saveAsType === 'alleen_project' ? 'border-primary bg-primary/5' : 'border-border'
+              } hover:bg-secondary/50 cursor-pointer`}>
+                <RadioGroupItem value="alleen_project" id="save-alleen" className="mt-1" />
+                <div className="flex-1">
+                  <Label htmlFor="save-alleen" className="font-medium cursor-pointer">
+                    Alleen gebruiken voor dit project
+                  </Label>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    De instellingen gelden alleen voor dit ene project.
+                  </p>
+                </div>
+              </div>
+              
+              <div className={`flex items-start gap-3 p-4 rounded-lg border ${
+                formData.saveAsType === 'nieuw_type' ? 'border-primary bg-primary/5' : 'border-border'
+              } hover:bg-secondary/50 cursor-pointer`}>
+                <RadioGroupItem value="nieuw_type" id="save-type" className="mt-1" />
+                <div className="flex-1">
+                  <Label htmlFor="save-type" className="font-medium cursor-pointer">
+                    Opslaan als nieuw projecttype
+                  </Label>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Sla deze instellingen op zodat je dit type project later opnieuw kunt kiezen.
+                  </p>
+                </div>
+              </div>
+            </RadioGroup>
+
+            {errors.saveAsType && (
+              <p className="text-xs text-destructive">{errors.saveAsType}</p>
+            )}
+
+            {formData.saveAsType === 'nieuw_type' && (
+              <div className="space-y-4 pt-4 border-t border-border">
+                <div>
+                  <Label className="text-sm">Naam projecttype *</Label>
+                  <Input
+                    value={formData.nieuwTypenaam}
+                    onChange={(e) => setFormData({ ...formData, nieuwTypenaam: e.target.value })}
+                    placeholder="bijv. Campagne, Rebrand, Social Content"
+                    className={errors.nieuwTypenaam ? 'border-destructive' : ''}
+                  />
+                  {errors.nieuwTypenaam && (
+                    <p className="text-xs text-destructive mt-1">{errors.nieuwTypenaam}</p>
+                  )}
+                </div>
+                <div>
+                  <Label className="text-sm">Korte omschrijving (optioneel)</Label>
+                  <Textarea
+                    value={formData.nieuwTypeOmschrijving}
+                    onChange={(e) => setFormData({ ...formData, nieuwTypeOmschrijving: e.target.value })}
+                    placeholder="Beschrijf wanneer dit projecttype gebruikt wordt..."
+                    rows={2}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Fixed bottom-right buttons */}
@@ -219,7 +311,7 @@ export default function NieuwProject() {
           <Save className="mr-2 h-4 w-4" />
           Opslaan als concept
         </Button>
-        <Button onClick={handleSubmit}>
+        <Button onClick={handleSubmit} disabled={isSubmitDisabled}>
           Plan indienen
         </Button>
       </div>
