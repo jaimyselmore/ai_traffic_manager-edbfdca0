@@ -47,7 +47,8 @@ export default function NieuwProject() {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       const parsed = JSON.parse(stored);
-      return { ...emptyFormData, ...parsed };
+      // Always reset projectType to empty on page load
+      return { ...emptyFormData, ...parsed, projectType: '' as ProjectType, saveAsType: '' as SaveAsType };
     }
     return emptyFormData;
   });
