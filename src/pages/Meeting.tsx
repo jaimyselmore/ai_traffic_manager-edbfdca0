@@ -4,17 +4,15 @@ import { Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ProjectHeader, ProjectHeaderData, emptyProjectHeaderData } from '@/components/forms/ProjectHeader';
-import { useEmployees, useMeetingTypes } from '@/lib/data';
+import { useEmployees, useMeetingTypes, useClients } from '@/lib/data';
 import { toast } from '@/hooks/use-toast';
 
 const STORAGE_KEY = 'concept_meeting';
 
 interface MeetingFormData {
-  projectHeader: ProjectHeaderData;
+  projectId: string;
   onderwerp: string;
   meetingType: string;
   datum: string;
@@ -25,7 +23,7 @@ interface MeetingFormData {
 }
 
 const emptyFormData: MeetingFormData = {
-  projectHeader: emptyProjectHeaderData,
+  projectId: '',
   onderwerp: '',
   meetingType: '',
   datum: '',
@@ -39,6 +37,7 @@ export default function Meeting() {
   const navigate = useNavigate();
   const { data: employees = [] } = useEmployees();
   const { data: meetingTypes = [] } = useMeetingTypes();
+  const { data: clients = [] } = useClients();
 
   const [formData, setFormData] = useState<MeetingFormData>(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -110,7 +109,6 @@ export default function Meeting() {
         requestType: 'meeting',
         formData: {
           ...formData,
-          project_id_volledig: formData.projectHeader.volledigProjectId,
           plan_status: 'concept',
         },
       },
@@ -137,12 +135,32 @@ export default function Meeting() {
           </p>
         </div>
 
-        {/* Shared Project Header */}
-        <ProjectHeader
-          data={formData.projectHeader}
-          onChange={(data) => setFormData({ ...formData, projectHeader: data })}
-          errors={errors}
-        />
+        {/* Project koppeling (simple dropdown, no full header) */}
+        <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
+          <h2 className="text-lg font-semibold text-foreground">Project koppeling</h2>
+          <p className="text-sm text-muted-foreground">
+            Koppel deze meeting optioneel aan een bestaand project.
+          </p>
+          <div>
+            <Label className="text-sm">Project (optioneel)</Label>
+            <Select
+              value={formData.projectId}
+              onValueChange={(value) => setFormData({ ...formData, projectId: value })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecteer een project" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Geen project</SelectItem>
+                {clients.map((client) => (
+                  <SelectItem key={client.id} value={client.id}>
+                    {client.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
 
         {/* Meeting details */}
         <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
