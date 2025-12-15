@@ -82,8 +82,9 @@ export default function NieuwProject() {
     if (!formData.projectType) {
       newErrors.projectType = 'Selecteer eerst een projecttype.';
     }
-    if (!formData.saveAsType) {
-      newErrors.saveAsType = 'Kies of je dit alleen voor dit project wilt gebruiken of wilt opslaan als projecttype.';
+    // Only validate saveAsType if projectType is selected (since it's hidden otherwise)
+    if (formData.projectType && !formData.saveAsType) {
+      newErrors.saveAsType = 'Kies hoe je deze instellingen wilt gebruiken.';
     }
     if (formData.saveAsType === 'nieuw_type' && !formData.nieuwTypenaam) {
       newErrors.nieuwTypenaam = 'Voer een naam in voor het projecttype';
@@ -135,7 +136,8 @@ export default function NieuwProject() {
     }
   };
 
-  const isSubmitDisabled = !formData.projectType || !formData.saveAsType;
+  // Only require saveAsType when projectType is selected
+  const isSubmitDisabled = !formData.projectType || (formData.projectType && !formData.saveAsType);
 
   return (
     <div className="h-full overflow-y-auto bg-background">
@@ -190,89 +192,77 @@ export default function NieuwProject() {
         </div>
 
         {/* Conditional sections based on project type */}
-        {(formData.projectType === 'algemeen' || formData.projectType === 'nieuw_project') && (
+        {formData.projectType && (
           <>
-            <PlanningModeForm
-              data={formData.planningMode}
-              onChange={(data) => setFormData({ ...formData, planningMode: data })}
-            />
-            <BetrokkenTeam
-              data={formData.betrokkenTeam}
-              onChange={(data) => setFormData({ ...formData, betrokkenTeam: data })}
-              showEllenToggle={false}
-            />
-          </>
-        )}
+            {/* Planning mode - show for all except productie which has its own flow */}
+            {formData.projectType !== 'productie' && (
+              <PlanningModeForm
+                data={formData.planningMode}
+                onChange={(data) => setFormData({ ...formData, planningMode: data })}
+              />
+            )}
 
-        {formData.projectType === 'guiding_idea' && (
-          <>
-            <PlanningModeForm
-              data={formData.planningMode}
-              onChange={(data) => setFormData({ ...formData, planningMode: data })}
-            />
+            {/* Betrokken team - show for all types */}
             <BetrokkenTeam
               data={formData.betrokkenTeam}
               onChange={(data) => setFormData({ ...formData, betrokkenTeam: data })}
-              showEllenToggle={false}
-            />
-          </>
-        )}
-
-        {formData.projectType === 'productie' && (
-          <>
-            <BetrokkenTeam
-              data={formData.betrokkenTeam}
-              onChange={(data) => setFormData({ ...formData, betrokkenTeam: data })}
-              showEllenToggle={true}
+              showEllenToggle={formData.projectType === 'productie'}
               ellenDefaultOn={false}
             />
-            <ProductieFases
-              data={formData.productieFases}
-              onChange={(data) => setFormData({ ...formData, productieFases: data })}
-            />
+
+            {/* Productie-specific phases */}
+            {formData.projectType === 'productie' && (
+              <ProductieFases
+                data={formData.productieFases}
+                onChange={(data) => setFormData({ ...formData, productieFases: data })}
+              />
+            )}
           </>
         )}
 
         {/* Opslaan als projecttype section - only show when projectType is selected */}
         {formData.projectType && (
           <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
-            <h2 className="text-lg font-semibold text-foreground">Opslaan als projecttype</h2>
-            <p className="text-sm text-muted-foreground">
-              Kies hoe je deze instellingen wilt gebruiken.
-            </p>
+            <h2 className="text-lg font-semibold text-foreground">Kies hoe je deze instellingen wilt gebruiken</h2>
             
             <RadioGroup
               value={formData.saveAsType}
               onValueChange={(value) => setFormData({ ...formData, saveAsType: value as SaveAsType })}
               className="space-y-3"
             >
-              <div className={`flex items-start gap-3 p-4 rounded-lg border ${
-                formData.saveAsType === 'alleen_project' ? 'border-primary bg-primary/5' : 'border-border'
-              } hover:bg-secondary/50 cursor-pointer`}>
+              <label 
+                htmlFor="save-alleen"
+                className={`flex items-start gap-3 p-4 rounded-lg border ${
+                  formData.saveAsType === 'alleen_project' ? 'border-primary bg-primary/5' : 'border-border'
+                } hover:bg-secondary/50 cursor-pointer`}
+              >
                 <RadioGroupItem value="alleen_project" id="save-alleen" className="mt-1" />
                 <div className="flex-1">
-                  <Label htmlFor="save-alleen" className="font-medium cursor-pointer">
+                  <span className="font-medium text-foreground">
                     Alleen gebruiken voor dit project
-                  </Label>
+                  </span>
                   <p className="text-sm text-muted-foreground mt-1">
                     De instellingen gelden alleen voor dit ene project.
                   </p>
                 </div>
-              </div>
+              </label>
               
-              <div className={`flex items-start gap-3 p-4 rounded-lg border ${
-                formData.saveAsType === 'nieuw_type' ? 'border-primary bg-primary/5' : 'border-border'
-              } hover:bg-secondary/50 cursor-pointer`}>
+              <label 
+                htmlFor="save-type"
+                className={`flex items-start gap-3 p-4 rounded-lg border ${
+                  formData.saveAsType === 'nieuw_type' ? 'border-primary bg-primary/5' : 'border-border'
+                } hover:bg-secondary/50 cursor-pointer`}
+              >
                 <RadioGroupItem value="nieuw_type" id="save-type" className="mt-1" />
                 <div className="flex-1">
-                  <Label htmlFor="save-type" className="font-medium cursor-pointer">
+                  <span className="font-medium text-foreground">
                     Opslaan als nieuw projecttype
-                  </Label>
+                  </span>
                   <p className="text-sm text-muted-foreground mt-1">
                     Sla deze instellingen op zodat je dit type project later opnieuw kunt kiezen.
                   </p>
                 </div>
-              </div>
+              </label>
             </RadioGroup>
 
             {errors.saveAsType && (
