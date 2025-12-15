@@ -199,6 +199,7 @@ export const generateMockTasks = (weekStart: Date): Task[] => {
             date: dateStr,
             startTime: `${startHour.toString().padStart(2, '0')}:00`,
             endTime: `${endHour.toString().padStart(2, '0')}:00`,
+            planStatus: Math.random() > 0.7 ? 'concept' : 'vast',
           });
         }
       }

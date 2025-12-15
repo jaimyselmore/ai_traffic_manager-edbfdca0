@@ -129,22 +129,24 @@ export function PlannerGrid({ weekStart, employees, tasks, compact = false }: Pl
                       {cellTasks.map((task) => {
                         const isStart = getTaskStart(task, hour);
                         if (!isStart) return null;
+                        const isConcept = task.planStatus === 'concept';
                         
                         return (
                           <div
                             key={task.id}
                             className={cn(
                               'rounded px-1.5 py-0.5 text-xs text-white overflow-hidden cursor-pointer hover:opacity-90 transition-opacity h-full',
-                              taskColors[task.type]
+                              taskColors[task.type],
+                              isConcept && 'opacity-50'
                             )}
-                            title={`${getClientName(task.clientId)} - ${getTaskLabel(task.type)}\n${task.startTime} - ${task.endTime}`}
+                            title={`${getClientName(task.clientId)} - ${getTaskLabel(task.type)}${isConcept ? ' (concept)' : ''}\n${task.startTime} - ${task.endTime}${task.faseNaam ? `\nFase: ${task.faseNaam}` : ''}`}
                           >
                             <div className="truncate font-medium">
                               {compact ? getClientName(task.clientId).substring(0, 4) : getClientName(task.clientId)}
                             </div>
                             {!compact && (
                               <div className="truncate opacity-80 text-[10px]">
-                                {getTaskLabel(task.type)}
+                                {task.faseNaam || getTaskLabel(task.type)}
                               </div>
                             )}
                           </div>

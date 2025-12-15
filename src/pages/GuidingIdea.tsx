@@ -1,0 +1,126 @@
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Save } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { ProjectForm, ProjectFormData } from '@/components/forms/ProjectForm';
+import { toast } from '@/hooks/use-toast';
+
+const STORAGE_KEY = 'concept_guiding_idea';
+
+const emptyFormData: ProjectFormData = {
+  klant: '',
+  projectnaam: '',
+  projectType: 'guiding_idea',
+  deliverables: '',
+  deadline: '',
+  deadlineOnbekend: false,
+  indicatievePeriode: '',
+  geschatteEffortWaarde: '',
+  geschatteEffortEenheid: 'uren',
+  letEllenKiezen: false,
+  medewerkers: [],
+  prioriteit: 'Normaal',
+  opmerkingen: '',
+};
+
+export default function GuidingIdea() {
+  const navigate = useNavigate();
+  const [formData, setFormData] = useState<ProjectFormData>(() => {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      return { ...emptyFormData, ...parsed };
+    }
+    return emptyFormData;
+  });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(formData));
+  }, [formData]);
+
+  const handleSaveConcept = () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(formData));
+    toast({
+      title: 'Concept opgeslagen',
+      description: 'Je kunt later verder werken aan dit Guiding Idea.',
+    });
+  };
+
+  const validateForm = (): boolean => {
+    const newErrors: Record<string, string> = {};
+
+    if (!formData.klant) {
+      newErrors.klant = 'Selecteer een klant';
+    }
+    if (!formData.projectnaam) {
+      newErrors.projectnaam = 'Voer een projectnaam in';
+    }
+    if (!formData.deliverables) {
+      newErrors.deliverables = 'Voer deliverables in';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async () => {
+    if (!validateForm()) {
+      toast({
+        title: 'Vul alle verplichte velden in',
+        description: 'Controleer de gemarkeerde velden.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    toast({
+      title: 'Plan wordt ingediend...',
+      description: 'Even geduld alstublieft.',
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    localStorage.removeItem(STORAGE_KEY);
+
+    navigate('/ellen-session', { 
+      state: { 
+        requestType: 'guiding_idea',
+        formData: formData
+      } 
+    });
+  };
+
+  return (
+    <div className="h-full overflow-y-auto bg-background">
+      <div className="w-full px-6 pt-6 mb-4">
+        <button
+          type="button"
+          className="text-sm text-muted-foreground hover:text-foreground"
+          onClick={() => navigate('/')}
+        >
+          ← Terug naar overzicht
+        </button>
+      </div>
+
+      <div className="max-w-3xl mx-auto px-6 pb-24">
+        <div className="mb-6">
+          <h1 className="text-2xl font-semibold text-foreground">Guiding Idea</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Maak een Guiding Idea project aan met strategische richting en creatieve concepten.
+          </p>
+        </div>
+        <ProjectForm data={formData} onChange={setFormData} errors={errors} />
+      </div>
+
+      <div className="fixed bottom-4 right-4 flex gap-2">
+        <Button variant="ghost" onClick={handleSaveConcept}>
+          <Save className="mr-2 h-4 w-4" />
+          Opslaan als concept
+        </Button>
+        <Button onClick={handleSubmit}>
+          Plan indienen
+        </Button>
+      </div>
+    </div>
+  );
+}
