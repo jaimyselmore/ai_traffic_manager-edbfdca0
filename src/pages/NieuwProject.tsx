@@ -15,7 +15,7 @@ import { toast } from '@/hooks/use-toast';
 
 const STORAGE_KEY = 'concept_nieuw_project';
 
-type ProjectType = 'algemeen' | 'productie' | 'guiding_idea' | '';
+type ProjectType = 'nieuw_project' | 'algemeen' | 'productie' | 'guiding_idea' | '';
 type SaveAsType = 'alleen_project' | 'nieuw_type' | '';
 
 interface NieuwProjectFormData {
@@ -129,6 +129,8 @@ export default function NieuwProject() {
     switch (formData.projectType) {
       case 'productie': return 'Nieuw project – Productie';
       case 'guiding_idea': return 'Nieuw project – Guiding Idea';
+      case 'nieuw_project': return 'Nieuw project';
+      case 'algemeen': return 'Nieuw project – Algemeen';
       default: return 'Nieuw project';
     }
   };
@@ -175,6 +177,7 @@ export default function NieuwProject() {
                 <SelectValue placeholder="Selecteer projecttype…" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="nieuw_project">Nieuw project</SelectItem>
                 <SelectItem value="algemeen">Algemeen project</SelectItem>
                 <SelectItem value="guiding_idea">Guiding Idea</SelectItem>
                 <SelectItem value="productie">Productie</SelectItem>
@@ -187,7 +190,7 @@ export default function NieuwProject() {
         </div>
 
         {/* Conditional sections based on project type */}
-        {formData.projectType === 'algemeen' && (
+        {(formData.projectType === 'algemeen' || formData.projectType === 'nieuw_project') && (
           <>
             <PlanningModeForm
               data={formData.planningMode}
