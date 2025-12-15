@@ -151,7 +151,7 @@ export default function Meeting() {
                 <SelectValue placeholder="Selecteer een project" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Geen project</SelectItem>
+                <SelectItem value="none">Geen project</SelectItem>
                 {clients.map((client) => (
                   <SelectItem key={client.id} value={client.id}>
                     {client.name}
