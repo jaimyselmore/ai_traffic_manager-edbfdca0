@@ -68,20 +68,29 @@ export default function NieuwProject() {
     });
   };
 
+  const hasAtLeastOnePhase = () => {
+    return (
+      formData.planningMode.conceptontwikkeling.enabled ||
+      formData.planningMode.conceptuitwerking.enabled ||
+      formData.planningMode.presentatiesEnabled
+    );
+  };
+
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
 
     if (!formData.projectHeader.klantId) {
       newErrors.klantId = 'Selecteer een klant';
     }
-    if (!formData.projectHeader.projectVolgnummer) {
-      newErrors.projectVolgnummer = 'Voer een volgnummer in';
-    }
     if (!formData.projectHeader.projectomschrijving) {
       newErrors.projectomschrijving = 'Voer een projectomschrijving in';
     }
     if (!formData.projectType) {
       newErrors.projectType = 'Selecteer eerst een projecttype.';
+    }
+    // For nieuw_project type, require at least one phase
+    if (formData.projectType === 'nieuw_project' && !hasAtLeastOnePhase()) {
+      newErrors.phases = 'Selecteer minimaal één fase (Conceptontwikkeling, Conceptuitwerking of Presentatie/meetingmomenten).';
     }
     // Only validate saveAsType if projectType is selected (since it's hidden otherwise)
     if (formData.projectType && !formData.saveAsType) {
@@ -95,11 +104,24 @@ export default function NieuwProject() {
     return Object.keys(newErrors).length === 0;
   };
 
+  const getMissingFieldsMessage = (): string => {
+    const missing: string[] = [];
+    if (!formData.projectHeader.klantId) missing.push('Klant');
+    if (!formData.projectType) missing.push('Projecttype');
+    if (!formData.projectHeader.projectomschrijving) missing.push('Projectomschrijving');
+    if (formData.projectType === 'nieuw_project' && !hasAtLeastOnePhase()) {
+      missing.push('minimaal één fase');
+    }
+    if (formData.projectType && !formData.saveAsType) missing.push('Opslagoptie');
+    return missing.join(', ');
+  };
+
   const handleSubmit = async () => {
     if (!validateForm()) {
+      const missingFields = getMissingFieldsMessage();
       toast({
-        title: 'Vul alle verplichte velden in',
-        description: 'Controleer de gemarkeerde velden.',
+        title: 'Niet alle verplichte velden zijn ingevuld',
+        description: `Ontbrekend: ${missingFields}`,
         variant: 'destructive',
       });
       return;
@@ -113,17 +135,12 @@ export default function NieuwProject() {
     await new Promise((resolve) => setTimeout(resolve, 1500));
     localStorage.removeItem(STORAGE_KEY);
 
-    navigate('/ellen-session', {
-      state: {
-        requestType: formData.projectType === 'productie' ? 'productie' : 'project',
-        formData: {
-          ...formData,
-          project_id_volledig: formData.projectHeader.volledigProjectId,
-          project_type: formData.projectType,
-          plan_status: 'concept',
-        },
-      },
+    toast({
+      title: 'Plan succesvol ingediend!',
+      description: 'Je project is aangemaakt.',
     });
+
+    navigate('/');
   };
 
   const getPageTitle = () => {
@@ -134,8 +151,18 @@ export default function NieuwProject() {
     }
   };
 
-  // Only require saveAsType when projectType is selected
-  const isSubmitDisabled = !formData.projectType || (formData.projectType && !formData.saveAsType);
+  // Check all required fields for enabling submit button
+  const canSubmit = () => {
+    if (!formData.projectHeader.klantId) return false;
+    if (!formData.projectType) return false;
+    if (!formData.projectHeader.projectomschrijving) return false;
+    if (formData.projectType === 'nieuw_project' && !hasAtLeastOnePhase()) return false;
+    if (!formData.saveAsType) return false;
+    if (formData.saveAsType === 'nieuw_type' && !formData.nieuwTypenaam) return false;
+    return true;
+  };
+
+  const isSubmitDisabled = !canSubmit();
 
   return (
     <div className="h-full overflow-y-auto bg-background">
