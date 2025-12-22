@@ -196,6 +196,65 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
     </Collapsible>
   );
 
+  // Special Presentatie collapsible that includes extra presentaties and add button inside
+  const PresentatieCollapsible = ({ 
+    fase, 
+    extraPresentaties, 
+    addExtraPresentatie, 
+    renderMeetingFase,
+    employees 
+  }: { 
+    fase: string; 
+    extraPresentaties: FaseData[];
+    addExtraPresentatie: () => void;
+    renderMeetingFase: (fase: string) => React.ReactNode;
+    employees: { id: string; name: string; role: string }[];
+  }) => (
+    <Collapsible>
+      <CollapsibleTrigger className="w-full flex items-center justify-between py-3 px-4 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors">
+        <span className="font-medium text-sm">{faseLabels[fase].title}</span>
+        <ChevronDown className="h-4 w-4" />
+      </CollapsibleTrigger>
+      <CollapsibleContent className="px-4 pb-4">
+        {renderMeetingFase(fase)}
+        
+        {/* Extra presentaties */}
+        {extraPresentaties.map((_, index) => (
+          <div key={`extra-${index}`} className="mt-4 p-4 border border-border rounded-lg space-y-4">
+            <span className="font-medium text-sm">Extra presentatie {index + 1}</span>
+            <div>
+              <Label className="text-sm">Datum & tijd</Label>
+              <Input type="datetime-local" />
+            </div>
+            <div>
+              <Label className="text-sm mb-2 block">Locatie</Label>
+              <RadioGroup defaultValue="selmore">
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem value="selmore" id={`extra-${index}-selmore`} />
+                  <Label htmlFor={`extra-${index}-selmore`} className="text-sm">Bij Selmore</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem value="klant" id={`extra-${index}-klant`} />
+                  <Label htmlFor={`extra-${index}-klant`} className="text-sm">Bij klant</Label>
+                </div>
+              </RadioGroup>
+            </div>
+          </div>
+        ))}
+        
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={addExtraPresentatie}
+          className="mt-4"
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Extra presentatie toevoegen
+        </Button>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+
   return (
     <div className="space-y-6">
       {/* Fases */}
@@ -223,7 +282,13 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
         <FaseCollapsible fase="presentatieReEdit">{renderMeetingFase('presentatieReEdit')}</FaseCollapsible>
         <FaseCollapsible fase="onlineGrading">{renderDagenFase('onlineGrading')}</FaseCollapsible>
         <FaseCollapsible fase="geluid">{renderDagenFase('geluid')}</FaseCollapsible>
-        <FaseCollapsible fase="presentatieFinals">{renderMeetingFase('presentatieFinals')}</FaseCollapsible>
+        <PresentatieCollapsible 
+          fase="presentatieFinals" 
+          extraPresentaties={data.extraPresentaties}
+          addExtraPresentatie={addExtraPresentatie}
+          renderMeetingFase={renderMeetingFase}
+          employees={employees}
+        />
         <FaseCollapsible fase="deliverables">
           {renderDagenFase('deliverables')}
           <div className="mt-4">
@@ -240,47 +305,6 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
             </Select>
           </div>
         </FaseCollapsible>
-
-        {/* Extra presentaties */}
-        {data.extraPresentaties.map((_, index) => (
-          <Collapsible key={`extra-${index}`}>
-            <CollapsibleTrigger className="w-full flex items-center justify-between py-3 px-4 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors">
-              <span className="font-medium text-sm">Extra presentatie {index + 1}</span>
-              <ChevronDown className="h-4 w-4" />
-            </CollapsibleTrigger>
-            <CollapsibleContent className="px-4 pb-4">
-              <div className="space-y-4 pt-4">
-                <div>
-                  <Label className="text-sm">Datum & tijd</Label>
-                  <Input type="datetime-local" />
-                </div>
-                <div>
-                  <Label className="text-sm mb-2 block">Locatie</Label>
-                  <RadioGroup defaultValue="selmore">
-                    <div className="flex items-center gap-2">
-                      <RadioGroupItem value="selmore" id={`extra-${index}-selmore`} />
-                      <Label htmlFor={`extra-${index}-selmore`} className="text-sm">Bij Selmore</Label>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <RadioGroupItem value="klant" id={`extra-${index}-klant`} />
-                      <Label htmlFor={`extra-${index}-klant`} className="text-sm">Bij klant</Label>
-                    </div>
-                  </RadioGroup>
-                </div>
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
-        ))}
-
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={addExtraPresentatie}
-          className="mt-2"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Extra presentatie toevoegen
-        </Button>
       </div>
 
       {/* Deadline oplevering */}
