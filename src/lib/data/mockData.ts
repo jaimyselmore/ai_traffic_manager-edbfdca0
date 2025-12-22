@@ -40,13 +40,8 @@ export const mockClients: Client[] = [
 
 // ---- PROJECT TYPES ----
 export const mockProjectTypes: ProjectType[] = [
-  { id: 'campagne', label: 'Campagne' },
-  { id: 'website', label: 'Website' },
-  { id: 'branding', label: 'Branding' },
-  { id: 'content', label: 'Content' },
-  { id: 'video', label: 'Video' },
-  { id: 'event', label: 'Event' },
-  { id: 'other', label: 'Other' },
+  { id: 'nieuw_project', label: 'Nieuw project' },
+  { id: 'productie', label: 'Productie' },
 ];
 
 // ---- WORK TYPES / DISCIPLINES ----
