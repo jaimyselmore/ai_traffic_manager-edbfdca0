@@ -93,11 +93,6 @@ export default function Login() {
             </Button>
           </form>
           
-          <div className="mt-6 text-center text-sm text-muted-foreground">
-            <p>Accounts: tomstoffels@selmore.com, tessvanoosten@selmore.com</p>
-            <p>sarahvandersteege@selmore.com, jaimywals@selmore.com</p>
-            <p className="mt-1">Wachtwoord: selmore2026</p>
-          </div>
         </CardContent>
       </Card>
     </div>
