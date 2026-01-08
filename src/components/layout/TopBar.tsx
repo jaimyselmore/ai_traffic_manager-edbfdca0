@@ -1,54 +1,36 @@
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { mockEmployees } from '@/lib/mockData';
+import { Button } from '@/components/ui/button';
+import { LogOut } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
-interface TopBarProps {
-  selectedEmployee: string;
-  onEmployeeChange: (employeeId: string) => void;
-}
+export function TopBar() {
+  const { user, signOut } = useAuth();
 
-export function TopBar({ selectedEmployee, onEmployeeChange }: TopBarProps) {
-  const currentEmployee = mockEmployees.find(emp => emp.id === selectedEmployee);
+  const handleLogout = async () => {
+    await signOut();
+  };
 
   return (
     <header className="flex h-14 items-center justify-between border-b border-border bg-card px-6">
       <div />
       <div className="flex items-center gap-3">
-        <span className="text-sm text-muted-foreground">Ingelogd als</span>
-        <Select value={selectedEmployee} onValueChange={onEmployeeChange}>
-          <SelectTrigger className="w-52">
-            <SelectValue placeholder="Selecteer medewerker">
-              {currentEmployee && (
-                <div className="flex items-center gap-2">
-                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-[10px] font-medium text-primary-foreground">
-                    {currentEmployee.name.split(' ').map(n => n[0]).join('')}
-                  </div>
-                  <span className="truncate">{currentEmployee.name}</span>
-                </div>
-              )}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {mockEmployees.map((emp) => (
-              <SelectItem key={emp.id} value={emp.id}>
-                <div className="flex items-center gap-2">
-                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-[10px] font-medium text-primary-foreground">
-                    {emp.name.split(' ').map(n => n[0]).join('')}
-                  </div>
-                  <div>
-                    <div className="font-medium">{emp.name}</div>
-                    <div className="text-xs text-muted-foreground">{emp.role}</div>
-                  </div>
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {user && (
+          <>
+            <span className="text-sm text-muted-foreground">Ingelogd als</span>
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
+                {user.naam.split(' ').map(n => n[0]).join('')}
+              </div>
+              <div>
+                <div className="text-sm font-medium">{user.naam}</div>
+                <div className="text-xs text-muted-foreground">{user.email}</div>
+              </div>
+            </div>
+            <Button variant="ghost" size="sm" onClick={handleLogout} className="ml-2">
+              <LogOut className="h-4 w-4 mr-1" />
+              Uitloggen
+            </Button>
+          </>
+        )}
       </div>
     </header>
   );
