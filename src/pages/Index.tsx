@@ -7,7 +7,7 @@ import { AgendasFlow } from '@/components/agendas/AgendasFlow';
 import EllenChatPage from '@/pages/EllenChatPage';
 import { useAuth } from '@/contexts/AuthContext';
 
-type Tab = 'overzicht' | 'planner' | 'agendas' | 'ellen';
+type Tab = 'overzicht' | 'planner' | 'agendas' | 'ellen' | 'admin';
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState<Tab>('overzicht');
