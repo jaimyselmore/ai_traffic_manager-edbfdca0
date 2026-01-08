@@ -30,6 +30,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   getWerknemers,
   createWerknemer,
@@ -78,6 +79,7 @@ export function WerknemersTab() {
   const [deleteItem, setDeleteItem] = useState<Werknemer | null>(null);
   const [form, setForm] = useState(emptyForm);
 
+  const { user } = useAuth();
   const queryClient = useQueryClient();
 
   const { data: werknemers = [], isLoading } = useQuery({
@@ -86,7 +88,7 @@ export function WerknemersTab() {
   });
 
   const createMutation = useMutation({
-    mutationFn: createWerknemer,
+    mutationFn: (data: typeof form) => createWerknemer(data, user?.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['werknemers'] });
       toast.success('Werknemer toegevoegd');
@@ -97,7 +99,7 @@ export function WerknemersTab() {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: typeof form }) =>
-      updateWerknemer(id, data),
+      updateWerknemer(id, data, user?.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['werknemers'] });
       toast.success('Werknemer bijgewerkt');
@@ -107,7 +109,7 @@ export function WerknemersTab() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: deleteWerknemer,
+    mutationFn: (id: number) => deleteWerknemer(id, user?.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['werknemers'] });
       toast.success('Werknemer verwijderd');

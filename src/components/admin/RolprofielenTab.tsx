@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   getRolprofielen,
   createRolprofiel,
@@ -58,6 +59,7 @@ export function RolprofielenTab() {
   const [deleteItem, setDeleteItem] = useState<Rolprofiel | null>(null);
   const [form, setForm] = useState(emptyForm);
 
+  const { user } = useAuth();
   const queryClient = useQueryClient();
 
   const { data: rollen = [], isLoading } = useQuery({
@@ -66,7 +68,7 @@ export function RolprofielenTab() {
   });
 
   const createMutation = useMutation({
-    mutationFn: createRolprofiel,
+    mutationFn: (data: typeof form) => createRolprofiel(data, user?.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['rolprofielen'] });
       toast.success('Rol toegevoegd');
@@ -77,7 +79,7 @@ export function RolprofielenTab() {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: typeof form }) =>
-      updateRolprofiel(id, data),
+      updateRolprofiel(id, data, user?.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['rolprofielen'] });
       toast.success('Rol bijgewerkt');
@@ -87,7 +89,7 @@ export function RolprofielenTab() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: deleteRolprofiel,
+    mutationFn: (id: number) => deleteRolprofiel(id, user?.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['rolprofielen'] });
       toast.success('Rol verwijderd');
