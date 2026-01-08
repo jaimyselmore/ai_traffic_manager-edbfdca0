@@ -1,8 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import type { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
-
-// Fixed password for all planners
-const PLANNER_PASSWORD = 'selmore2026';
 
 interface AuthUser {
   id: string;
@@ -13,6 +11,7 @@ interface AuthUser {
 
 interface AuthContextType {
   user: AuthUser | null;
+  session: Session | null;
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
@@ -20,68 +19,87 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Storage key for persisted login
-const STORAGE_KEY = 'ellen_auth_user';
+async function fetchUserProfile(authUser: User): Promise<AuthUser | null> {
+  const { data, error } = await supabase
+    .from('users')
+    .select('id, naam, email, is_planner')
+    .eq('id', authUser.id)
+    .single();
+
+  if (error || !data) return null;
+
+  return {
+    id: data.id,
+    email: data.email,
+    naam: data.naam,
+    isPlanner: data.is_planner || false,
+  };
+}
+
+async function ensurePublicUser() {
+  try {
+    await supabase.functions.invoke('ensure-public-user');
+  } catch {
+    // ignore, profile fetch will fail if not ensured
+  }
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Check for existing session on mount
   useEffect(() => {
-    const storedUser = localStorage.getItem(STORAGE_KEY);
-    if (storedUser) {
-      try {
-        setUser(JSON.parse(storedUser));
-      } catch {
-        localStorage.removeItem(STORAGE_KEY);
+    // Set up auth state listener FIRST
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (_event, currentSession) => {
+        setSession(currentSession);
+
+        if (currentSession?.user) {
+          setIsLoading(true);
+          await ensurePublicUser();
+          const profile = await fetchUserProfile(currentSession.user);
+          setUser(profile);
+          setIsLoading(false);
+        } else {
+          setUser(null);
+          setIsLoading(false);
+        }
       }
-    }
-    setIsLoading(false);
+    );
+
+    // THEN check for existing session
+    supabase.auth.getSession().then(async ({ data: { session: existingSession } }) => {
+      setSession(existingSession);
+
+      if (existingSession?.user) {
+        await ensurePublicUser();
+        const profile = await fetchUserProfile(existingSession.user);
+        setUser(profile);
+      }
+      setIsLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  const signIn = async (email: string, password: string): Promise<{ error: Error | null }> => {
-    // Check password first
-    if (password !== PLANNER_PASSWORD) {
-      return { error: new Error('Ongeldig wachtwoord') };
-    }
+  const signIn = async (email: string, password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
 
-    // Look up user in users table
-    const { data, error } = await supabase
-      .from('users')
-      .select('id, naam, email, is_planner')
-      .eq('email', email.toLowerCase().trim())
-      .single();
-
-    if (error || !data) {
-      return { error: new Error('Gebruiker niet gevonden') };
-    }
-
-    if (!data.is_planner) {
-      return { error: new Error('Geen planner rechten') };
-    }
-
-    const authUser: AuthUser = {
-      id: data.id,
-      email: data.email,
-      naam: data.naam,
-      isPlanner: data.is_planner || false,
-    };
-
-    // Store in localStorage for persistence
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(authUser));
-    setUser(authUser);
-
-    return { error: null };
+    return { error: error as Error | null };
   };
 
   const signOut = async () => {
-    localStorage.removeItem(STORAGE_KEY);
+    await supabase.auth.signOut();
     setUser(null);
+    setSession(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, session, isLoading, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );
@@ -94,3 +112,4 @@ export function useAuth() {
   }
   return context;
 }
+
