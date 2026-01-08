@@ -7,6 +7,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
+import Admin from "./pages/Admin";
 import NieuwProject from "./pages/NieuwProject";
 import Wijzigingsverzoek from "./pages/Wijzigingsverzoek";
 import Meeting from "./pages/Meeting";
@@ -28,6 +29,7 @@ const App = () => (
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
+            <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
             <Route path="/nieuw-project" element={<ProtectedRoute><NieuwProject /></ProtectedRoute>} />
             <Route path="/wijzigingsverzoek" element={<ProtectedRoute><Wijzigingsverzoek /></ProtectedRoute>} />
             <Route path="/meeting" element={<ProtectedRoute><Meeting /></ProtectedRoute>} />
