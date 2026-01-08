@@ -58,6 +58,33 @@ export type Database = {
           },
         ]
       }
+      disciplines: {
+        Row: {
+          beschrijving: string | null
+          created_at: string | null
+          discipline_naam: string
+          id: number
+          kleur_hex: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          beschrijving?: string | null
+          created_at?: string | null
+          discipline_naam: string
+          id?: number
+          kleur_hex?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          beschrijving?: string | null
+          created_at?: string | null
+          discipline_naam?: string
+          id?: number
+          kleur_hex?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       klanten: {
         Row: {
           adres: string | null
@@ -222,6 +249,45 @@ export type Database = {
         }
         Relationships: []
       }
+      planning_regels: {
+        Row: {
+          actie_kort: string | null
+          categorie: string | null
+          created_at: string | null
+          ernst: string | null
+          max_per_dag: number | null
+          parameters: Json | null
+          regel_id: number
+          titel_kort: string
+          updated_at: string | null
+          voorwaarde_kort: string | null
+        }
+        Insert: {
+          actie_kort?: string | null
+          categorie?: string | null
+          created_at?: string | null
+          ernst?: string | null
+          max_per_dag?: number | null
+          parameters?: Json | null
+          regel_id: number
+          titel_kort: string
+          updated_at?: string | null
+          voorwaarde_kort?: string | null
+        }
+        Update: {
+          actie_kort?: string | null
+          categorie?: string | null
+          created_at?: string | null
+          ernst?: string | null
+          max_per_dag?: number | null
+          parameters?: Json | null
+          regel_id?: number
+          titel_kort?: string
+          updated_at?: string | null
+          voorwaarde_kort?: string | null
+        }
+        Relationships: []
+      }
       project_fases: {
         Row: {
           created_at: string | null
@@ -361,6 +427,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      rolprofielen: {
+        Row: {
+          beschrijving_rol: string | null
+          created_at: string | null
+          rol_naam: string
+          rol_nummer: number
+          taken_rol: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          beschrijving_rol?: string | null
+          created_at?: string | null
+          rol_naam: string
+          rol_nummer: number
+          taken_rol?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          beschrijving_rol?: string | null
+          created_at?: string | null
+          rol_naam?: string
+          rol_nummer?: number
+          taken_rol?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       taken: {
         Row: {
@@ -539,6 +632,63 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      werknemers: {
+        Row: {
+          beschikbaar: boolean | null
+          created_at: string | null
+          derde_rol: string | null
+          discipline: string | null
+          duo_team: string | null
+          email: string | null
+          is_planner: boolean | null
+          naam_werknemer: string
+          notities: string | null
+          parttime_dag: string | null
+          primaire_rol: string | null
+          tweede_rol: string | null
+          updated_at: string | null
+          vaardigheden: string | null
+          werknemer_id: number
+          werkuren: number | null
+        }
+        Insert: {
+          beschikbaar?: boolean | null
+          created_at?: string | null
+          derde_rol?: string | null
+          discipline?: string | null
+          duo_team?: string | null
+          email?: string | null
+          is_planner?: boolean | null
+          naam_werknemer: string
+          notities?: string | null
+          parttime_dag?: string | null
+          primaire_rol?: string | null
+          tweede_rol?: string | null
+          updated_at?: string | null
+          vaardigheden?: string | null
+          werknemer_id: number
+          werkuren?: number | null
+        }
+        Update: {
+          beschikbaar?: boolean | null
+          created_at?: string | null
+          derde_rol?: string | null
+          discipline?: string | null
+          duo_team?: string | null
+          email?: string | null
+          is_planner?: boolean | null
+          naam_werknemer?: string
+          notities?: string | null
+          parttime_dag?: string | null
+          primaire_rol?: string | null
+          tweede_rol?: string | null
+          updated_at?: string | null
+          vaardigheden?: string | null
+          werknemer_id?: number
+          werkuren?: number | null
+        }
+        Relationships: []
       }
       wijzigingsverzoeken: {
         Row: {
