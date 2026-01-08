@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   getDisciplines,
   createDiscipline,
@@ -58,6 +59,7 @@ export function DisciplinesTab() {
   const [deleteItem, setDeleteItem] = useState<Discipline | null>(null);
   const [form, setForm] = useState(emptyForm);
 
+  const { user } = useAuth();
   const queryClient = useQueryClient();
 
   const { data: disciplines = [], isLoading } = useQuery({
@@ -66,7 +68,7 @@ export function DisciplinesTab() {
   });
 
   const createMutation = useMutation({
-    mutationFn: createDiscipline,
+    mutationFn: (data: typeof form) => createDiscipline(data, user?.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['disciplines'] });
       toast.success('Discipline toegevoegd');
@@ -77,7 +79,7 @@ export function DisciplinesTab() {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: typeof form }) =>
-      updateDiscipline(id, data),
+      updateDiscipline(id, data, user?.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['disciplines'] });
       toast.success('Discipline bijgewerkt');
@@ -87,7 +89,7 @@ export function DisciplinesTab() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: deleteDiscipline,
+    mutationFn: (id: number) => deleteDiscipline(id, user?.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['disciplines'] });
       toast.success('Discipline verwijderd');

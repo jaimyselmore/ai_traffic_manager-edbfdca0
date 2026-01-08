@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   getKlanten,
   createKlant,
@@ -65,6 +66,7 @@ export function KlantenTab() {
   const [deleteItem, setDeleteItem] = useState<Klant | null>(null);
   const [form, setForm] = useState(emptyForm);
 
+  const { user } = useAuth();
   const queryClient = useQueryClient();
 
   const { data: klanten = [], isLoading } = useQuery({
@@ -73,7 +75,7 @@ export function KlantenTab() {
   });
 
   const createMutation = useMutation({
-    mutationFn: createKlant,
+    mutationFn: (data: typeof form) => createKlant(data, user?.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['klanten'] });
       toast.success('Klant toegevoegd');
@@ -84,7 +86,7 @@ export function KlantenTab() {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: typeof form }) =>
-      updateKlant(id, data),
+      updateKlant(id, data, user?.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['klanten'] });
       toast.success('Klant bijgewerkt');
@@ -94,7 +96,7 @@ export function KlantenTab() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: deleteKlant,
+    mutationFn: (id: string) => deleteKlant(id, user?.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['klanten'] });
       toast.success('Klant verwijderd');
