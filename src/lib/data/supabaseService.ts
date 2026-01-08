@@ -34,14 +34,13 @@ export async function getClientsFromSupabase(): Promise<Client[]> {
 }
 
 // ===========================================
-// EMPLOYEES (users table - those with werknemer_id)
+// EMPLOYEES (users table)
 // ===========================================
 
 export async function getEmployeesFromSupabase(): Promise<Employee[]> {
   const { data, error } = await supabase
     .from('users')
     .select('id, naam, email, rol, is_planner, werknemer_id')
-    .not('werknemer_id', 'is', null)
     .order('naam');
 
   if (error) {
@@ -54,9 +53,9 @@ export async function getEmployeesFromSupabase(): Promise<Employee[]> {
     name: user.naam,
     role: user.rol,
     email: user.email,
-    availability: 'available' as const, // Default, can be computed from tasks later
+    availability: 'available' as const,
     isPlanner: user.is_planner || false,
-    werknemerId: user.werknemer_id,
+    werknemerId: user.werknemer_id || undefined,
   }));
 }
 
@@ -89,9 +88,6 @@ export async function getNotificationsFromSupabase(): Promise<Notification[]> {
     deadline: notif.deadline || '',
     severity: notif.severity as Notification['severity'],
     isDone: notif.is_done || false,
-    titel: notif.titel,
-    beschrijving: notif.beschrijving,
-    aantal: notif.aantal,
   }));
 }
 
@@ -100,14 +96,12 @@ export async function getNotificationsFromSupabase(): Promise<Notification[]> {
 // ===========================================
 
 export async function getTasksFromSupabase(weekStart: Date): Promise<Task[]> {
-  const weekEnd = new Date(weekStart);
-  weekEnd.setDate(weekEnd.getDate() + 7);
+  const weekStartStr = weekStart.toISOString().split('T')[0];
 
   const { data, error } = await supabase
     .from('taken')
     .select('*')
-    .gte('week_start', weekStart.toISOString().split('T')[0])
-    .lt('week_start', weekEnd.toISOString().split('T')[0]);
+    .eq('week_start', weekStartStr);
 
   if (error) {
     console.error('Error fetching taken:', error);
@@ -115,7 +109,6 @@ export async function getTasksFromSupabase(weekStart: Date): Promise<Task[]> {
   }
 
   return (data || []).map((taak) => {
-    // Calculate actual date from week_start and dag_van_week
     const taskDate = new Date(taak.week_start);
     taskDate.setDate(taskDate.getDate() + taak.dag_van_week);
 
@@ -123,7 +116,7 @@ export async function getTasksFromSupabase(weekStart: Date): Promise<Task[]> {
       id: taak.id,
       title: `${taak.klant_naam} - ${taak.fase_naam}`,
       clientId: taak.project_id || '',
-      employeeId: taak.werknemer_naam, // Using name as ID for now
+      employeeId: taak.werknemer_naam,
       projectId: taak.project_id || undefined,
       type: taak.werktype,
       date: taskDate.toISOString().split('T')[0],
@@ -131,9 +124,6 @@ export async function getTasksFromSupabase(weekStart: Date): Promise<Task[]> {
       endTime: `${(taak.start_uur + taak.duur_uren).toString().padStart(2, '0')}:00`,
       planStatus: (taak.plan_status === 'vast' ? 'vast' : 'concept') as Task['planStatus'],
       faseNaam: taak.fase_naam,
-      discipline: taak.discipline,
-      klantNaam: taak.klant_naam,
-      projectNummer: taak.project_nummer,
     };
   });
 }
@@ -145,24 +135,47 @@ export async function getTasksFromSupabase(weekStart: Date): Promise<Task[]> {
 export async function getProjectsFromSupabase() {
   const { data, error } = await supabase
     .from('projecten')
-    .select(`
-      id,
-      projectnummer,
-      omschrijving,
-      projecttype,
-      status,
-      datum_aanvraag,
-      deadline,
-      klant_id,
-      klanten (
-        id,
-        naam
-      )
-    `)
+    .select('*')
     .order('created_at', { ascending: false });
 
   if (error) {
     console.error('Error fetching projecten:', error);
+    return [];
+  }
+
+  return data || [];
+}
+
+// ===========================================
+// MEETINGS (meetings table)
+// ===========================================
+
+export async function getMeetingsFromSupabase() {
+  const { data, error } = await supabase
+    .from('meetings')
+    .select('*')
+    .order('datum', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching meetings:', error);
+    return [];
+  }
+
+  return data || [];
+}
+
+// ===========================================
+// VERLOF (verlof_aanvragen table)
+// ===========================================
+
+export async function getVerlofFromSupabase() {
+  const { data, error } = await supabase
+    .from('verlof_aanvragen')
+    .select('*')
+    .order('start_datum', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching verlof:', error);
     return [];
   }
 
