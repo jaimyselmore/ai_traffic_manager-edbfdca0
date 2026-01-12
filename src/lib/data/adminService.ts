@@ -1,22 +1,61 @@
 // ===========================================
 // ADMIN SERVICE - CRUD operations for reference data
-// With audit logging support
+// Uses secure data-access edge function
 // ===========================================
 
-import { supabase } from '@/integrations/supabase/client';
-import { logCreate, logUpdate, logDelete } from './auditService';
+import { secureSelect, secureInsert, secureUpdate, secureDelete } from './secureDataClient';
+
+// Error codes for client-friendly messages
+const ERROR_MESSAGES: Record<string, string> = {
+  DUPLICATE_EMAIL: 'Dit e-mailadres is al in gebruik',
+  DUPLICATE_KEY: 'Deze waarde bestaat al',
+  INVALID_REFERENCE: 'Ongeldige referentie',
+  NOT_FOUND: 'Item niet gevonden',
+  DEFAULT: 'Er is een fout opgetreden',
+};
+
+function mapErrorMessage(error: Error): Error {
+  const message = error.message.toLowerCase();
+  if (message.includes('duplicate') && message.includes('email')) {
+    return new Error(ERROR_MESSAGES.DUPLICATE_EMAIL);
+  }
+  if (message.includes('duplicate') || message.includes('unique')) {
+    return new Error(ERROR_MESSAGES.DUPLICATE_KEY);
+  }
+  if (message.includes('foreign key') || message.includes('violates')) {
+    return new Error(ERROR_MESSAGES.INVALID_REFERENCE);
+  }
+  if (message.includes('not found') || message.includes('no rows')) {
+    return new Error(ERROR_MESSAGES.NOT_FOUND);
+  }
+  return new Error(ERROR_MESSAGES.DEFAULT);
+}
 
 // ===========================================
 // WERKNEMERS CRUD
 // ===========================================
 
 export async function getWerknemers() {
-  const { data, error } = await supabase
-    .from('werknemers')
-    .select('*')
-    .order('naam_werknemer');
+  const { data, error } = await secureSelect<{
+    werknemer_id: number;
+    naam_werknemer: string;
+    email: string | null;
+    primaire_rol: string | null;
+    tweede_rol: string | null;
+    derde_rol: string | null;
+    discipline: string | null;
+    werkuren: number | null;
+    parttime_dag: string | null;
+    duo_team: string | null;
+    vaardigheden: string | null;
+    notities: string | null;
+    beschikbaar: boolean | null;
+    is_planner: boolean | null;
+  }>('werknemers', {
+    order: { column: 'naam_werknemer', ascending: true },
+  });
 
-  if (error) throw error;
+  if (error) throw mapErrorMessage(error);
   return data || [];
 }
 
@@ -36,31 +75,26 @@ export async function createWerknemer(
     beschikbaar?: boolean;
     is_planner?: boolean;
   },
-  userId?: string
+  _userId?: string
 ) {
   // Get next werknemer_id
-  const { data: maxData } = await supabase
-    .from('werknemers')
-    .select('werknemer_id')
-    .order('werknemer_id', { ascending: false })
-    .limit(1);
+  const { data: maxData } = await secureSelect<{ werknemer_id: number }>('werknemers', {
+    columns: 'werknemer_id',
+    order: { column: 'werknemer_id', ascending: false },
+    limit: 1,
+  });
 
   const nextId = (maxData?.[0]?.werknemer_id || 0) + 1;
 
-  const { data, error } = await supabase
-    .from('werknemers')
-    .insert({ ...werknemer, werknemer_id: nextId })
-    .select()
-    .single();
+  const { data, error } = await secureInsert<{
+    werknemer_id: number;
+    naam_werknemer: string;
+  }>('werknemers', { ...werknemer, werknemer_id: nextId });
 
-  if (error) throw error;
+  if (error) throw mapErrorMessage(error);
 
-  // Audit log
-  if (userId) {
-    await logCreate(userId, 'werknemers', String(data.werknemer_id), data);
-  }
-
-  return data;
+  // Audit logging is handled server-side in data-access edge function
+  return data?.[0];
 }
 
 export async function updateWerknemer(
@@ -80,51 +114,27 @@ export async function updateWerknemer(
     beschikbaar: boolean;
     is_planner: boolean;
   }>,
-  userId?: string
+  _userId?: string
 ) {
-  // Get existing for audit log
-  const { data: existing } = await supabase
-    .from('werknemers')
-    .select('*')
-    .eq('werknemer_id', werknemer_id)
-    .single();
+  const { data, error } = await secureUpdate<{
+    werknemer_id: number;
+    naam_werknemer: string;
+  }>('werknemers', updates, [{ column: 'werknemer_id', operator: 'eq', value: werknemer_id }]);
 
-  const { data, error } = await supabase
-    .from('werknemers')
-    .update(updates)
-    .eq('werknemer_id', werknemer_id)
-    .select()
-    .single();
+  if (error) throw mapErrorMessage(error);
 
-  if (error) throw error;
-
-  // Audit log
-  if (userId && existing) {
-    await logUpdate(userId, 'werknemers', String(werknemer_id), existing, data);
-  }
-
-  return data;
+  // Audit logging is handled server-side
+  return data?.[0];
 }
 
-export async function deleteWerknemer(werknemer_id: number, userId?: string) {
-  // Get existing for audit log
-  const { data: existing } = await supabase
-    .from('werknemers')
-    .select('*')
-    .eq('werknemer_id', werknemer_id)
-    .single();
+export async function deleteWerknemer(werknemer_id: number, _userId?: string) {
+  const { error } = await secureDelete('werknemers', [
+    { column: 'werknemer_id', operator: 'eq', value: werknemer_id },
+  ]);
 
-  const { error } = await supabase
-    .from('werknemers')
-    .delete()
-    .eq('werknemer_id', werknemer_id);
+  if (error) throw mapErrorMessage(error);
 
-  if (error) throw error;
-
-  // Audit log
-  if (userId && existing) {
-    await logDelete(userId, 'werknemers', String(werknemer_id), existing);
-  }
+  // Audit logging is handled server-side
 }
 
 // ===========================================
@@ -132,12 +142,16 @@ export async function deleteWerknemer(werknemer_id: number, userId?: string) {
 // ===========================================
 
 export async function getRolprofielen() {
-  const { data, error } = await supabase
-    .from('rolprofielen')
-    .select('*')
-    .order('rol_nummer');
+  const { data, error } = await secureSelect<{
+    rol_nummer: number;
+    rol_naam: string;
+    beschrijving_rol: string | null;
+    taken_rol: string | null;
+  }>('rolprofielen', {
+    order: { column: 'rol_nummer', ascending: true },
+  });
 
-  if (error) throw error;
+  if (error) throw mapErrorMessage(error);
   return data || [];
 }
 
@@ -147,31 +161,25 @@ export async function createRolprofiel(
     beschrijving_rol?: string;
     taken_rol?: string;
   },
-  userId?: string
+  _userId?: string
 ) {
   // Get next rol_nummer
-  const { data: maxData } = await supabase
-    .from('rolprofielen')
-    .select('rol_nummer')
-    .order('rol_nummer', { ascending: false })
-    .limit(1);
+  const { data: maxData } = await secureSelect<{ rol_nummer: number }>('rolprofielen', {
+    columns: 'rol_nummer',
+    order: { column: 'rol_nummer', ascending: false },
+    limit: 1,
+  });
 
   const nextNummer = (maxData?.[0]?.rol_nummer || 0) + 1;
 
-  const { data, error } = await supabase
-    .from('rolprofielen')
-    .insert({ ...rol, rol_nummer: nextNummer })
-    .select()
-    .single();
+  const { data, error } = await secureInsert<{
+    rol_nummer: number;
+    rol_naam: string;
+  }>('rolprofielen', { ...rol, rol_nummer: nextNummer });
 
-  if (error) throw error;
+  if (error) throw mapErrorMessage(error);
 
-  // Audit log
-  if (userId) {
-    await logCreate(userId, 'rolprofielen', String(data.rol_nummer), data);
-  }
-
-  return data;
+  return data?.[0];
 }
 
 export async function updateRolprofiel(
@@ -181,51 +189,24 @@ export async function updateRolprofiel(
     beschrijving_rol: string;
     taken_rol: string;
   }>,
-  userId?: string
+  _userId?: string
 ) {
-  // Get existing for audit log
-  const { data: existing } = await supabase
-    .from('rolprofielen')
-    .select('*')
-    .eq('rol_nummer', rol_nummer)
-    .single();
+  const { data, error } = await secureUpdate<{
+    rol_nummer: number;
+    rol_naam: string;
+  }>('rolprofielen', updates, [{ column: 'rol_nummer', operator: 'eq', value: rol_nummer }]);
 
-  const { data, error } = await supabase
-    .from('rolprofielen')
-    .update(updates)
-    .eq('rol_nummer', rol_nummer)
-    .select()
-    .single();
+  if (error) throw mapErrorMessage(error);
 
-  if (error) throw error;
-
-  // Audit log
-  if (userId && existing) {
-    await logUpdate(userId, 'rolprofielen', String(rol_nummer), existing, data);
-  }
-
-  return data;
+  return data?.[0];
 }
 
-export async function deleteRolprofiel(rol_nummer: number, userId?: string) {
-  // Get existing for audit log
-  const { data: existing } = await supabase
-    .from('rolprofielen')
-    .select('*')
-    .eq('rol_nummer', rol_nummer)
-    .single();
+export async function deleteRolprofiel(rol_nummer: number, _userId?: string) {
+  const { error } = await secureDelete('rolprofielen', [
+    { column: 'rol_nummer', operator: 'eq', value: rol_nummer },
+  ]);
 
-  const { error } = await supabase
-    .from('rolprofielen')
-    .delete()
-    .eq('rol_nummer', rol_nummer);
-
-  if (error) throw error;
-
-  // Audit log
-  if (userId && existing) {
-    await logDelete(userId, 'rolprofielen', String(rol_nummer), existing);
-  }
+  if (error) throw mapErrorMessage(error);
 }
 
 // ===========================================
@@ -233,12 +214,16 @@ export async function deleteRolprofiel(rol_nummer: number, userId?: string) {
 // ===========================================
 
 export async function getDisciplines() {
-  const { data, error } = await supabase
-    .from('disciplines')
-    .select('*')
-    .order('discipline_naam');
+  const { data, error } = await secureSelect<{
+    id: number;
+    discipline_naam: string;
+    beschrijving: string | null;
+    kleur_hex: string | null;
+  }>('disciplines', {
+    order: { column: 'discipline_naam', ascending: true },
+  });
 
-  if (error) throw error;
+  if (error) throw mapErrorMessage(error);
   return data || [];
 }
 
@@ -248,22 +233,16 @@ export async function createDiscipline(
     beschrijving?: string;
     kleur_hex?: string;
   },
-  userId?: string
+  _userId?: string
 ) {
-  const { data, error } = await supabase
-    .from('disciplines')
-    .insert(discipline)
-    .select()
-    .single();
+  const { data, error } = await secureInsert<{
+    id: number;
+    discipline_naam: string;
+  }>('disciplines', discipline);
 
-  if (error) throw error;
+  if (error) throw mapErrorMessage(error);
 
-  // Audit log
-  if (userId) {
-    await logCreate(userId, 'disciplines', String(data.id), data);
-  }
-
-  return data;
+  return data?.[0];
 }
 
 export async function updateDiscipline(
@@ -273,51 +252,22 @@ export async function updateDiscipline(
     beschrijving: string;
     kleur_hex: string;
   }>,
-  userId?: string
+  _userId?: string
 ) {
-  // Get existing for audit log
-  const { data: existing } = await supabase
-    .from('disciplines')
-    .select('*')
-    .eq('id', id)
-    .single();
+  const { data, error } = await secureUpdate<{
+    id: number;
+    discipline_naam: string;
+  }>('disciplines', updates, [{ column: 'id', operator: 'eq', value: id }]);
 
-  const { data, error } = await supabase
-    .from('disciplines')
-    .update(updates)
-    .eq('id', id)
-    .select()
-    .single();
+  if (error) throw mapErrorMessage(error);
 
-  if (error) throw error;
-
-  // Audit log
-  if (userId && existing) {
-    await logUpdate(userId, 'disciplines', String(id), existing, data);
-  }
-
-  return data;
+  return data?.[0];
 }
 
-export async function deleteDiscipline(id: number, userId?: string) {
-  // Get existing for audit log
-  const { data: existing } = await supabase
-    .from('disciplines')
-    .select('*')
-    .eq('id', id)
-    .single();
+export async function deleteDiscipline(id: number, _userId?: string) {
+  const { error } = await secureDelete('disciplines', [{ column: 'id', operator: 'eq', value: id }]);
 
-  const { error } = await supabase
-    .from('disciplines')
-    .delete()
-    .eq('id', id);
-
-  if (error) throw error;
-
-  // Audit log
-  if (userId && existing) {
-    await logDelete(userId, 'disciplines', String(id), existing);
-  }
+  if (error) throw mapErrorMessage(error);
 }
 
 // ===========================================
@@ -325,12 +275,20 @@ export async function deleteDiscipline(id: number, userId?: string) {
 // ===========================================
 
 export async function getKlanten() {
-  const { data, error } = await supabase
-    .from('klanten')
-    .select('*')
-    .order('naam');
+  const { data, error } = await secureSelect<{
+    id: string;
+    klantnummer: string;
+    naam: string;
+    contactpersoon: string | null;
+    email: string | null;
+    telefoon: string | null;
+    adres: string | null;
+    notities: string | null;
+  }>('klanten', {
+    order: { column: 'naam', ascending: true },
+  });
 
-  if (error) throw error;
+  if (error) throw mapErrorMessage(error);
   return data || [];
 }
 
@@ -343,14 +301,14 @@ export async function createKlant(
     adres?: string;
     notities?: string;
   },
-  userId?: string
+  _userId?: string
 ) {
   // Generate next klantnummer
-  const { data: maxData } = await supabase
-    .from('klanten')
-    .select('klantnummer')
-    .order('klantnummer', { ascending: false })
-    .limit(1);
+  const { data: maxData } = await secureSelect<{ klantnummer: string }>('klanten', {
+    columns: 'klantnummer',
+    order: { column: 'klantnummer', ascending: false },
+    limit: 1,
+  });
 
   let nextNum = 1001;
   if (maxData?.[0]?.klantnummer) {
@@ -358,20 +316,15 @@ export async function createKlant(
     if (!isNaN(num)) nextNum = num + 1;
   }
 
-  const { data, error } = await supabase
-    .from('klanten')
-    .insert({ ...klant, klantnummer: `K${nextNum}`, created_by: userId })
-    .select()
-    .single();
+  const { data, error } = await secureInsert<{
+    id: string;
+    klantnummer: string;
+    naam: string;
+  }>('klanten', { ...klant, klantnummer: `K${nextNum}` });
 
-  if (error) throw error;
+  if (error) throw mapErrorMessage(error);
 
-  // Audit log
-  if (userId) {
-    await logCreate(userId, 'klanten', data.id, data);
-  }
-
-  return data;
+  return data?.[0];
 }
 
 export async function updateKlant(
@@ -384,49 +337,20 @@ export async function updateKlant(
     adres: string;
     notities: string;
   }>,
-  userId?: string
+  _userId?: string
 ) {
-  // Get existing for audit log
-  const { data: existing } = await supabase
-    .from('klanten')
-    .select('*')
-    .eq('id', id)
-    .single();
+  const { data, error } = await secureUpdate<{
+    id: string;
+    naam: string;
+  }>('klanten', updates, [{ column: 'id', operator: 'eq', value: id }]);
 
-  const { data, error } = await supabase
-    .from('klanten')
-    .update(updates)
-    .eq('id', id)
-    .select()
-    .single();
+  if (error) throw mapErrorMessage(error);
 
-  if (error) throw error;
-
-  // Audit log
-  if (userId && existing) {
-    await logUpdate(userId, 'klanten', id, existing, data);
-  }
-
-  return data;
+  return data?.[0];
 }
 
-export async function deleteKlant(id: string, userId?: string) {
-  // Get existing for audit log
-  const { data: existing } = await supabase
-    .from('klanten')
-    .select('*')
-    .eq('id', id)
-    .single();
+export async function deleteKlant(id: string, _userId?: string) {
+  const { error } = await secureDelete('klanten', [{ column: 'id', operator: 'eq', value: id }]);
 
-  const { error } = await supabase
-    .from('klanten')
-    .delete()
-    .eq('id', id);
-
-  if (error) throw error;
-
-  // Audit log
-  if (userId && existing) {
-    await logDelete(userId, 'klanten', id, existing);
-  }
+  if (error) throw mapErrorMessage(error);
 }

@@ -1,9 +1,26 @@
 // ===========================================
-// TAKEN SERVICE - CRUD with audit logging
+// TAKEN SERVICE - CRUD using secure data-access
 // ===========================================
 
-import { supabase } from '@/integrations/supabase/client';
-import { logCreate, logUpdate, logDelete, checkHardLockPermission } from './auditService';
+import { secureSelect, secureInsert, secureUpdate, secureDelete } from './secureDataClient';
+
+// Error codes for client-friendly messages
+const ERROR_MESSAGES: Record<string, string> = {
+  HARD_LOCK: 'Dit item is vergrendeld en kan niet worden aangepast',
+  NOT_FOUND: 'Taak niet gevonden',
+  DEFAULT: 'Er is een fout opgetreden',
+};
+
+function mapErrorMessage(error: Error): Error {
+  const message = error.message.toLowerCase();
+  if (message.includes('hard lock') || message.includes('alleen')) {
+    return new Error(error.message); // Keep the specific lock message
+  }
+  if (message.includes('not found') || message.includes('no rows')) {
+    return new Error(ERROR_MESSAGES.NOT_FOUND);
+  }
+  return new Error(ERROR_MESSAGES.DEFAULT);
+}
 
 export interface Taak {
   id: string;
@@ -28,20 +45,16 @@ export interface Taak {
 }
 
 export async function getTaken(weekStart?: Date) {
-  let query = supabase
-    .from('taken')
-    .select('*')
-    .order('dag_van_week')
-    .order('start_uur');
+  const filters = weekStart
+    ? [{ column: 'week_start', operator: 'eq' as const, value: weekStart.toISOString().split('T')[0] }]
+    : undefined;
 
-  if (weekStart) {
-    const weekStartStr = weekStart.toISOString().split('T')[0];
-    query = query.eq('week_start', weekStartStr);
-  }
+  const { data, error } = await secureSelect<Taak>('taken', {
+    filters,
+    order: { column: 'dag_van_week', ascending: true },
+  });
 
-  const { data, error } = await query;
-
-  if (error) throw error;
+  if (error) throw mapErrorMessage(error);
   return data || [];
 }
 
@@ -62,92 +75,59 @@ export async function createTaak(
     plan_status?: string;
     is_hard_lock?: boolean;
   },
-  userId: string
+  _userId: string
 ) {
-  const { data, error } = await supabase
-    .from('taken')
-    .insert({
-      ...taak,
-      created_by: userId,
-    })
-    .select()
-    .single();
+  // created_by is handled server-side in data-access edge function
+  const { data, error } = await secureInsert<Taak>('taken', taak);
 
-  if (error) throw error;
+  if (error) throw mapErrorMessage(error);
 
-  // Audit log
-  await logCreate(userId, 'taken', data.id, data);
-
-  return data;
+  // Audit logging is handled server-side
+  return data?.[0];
 }
 
 export async function updateTaak(
   id: string,
   updates: Partial<Taak>,
-  userId: string,
-  currentUserNaam: string
+  _userId: string,
+  _currentUserNaam: string
 ) {
-  // First get the existing taak to check hard lock
-  const { data: existing, error: fetchError } = await supabase
-    .from('taken')
-    .select('*')
-    .eq('id', id)
-    .single();
+  // Hard lock check is handled server-side in data-access edge function
+  const { data, error } = await secureUpdate<Taak>('taken', updates, [
+    { column: 'id', operator: 'eq', value: id },
+  ]);
 
-  if (fetchError) throw fetchError;
+  if (error) throw mapErrorMessage(error);
 
-  // Check hard lock permission
-  const lockError = checkHardLockPermission(
-    existing.created_by,
-    existing.is_hard_lock,
-    currentUserNaam
-  );
-  if (lockError) throw new Error(lockError);
-
-  const { data, error } = await supabase
-    .from('taken')
-    .update(updates)
-    .eq('id', id)
-    .select()
-    .single();
-
-  if (error) throw error;
-
-  // Audit log
-  await logUpdate(userId, 'taken', id, existing, data);
-
-  return data;
+  // Audit logging is handled server-side
+  return data?.[0];
 }
 
 export async function deleteTaak(
   id: string,
-  userId: string,
-  currentUserNaam: string
+  _userId: string,
+  _currentUserNaam: string
 ) {
-  // First get the existing taak to check hard lock
-  const { data: existing, error: fetchError } = await supabase
-    .from('taken')
-    .select('*')
-    .eq('id', id)
-    .single();
+  // Hard lock check is handled server-side in data-access edge function
+  const { error } = await secureDelete('taken', [{ column: 'id', operator: 'eq', value: id }]);
 
-  if (fetchError) throw fetchError;
+  if (error) throw mapErrorMessage(error);
 
-  // Check hard lock permission
-  const lockError = checkHardLockPermission(
-    existing.created_by,
-    existing.is_hard_lock,
-    currentUserNaam
-  );
-  if (lockError) throw new Error(lockError);
+  // Audit logging is handled server-side
+}
 
-  const { error } = await supabase
-    .from('taken')
-    .delete()
-    .eq('id', id);
+// Re-export checkHardLockPermission for backward compatibility (client-side display only)
+export function checkHardLockPermission(
+  itemCreatedBy: string | null | undefined,
+  itemIsHardLock: boolean | null | undefined,
+  currentUserNaam: string
+): string | null {
+  if (!itemIsHardLock) return null;
+  if (!itemCreatedBy) return null;
 
-  if (error) throw error;
+  if (itemCreatedBy !== currentUserNaam) {
+    return `Alleen ${itemCreatedBy} kan dit aanpassen (hard lock)`;
+  }
 
-  // Audit log
-  await logDelete(userId, 'taken', id, existing);
+  return null;
 }
