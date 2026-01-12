@@ -1,8 +1,9 @@
 // ===========================================
-// AUDIT SERVICE - Logging for all CRUD actions
+// AUDIT SERVICE - Logging functions and utilities
+// Audit logging is now handled server-side in data-access edge function
 // ===========================================
 
-import { supabase } from '@/integrations/supabase/client';
+import { secureSelect } from './secureDataClient';
 import type { Json } from '@/integrations/supabase/types';
 
 export type AuditActie = 'create' | 'update' | 'delete';
@@ -17,83 +18,48 @@ export interface AuditLogEntry {
 }
 
 /**
- * Log an action to the audit_log table
+ * NOTE: Direct audit logging is now handled server-side in the data-access edge function.
+ * These functions are kept for backward compatibility but are no-ops.
  */
-export async function logAuditEntry(entry: AuditLogEntry): Promise<void> {
-  const { error } = await supabase.from('audit_log').insert({
-    user_id: entry.user_id,
-    entiteit_type: entry.entiteit_type,
-    entiteit_id: entry.entiteit_id,
-    actie: entry.actie,
-    oude_waarde: entry.oude_waarde ?? null,
-    nieuwe_waarde: entry.nieuwe_waarde ?? null,
-  });
 
-  if (error) {
-    console.error('Error logging audit entry:', error);
-    // Don't throw - audit logging should not block the main action
-  }
+export async function logAuditEntry(_entry: AuditLogEntry): Promise<void> {
+  // Audit logging is now handled server-side in data-access edge function
+  // This function is kept for backward compatibility
 }
 
-/**
- * Helper to create audit log for a CREATE action
- */
 export async function logCreate(
-  userId: string,
-  entiteitType: string,
-  entiteitId: string,
-  nieuweWaarde: Record<string, unknown>
+  _userId: string,
+  _entiteitType: string,
+  _entiteitId: string,
+  _nieuweWaarde: Record<string, unknown>
 ): Promise<void> {
-  await logAuditEntry({
-    user_id: userId,
-    entiteit_type: entiteitType,
-    entiteit_id: entiteitId,
-    actie: 'create',
-    nieuwe_waarde: nieuweWaarde as Json,
-  });
+  // Audit logging is now handled server-side
 }
 
-/**
- * Helper to create audit log for an UPDATE action
- */
 export async function logUpdate(
-  userId: string,
-  entiteitType: string,
-  entiteitId: string,
-  oudeWaarde: Record<string, unknown>,
-  nieuweWaarde: Record<string, unknown>
+  _userId: string,
+  _entiteitType: string,
+  _entiteitId: string,
+  _oudeWaarde: Record<string, unknown>,
+  _nieuweWaarde: Record<string, unknown>
 ): Promise<void> {
-  await logAuditEntry({
-    user_id: userId,
-    entiteit_type: entiteitType,
-    entiteit_id: entiteitId,
-    actie: 'update',
-    oude_waarde: oudeWaarde as Json,
-    nieuwe_waarde: nieuweWaarde as Json,
-  });
+  // Audit logging is now handled server-side
 }
 
-/**
- * Helper to create audit log for a DELETE action
- */
 export async function logDelete(
-  userId: string,
-  entiteitType: string,
-  entiteitId: string,
-  oudeWaarde: Record<string, unknown>
+  _userId: string,
+  _entiteitType: string,
+  _entiteitId: string,
+  _oudeWaarde: Record<string, unknown>
 ): Promise<void> {
-  await logAuditEntry({
-    user_id: userId,
-    entiteit_type: entiteitType,
-    entiteit_id: entiteitId,
-    actie: 'delete',
-    oude_waarde: oudeWaarde as Json,
-  });
+  // Audit logging is now handled server-side
 }
 
 /**
  * Check if the current user can modify a hard-locked item
  * Returns error message if not allowed, null if allowed
+ * NOTE: This is now primarily for client-side UI display.
+ * Actual enforcement is done server-side in data-access edge function.
  */
 export function checkHardLockPermission(
   itemCreatedBy: string | null | undefined,
@@ -102,11 +68,11 @@ export function checkHardLockPermission(
 ): string | null {
   if (!itemIsHardLock) return null;
   if (!itemCreatedBy) return null;
-  
+
   if (itemCreatedBy !== currentUserNaam) {
     return `Alleen ${itemCreatedBy} kan dit aanpassen (hard lock)`;
   }
-  
+
   return null;
 }
 
@@ -114,23 +80,23 @@ export function checkHardLockPermission(
  * Get audit log entries for an entity
  */
 export async function getAuditLogs(entiteitType?: string, entiteitId?: string) {
-  let query = supabase
-    .from('audit_log')
-    .select('*')
-    .order('created_at', { ascending: false })
-    .limit(100);
-
+  const filters = [];
+  
   if (entiteitType) {
-    query = query.eq('entiteit_type', entiteitType);
+    filters.push({ column: 'entiteit_type', operator: 'eq' as const, value: entiteitType });
   }
   if (entiteitId) {
-    query = query.eq('entiteit_id', entiteitId);
+    filters.push({ column: 'entiteit_id', operator: 'eq' as const, value: entiteitId });
   }
 
-  const { data, error } = await query;
+  const { data, error } = await secureSelect('audit_log', {
+    filters: filters.length > 0 ? filters : undefined,
+    order: { column: 'created_at', ascending: false },
+    limit: 100,
+  });
 
   if (error) {
-    console.error('Error fetching audit logs:', error);
+    console.error('Error fetching audit logs:', error.message);
     return [];
   }
 

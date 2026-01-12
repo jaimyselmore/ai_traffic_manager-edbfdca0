@@ -1,23 +1,35 @@
 // ===========================================
 // SUPABASE DATA SERVICE
-// Fetches real data from Supabase tables
+// Uses secure data-access edge function
 // ===========================================
 
-import { supabase } from '@/integrations/supabase/client';
+import { secureSelect } from './secureDataClient';
 import type { Employee, Client, Notification, Task } from './types';
+
+// Error handling utility
+const DEFAULT_ERROR = 'Er is een fout opgetreden';
 
 // ===========================================
 // CLIENTS (klanten table)
 // ===========================================
 
 export async function getClientsFromSupabase(): Promise<Client[]> {
-  const { data, error } = await supabase
-    .from('klanten')
-    .select('id, naam, klantnummer, contactpersoon, email, telefoon, adres, notities')
-    .order('naam');
+  const { data, error } = await secureSelect<{
+    id: string;
+    naam: string;
+    klantnummer: string;
+    contactpersoon: string | null;
+    email: string | null;
+    telefoon: string | null;
+    adres: string | null;
+    notities: string | null;
+  }>('klanten', {
+    columns: 'id, naam, klantnummer, contactpersoon, email, telefoon, adres, notities',
+    order: { column: 'naam', ascending: true },
+  });
 
   if (error) {
-    console.error('Error fetching klanten:', error);
+    console.error('Error fetching klanten:', error.message);
     return [];
   }
 
@@ -38,13 +50,20 @@ export async function getClientsFromSupabase(): Promise<Client[]> {
 // ===========================================
 
 export async function getEmployeesFromSupabase(): Promise<Employee[]> {
-  const { data, error } = await supabase
-    .from('users')
-    .select('id, naam, email, rol, is_planner, werknemer_id')
-    .order('naam');
+  const { data, error } = await secureSelect<{
+    id: string;
+    naam: string;
+    email: string;
+    rol: string;
+    is_planner: boolean | null;
+    werknemer_id: number | null;
+  }>('users', {
+    columns: 'id, naam, email, rol, is_planner, werknemer_id',
+    order: { column: 'naam', ascending: true },
+  });
 
   if (error) {
-    console.error('Error fetching users:', error);
+    console.error('Error fetching users:', error.message);
     return [];
   }
 
@@ -64,14 +83,22 @@ export async function getEmployeesFromSupabase(): Promise<Employee[]> {
 // ===========================================
 
 export async function getNotificationsFromSupabase(): Promise<Notification[]> {
-  const { data, error } = await supabase
-    .from('notificaties')
-    .select('*')
-    .eq('is_done', false)
-    .order('created_at', { ascending: false });
+  const { data, error } = await secureSelect<{
+    id: string;
+    type: string;
+    klant_naam: string | null;
+    project_nummer: string | null;
+    voor_werknemer: string | null;
+    deadline: string | null;
+    severity: string;
+    is_done: boolean | null;
+  }>('notificaties', {
+    filters: [{ column: 'is_done', operator: 'eq', value: false }],
+    order: { column: 'created_at', ascending: false },
+  });
 
   if (error) {
-    console.error('Error fetching notificaties:', error);
+    console.error('Error fetching notificaties:', error.message);
     return [];
   }
 
@@ -98,13 +125,24 @@ export async function getNotificationsFromSupabase(): Promise<Notification[]> {
 export async function getTasksFromSupabase(weekStart: Date): Promise<Task[]> {
   const weekStartStr = weekStart.toISOString().split('T')[0];
 
-  const { data, error } = await supabase
-    .from('taken')
-    .select('*')
-    .eq('week_start', weekStartStr);
+  const { data, error } = await secureSelect<{
+    id: string;
+    project_id: string | null;
+    klant_naam: string;
+    fase_naam: string;
+    werknemer_naam: string;
+    werktype: string;
+    week_start: string;
+    dag_van_week: number;
+    start_uur: number;
+    duur_uren: number;
+    plan_status: string | null;
+  }>('taken', {
+    filters: [{ column: 'week_start', operator: 'eq', value: weekStartStr }],
+  });
 
   if (error) {
-    console.error('Error fetching taken:', error);
+    console.error('Error fetching taken:', error.message);
     return [];
   }
 
@@ -133,13 +171,12 @@ export async function getTasksFromSupabase(weekStart: Date): Promise<Task[]> {
 // ===========================================
 
 export async function getProjectsFromSupabase() {
-  const { data, error } = await supabase
-    .from('projecten')
-    .select('*')
-    .order('created_at', { ascending: false });
+  const { data, error } = await secureSelect('projecten', {
+    order: { column: 'created_at', ascending: false },
+  });
 
   if (error) {
-    console.error('Error fetching projecten:', error);
+    console.error('Error fetching projecten:', error.message);
     return [];
   }
 
@@ -151,13 +188,12 @@ export async function getProjectsFromSupabase() {
 // ===========================================
 
 export async function getMeetingsFromSupabase() {
-  const { data, error } = await supabase
-    .from('meetings')
-    .select('*')
-    .order('datum', { ascending: true });
+  const { data, error } = await secureSelect('meetings', {
+    order: { column: 'datum', ascending: true },
+  });
 
   if (error) {
-    console.error('Error fetching meetings:', error);
+    console.error('Error fetching meetings:', error.message);
     return [];
   }
 
@@ -169,13 +205,12 @@ export async function getMeetingsFromSupabase() {
 // ===========================================
 
 export async function getVerlofFromSupabase() {
-  const { data, error } = await supabase
-    .from('verlof_aanvragen')
-    .select('*')
-    .order('start_datum', { ascending: true });
+  const { data, error } = await secureSelect('verlof_aanvragen', {
+    order: { column: 'start_datum', ascending: true },
+  });
 
   if (error) {
-    console.error('Error fetching verlof:', error);
+    console.error('Error fetching verlof:', error.message);
     return [];
   }
 

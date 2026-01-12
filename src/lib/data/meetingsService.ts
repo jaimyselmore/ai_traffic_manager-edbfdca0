@@ -1,9 +1,26 @@
 // ===========================================
-// MEETINGS SERVICE - CRUD with audit logging & hard lock support
+// MEETINGS SERVICE - CRUD using secure data-access
 // ===========================================
 
-import { supabase } from '@/integrations/supabase/client';
-import { logCreate, logUpdate, logDelete, checkHardLockPermission } from './auditService';
+import { secureSelect, secureInsert, secureUpdate, secureDelete } from './secureDataClient';
+
+// Error codes for client-friendly messages
+const ERROR_MESSAGES: Record<string, string> = {
+  HARD_LOCK: 'Dit item is vergrendeld en kan niet worden aangepast',
+  NOT_FOUND: 'Meeting niet gevonden',
+  DEFAULT: 'Er is een fout opgetreden',
+};
+
+function mapErrorMessage(error: Error): Error {
+  const message = error.message.toLowerCase();
+  if (message.includes('hard lock') || message.includes('alleen')) {
+    return new Error(error.message); // Keep the specific lock message
+  }
+  if (message.includes('not found') || message.includes('no rows')) {
+    return new Error(ERROR_MESSAGES.NOT_FOUND);
+  }
+  return new Error(ERROR_MESSAGES.DEFAULT);
+}
 
 export interface Meeting {
   id: string;
@@ -23,12 +40,11 @@ export interface Meeting {
 }
 
 export async function getMeetings() {
-  const { data, error } = await supabase
-    .from('meetings')
-    .select('*')
-    .order('datum', { ascending: true });
+  const { data, error } = await secureSelect<Meeting>('meetings', {
+    order: { column: 'datum', ascending: true },
+  });
 
-  if (error) throw error;
+  if (error) throw mapErrorMessage(error);
   return data || [];
 }
 
@@ -45,92 +61,59 @@ export async function createMeeting(
     is_hard_lock?: boolean;
     status?: string;
   },
-  userId: string
+  _userId: string
 ) {
-  const { data, error } = await supabase
-    .from('meetings')
-    .insert({
-      ...meeting,
-      created_by: userId,
-    })
-    .select()
-    .single();
+  // created_by is handled server-side in data-access edge function
+  const { data, error } = await secureInsert<Meeting>('meetings', meeting);
 
-  if (error) throw error;
+  if (error) throw mapErrorMessage(error);
 
-  // Audit log
-  await logCreate(userId, 'meetings', data.id, data);
-
-  return data;
+  // Audit logging is handled server-side
+  return data?.[0];
 }
 
 export async function updateMeeting(
   id: string,
   updates: Partial<Meeting>,
-  userId: string,
-  currentUserNaam: string
+  _userId: string,
+  _currentUserNaam: string
 ) {
-  // First get the existing meeting to check hard lock
-  const { data: existing, error: fetchError } = await supabase
-    .from('meetings')
-    .select('*')
-    .eq('id', id)
-    .single();
+  // Hard lock check is handled server-side in data-access edge function
+  const { data, error } = await secureUpdate<Meeting>('meetings', updates, [
+    { column: 'id', operator: 'eq', value: id },
+  ]);
 
-  if (fetchError) throw fetchError;
+  if (error) throw mapErrorMessage(error);
 
-  // Check hard lock permission
-  const lockError = checkHardLockPermission(
-    existing.created_by,
-    existing.is_hard_lock,
-    currentUserNaam
-  );
-  if (lockError) throw new Error(lockError);
-
-  const { data, error } = await supabase
-    .from('meetings')
-    .update(updates)
-    .eq('id', id)
-    .select()
-    .single();
-
-  if (error) throw error;
-
-  // Audit log
-  await logUpdate(userId, 'meetings', id, existing, data);
-
-  return data;
+  // Audit logging is handled server-side
+  return data?.[0];
 }
 
 export async function deleteMeeting(
   id: string,
-  userId: string,
-  currentUserNaam: string
+  _userId: string,
+  _currentUserNaam: string
 ) {
-  // First get the existing meeting to check hard lock
-  const { data: existing, error: fetchError } = await supabase
-    .from('meetings')
-    .select('*')
-    .eq('id', id)
-    .single();
+  // Hard lock check is handled server-side in data-access edge function
+  const { error } = await secureDelete('meetings', [{ column: 'id', operator: 'eq', value: id }]);
 
-  if (fetchError) throw fetchError;
+  if (error) throw mapErrorMessage(error);
 
-  // Check hard lock permission
-  const lockError = checkHardLockPermission(
-    existing.created_by,
-    existing.is_hard_lock,
-    currentUserNaam
-  );
-  if (lockError) throw new Error(lockError);
+  // Audit logging is handled server-side
+}
 
-  const { error } = await supabase
-    .from('meetings')
-    .delete()
-    .eq('id', id);
+// Re-export checkHardLockPermission for backward compatibility (client-side display only)
+export function checkHardLockPermission(
+  itemCreatedBy: string | null | undefined,
+  itemIsHardLock: boolean | null | undefined,
+  currentUserNaam: string
+): string | null {
+  if (!itemIsHardLock) return null;
+  if (!itemCreatedBy) return null;
 
-  if (error) throw error;
+  if (itemCreatedBy !== currentUserNaam) {
+    return `Alleen ${itemCreatedBy} kan dit aanpassen (hard lock)`;
+  }
 
-  // Audit log
-  await logDelete(userId, 'meetings', id, existing);
+  return null;
 }
