@@ -1,12 +1,17 @@
 // Custom login edge function - verifies email/password and returns signed JWT session
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.90.1';
+// Includes rate limiting to prevent brute-force attacks
+import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.90.1';
 import { compare } from 'https://esm.sh/bcrypt-ts@5.0.2';
-import { create, getNumericDate } from 'https://deno.land/x/djwt@v3.0.2/mod.ts';
+import { create } from 'https://deno.land/x/djwt@v3.0.2/mod.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Rate limiting configuration
+const MAX_FAILED_ATTEMPTS = 5; // Max failed attempts before lockout
+const LOCKOUT_WINDOW_MINUTES = 15; // Time window to count failed attempts
 
 // JWT secret key - derived from service role key for signing
 async function getJwtKey(secret: string): Promise<CryptoKey> {
@@ -19,6 +24,58 @@ async function getJwtKey(secret: string): Promise<CryptoKey> {
     false,
     ['sign', 'verify']
   );
+}
+
+// Check rate limiting - returns number of recent failed attempts
+// deno-lint-ignore no-explicit-any
+async function getRecentFailedAttempts(
+  supabase: SupabaseClient<any>,
+  email: string
+): Promise<number> {
+  const windowStart = new Date(Date.now() - LOCKOUT_WINDOW_MINUTES * 60 * 1000).toISOString();
+  
+  const { count, error } = await supabase
+    .from('login_attempts')
+    .select('*', { count: 'exact', head: true })
+    .eq('email', email.toLowerCase().trim())
+    .eq('success', false)
+    .gte('created_at', windowStart);
+
+  if (error) {
+    console.error('Error checking login attempts:', error);
+    return 0; // Don't block on error, but log it
+  }
+
+  return count || 0;
+}
+
+// Log login attempt
+// deno-lint-ignore no-explicit-any
+async function logLoginAttempt(
+  supabase: SupabaseClient<any>,
+  email: string,
+  ipAddress: string | null,
+  success: boolean
+): Promise<void> {
+  const { error } = await supabase
+    .from('login_attempts')
+    .insert({
+      email: email.toLowerCase().trim(),
+      ip_address: ipAddress,
+      success,
+    });
+
+  if (error) {
+    console.error('Error logging login attempt:', error);
+  }
+}
+
+// Calculate lockout time based on failed attempts (exponential backoff)
+function getLockoutMinutes(failedAttempts: number): number {
+  if (failedAttempts <= MAX_FAILED_ATTEMPTS) return 0;
+  // Exponential backoff: 1, 2, 4, 8, 16... minutes, max 60 minutes
+  const exponent = failedAttempts - MAX_FAILED_ATTEMPTS;
+  return Math.min(Math.pow(2, exponent - 1), 60);
 }
 
 Deno.serve(async (req) => {
@@ -47,10 +104,44 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Get client IP address for rate limiting
+    const ipAddress = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() 
+      || req.headers.get('cf-connecting-ip')
+      || req.headers.get('x-real-ip')
+      || null;
+
     // Use service role to bypass RLS
     const supabase = createClient(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false },
     });
+
+    // ===== RATE LIMITING CHECK =====
+    const failedAttempts = await getRecentFailedAttempts(supabase, email);
+    
+    if (failedAttempts >= MAX_FAILED_ATTEMPTS) {
+      const lockoutMinutes = getLockoutMinutes(failedAttempts);
+      
+      if (lockoutMinutes > 0) {
+        // Log this blocked attempt
+        await logLoginAttempt(supabase, email, ipAddress, false);
+        
+        return new Response(
+          JSON.stringify({ 
+            error: `Te veel mislukte pogingen. Probeer het over ${lockoutMinutes} ${lockoutMinutes === 1 ? 'minuut' : 'minuten'} opnieuw.`,
+            code: 'RATE_LIMITED',
+            retryAfter: lockoutMinutes * 60, // seconds
+          }),
+          { 
+            status: 429, 
+            headers: { 
+              ...corsHeaders, 
+              'Content-Type': 'application/json',
+              'Retry-After': String(lockoutMinutes * 60),
+            } 
+          }
+        );
+      }
+    }
 
     // Look up user by email
     const { data: user, error: userError } = await supabase
@@ -60,6 +151,9 @@ Deno.serve(async (req) => {
       .single();
 
     if (userError || !user) {
+      // Log failed attempt - user not found
+      await logLoginAttempt(supabase, email, ipAddress, false);
+      
       return new Response(
         JSON.stringify({ error: 'Ongeldige email of wachtwoord' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -67,6 +161,9 @@ Deno.serve(async (req) => {
     }
 
     if (!user.password_hash) {
+      // Log failed attempt - no password set
+      await logLoginAttempt(supabase, email, ipAddress, false);
+      
       return new Response(
         JSON.stringify({ error: 'Geen wachtwoord ingesteld voor dit account' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -77,6 +174,9 @@ Deno.serve(async (req) => {
     const passwordValid = await compare(password, user.password_hash);
 
     if (!passwordValid) {
+      // Log failed attempt - wrong password
+      await logLoginAttempt(supabase, email, ipAddress, false);
+      
       return new Response(
         JSON.stringify({ error: 'Ongeldige email of wachtwoord' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -85,11 +185,17 @@ Deno.serve(async (req) => {
 
     // Check if user is planner
     if (!user.is_planner) {
+      // Log failed attempt - not a planner (authorization failure)
+      await logLoginAttempt(supabase, email, ipAddress, false);
+      
       return new Response(
         JSON.stringify({ error: 'Geen planner rechten' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    // ===== SUCCESS - Log and create JWT =====
+    await logLoginAttempt(supabase, email, ipAddress, true);
 
     // Create signed JWT token (expires in 24 hours)
     const key = await getJwtKey(jwtSecret);
