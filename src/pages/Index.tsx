@@ -5,18 +5,18 @@ import { Dashboard } from '@/components/dashboard/Dashboard';
 import { Planner } from '@/components/planner/Planner';
 import { AgendasFlow } from '@/components/agendas/AgendasFlow';
 import EllenChatPage from '@/pages/EllenChatPage';
-import { mockEmployees } from '@/lib/mockData';
+import { useAuth } from '@/contexts/AuthContext';
 
-type Tab = 'overzicht' | 'planner' | 'agendas' | 'ellen';
+type Tab = 'overzicht' | 'planner' | 'agendas' | 'ellen' | 'admin';
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState<Tab>('overzicht');
-  const [selectedEmployee, setSelectedEmployee] = useState<string>(mockEmployees[0].id);
+  const { user } = useAuth();
 
   const renderContent = () => {
     switch (activeTab) {
       case 'overzicht':
-        return <Dashboard selectedEmployeeId={selectedEmployee} />;
+        return <Dashboard selectedEmployeeId={user?.id || ''} />;
       case 'planner':
         return <Planner />;
       case 'agendas':
@@ -24,7 +24,7 @@ const Index = () => {
       case 'ellen':
         return <EllenChatPage />;
       default:
-        return <Dashboard selectedEmployeeId={selectedEmployee} />;
+        return <Dashboard selectedEmployeeId={user?.id || ''} />;
     }
   };
 
@@ -35,10 +35,7 @@ const Index = () => {
         onTabChange={setActiveTab}
       />
       <div className="flex flex-1 flex-col h-full overflow-hidden">
-        <TopBar
-          selectedEmployee={selectedEmployee}
-          onEmployeeChange={setSelectedEmployee}
-        />
+        <TopBar />
         <main className="flex-1 overflow-y-auto p-6">
           {renderContent()}
         </main>

@@ -3,7 +3,7 @@
 // All configurable data that will come from Google Sheets
 // ===========================================
 
-// ---- EMPLOYEES (Sheet: "Medewerkers") ----
+// ---- EMPLOYEES (Supabase: "users" with werknemer_id) ----
 export interface Employee {
   id: string;
   name: string;
@@ -11,20 +11,20 @@ export interface Employee {
   email?: string;
   avatar?: string;
   availability: 'available' | 'busy' | 'full';
-  // Future fields from Google Sheets:
-  // department?: string;
-  // hoursPerWeek?: number;
-  // startDate?: string;
+  isPlanner?: boolean;
+  werknemerId?: number;
 }
 
-// ---- CLIENTS (Sheet: "Klanten") ----
+// ---- CLIENTS (Supabase: "klanten") ----
 export interface Client {
   id: string;
   name: string;
-  // Future fields:
-  // contactPerson?: string;
-  // email?: string;
-  // isActive?: boolean;
+  klantnummer?: string;
+  contactPerson?: string;
+  email?: string;
+  telefoon?: string;
+  adres?: string;
+  notities?: string;
 }
 
 // ---- PROJECT TYPES (Sheet: "Project Types") ----
@@ -132,7 +132,7 @@ export interface Task {
   startTime: string;
   endTime: string;
   planStatus: 'concept' | 'vast'; // concept = semi-transparent, vast = full color
-  projectType?: 'productie' | 'guiding_idea' | 'nieuw_project' | 'meeting' | 'verlof' | 'wijziging';
+  projectType?: 'productie' | 'nieuw_project' | 'meeting' | 'verlof' | 'wijziging';
   faseNaam?: string; // e.g. 'PP', 'PPM', 'Shoot', etc.
 }
 

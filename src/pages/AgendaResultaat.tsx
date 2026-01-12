@@ -4,14 +4,12 @@ import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { AppSidebar } from '@/components/layout/AppSidebar';
 import { TopBar } from '@/components/layout/TopBar';
 import { Button } from '@/components/ui/button';
-import { mockEmployees } from '@/lib/mockData';
 
 type SyncStatus = 'busy' | 'success' | 'error';
 
 export default function AgendaResultaat() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [selectedEmployee, setSelectedEmployee] = useState<string>(mockEmployees[0].id);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('busy');
   
   const { employeeName, taskCount, weekNumber, employeeId } = location.state || { 
@@ -57,7 +55,7 @@ export default function AgendaResultaat() {
     <div className="h-full flex overflow-hidden bg-background">
       <AppSidebar activeTab="agendas" onTabChange={() => {}} />
       <div className="flex flex-1 flex-col h-full overflow-hidden">
-        <TopBar selectedEmployee={selectedEmployee} onEmployeeChange={setSelectedEmployee} />
+        <TopBar />
         <main className="flex-1 overflow-y-auto p-6">
           {/* Back link */}
           <div className="mb-8">

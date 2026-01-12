@@ -1,8 +1,9 @@
-import { LayoutDashboard, Calendar, CalendarSync, Sparkles } from 'lucide-react';
+import { LayoutDashboard, Calendar, CalendarSync, Sparkles, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useNavigate } from 'react-router-dom';
 import { EllenLogo } from './EllenLogo';
 
-type Tab = 'overzicht' | 'planner' | 'agendas' | 'ellen';
+type Tab = 'overzicht' | 'planner' | 'agendas' | 'ellen' | 'admin';
 
 interface AppSidebarProps {
   activeTab: Tab;
@@ -17,6 +18,12 @@ const navItems = [
 ];
 
 export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
+  const navigate = useNavigate();
+
+  const handleAdminClick = () => {
+    navigate('/admin');
+  };
+
   return (
     <aside className="flex h-full w-64 flex-col shrink-0 border-r border-border bg-card overflow-y-auto">
       {/* Logo */}
@@ -49,6 +56,20 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
           })}
         </ul>
       </nav>
+
+      {/* Admin link at bottom */}
+      <div className="p-4 border-t border-border">
+        <button
+          onClick={handleAdminClick}
+          className={cn(
+            'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+            'text-muted-foreground hover:bg-secondary hover:text-foreground'
+          )}
+        >
+          <Settings className="h-5 w-5" />
+          Instellingen
+        </button>
+      </div>
     </aside>
   );
 }
