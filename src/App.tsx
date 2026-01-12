@@ -13,6 +13,10 @@ import AgendaResultaat from "./pages/AgendaResultaat";
 import EllenConversationPage from "./pages/EllenConversationPage";
 import NotFound from "./pages/NotFound";
 
+// Initialize API (for development auth helper)
+import { initializeAPI } from "./lib/api/init";
+initializeAPI();
+
 const queryClient = new QueryClient();
 
 const App = () => (

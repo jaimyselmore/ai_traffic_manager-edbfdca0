@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    /* Language and Environment */
+    "target": "ES2020",                          // Compileer naar ES2020 JavaScript
+    "lib": ["ES2020"],                           // Gebruik ES2020 features
+
+    /* Modules */
+    "module": "commonjs",                        // Node.js module systeem (require/exports)
+    "rootDir": "./src",                          // Source code staat in src/
+    "moduleResolution": "node",                  // Hoe modules worden gevonden
+    "resolveJsonModule": true,                   // Sta JSON imports toe
+
+    /* Emit */
+    "outDir": "./dist",                          // Gecompileerde code gaat naar dist/
+    "sourceMap": true,                           // Maak source maps (voor debugging)
+
+    /* Interop Constraints */
+    "esModuleInterop": true,                     // Betere compatibility met ES modules
+    "forceConsistentCasingInFileNames": true,    // File names moeten exact matchen (case-sensitive)
+
+    /* Type Checking */
+    "strict": true,                              // Alle strict checks aan (veiliger!)
+    "noUnusedLocals": true,                      // Error bij ongebruikte variabelen
+    "noUnusedParameters": true,                  // Error bij ongebruikte functie parameters
+    "noImplicitReturns": true,                   // Functies moeten altijd return hebben
+    "skipLibCheck": true                         // Skip type checking van node_modules (sneller)
+  },
+  "include": ["src/**/*"],                       // Compileer alle bestanden in src/
+  "exclude": ["node_modules", "dist"]            // Negeer deze folders
+}
