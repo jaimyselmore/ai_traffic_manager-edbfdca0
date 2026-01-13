@@ -62,6 +62,7 @@ export async function getEmployees(): Promise<Employee[]> {
 /**
  * Haal alleen PLANBARE werknemers op (is_planner = true)
  * Deze toon je in de planning grid
+ * Duo teams worden samengevoegd in 1 rij (bv. "Jakko & Niels")
  */
 export async function getPlannableEmployees(): Promise<Employee[]> {
   const { data, error } = await supabase
@@ -77,7 +78,7 @@ export async function getPlannableEmployees(): Promise<Employee[]> {
     throw new Error(`Fout bij ophalen planbare werknemers: ${error.message}`)
   }
 
-  return data.map((werknemer) => ({
+  const employees = data.map((werknemer) => ({
     id: werknemer.werknemer_id.toString(),
     name: werknemer.naam_werknemer,
     email: werknemer.email || '',
@@ -93,6 +94,43 @@ export async function getPlannableEmployees(): Promise<Employee[]> {
     skills: werknemer.vaardigheden || '',
     notes: werknemer.notities || '',
   }))
+
+  // Groepeer duo teams
+  const processedEmployees: Employee[] = []
+  const processedDuoTeams = new Set<string>()
+
+  for (const employee of employees) {
+    // Als geen duo team, gewoon toevoegen
+    if (!employee.duoTeam) {
+      processedEmployees.push(employee)
+      continue
+    }
+
+    // Als duo team al verwerkt, skip
+    if (processedDuoTeams.has(employee.duoTeam)) {
+      continue
+    }
+
+    // Zoek duo partner
+    const partner = employees.find(
+      (e) => e.duoTeam === employee.duoTeam && e.id !== employee.id
+    )
+
+    if (partner) {
+      // Maak samengevoegde entry
+      processedEmployees.push({
+        ...employee,
+        id: `${employee.id},${partner.id}`, // Gecombineerde ID
+        name: `${employee.name} & ${partner.name}`, // Gecombineerde naam
+      })
+      processedDuoTeams.add(employee.duoTeam)
+    } else {
+      // Geen partner gevonden, toon solo
+      processedEmployees.push(employee)
+    }
+  }
+
+  return processedEmployees
 }
 
 /**
