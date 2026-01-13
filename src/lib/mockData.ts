@@ -1,15 +1,7 @@
 // ===========================================
 // BACKWARD COMPATIBILITY LAYER
-// Re-exports from new data layer for existing imports
+// Empty exports for legacy imports - all data now comes from Supabase
 // ===========================================
-
-// Re-export everything from new data layer
-export {
-  mockEmployees,
-  mockClients,
-  mockDashboardStats,
-  generateMockTasks,
-} from './data/mockData';
 
 export type {
   Employee,
@@ -17,6 +9,17 @@ export type {
   Task,
   DashboardStats,
 } from './data/types';
+
+// Export empty arrays for backward compatibility
+export const mockEmployees: any[] = [];
+export const mockClients: any[] = [];
+export const mockDashboardStats = {
+  totalProjects: 0,
+  activeProjects: 0,
+  completedTasks: 0,
+  pendingTasks: 0,
+};
+export const generateMockTasks = () => [];
 
 // Keep date utility functions here (not configurable data)
 export const getWeekNumber = (date: Date): number => {
@@ -39,16 +42,16 @@ export const getWeekStart = (date: Date): Date => {
 export const formatDateRange = (weekStart: Date): string => {
   const weekEnd = new Date(weekStart);
   weekEnd.setDate(weekEnd.getDate() + 4);
-  
+
   const months = [
     'januari', 'februari', 'maart', 'april', 'mei', 'juni',
     'juli', 'augustus', 'september', 'oktober', 'november', 'december'
   ];
-  
+
   const startDay = weekStart.getDate();
   const endDay = weekEnd.getDate();
   const month = months[weekEnd.getMonth()];
   const year = weekEnd.getFullYear();
-  
+
   return `${startDay} t/m ${endDay} ${month} ${year}`;
 };
