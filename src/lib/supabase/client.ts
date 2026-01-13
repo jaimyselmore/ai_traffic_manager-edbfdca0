@@ -1,13 +1,18 @@
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from './types'
 
-// Probeer eerst Lovable's ingebouwde Supabase variabelen, dan fallback naar VITE_ prefix
-const supabaseUrl = import.meta.env.SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL
-const supabaseAnonKey = import.meta.env.SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY
+// Probeer verschillende environment variable namen (Lovable, Vite, hardcoded fallback)
+const supabaseUrl =
+  import.meta.env.PUBLIC_SUPABASE_URL ||
+  import.meta.env.SUPABASE_URL ||
+  import.meta.env.VITE_SUPABASE_URL ||
+  'https://mrouohttlvirnvmdmwqj.supabase.co' // Fallback
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Supabase URL en Anon Key zijn verplicht! Check Lovable Connectors of .env.local')
-}
+const supabaseAnonKey =
+  import.meta.env.PUBLIC_SUPABASE_ANON_KEY ||
+  import.meta.env.SUPABASE_ANON_KEY ||
+  import.meta.env.VITE_SUPABASE_ANON_KEY ||
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yb3VvaHR0bHZpcm52bWRtd3FqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY0MDQ4MDcsImV4cCI6MjA4MTk4MDgwN30.AUNv4x2lREN2AgUhyBN6mYjZGbad3m-B-8ZWrEsNNk0' // Fallback
 
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
