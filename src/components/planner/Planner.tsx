@@ -18,7 +18,9 @@ import {
 import { TaskLegend } from './TaskLegend';
 import { PlannerGrid } from './PlannerGrid';
 import { FullscreenPlanner } from './FullscreenPlanner';
-import { mockEmployees, mockClients, generateMockTasks, getWeekStart, getWeekNumber, formatDateRange } from '@/lib/mockData';
+import { getWeekStart, getWeekNumber, formatDateRange } from '@/lib/mockData';
+import { useEmployees } from '@/hooks/use-employees';
+import { useClients } from '@/hooks/use-clients';
 import { toast } from '@/hooks/use-toast';
 
 const zoomLevels = [50, 75, 100, 125, 150];
@@ -30,10 +32,14 @@ export function Planner() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [plannerZoom, setPlannerZoom] = useState<number>(100);
 
+  // Fetch data from Supabase
+  const { data: employees = [], isLoading: isLoadingEmployees } = useEmployees();
+  const { data: clients = [], isLoading: isLoadingClients } = useClients();
+
   const weekNumber = getWeekNumber(currentWeekStart);
   const dateRange = formatDateRange(currentWeekStart);
 
-  const tasks = useMemo(() => generateMockTasks(currentWeekStart), [currentWeekStart]);
+  const tasks = useMemo(() => [], [currentWeekStart]); // TODO: Load from Supabase
 
   const filteredTasks = useMemo(() => {
     return tasks.filter((task) => {
@@ -44,9 +50,9 @@ export function Planner() {
   }, [tasks, selectedEmployee, selectedClient]);
 
   const filteredEmployees = useMemo(() => {
-    if (selectedEmployee === 'all') return mockEmployees;
-    return mockEmployees.filter((emp) => emp.id === selectedEmployee);
-  }, [selectedEmployee]);
+    if (selectedEmployee === 'all') return employees;
+    return employees.filter((emp) => emp.id === selectedEmployee);
+  }, [selectedEmployee, employees]);
 
   const handleDownloadCSV = () => {
     toast({
@@ -194,7 +200,7 @@ export function Planner() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Alle medewerkers</SelectItem>
-                  {mockEmployees.map((emp) => (
+                  {employees.map((emp) => (
                     <SelectItem key={emp.id} value={emp.id}>
                       {emp.name}
                     </SelectItem>
@@ -214,7 +220,7 @@ export function Planner() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Alle klanten</SelectItem>
-                  {mockClients.map((client) => (
+                  {clients.map((client) => (
                     <SelectItem key={client.id} value={client.id}>
                       {client.name}
                     </SelectItem>
@@ -249,7 +255,7 @@ export function Planner() {
       {isFullscreen && (
         <FullscreenPlanner
           currentWeekStart={currentWeekStart}
-          employees={mockEmployees}
+          employees={employees}
           onClose={() => setIsFullscreen(false)}
           onWeekSelect={setCurrentWeekStart}
           initialZoom={plannerZoom}
