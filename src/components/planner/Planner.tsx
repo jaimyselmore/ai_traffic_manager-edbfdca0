@@ -54,14 +54,11 @@ export function Planner() {
   }, [tasks, selectedEmployee, selectedClient]);
 
   // Voor de grid: gebruik alleen planbare employees
-  // Maar als er een filter is, filter dan op alle employees
   const filteredEmployees = useMemo(() => {
     if (selectedEmployee === 'all') return plannableEmployees;
-    // Als specifieke employee geselecteerd, filter op alle employees
-    const allFilteredEmployees = employees.filter((emp) => emp.id === selectedEmployee);
-    // Maar toon alleen als ze planbaar zijn
-    return allFilteredEmployees.filter((emp) => emp.isPlanner);
-  }, [selectedEmployee, employees, plannableEmployees]);
+    // Als specifieke employee geselecteerd, filter op planbare employees
+    return plannableEmployees.filter((emp) => emp.id === selectedEmployee);
+  }, [selectedEmployee, plannableEmployees]);
 
   const handleDownloadCSV = () => {
     toast({
@@ -209,7 +206,7 @@ export function Planner() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Alle medewerkers</SelectItem>
-                  {employees.map((emp) => (
+                  {plannableEmployees.map((emp) => (
                     <SelectItem key={emp.id} value={emp.id}>
                       {emp.name}
                     </SelectItem>
