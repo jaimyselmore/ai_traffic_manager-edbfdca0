@@ -60,7 +60,7 @@ export async function getEmployees(): Promise<Employee[]> {
 }
 
 /**
- * Haal alleen PLANBARE werknemers op (is_planner = true)
+ * Haal alleen medewerkers op die IN DE PLANNING staan (in_planning = true)
  * Deze toon je in de planning grid
  * Duo teams worden samengevoegd in 1 rij (bv. "Jakko & Niels")
  */
@@ -69,7 +69,7 @@ export async function getPlannableEmployees(): Promise<Employee[]> {
     .from('medewerkers')
     .select('*')
     .eq('beschikbaar', true)
-    .eq('is_planner', true)
+    .eq('in_planning', true)
     .order('planner_volgorde', { ascending: true, nullsFirst: false })
     .order('naam_werknemer')
 
