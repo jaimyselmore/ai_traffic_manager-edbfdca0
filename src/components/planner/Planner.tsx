@@ -20,6 +20,7 @@ import { PlannerGrid } from './PlannerGrid';
 import { FullscreenPlanner } from './FullscreenPlanner';
 import { getWeekStart, getWeekNumber, formatDateRange } from '@/lib/mockData';
 import { useEmployees } from '@/hooks/use-employees';
+import { usePlannableEmployees } from '@/hooks/use-plannable-employees';
 import { useClients } from '@/hooks/use-clients';
 import { toast } from '@/hooks/use-toast';
 
@@ -33,7 +34,10 @@ export function Planner() {
   const [plannerZoom, setPlannerZoom] = useState<number>(100);
 
   // Fetch data from Supabase
+  // employees = alle medewerkers (voor dropdown filter)
+  // plannableEmployees = alleen planbare medewerkers (voor de grid)
   const { data: employees = [], isLoading: isLoadingEmployees } = useEmployees();
+  const { data: plannableEmployees = [], isLoading: isLoadingPlannableEmployees } = usePlannableEmployees();
   const { data: clients = [], isLoading: isLoadingClients } = useClients();
 
   const weekNumber = getWeekNumber(currentWeekStart);
@@ -49,10 +53,15 @@ export function Planner() {
     });
   }, [tasks, selectedEmployee, selectedClient]);
 
+  // Voor de grid: gebruik alleen planbare employees
+  // Maar als er een filter is, filter dan op alle employees
   const filteredEmployees = useMemo(() => {
-    if (selectedEmployee === 'all') return employees;
-    return employees.filter((emp) => emp.id === selectedEmployee);
-  }, [selectedEmployee, employees]);
+    if (selectedEmployee === 'all') return plannableEmployees;
+    // Als specifieke employee geselecteerd, filter op alle employees
+    const allFilteredEmployees = employees.filter((emp) => emp.id === selectedEmployee);
+    // Maar toon alleen als ze planbaar zijn
+    return allFilteredEmployees.filter((emp) => emp.isPlanner);
+  }, [selectedEmployee, employees, plannableEmployees]);
 
   const handleDownloadCSV = () => {
     toast({

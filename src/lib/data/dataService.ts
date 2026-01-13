@@ -25,18 +25,56 @@ import type {
 // ===========================================
 
 /**
- * Haal werknemers op uit Supabase
+ * Haal ALLE beschikbare werknemers op uit Supabase
+ * (voor meetings, projecten, dropdowns, etc.)
  */
 export async function getEmployees(): Promise<Employee[]> {
   const { data, error } = await supabase
     .from('medewerkers')
     .select('*')
     .eq('beschikbaar', true)
+    .order('planner_volgorde', { ascending: true, nullsFirst: false })
     .order('naam_werknemer')
 
   if (error) {
     console.error('Fout bij ophalen werknemers:', error)
     throw new Error(`Fout bij ophalen werknemers: ${error.message}`)
+  }
+
+  return data.map((werknemer) => ({
+    id: werknemer.werknemer_id.toString(),
+    name: werknemer.naam_werknemer,
+    email: werknemer.email || '',
+    primaryRole: werknemer.primaire_rol || 'Onbekend',
+    secondaryRole: werknemer.tweede_rol || undefined,
+    tertiaryRole: werknemer.derde_rol || undefined,
+    discipline: werknemer.discipline || 'Algemeen',
+    duoTeam: werknemer.duo_team || undefined,
+    isPlanner: werknemer.is_planner,
+    workHours: werknemer.werkuren,
+    partTimeDay: werknemer.parttime_dag || undefined,
+    available: werknemer.beschikbaar,
+    skills: werknemer.vaardigheden || '',
+    notes: werknemer.notities || '',
+  }))
+}
+
+/**
+ * Haal alleen PLANBARE werknemers op (is_planner = true)
+ * Deze toon je in de planning grid
+ */
+export async function getPlannableEmployees(): Promise<Employee[]> {
+  const { data, error } = await supabase
+    .from('medewerkers')
+    .select('*')
+    .eq('beschikbaar', true)
+    .eq('is_planner', true)
+    .order('planner_volgorde', { ascending: true, nullsFirst: false })
+    .order('naam_werknemer')
+
+  if (error) {
+    console.error('Fout bij ophalen planbare werknemers:', error)
+    throw new Error(`Fout bij ophalen planbare werknemers: ${error.message}`)
   }
 
   return data.map((werknemer) => ({
