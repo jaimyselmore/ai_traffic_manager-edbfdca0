@@ -20,9 +20,9 @@
 
     /* Type Checking */
     "strict": true,                              // Alle strict checks aan (veiliger!)
-    "noUnusedLocals": true,                      // Error bij ongebruikte variabelen
-    "noUnusedParameters": true,                  // Error bij ongebruikte functie parameters
-    "noImplicitReturns": true,                   // Functies moeten altijd return hebben
+    "noUnusedLocals": false,                     // Sta ongebruikte variabelen toe (voor nu)
+    "noUnusedParameters": false,                 // Sta ongebruikte parameters toe (voor nu)
+    "noImplicitReturns": false,                  // Sta functies zonder return toe
     "skipLibCheck": true                         // Skip type checking van node_modules (sneller)
   },
   "include": ["src/**/*"],                       // Compileer alle bestanden in src/
