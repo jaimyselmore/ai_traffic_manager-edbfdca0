@@ -1,0 +1,46 @@
+services:
+  - type: web
+    name: ai-traffic-manager-backend
+    env: node
+    region: frankfurt
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      # Supabase credentials - Add these in Render dashboard
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      # JWT
+      - key: JWT_SECRET
+        sync: false
+      # Google Sheets
+      - key: GOOGLE_SHEETS_ID
+        sync: false
+      - key: GOOGLE_SHEETS_CLIENT_EMAIL
+        sync: false
+      - key: GOOGLE_SHEETS_PRIVATE_KEY
+        sync: false
+      # Microsoft Graph API
+      - key: MICROSOFT_CLIENT_ID
+        sync: false
+      - key: MICROSOFT_CLIENT_SECRET
+        sync: false
+      - key: MICROSOFT_TENANT_ID
+        sync: false
+      - key: MICROSOFT_REDIRECT_URI
+        sync: false
+      # Token encryption
+      - key: TOKEN_ENCRYPTION_KEY
+        sync: false
+      # Frontend URL
+      - key: FRONTEND_URL
+        sync: false
+    healthCheckPath: /health
