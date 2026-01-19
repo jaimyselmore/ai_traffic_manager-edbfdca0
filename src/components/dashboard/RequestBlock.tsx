@@ -14,24 +14,22 @@ export function RequestBlock({ label, description, icon: Icon, onClick, variant 
     <button
       onClick={onClick}
       className={cn(
-        'flex flex-col items-start gap-3 rounded-xl border p-5 text-left transition-all hover:shadow-md',
-        variant === 'primary'
-          ? 'border-primary bg-primary text-primary-foreground hover:bg-primary/90'
-          : 'border-border bg-card text-foreground hover:border-primary/50 hover:bg-accent'
+        'group relative flex flex-col items-start gap-4 p-6 rounded-2xl text-left',
+        'bg-white border-2 border-gray-200',
+        'hover:scale-105 hover:shadow-xl hover:border-orange-400',
+        'transition-all duration-300 cursor-pointer'
       )}
     >
       <div className={cn(
-        'flex h-12 w-12 items-center justify-center rounded-lg',
-        variant === 'primary' ? 'bg-primary-foreground/20' : 'bg-secondary'
+        'flex h-14 w-14 items-center justify-center rounded-xl',
+        'bg-gradient-to-br from-orange-400 to-orange-500',
+        'group-hover:shadow-lg transition-shadow'
       )}>
-        <Icon className="h-6 w-6" />
+        <Icon className="h-7 w-7 text-white" />
       </div>
       <div>
-        <h3 className="font-semibold text-base">{label}</h3>
-        <p className={cn(
-          'mt-1 text-sm leading-relaxed',
-          variant === 'primary' ? 'text-primary-foreground/80' : 'text-muted-foreground'
-        )}>
+        <h3 className="font-bold text-lg text-gray-900">{label}</h3>
+        <p className="mt-2 text-sm leading-relaxed text-gray-600">
           {description}
         </p>
       </div>

@@ -10,19 +10,19 @@ interface StatCardProps {
 }
 
 const variantStyles = {
-  default: 'bg-card border-border',
-  warning: 'bg-warning/10 border-warning/30',
-  danger: 'bg-destructive/10 border-destructive/30',
-  success: 'bg-success/10 border-success/30',
-  info: 'bg-primary/10 border-primary/30',
+  default: 'glass-card gradient-default',
+  warning: 'glass-card gradient-warning',
+  danger: 'glass-card gradient-danger',
+  success: 'glass-card gradient-success',
+  info: 'glass-card gradient-info',
 };
 
 const iconStyles = {
-  default: 'text-muted-foreground bg-secondary',
-  warning: 'text-warning bg-warning/20',
-  danger: 'text-destructive bg-destructive/20',
-  success: 'text-success bg-success/20',
-  info: 'text-primary bg-primary/20',
+  default: 'text-white',
+  warning: 'text-white',
+  danger: 'text-white',
+  success: 'text-white',
+  info: 'text-white',
 };
 
 export function StatCard({ title, value, icon: Icon, variant = 'default', onClick }: StatCardProps) {
@@ -30,18 +30,18 @@ export function StatCard({ title, value, icon: Icon, variant = 'default', onClic
     <button
       onClick={onClick}
       className={cn(
-        'w-full text-left rounded-xl border p-5 transition-all cursor-pointer',
-        'hover:shadow-lg hover:border-foreground/20',
+        'w-full text-left p-6 rounded-2xl cursor-pointer',
+        'hover-lift',
         variantStyles[variant]
       )}
     >
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-sm font-medium text-muted-foreground">{title}</p>
-          <p className="mt-2 text-3xl font-bold text-foreground">{value}</p>
+          <p className="text-sm font-medium text-white/80 uppercase tracking-wide">{title}</p>
+          <p className="mt-3 text-4xl font-bold text-white">{value}</p>
         </div>
-        <div className={cn('rounded-lg p-2.5', iconStyles[variant])}>
-          <Icon className="h-5 w-5" />
+        <div className="rounded-xl p-3">
+          <Icon className={cn('h-12 w-12', iconStyles[variant])} />
         </div>
       </div>
     </button>

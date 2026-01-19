@@ -1,6 +1,7 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { TopBar } from '@/components/layout/TopBar';
+import { HeroSection } from '@/components/dashboard/HeroSection';
 import { WerknemersTab } from '@/components/admin/WerknemersTab';
 import { RolprofielenTab } from '@/components/admin/RolprofielenTab';
 import { DisciplinesTab } from '@/components/admin/DisciplinesTab';
@@ -9,15 +10,21 @@ import { Users, Briefcase, Palette, Building2 } from 'lucide-react';
 
 export default function Admin() {
   const [activeTab, setActiveTab] = useState('werknemers');
+  const navigate = useNavigate();
+
+  const handleTabChange = (tab: 'overzicht' | 'planner' | 'agendas') => {
+    navigate('/');
+    // You could also set a URL param or use state to switch to the correct tab
+  };
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <TopBar />
-      
-      <main className="flex-1 p-6">
+    <div className="min-h-screen" style={{ backgroundColor: '#FE4836' }}>
+      <HeroSection onTabChange={handleTabChange} />
+
+      <main className="relative space-y-8 px-6 pt-8 pb-12 max-w-7xl mx-auto">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-foreground">Instellingen</h1>
-          <p className="text-muted-foreground">Beheer referentiedata voor de planning</p>
+          <h1 className="text-2xl font-bold text-white">Instellingen</h1>
+          <p className="text-white/80">Beheer referentiedata voor de planning</p>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
