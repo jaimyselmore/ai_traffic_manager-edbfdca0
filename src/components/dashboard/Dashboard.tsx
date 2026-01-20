@@ -50,9 +50,9 @@ export function Dashboard({ selectedEmployeeId }: DashboardProps) {
     notifications.filter(n => n.type === type);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Welcome Header */}
-      <div className="mb-6">
+      <div>
         <h1 className="text-3xl font-bold text-foreground">
           Welkom, {employeeName}
         </h1>
@@ -102,7 +102,7 @@ export function Dashboard({ selectedEmployeeId }: DashboardProps) {
 
       {/* Request Blocks */}
       <div>
-        <h2 className="mb-4 text-lg font-semibold text-foreground">Nieuwe aanvraag</h2>
+        <h2 className="mb-6 text-xl font-semibold text-foreground">Nieuwe aanvraag</h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <RequestBlock
             label="Nieuw project"
