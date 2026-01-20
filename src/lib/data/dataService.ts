@@ -346,15 +346,17 @@ export async function createTask(task: Omit<Task, 'id'>): Promise<Task> {
 export async function updateTask(task: Task): Promise<Task> {
   const weekStartISO = task.weekStart.toISOString().split('T')[0]
 
+  const updateData = {
+    dag_van_week: task.dayOfWeek,
+    start_uur: task.startHour,
+    duur_uren: task.durationHours,
+    plan_status: task.status,
+    week_start: weekStartISO,
+  }
+
   const { data, error } = await supabase
     .from('taken')
-    .update({
-      dag_van_week: task.dayOfWeek,
-      start_uur: task.startHour,
-      duur_uren: task.durationHours,
-      plan_status: task.status,
-      week_start: weekStartISO,
-    } as Record<string, unknown>)
+    .update(updateData as never)
     .eq('id', task.id)
     .select()
     .single()

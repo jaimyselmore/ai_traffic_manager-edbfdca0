@@ -208,7 +208,7 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
     extraPresentaties: FaseData[];
     addExtraPresentatie: () => void;
     renderMeetingFase: (fase: string) => React.ReactNode;
-    employees: { id: string; name: string; role: string }[];
+    employees: { id: string; name: string; role?: string; primaryRole?: string }[];
   }) => (
     <Collapsible>
       <CollapsibleTrigger className="w-full flex items-center justify-between py-3 px-4 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors">
@@ -298,7 +298,7 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
                 <SelectValue placeholder="Selecteer studio/designer" />
               </SelectTrigger>
               <SelectContent>
-                {employees.filter(e => e.role.toLowerCase().includes('design') || e.role.toLowerCase().includes('studio')).map((emp) => (
+                {employees.filter(e => (e.role || e.primaryRole || '').toLowerCase().includes('design') || (e.role || e.primaryRole || '').toLowerCase().includes('studio')).map((emp) => (
                   <SelectItem key={emp.id} value={emp.id}>{emp.name}</SelectItem>
                 ))}
               </SelectContent>
