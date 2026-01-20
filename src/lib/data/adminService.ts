@@ -231,7 +231,7 @@ export async function getDisciplines() {
     beschrijving: string | null;
     kleur_hex: string | null;
   }>('disciplines', {
-    order: { column: 'discipline_naam', ascending: true },
+    order: { column: 'id', ascending: true },
   });
 
   if (error) throw mapErrorMessage(error);
