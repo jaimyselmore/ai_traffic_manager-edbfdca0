@@ -31,10 +31,10 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
       {/* Logo */}
       <div className={cn(
         "flex h-14 items-center border-b border-border overflow-hidden transition-all duration-300",
-        isExpanded ? "px-4 justify-start" : "px-3 justify-center"
+        isExpanded ? "pl-3 pr-2 justify-start" : "px-3 justify-center"
       )}>
         {isExpanded ? (
-          <div className="font-semibold text-xl tracking-wide text-foreground animate-in fade-in duration-200">
+          <div className="font-semibold text-xl tracking-wide text-foreground animate-in fade-in duration-200 pl-3">
             ELLEN
           </div>
         ) : (
@@ -45,7 +45,7 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-2">
+      <nav className="flex-1 p-2 pt-3">
         <ul className="space-y-1">
           {navItems.map((item) => {
             const Icon = item.icon;
