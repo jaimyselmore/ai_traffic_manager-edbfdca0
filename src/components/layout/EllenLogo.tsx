@@ -10,11 +10,6 @@ export function EllenLogo() {
 
   return (
     <div className="flex items-center gap-3">
-      {/* Blue AI square */}
-      <div className="h-9 w-9 rounded-xl bg-sky-500 flex items-center justify-center text-white font-semibold text-xs">
-        AI
-      </div>
-
       {/* Wordmark: LLEN + animated E */}
       <div className="font-semibold text-lg tracking-wide text-foreground">
         <span
