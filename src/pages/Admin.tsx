@@ -29,7 +29,7 @@ export default function Admin() {
       />
       <div className="flex flex-1 flex-col h-full overflow-hidden">
         <TopBar />
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto px-6 pt-4 pb-6">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-foreground">Instellingen</h1>
             <p className="mt-1 text-base text-muted-foreground">Beheer referentiedata voor de planning</p>
