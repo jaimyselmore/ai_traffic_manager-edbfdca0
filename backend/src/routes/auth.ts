@@ -13,13 +13,14 @@ const router = Router()
 // Login endpoint - geeft JWT token terug
 // ============================================
 
-router.post('/login', async (req: Request, res: Response): Promise<any> => {
+router.post('/login', async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body as LoginRequest
 
     // Validatie
     if (!email || !password) {
-      return res.status(400).json({ error: 'Email en wachtwoord zijn verplicht' })
+      res.status(400).json({ error: 'Email en wachtwoord zijn verplicht' })
+      return
     }
 
     // Haal user op uit database
@@ -30,14 +31,16 @@ router.post('/login', async (req: Request, res: Response): Promise<any> => {
       .single()
 
     if (error || !user) {
-      return res.status(401).json({ error: 'Onjuiste inloggegevens' })
+      res.status(401).json({ error: 'Onjuiste inloggegevens' })
+      return
     }
 
     // Check wachtwoord
     const isValidPassword = await bcrypt.compare(password, user.password_hash)
 
     if (!isValidPassword) {
-      return res.status(401).json({ error: 'Onjuiste inloggegevens' })
+      res.status(401).json({ error: 'Onjuiste inloggegevens' })
+      return
     }
 
     // Genereer JWT token
@@ -48,8 +51,8 @@ router.post('/login', async (req: Request, res: Response): Promise<any> => {
       },
       JWT_CONFIG.secret,
       {
-        expiresIn: '7d',
-        algorithm: 'HS256' as jwt.Algorithm,
+        expiresIn: JWT_CONFIG.expiresIn,
+        algorithm: JWT_CONFIG.algorithm,
       }
     )
 
@@ -66,10 +69,10 @@ router.post('/login', async (req: Request, res: Response): Promise<any> => {
     }
 
     console.log(`✅ User logged in: ${user.email}`)
-    return res.json(response)
+    res.json(response)
   } catch (error: any) {
     console.error('Login error:', error)
-    return res.status(500).json({ error: 'Login mislukt' })
+    res.status(500).json({ error: 'Login mislukt' })
   }
 })
 
@@ -78,9 +81,9 @@ router.post('/login', async (req: Request, res: Response): Promise<any> => {
 // Haal huidige user info op (vereist authenticatie)
 // ============================================
 
-router.get('/me', authenticateJWT, async (req: Request, res: Response): Promise<any> => {
+router.get('/me', authenticateJWT, async (req: Request, res: Response) => {
   // req.user is gezet door authenticateJWT middleware
-  return res.json({ user: req.user })
+  res.json({ user: req.user })
 })
 
 // ============================================
@@ -88,11 +91,11 @@ router.get('/me', authenticateJWT, async (req: Request, res: Response): Promise<
 // Logout (client verwijdert token, server hoeft niks te doen bij JWT)
 // ============================================
 
-router.post('/logout', authenticateJWT, async (req: Request, res: Response): Promise<any> => {
+router.post('/logout', authenticateJWT, async (req: Request, res: Response) => {
   // Bij JWT is logout client-side (verwijder token uit localStorage)
   // We loggen alleen dat user uitlogde
   console.log(`User logged out: ${req.user?.email}`)
-  return res.json({ message: 'Uitgelogd' })
+  res.json({ message: 'Uitgelogd' })
 })
 
 export default router
