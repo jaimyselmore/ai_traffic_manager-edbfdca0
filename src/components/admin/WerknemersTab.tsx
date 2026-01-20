@@ -32,13 +32,13 @@ import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import {
-  getWerknemers,
-  createWerknemer,
-  updateWerknemer,
-  deleteWerknemer,
+  getMedewerkers,
+  createMedewerker,
+  updateMedewerker,
+  deleteMedewerker,
 } from '@/lib/data/adminService';
 
-type Werknemer = {
+type Medewerker = {
   werknemer_id: number;
   naam_werknemer: string;
   email: string | null;
@@ -71,27 +71,27 @@ const emptyForm = {
   is_planner: false,
 };
 
-export function WerknemersTab() {
+export function MedewerkersTab() {
   const [search, setSearch] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
-  const [editingItem, setEditingItem] = useState<Werknemer | null>(null);
-  const [deleteItem, setDeleteItem] = useState<Werknemer | null>(null);
+  const [editingItem, setEditingItem] = useState<Medewerker | null>(null);
+  const [deleteItem, setDeleteItem] = useState<Medewerker | null>(null);
   const [form, setForm] = useState(emptyForm);
 
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  const { data: werknemers = [], isLoading } = useQuery({
-    queryKey: ['werknemers'],
-    queryFn: getWerknemers,
+  const { data: medewerkers = [], isLoading } = useQuery({
+    queryKey: ['medewerkers'],
+    queryFn: getMedewerkers,
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: typeof form) => createWerknemer(data, user?.id),
+    mutationFn: (data: typeof form) => createMedewerker(data, user?.id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['werknemers'] });
-      toast.success('Werknemer toegevoegd');
+      queryClient.invalidateQueries({ queryKey: ['medewerkers'] });
+      toast.success('Medewerker toegevoegd');
       closeDialog();
     },
     onError: () => toast.error('Fout bij toevoegen'),
@@ -99,27 +99,27 @@ export function WerknemersTab() {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: typeof form }) =>
-      updateWerknemer(id, data, user?.id),
+      updateMedewerker(id, data, user?.id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['werknemers'] });
-      toast.success('Werknemer bijgewerkt');
+      queryClient.invalidateQueries({ queryKey: ['medewerkers'] });
+      toast.success('Medewerker bijgewerkt');
       closeDialog();
     },
     onError: () => toast.error('Fout bij bijwerken'),
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => deleteWerknemer(id, user?.id),
+    mutationFn: (id: number) => deleteMedewerker(id, user?.id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['werknemers'] });
-      toast.success('Werknemer verwijderd');
+      queryClient.invalidateQueries({ queryKey: ['medewerkers'] });
+      toast.success('Medewerker verwijderd');
       setIsDeleteOpen(false);
       setDeleteItem(null);
     },
     onError: () => toast.error('Fout bij verwijderen'),
   });
 
-  const filtered = werknemers.filter((w: Werknemer) =>
+  const filtered = medewerkers.filter((w: Medewerker) =>
     w.naam_werknemer.toLowerCase().includes(search.toLowerCase()) ||
     w.email?.toLowerCase().includes(search.toLowerCase()) ||
     w.discipline?.toLowerCase().includes(search.toLowerCase())
@@ -131,7 +131,7 @@ export function WerknemersTab() {
     setIsDialogOpen(true);
   };
 
-  const openEdit = (item: Werknemer) => {
+  const openEdit = (item: Medewerker) => {
     setEditingItem(item);
     setForm({
       naam_werknemer: item.naam_werknemer,
@@ -170,7 +170,7 @@ export function WerknemersTab() {
     }
   };
 
-  const confirmDelete = (item: Werknemer) => {
+  const confirmDelete = (item: Medewerker) => {
     setDeleteItem(item);
     setIsDeleteOpen(true);
   };
@@ -217,11 +217,11 @@ export function WerknemersTab() {
             ) : filtered.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                  Geen werknemers gevonden
+                  Geen medewerkers gevonden
                 </TableCell>
               </TableRow>
             ) : (
-              filtered.map((w: Werknemer) => (
+              filtered.map((w: Medewerker) => (
                 <TableRow key={w.werknemer_id}>
                   <TableCell className="font-mono text-xs">{w.werknemer_id}</TableCell>
                   <TableCell className="font-medium">{w.naam_werknemer}</TableCell>
@@ -251,7 +251,7 @@ export function WerknemersTab() {
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {editingItem ? 'Werknemer bewerken' : 'Nieuwe werknemer'}
+              {editingItem ? 'Medewerker bewerken' : 'Nieuwe medewerker'}
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -369,7 +369,7 @@ export function WerknemersTab() {
       <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Werknemer verwijderen?</AlertDialogTitle>
+            <AlertDialogTitle>Medewerker verwijderen?</AlertDialogTitle>
             <AlertDialogDescription>
               Weet je zeker dat je "{deleteItem?.naam_werknemer}" wilt verwijderen? 
               Dit kan niet ongedaan worden gemaakt.
