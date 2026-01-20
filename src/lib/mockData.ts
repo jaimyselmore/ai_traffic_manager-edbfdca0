@@ -19,7 +19,8 @@ export const mockDashboardStats = {
   completedTasks: 0,
   pendingTasks: 0,
 };
-export const generateMockTasks = () => [];
+export const generateMockTasks = (_weekStart?: Date) => [];
+export const generateMockAgendaEvents = (_weekStart?: Date, _employee?: string) => [];
 
 // Keep date utility functions here (not configurable data)
 export const getWeekNumber = (date: Date): number => {

@@ -6,9 +6,6 @@
 import { secureSelect } from './secureDataClient';
 import type { Employee, Client, Notification, Task } from './types';
 
-// Error handling utility
-const DEFAULT_ERROR = 'Er is een fout opgetreden';
-
 // ===========================================
 // CLIENTS (klanten table)
 // ===========================================
@@ -46,35 +43,51 @@ export async function getClientsFromSupabase(): Promise<Client[]> {
 }
 
 // ===========================================
-// EMPLOYEES (users table)
+// EMPLOYEES (medewerkers table)
 // ===========================================
 
 export async function getEmployeesFromSupabase(): Promise<Employee[]> {
   const { data, error } = await secureSelect<{
-    id: string;
-    naam: string;
-    email: string;
-    rol: string;
+    werknemer_id: number;
+    naam_werknemer: string;
+    email: string | null;
+    primaire_rol: string | null;
+    tweede_rol: string | null;
+    derde_rol: string | null;
+    discipline: string | null;
+    duo_team: string | null;
     is_planner: boolean | null;
-    werknemer_id: number | null;
-  }>('users', {
-    columns: 'id, naam, email, rol, is_planner, werknemer_id',
-    order: { column: 'naam', ascending: true },
+    werkuren: number | null;
+    parttime_dag: string | null;
+    beschikbaar: boolean | null;
+    vaardigheden: string | null;
+    notities: string | null;
+  }>('medewerkers', {
+    columns: '*',
+    order: { column: 'naam_werknemer', ascending: true },
   });
 
   if (error) {
-    console.error('Error fetching users:', error.message);
+    console.error('Error fetching medewerkers:', error.message);
     return [];
   }
 
-  return (data || []).map((user) => ({
-    id: user.id,
-    name: user.naam,
-    role: user.rol,
-    email: user.email,
-    availability: 'available' as const,
-    isPlanner: user.is_planner || false,
-    werknemerId: user.werknemer_id || undefined,
+  return (data || []).map((werknemer) => ({
+    id: werknemer.werknemer_id.toString(),
+    name: werknemer.naam_werknemer,
+    email: werknemer.email || '',
+    primaryRole: werknemer.primaire_rol || 'Onbekend',
+    secondaryRole: werknemer.tweede_rol || undefined,
+    tertiaryRole: werknemer.derde_rol || undefined,
+    discipline: werknemer.discipline || 'Algemeen',
+    duoTeam: werknemer.duo_team || undefined,
+    isPlanner: werknemer.is_planner,
+    workHours: werknemer.werkuren,
+    partTimeDay: werknemer.parttime_dag || undefined,
+    available: werknemer.beschikbaar,
+    skills: werknemer.vaardigheden || '',
+    notes: werknemer.notities || '',
+    role: werknemer.primaire_rol || 'Onbekend',
   }));
 }
 
@@ -86,6 +99,8 @@ export async function getNotificationsFromSupabase(): Promise<Notification[]> {
   const { data, error } = await secureSelect<{
     id: string;
     type: string;
+    titel: string;
+    beschrijving: string | null;
     klant_naam: string | null;
     project_nummer: string | null;
     voor_werknemer: string | null;
@@ -105,6 +120,15 @@ export async function getNotificationsFromSupabase(): Promise<Notification[]> {
   return (data || []).map((notif) => ({
     id: notif.id,
     type: notif.type as Notification['type'],
+    severity: notif.severity as Notification['severity'],
+    title: notif.titel,
+    description: notif.beschrijving || '',
+    projectNumber: notif.project_nummer || '',
+    clientName: notif.klant_naam || '',
+    deadline: notif.deadline || undefined,
+    count: 1,
+    isDone: notif.is_done || false,
+    // Legacy fields
     clientId: '',
     client: notif.klant_naam || '',
     projectId: notif.project_nummer || undefined,
@@ -112,9 +136,6 @@ export async function getNotificationsFromSupabase(): Promise<Notification[]> {
     workType: notif.type,
     employeeId: notif.voor_werknemer || '',
     employee: notif.voor_werknemer || '',
-    deadline: notif.deadline || '',
-    severity: notif.severity as Notification['severity'],
-    isDone: notif.is_done || false,
   }));
 }
 
@@ -129,14 +150,17 @@ export async function getTasksFromSupabase(weekStart: Date): Promise<Task[]> {
     id: string;
     project_id: string | null;
     klant_naam: string;
+    project_nummer: string;
     fase_naam: string;
     werknemer_naam: string;
     werktype: string;
+    discipline: string;
     week_start: string;
     dag_van_week: number;
     start_uur: number;
     duur_uren: number;
     plan_status: string | null;
+    is_hard_lock: boolean | null;
   }>('taken', {
     filters: [{ column: 'week_start', operator: 'eq', value: weekStartStr }],
   });
@@ -146,24 +170,23 @@ export async function getTasksFromSupabase(weekStart: Date): Promise<Task[]> {
     return [];
   }
 
-  return (data || []).map((taak) => {
-    const taskDate = new Date(taak.week_start);
-    taskDate.setDate(taskDate.getDate() + taak.dag_van_week);
-
-    return {
-      id: taak.id,
-      title: `${taak.klant_naam} - ${taak.fase_naam}`,
-      clientId: taak.project_id || '',
-      employeeId: taak.werknemer_naam,
-      projectId: taak.project_id || undefined,
-      type: taak.werktype,
-      date: taskDate.toISOString().split('T')[0],
-      startTime: `${taak.start_uur.toString().padStart(2, '0')}:00`,
-      endTime: `${(taak.start_uur + taak.duur_uren).toString().padStart(2, '0')}:00`,
-      planStatus: (taak.plan_status === 'vast' ? 'vast' : 'concept') as Task['planStatus'],
-      faseNaam: taak.fase_naam,
-    };
-  });
+  return (data || []).map((taak) => ({
+    id: taak.id,
+    employeeId: taak.werknemer_naam,
+    projectId: taak.project_id || '',
+    clientName: taak.klant_naam,
+    projectNumber: taak.project_nummer,
+    phaseName: taak.fase_naam,
+    workType: taak.werktype,
+    discipline: taak.discipline,
+    weekStart: new Date(taak.week_start),
+    dayOfWeek: taak.dag_van_week,
+    startHour: taak.start_uur,
+    durationHours: taak.duur_uren,
+    status: (taak.plan_status === 'vast' ? 'vast' : 'concept') as Task['status'],
+    isHardLock: taak.is_hard_lock,
+    createdBy: '',
+  }));
 }
 
 // ===========================================
@@ -188,7 +211,7 @@ export async function getProjectsFromSupabase() {
 // ===========================================
 
 export async function getMeetingsFromSupabase() {
-  const { data, error } = await secureSelect('meetings', {
+  const { data, error } = await secureSelect('meetings & presentaties', {
     order: { column: 'datum', ascending: true },
   });
 
@@ -201,11 +224,11 @@ export async function getMeetingsFromSupabase() {
 }
 
 // ===========================================
-// VERLOF (verlof_aanvragen table)
+// VERLOF (beschikbaarheid_medewerkers table)
 // ===========================================
 
 export async function getVerlofFromSupabase() {
-  const { data, error } = await secureSelect('verlof_aanvragen', {
+  const { data, error } = await secureSelect('beschikbaarheid_medewerkers', {
     order: { column: 'start_datum', ascending: true },
   });
 

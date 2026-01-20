@@ -3,11 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, Clock, Eye, Bell, FolderOpen, Plus, FileEdit, Users, CalendarOff } from 'lucide-react';
 import { StatCard } from './StatCard';
 import { RequestBlock } from './RequestBlock';
-import { NotificationPanel } from './NotificationPanel';
+import { NotificationPanel, type Notification as PanelNotification, type NotificationType } from './NotificationPanel';
 import { getWeekNumber, getWeekStart, formatDateRange } from '@/lib/mockData';
-import { useEmployees, useNotifications, type Notification } from '@/lib/data';
-
-type NotificationType = 'late' | 'upcoming' | 'review' | 'change' | 'active';
+import { useEmployees, useNotifications } from '@/lib/data';
 
 interface DashboardProps {
   selectedEmployeeId: string;
@@ -18,13 +16,27 @@ export function Dashboard({ selectedEmployeeId }: DashboardProps) {
   const { data: employees = [] } = useEmployees();
   const { data: initialNotifications = [] } = useNotifications();
 
-  const [notifications, setNotifications] = useState<Notification[]>(initialNotifications);
+  // Convert data layer notifications to panel notifications
+  const convertNotifications = (notifs: typeof initialNotifications): PanelNotification[] =>
+    notifs.map(n => ({
+      id: n.id,
+      type: (n.type as NotificationType) || 'active',
+      client: n.client || n.clientName || '',
+      project: n.project || n.projectNumber || '',
+      workType: n.workType || '',
+      employee: n.employee || '',
+      deadline: n.deadline || '',
+      severity: n.severity,
+      isDone: n.isDone,
+    }));
+
+  const [notifications, setNotifications] = useState<PanelNotification[]>([]);
   const [openPanel, setOpenPanel] = useState<NotificationType | null>(null);
 
   // Update notifications when data loads
   useState(() => {
     if (initialNotifications.length > 0 && notifications.length === 0) {
-      setNotifications(initialNotifications);
+      setNotifications(convertNotifications(initialNotifications));
     }
   });
 
