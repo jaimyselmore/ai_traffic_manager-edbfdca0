@@ -1,6 +1,5 @@
 import { LayoutDashboard, Calendar, CalendarSync, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { EllenLogo } from './EllenLogo';
 import { useState } from 'react';
 
 type Tab = 'overzicht' | 'planner' | 'agendas' | 'ellen' | 'admin';
@@ -31,11 +30,7 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
     >
       {/* Logo */}
       <div className="flex h-14 items-center border-b border-border px-3 justify-center">
-        {isExpanded ? (
-          <EllenLogo />
-        ) : (
-          <div className="font-semibold text-lg text-foreground">E</div>
-        )}
+        <div className="font-semibold text-lg text-foreground">E</div>
       </div>
 
       {/* Navigation */}
