@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, Clock, Eye, Bell, FolderOpen, Plus, FileEdit, Users, CalendarOff } from 'lucide-react';
+import { AlertTriangle, Clock, Eye, Bell, FolderOpen, Plus, FileEdit, Users, CalendarOff, Settings, LogOut, User } from 'lucide-react';
 import { StatCard } from './StatCard';
 import { RequestBlock } from './RequestBlock';
 import { NotificationPanel } from './NotificationPanel';
 import { getWeekNumber, getWeekStart, formatDateRange } from '@/lib/mockData';
 import { useEmployees, useNotifications, type Notification } from '@/lib/data';
+import { useAuth } from '@/contexts/AuthContext';
 
 type RequestType = 'project' | 'wijziging' | 'meeting' | 'verlof';
 type NotificationType = 'late' | 'upcoming' | 'review' | 'change' | 'active';
@@ -16,12 +17,13 @@ interface DashboardProps {
 
 export function Dashboard({ selectedEmployeeId }: DashboardProps) {
   const navigate = useNavigate();
+  const { user, signOut } = useAuth();
   const { data: employees = [] } = useEmployees();
   const { data: initialNotifications = [] } = useNotifications();
-  
+
   const [notifications, setNotifications] = useState<Notification[]>(initialNotifications);
   const [openPanel, setOpenPanel] = useState<NotificationType | null>(null);
-  
+
   // Update notifications when data loads
   useState(() => {
     if (initialNotifications.length > 0 && notifications.length === 0) {
@@ -38,20 +40,48 @@ export function Dashboard({ selectedEmployeeId }: DashboardProps) {
   const employeeName = currentEmployee?.name.split(' ')[0] || 'Gebruiker';
 
   // Calculate counts per type (only open items)
-  const getCount = (type: NotificationType) => 
+  const getCount = (type: NotificationType) =>
     notifications.filter(n => n.type === type && !n.isDone).length;
 
   const handleMarkDone = (id: string) => {
-    setNotifications(prev => 
+    setNotifications(prev =>
       prev.map(n => n.id === id ? { ...n, isDone: true } : n)
     );
+  };
+
+  const handleLogout = async () => {
+    await signOut();
+    navigate('/login');
   };
 
   const getNotificationsForType = (type: NotificationType) =>
     notifications.filter(n => n.type === type);
 
   return (
-    <div className="space-y-8">
+    <div className="relative space-y-8">
+      {/* Icon buttons top-right */}
+      <div className="absolute top-0 right-0 z-50 flex items-center gap-2">
+        <button
+          onClick={() => navigate('/admin')}
+          className="p-2 rounded-full hover:bg-muted transition-colors"
+          title="Instellingen"
+        >
+          <Settings className="h-5 w-5" />
+        </button>
+        <button
+          className="p-2 rounded-full hover:bg-muted transition-colors"
+          title={user?.naam || 'Gebruiker'}
+        >
+          <User className="h-5 w-5" />
+        </button>
+        <button
+          onClick={handleLogout}
+          className="p-2 rounded-full hover:bg-muted transition-colors"
+          title="Uitloggen"
+        >
+          <LogOut className="h-5 w-5" />
+        </button>
+      </div>
       {/* Welcome Header */}
       <div>
         <h1 className="text-3xl font-bold text-foreground">
