@@ -49,7 +49,8 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
         <ul className="space-y-1">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const isActive = activeTab === item.id;
+            // Don't show any tab as active when on admin page
+            const isActive = activeTab !== 'admin' && activeTab === item.id;
             return (
               <li key={item.id}>
                 <button
