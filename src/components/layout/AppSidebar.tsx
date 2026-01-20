@@ -31,15 +31,15 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
       {/* Logo */}
       <div className={cn(
         "flex h-14 items-center border-b border-border overflow-hidden transition-all duration-300",
-        isExpanded ? "px-3 justify-start" : "px-3 justify-center"
+        isExpanded ? "px-4 justify-start" : "px-3 justify-center"
       )}>
         {isExpanded ? (
-          <div className="font-semibold text-lg tracking-wide text-foreground animate-in fade-in duration-200">
+          <div className="font-semibold text-xl tracking-wide text-foreground animate-in fade-in duration-200">
             ELLEN
           </div>
         ) : (
-          <div className="font-semibold text-lg text-foreground">
-            AI
+          <div className="font-bold text-2xl text-primary">
+            E
           </div>
         )}
       </div>
