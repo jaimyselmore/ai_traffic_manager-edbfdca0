@@ -32,10 +32,10 @@ function mapErrorMessage(error: Error): Error {
 }
 
 // ===========================================
-// WERKNEMERS CRUD
+// MEDEWERKERS CRUD
 // ===========================================
 
-export async function getWerknemers() {
+export async function getMedewerkers() {
   const { data, error } = await secureSelect<{
     werknemer_id: number;
     naam_werknemer: string;
@@ -51,7 +51,8 @@ export async function getWerknemers() {
     notities: string | null;
     beschikbaar: boolean | null;
     is_planner: boolean | null;
-  }>('werknemers', {
+    in_planning: boolean | null;
+  }>('medewerkers', {
     order: { column: 'naam_werknemer', ascending: true },
   });
 
@@ -59,8 +60,11 @@ export async function getWerknemers() {
   return data || [];
 }
 
-export async function createWerknemer(
-  werknemer: {
+// Legacy alias
+export const getWerknemers = getMedewerkers;
+
+export async function createMedewerker(
+  medewerker: {
     naam_werknemer: string;
     email?: string;
     primaire_rol?: string;
@@ -74,11 +78,12 @@ export async function createWerknemer(
     notities?: string;
     beschikbaar?: boolean;
     is_planner?: boolean;
+    in_planning?: boolean;
   },
   _userId?: string
 ) {
   // Get next werknemer_id
-  const { data: maxData } = await secureSelect<{ werknemer_id: number }>('werknemers', {
+  const { data: maxData } = await secureSelect<{ werknemer_id: number }>('medewerkers', {
     columns: 'werknemer_id',
     order: { column: 'werknemer_id', ascending: false },
     limit: 1,
@@ -89,15 +94,17 @@ export async function createWerknemer(
   const { data, error } = await secureInsert<{
     werknemer_id: number;
     naam_werknemer: string;
-  }>('werknemers', { ...werknemer, werknemer_id: nextId });
+  }>('medewerkers', { ...medewerker, werknemer_id: nextId });
 
   if (error) throw mapErrorMessage(error);
 
-  // Audit logging is handled server-side in data-access edge function
   return data?.[0];
 }
 
-export async function updateWerknemer(
+// Legacy alias
+export const createWerknemer = createMedewerker;
+
+export async function updateMedewerker(
   werknemer_id: number,
   updates: Partial<{
     naam_werknemer: string;
@@ -113,29 +120,33 @@ export async function updateWerknemer(
     notities: string;
     beschikbaar: boolean;
     is_planner: boolean;
+    in_planning: boolean;
   }>,
   _userId?: string
 ) {
   const { data, error } = await secureUpdate<{
     werknemer_id: number;
     naam_werknemer: string;
-  }>('werknemers', updates, [{ column: 'werknemer_id', operator: 'eq', value: werknemer_id }]);
+  }>('medewerkers', updates, [{ column: 'werknemer_id', operator: 'eq', value: werknemer_id }]);
 
   if (error) throw mapErrorMessage(error);
 
-  // Audit logging is handled server-side
   return data?.[0];
 }
 
-export async function deleteWerknemer(werknemer_id: number, _userId?: string) {
-  const { error } = await secureDelete('werknemers', [
+// Legacy alias
+export const updateWerknemer = updateMedewerker;
+
+export async function deleteMedewerker(werknemer_id: number, _userId?: string) {
+  const { error } = await secureDelete('medewerkers', [
     { column: 'werknemer_id', operator: 'eq', value: werknemer_id },
   ]);
 
   if (error) throw mapErrorMessage(error);
-
-  // Audit logging is handled server-side
 }
+
+// Legacy alias
+export const deleteWerknemer = deleteMedewerker;
 
 // ===========================================
 // ROLPROFIELEN CRUD
