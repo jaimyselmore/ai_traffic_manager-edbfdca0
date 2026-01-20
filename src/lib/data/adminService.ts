@@ -53,7 +53,7 @@ export async function getMedewerkers() {
     is_planner: boolean | null;
     in_planning: boolean | null;
   }>('medewerkers', {
-    order: { column: 'naam_werknemer', ascending: true },
+    order: { column: 'werknemer_id', ascending: true },
   });
 
   if (error) throw mapErrorMessage(error);
