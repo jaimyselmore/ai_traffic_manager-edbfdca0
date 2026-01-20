@@ -29,8 +29,18 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
       onMouseLeave={() => setIsExpanded(false)}
     >
       {/* Logo */}
-      <div className="flex h-14 items-center border-b border-border px-3 justify-center">
-        <div className="font-semibold text-lg text-foreground">E</div>
+      <div className="flex h-14 items-center border-b border-border px-3 justify-center overflow-hidden">
+        {isExpanded ? (
+          <div className="flex items-center gap-3 animate-in fade-in duration-200">
+            <div className="font-semibold text-lg tracking-wide text-foreground">
+              ELLEN
+            </div>
+          </div>
+        ) : (
+          <div className="h-9 w-9 rounded-xl bg-sky-500 flex items-center justify-center text-white font-semibold text-xs">
+            AI
+          </div>
+        )}
       </div>
 
       {/* Navigation */}

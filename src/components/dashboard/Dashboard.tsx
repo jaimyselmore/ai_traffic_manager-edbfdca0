@@ -51,7 +51,7 @@ export function Dashboard({ selectedEmployeeId }: DashboardProps) {
     notifications.filter(n => n.type === type);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 -mt-2">
       {/* Welcome Header */}
       <div>
         <h1 className="text-3xl font-bold text-foreground">

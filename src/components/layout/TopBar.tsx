@@ -1,4 +1,4 @@
-import { Settings, LogOut, User } from 'lucide-react';
+import { Settings, LogOut } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
@@ -22,10 +22,10 @@ export function TopBar() {
           <Settings className="h-5 w-5" />
         </button>
         <button
-          className="p-2 rounded-full hover:bg-muted transition-colors"
+          className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground hover:opacity-80 transition-opacity"
           title={user?.naam || 'Gebruiker'}
         >
-          <User className="h-5 w-5" />
+          {user?.naam ? user.naam.split(' ').map(n => n[0]).join('') : 'U'}
         </button>
         <button
           onClick={handleLogout}
