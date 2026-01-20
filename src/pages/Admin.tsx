@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AppSidebar } from '@/components/layout/AppSidebar';
 import { TopBar } from '@/components/layout/TopBar';
-import { WerknemersTab } from '@/components/admin/WerknemersTab';
+import { MedewerkersTab } from '@/components/admin/WerknemersTab';
 import { RolprofielenTab } from '@/components/admin/RolprofielenTab';
 import { DisciplinesTab } from '@/components/admin/DisciplinesTab';
 import { KlantenTab } from '@/components/admin/KlantenTab';
@@ -12,7 +12,7 @@ import { useNavigate } from 'react-router-dom';
 type Tab = 'overzicht' | 'planner' | 'agendas' | 'ellen' | 'admin';
 
 export default function Admin() {
-  const [activeTab, setActiveTab] = useState('werknemers');
+  const [activeTab, setActiveTab] = useState('medewerkers');
   const navigate = useNavigate();
 
   const handleTabChange = (tab: Tab) => {
@@ -37,9 +37,9 @@ export default function Admin() {
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full max-w-2xl grid-cols-4">
-              <TabsTrigger value="werknemers" className="flex items-center gap-2">
+              <TabsTrigger value="medewerkers" className="flex items-center gap-2">
                 <Users className="h-4 w-4" />
-                Werknemers
+                Medewerkers
               </TabsTrigger>
               <TabsTrigger value="rollen" className="flex items-center gap-2">
                 <Briefcase className="h-4 w-4" />
@@ -55,8 +55,8 @@ export default function Admin() {
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="werknemers" className="mt-6">
-              <WerknemersTab />
+            <TabsContent value="medewerkers" className="mt-6">
+              <MedewerkersTab />
             </TabsContent>
 
             <TabsContent value="rollen" className="mt-6">
