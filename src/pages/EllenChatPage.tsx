@@ -44,7 +44,7 @@ export default function EllenChatPage() {
   return (
     <div className="h-full flex flex-col space-y-8">
       <div className="px-6 pt-0">
-        <h1 className="text-3xl font-bold text-foreground">Ellen</h1>
+        <h1 className="text-2xl font-bold text-foreground">Ellen</h1>
         <p className="mt-1 text-base text-muted-foreground">
           Stel je vraag over de planning, projecten of capaciteit
         </p>

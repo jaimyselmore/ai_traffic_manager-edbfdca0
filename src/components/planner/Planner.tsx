@@ -92,7 +92,7 @@ export function Planner() {
     <div className="space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-foreground">Planner</h1>
+        <h1 className="text-2xl font-bold text-foreground">Planner</h1>
         <p className="mt-1 text-base text-muted-foreground">
           Week {weekNumber} – {dateRange}
         </p>

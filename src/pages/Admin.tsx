@@ -31,7 +31,7 @@ export default function Admin() {
         <TopBar />
         <main className="flex-1 overflow-y-auto px-6 pt-4 pb-6">
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-foreground">Instellingen</h1>
+            <h1 className="text-2xl font-bold text-foreground">Instellingen</h1>
             <p className="mt-1 text-base text-muted-foreground">Beheer referentiedata voor de planning</p>
           </div>
 
