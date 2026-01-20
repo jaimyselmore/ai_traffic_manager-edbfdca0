@@ -1,7 +1,7 @@
-import { LayoutDashboard, Calendar, CalendarSync, Sparkles, Settings } from 'lucide-react';
+import { LayoutDashboard, Calendar, CalendarSync, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useNavigate } from 'react-router-dom';
 import { EllenLogo } from './EllenLogo';
+import { useState } from 'react';
 
 type Tab = 'overzicht' | 'planner' | 'agendas' | 'ellen' | 'admin';
 
@@ -18,21 +18,28 @@ const navItems = [
 ];
 
 export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
-  const navigate = useNavigate();
-
-  const handleAdminClick = () => {
-    navigate('/admin');
-  };
+  const [isExpanded, setIsExpanded] = useState(false);
 
   return (
-    <aside className="flex h-full w-64 flex-col shrink-0 border-r border-border bg-card overflow-y-auto">
+    <aside
+      className={cn(
+        "flex h-full flex-col shrink-0 border-r border-border bg-card overflow-y-auto transition-all duration-300",
+        isExpanded ? "w-64" : "w-16"
+      )}
+      onMouseEnter={() => setIsExpanded(true)}
+      onMouseLeave={() => setIsExpanded(false)}
+    >
       {/* Logo */}
-      <div className="flex h-14 items-center border-b border-border px-6">
-        <EllenLogo />
+      <div className="flex h-14 items-center border-b border-border px-3 justify-center">
+        {isExpanded ? (
+          <EllenLogo />
+        ) : (
+          <div className="font-semibold text-lg text-foreground">E</div>
+        )}
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-4">
+      <nav className="flex-1 p-2">
         <ul className="space-y-1">
           {navItems.map((item) => {
             const Icon = item.icon;
@@ -45,31 +52,19 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
                     'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
                     isActive
                       ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+                      : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
+                    !isExpanded && 'justify-center'
                   )}
+                  title={!isExpanded ? item.label : undefined}
                 >
-                  <Icon className="h-5 w-5" />
-                  {item.label}
+                  <Icon className="h-5 w-5 shrink-0" />
+                  {isExpanded && <span>{item.label}</span>}
                 </button>
               </li>
             );
           })}
         </ul>
       </nav>
-
-      {/* Admin link at bottom */}
-      <div className="p-4 border-t border-border">
-        <button
-          onClick={handleAdminClick}
-          className={cn(
-            'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
-            'text-muted-foreground hover:bg-secondary hover:text-foreground'
-          )}
-        >
-          <Settings className="h-5 w-5" />
-          Instellingen
-        </button>
-      </div>
     </aside>
   );
 }
