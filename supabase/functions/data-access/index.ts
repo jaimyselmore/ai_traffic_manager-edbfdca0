@@ -79,15 +79,15 @@ const ALLOWED_OPERATORS = ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'like', 'ilike
 // Define allowed columns per table for validation
 const TABLE_COLUMNS: Record<string, string[]> = {
   klanten: ['id', 'klantnummer', 'naam', 'contactpersoon', 'email', 'telefoon', 'adres', 'notities', 'created_by', 'created_at', 'updated_at'],
-  werknemers: ['werknemer_id', 'naam_werknemer', 'email', 'primaire_rol', 'tweede_rol', 'derde_rol', 'discipline', 'werkuren', 'parttime_dag', 'duo_team', 'vaardigheden', 'notities', 'beschikbaar', 'is_planner', 'created_at', 'updated_at'],
+  medewerkers: ['werknemer_id', 'naam_werknemer', 'email', 'primaire_rol', 'tweede_rol', 'derde_rol', 'discipline', 'werkuren', 'parttime_dag', 'duo_team', 'vaardigheden', 'notities', 'beschikbaar', 'is_planner', 'in_planning', 'planner_volgorde', 'microsoft_connected', 'microsoft_connected_at', 'microsoft_email', 'created_at', 'updated_at'],
   users: ['id', 'email', 'naam', 'rol', 'is_planner', 'werknemer_id', 'created_at', 'updated_at'],
   rolprofielen: ['rol_nummer', 'rol_naam', 'beschrijving_rol', 'taken_rol', 'created_at', 'updated_at'],
   disciplines: ['id', 'discipline_naam', 'beschrijving', 'kleur_hex', 'created_at', 'updated_at'],
   projecten: ['id', 'projectnummer', 'volgnummer', 'klant_id', 'omschrijving', 'projecttype', 'datum_aanvraag', 'deadline', 'status', 'adres_klant', 'info_klant', 'opmerkingen', 'account_team', 'creatie_team', 'productie_team', 'created_by', 'created_at', 'updated_at'],
   project_fases: ['id', 'project_id', 'fase_naam', 'fase_type', 'volgorde', 'start_datum', 'eind_datum', 'datum_tijd', 'locatie', 'medewerkers', 'inspanning_dagen', 'opmerkingen', 'is_hard_lock', 'created_at', 'updated_at'],
   taken: ['id', 'project_id', 'project_nummer', 'klant_naam', 'fase_id', 'fase_naam', 'werknemer_naam', 'werktype', 'discipline', 'week_start', 'dag_van_week', 'start_uur', 'duur_uren', 'plan_status', 'is_hard_lock', 'created_by', 'locked_by', 'created_at', 'updated_at'],
-  meetings: ['id', 'project_id', 'datum', 'start_tijd', 'eind_tijd', 'onderwerp', 'type', 'locatie', 'deelnemers', 'is_hard_lock', 'status', 'created_by', 'created_at', 'updated_at'],
-  verlof_aanvragen: ['id', 'werknemer_naam', 'type', 'start_datum', 'eind_datum', 'reden', 'status', 'created_by', 'created_at', 'updated_at'],
+  'meetings & presentaties': ['id', 'project_id', 'datum', 'start_tijd', 'eind_tijd', 'onderwerp', 'type', 'locatie', 'deelnemers', 'is_hard_lock', 'status', 'created_by', 'created_at', 'updated_at'],
+  beschikbaarheid_medewerkers: ['id', 'werknemer_naam', 'type', 'start_datum', 'eind_datum', 'reden', 'status', 'created_by', 'created_at', 'updated_at'],
   wijzigingsverzoeken: ['id', 'project_id', 'type_wijziging', 'beschrijving', 'impact', 'nieuwe_deadline', 'extra_uren', 'betrokken_mensen', 'status', 'created_by', 'created_at', 'updated_at'],
   notificaties: ['id', 'type', 'titel', 'beschrijving', 'klant_naam', 'project_nummer', 'voor_werknemer', 'deadline', 'severity', 'aantal', 'is_done', 'created_at', 'updated_at'],
   audit_log: ['id', 'user_id', 'entiteit_type', 'entiteit_id', 'actie', 'oude_waarde', 'nieuwe_waarde', 'ip_address', 'created_at'],
@@ -182,8 +182,8 @@ async function verifySessionToken(token: string): Promise<SessionPayload | null>
 // ===========================================
 
 const ALLOWED_TABLES = [
-  'klanten', 'werknemers', 'users', 'rolprofielen', 'disciplines',
-  'projecten', 'project_fases', 'taken', 'meetings', 'verlof_aanvragen',
+  'klanten', 'medewerkers', 'users', 'rolprofielen', 'disciplines',
+  'projecten', 'project_fases', 'taken', 'meetings & presentaties', 'beschikbaarheid_medewerkers',
   'wijzigingsverzoeken', 'notificaties', 'audit_log', 'planning_regels'
 ];
 
@@ -328,7 +328,7 @@ Deno.serve(async (req) => {
       case 'insert': {
         // Add created_by if the table has it
         const insertData = { ...data };
-        if (['taken', 'meetings', 'verlof_aanvragen', 'wijzigingsverzoeken', 'projecten', 'klanten'].includes(table)) {
+        if (['taken', 'meetings & presentaties', 'beschikbaarheid_medewerkers', 'wijzigingsverzoeken', 'projecten', 'klanten'].includes(table)) {
           insertData.created_by = session.sub;
         }
 
