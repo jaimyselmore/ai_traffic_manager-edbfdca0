@@ -7,7 +7,6 @@ import { NotificationPanel } from './NotificationPanel';
 import { getWeekNumber, getWeekStart, formatDateRange } from '@/lib/mockData';
 import { useEmployees, useNotifications, type Notification } from '@/lib/data';
 
-type RequestType = 'project' | 'wijziging' | 'meeting' | 'verlof';
 type NotificationType = 'late' | 'upcoming' | 'review' | 'change' | 'active';
 
 interface DashboardProps {
@@ -51,13 +50,13 @@ export function Dashboard({ selectedEmployeeId }: DashboardProps) {
     notifications.filter(n => n.type === type);
 
   return (
-    <div className="space-y-8 -mt-2">
+    <div className="space-y-6">
       {/* Welcome Header */}
-      <div>
+      <div className="mb-6">
         <h1 className="text-3xl font-bold text-foreground">
           Welkom, {employeeName}
         </h1>
-        <p className="mt-2 text-lg text-muted-foreground">
+        <p className="mt-1 text-base text-muted-foreground">
           Week {weekNumber} – {dateRange}
         </p>
       </div>
