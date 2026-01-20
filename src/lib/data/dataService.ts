@@ -20,13 +20,78 @@ import type {
   ConfigurableData,
 } from './types'
 
+// Supabase row types (inline for better type safety)
+interface MedewerkerRow {
+  werknemer_id: number
+  naam_werknemer: string
+  email: string | null
+  primaire_rol: string | null
+  tweede_rol: string | null
+  derde_rol: string | null
+  discipline: string | null
+  duo_team: string | null
+  is_planner: boolean | null
+  werkuren: number | null
+  parttime_dag: string | null
+  beschikbaar: boolean | null
+  vaardigheden: string | null
+  notities: string | null
+  in_planning: boolean | null
+  planner_volgorde: number | null
+}
+
+interface DisciplineRow {
+  id: number
+  discipline_naam: string
+  beschrijving: string | null
+  kleur_hex: string | null
+}
+
+interface KlantRow {
+  id: string
+  klantnummer: string
+  naam: string
+  contactpersoon: string | null
+  email: string | null
+  telefoon: string | null
+  adres: string | null
+  notities: string | null
+}
+
+interface TaakRow {
+  id: string
+  project_id: string | null
+  werknemer_naam: string
+  klant_naam: string
+  project_nummer: string
+  fase_naam: string
+  werktype: string
+  discipline: string
+  week_start: string
+  dag_van_week: number
+  start_uur: number
+  duur_uren: number
+  plan_status: string | null
+  is_hard_lock: boolean | null
+}
+
+interface NotificatieRow {
+  id: string
+  type: string
+  titel: string
+  beschrijving: string | null
+  severity: string
+  project_nummer: string | null
+  klant_naam: string | null
+  is_done: boolean | null
+}
+
 // ===========================================
 // REFERENTIEDATA (uit Supabase)
 // ===========================================
 
 /**
  * Haal ALLE beschikbare werknemers op uit Supabase
- * (voor meetings, projecten, dropdowns, etc.)
  */
 export async function getEmployees(): Promise<Employee[]> {
   const { data, error } = await supabase
@@ -41,7 +106,7 @@ export async function getEmployees(): Promise<Employee[]> {
     throw new Error(`Fout bij ophalen werknemers: ${error.message}`)
   }
 
-  return data.map((werknemer) => ({
+  return ((data || []) as MedewerkerRow[]).map((werknemer) => ({
     id: werknemer.werknemer_id.toString(),
     name: werknemer.naam_werknemer,
     email: werknemer.email || '',
@@ -56,13 +121,12 @@ export async function getEmployees(): Promise<Employee[]> {
     available: werknemer.beschikbaar,
     skills: werknemer.vaardigheden || '',
     notes: werknemer.notities || '',
+    role: werknemer.primaire_rol || 'Onbekend',
   }))
 }
 
 /**
  * Haal alleen medewerkers op die IN DE PLANNING staan (in_planning = true)
- * Deze toon je in de planning grid
- * Duo teams worden samengevoegd in 1 rij (bv. "Jakko & Niels")
  */
 export async function getPlannableEmployees(): Promise<Employee[]> {
   const { data, error } = await supabase
@@ -78,7 +142,7 @@ export async function getPlannableEmployees(): Promise<Employee[]> {
     throw new Error(`Fout bij ophalen planbare werknemers: ${error.message}`)
   }
 
-  const employees = data.map((werknemer) => ({
+  const employees = ((data || []) as MedewerkerRow[]).map((werknemer) => ({
     id: werknemer.werknemer_id.toString(),
     name: werknemer.naam_werknemer,
     email: werknemer.email || '',
@@ -93,6 +157,7 @@ export async function getPlannableEmployees(): Promise<Employee[]> {
     available: werknemer.beschikbaar,
     skills: werknemer.vaardigheden || '',
     notes: werknemer.notities || '',
+    role: werknemer.primaire_rol || 'Onbekend',
   }))
 
   // Groepeer duo teams
@@ -100,32 +165,27 @@ export async function getPlannableEmployees(): Promise<Employee[]> {
   const processedDuoTeams = new Set<string>()
 
   for (const employee of employees) {
-    // Als geen duo team, gewoon toevoegen
     if (!employee.duoTeam) {
       processedEmployees.push(employee)
       continue
     }
 
-    // Als duo team al verwerkt, skip
     if (processedDuoTeams.has(employee.duoTeam)) {
       continue
     }
 
-    // Zoek duo partner
     const partner = employees.find(
       (e) => e.duoTeam === employee.duoTeam && e.id !== employee.id
     )
 
     if (partner) {
-      // Maak samengevoegde entry
       processedEmployees.push({
         ...employee,
-        id: `${employee.id},${partner.id}`, // Gecombineerde ID
-        name: `${employee.name} & ${partner.name}`, // Gecombineerde naam
+        id: `${employee.id},${partner.id}`,
+        name: `${employee.name} & ${partner.name}`,
       })
       processedDuoTeams.add(employee.duoTeam)
     } else {
-      // Geen partner gevonden, toon solo
       processedEmployees.push(employee)
     }
   }
@@ -147,9 +207,10 @@ export async function getWorkTypes(): Promise<WorkType[]> {
     throw new Error(`Fout bij ophalen disciplines: ${error.message}`)
   }
 
-  return data.map((discipline) => ({
+  return ((data || []) as DisciplineRow[]).map((discipline) => ({
     id: discipline.id,
     name: discipline.discipline_naam,
+    label: discipline.discipline_naam,
     description: discipline.beschrijving || '',
     color: discipline.kleur_hex || '#3b82f6',
   }))
@@ -169,7 +230,7 @@ export async function getClients(): Promise<Client[]> {
     throw new Error(`Fout bij ophalen klanten: ${error.message}`)
   }
 
-  return data.map((klant) => ({
+  return ((data || []) as KlantRow[]).map((klant) => ({
     id: klant.id,
     code: klant.klantnummer,
     name: klant.naam,
@@ -203,7 +264,7 @@ export async function getTasks(weekStart: Date): Promise<Task[]> {
     throw new Error(`Fout bij ophalen taken: ${error.message}`)
   }
 
-  return data.map((taak) => ({
+  return ((data || []) as TaakRow[]).map((taak) => ({
     id: taak.id,
     employeeId: taak.werknemer_naam,
     projectId: taak.project_id || '',
@@ -216,9 +277,9 @@ export async function getTasks(weekStart: Date): Promise<Task[]> {
     dayOfWeek: taak.dag_van_week,
     startHour: taak.start_uur,
     durationHours: taak.duur_uren,
-    status: taak.plan_status as 'concept' | 'vast',
+    status: (taak.plan_status as 'concept' | 'vast') || 'concept',
     isHardLock: taak.is_hard_lock,
-    createdBy: '', // Niet in database opgeslagen bij Supabase
+    createdBy: '',
   }))
 }
 
@@ -228,23 +289,25 @@ export async function getTasks(weekStart: Date): Promise<Task[]> {
 export async function createTask(task: Omit<Task, 'id'>): Promise<Task> {
   const weekStartISO = task.weekStart.toISOString().split('T')[0]
 
+  const insertData = {
+    project_id: task.projectId || null,
+    werknemer_naam: task.employeeId,
+    klant_naam: task.clientName,
+    project_nummer: task.projectNumber,
+    fase_naam: task.phaseName,
+    werktype: task.workType,
+    discipline: task.discipline,
+    week_start: weekStartISO,
+    dag_van_week: task.dayOfWeek,
+    start_uur: task.startHour,
+    duur_uren: task.durationHours,
+    plan_status: task.status,
+    is_hard_lock: task.isHardLock || false,
+  }
+
   const { data, error } = await supabase
     .from('taken')
-    .insert({
-      project_id: task.projectId || null,
-      werknemer_naam: task.employeeId,
-      klant_naam: task.clientName,
-      project_nummer: task.projectNumber,
-      fase_naam: task.phaseName,
-      werktype: task.workType,
-      discipline: task.discipline,
-      week_start: weekStartISO,
-      dag_van_week: task.dayOfWeek,
-      start_uur: task.startHour,
-      duur_uren: task.durationHours,
-      plan_status: task.status,
-      is_hard_lock: task.isHardLock || false,
-    })
+    .insert(insertData as any)
     .select()
     .single()
 
@@ -253,21 +316,26 @@ export async function createTask(task: Omit<Task, 'id'>): Promise<Task> {
     throw new Error(`Fout bij aanmaken taak: ${error.message}`)
   }
 
+  const result = data as TaakRow
+  if (!result) {
+    throw new Error('Geen data teruggekregen bij aanmaken taak')
+  }
+
   return {
-    id: data.id,
-    employeeId: data.werknemer_naam,
-    projectId: data.project_id || '',
-    clientName: data.klant_naam,
-    projectNumber: data.project_nummer,
-    phaseName: data.fase_naam,
-    workType: data.werktype,
-    discipline: data.discipline,
-    weekStart: new Date(data.week_start),
-    dayOfWeek: data.dag_van_week,
-    startHour: data.start_uur,
-    durationHours: data.duur_uren,
-    status: data.plan_status as 'concept' | 'vast',
-    isHardLock: data.is_hard_lock,
+    id: result.id,
+    employeeId: result.werknemer_naam,
+    projectId: result.project_id || '',
+    clientName: result.klant_naam,
+    projectNumber: result.project_nummer,
+    phaseName: result.fase_naam,
+    workType: result.werktype,
+    discipline: result.discipline,
+    weekStart: new Date(result.week_start),
+    dayOfWeek: result.dag_van_week,
+    startHour: result.start_uur,
+    durationHours: result.duur_uren,
+    status: (result.plan_status as 'concept' | 'vast') || 'concept',
+    isHardLock: result.is_hard_lock,
     createdBy: '',
   }
 }
@@ -286,7 +354,7 @@ export async function updateTask(task: Task): Promise<Task> {
       duur_uren: task.durationHours,
       plan_status: task.status,
       week_start: weekStartISO,
-    })
+    } as Record<string, unknown>)
     .eq('id', task.id)
     .select()
     .single()
@@ -296,21 +364,26 @@ export async function updateTask(task: Task): Promise<Task> {
     throw new Error(`Fout bij updaten taak: ${error.message}`)
   }
 
+  const result = data as TaakRow
+  if (!result) {
+    throw new Error('Geen data teruggekregen bij updaten taak')
+  }
+
   return {
-    id: data.id,
-    employeeId: data.werknemer_naam,
-    projectId: data.project_id || '',
-    clientName: data.klant_naam,
-    projectNumber: data.project_nummer,
-    phaseName: data.fase_naam,
-    workType: data.werktype,
-    discipline: data.discipline,
-    weekStart: new Date(data.week_start),
-    dayOfWeek: data.dag_van_week,
-    startHour: data.start_uur,
-    durationHours: data.duur_uren,
-    status: data.plan_status as 'concept' | 'vast',
-    isHardLock: data.is_hard_lock,
+    id: result.id,
+    employeeId: result.werknemer_naam,
+    projectId: result.project_id || '',
+    clientName: result.klant_naam,
+    projectNumber: result.project_nummer,
+    phaseName: result.fase_naam,
+    workType: result.werktype,
+    discipline: result.discipline,
+    weekStart: new Date(result.week_start),
+    dayOfWeek: result.dag_van_week,
+    startHour: result.start_uur,
+    durationHours: result.duur_uren,
+    status: (result.plan_status as 'concept' | 'vast') || 'concept',
+    isHardLock: result.is_hard_lock,
     createdBy: '',
   }
 }
@@ -349,17 +422,22 @@ export async function getNotifications(): Promise<Notification[]> {
     throw new Error(`Fout bij ophalen notificaties: ${error.message}`)
   }
 
-  return data.map((notif) => ({
+  return ((data || []) as NotificatieRow[]).map((notif) => ({
     id: notif.id,
-    type: notif.type as any,
+    type: notif.type as Notification['type'],
     severity: notif.severity as 'low' | 'medium' | 'high',
     title: notif.titel,
     description: notif.beschrijving || '',
     projectNumber: notif.project_nummer || '',
     clientName: notif.klant_naam || '',
-    deadline: undefined, // Niet in database schema
+    deadline: undefined,
     count: 1,
-    isDone: notif.is_done,
+    isDone: notif.is_done ?? false,
+    // Legacy fields for Dashboard compatibility
+    client: notif.klant_naam || '',
+    project: notif.project_nummer || '',
+    workType: notif.type,
+    employee: '',
   }))
 }
 
@@ -367,92 +445,71 @@ export async function getNotifications(): Promise<Notification[]> {
 // STATIC DATA (hardcoded, geen DB tabel voor)
 // ===========================================
 
-/**
- * Project types - hardcoded
- */
 export async function getProjectTypes(): Promise<ProjectType[]> {
   return [
-    { id: 'productie', name: 'Productie', description: 'Reguliere productie opdracht' },
-    { id: 'guiding_idea', name: 'Guiding Idea', description: 'Strategische guiding idea sessie' },
-    { id: 'nieuw_project', name: 'Nieuw Project', description: 'Compleet nieuw project setup' },
-    { id: 'algemeen', name: 'Algemeen', description: 'Algemene taken en overleg' },
+    { id: 'productie', name: 'Productie', label: 'Productie', description: 'Reguliere productie opdracht' },
+    { id: 'guiding_idea', name: 'Guiding Idea', label: 'Guiding Idea', description: 'Strategische guiding idea sessie' },
+    { id: 'nieuw_project', name: 'Nieuw Project', label: 'Nieuw Project', description: 'Compleet nieuw project setup' },
+    { id: 'algemeen', name: 'Algemeen', label: 'Algemeen', description: 'Algemene taken en overleg' },
   ]
 }
 
-/**
- * Verlof types - hardcoded
- */
 export async function getVerlofTypes(): Promise<VerlofType[]> {
   return [
-    { id: 'vakantie', name: 'Vakantie', description: 'Geplande vakantie' },
-    { id: 'ziek', name: 'Ziek', description: 'Ziekteverlof' },
-    { id: 'training', name: 'Training', description: 'Training of cursus' },
-    { id: 'vrije_dag', name: 'Vrije dag', description: 'Snipperdag of compensatieverlof' },
+    { id: 'vakantie', name: 'Vakantie', label: 'Vakantie', description: 'Geplande vakantie' },
+    { id: 'ziek', name: 'Ziek', label: 'Ziek', description: 'Ziekteverlof' },
+    { id: 'training', name: 'Training', label: 'Training', description: 'Training of cursus' },
+    { id: 'vrije_dag', name: 'Vrije dag', label: 'Vrije dag', description: 'Snipperdag of compensatieverlof' },
   ]
 }
 
-/**
- * Meeting types - hardcoded
- */
 export async function getMeetingTypes(): Promise<MeetingType[]> {
   return [
-    { id: 'kickoff', name: 'Kickoff', description: 'Project kickoff meeting' },
-    { id: 'review', name: 'Review', description: 'Project review meeting' },
-    { id: 'presentatie', name: 'Presentatie', description: 'Client presentatie' },
-    { id: 'intern', name: 'Intern', description: 'Interne meeting' },
+    { id: 'kickoff', name: 'Kickoff', label: 'Kickoff', description: 'Project kickoff meeting' },
+    { id: 'review', name: 'Review', label: 'Review', description: 'Project review meeting' },
+    { id: 'presentatie', name: 'Presentatie', label: 'Presentatie', description: 'Client presentatie' },
+    { id: 'intern', name: 'Intern', label: 'Intern', description: 'Interne meeting' },
   ]
 }
 
-/**
- * Wijziging types - hardcoded
- */
 export async function getWijzigingTypes(): Promise<WijzigingType[]> {
   return [
-    { id: 'scope', name: 'Scope', description: 'Scope wijziging' },
-    { id: 'deadline', name: 'Deadline', description: 'Deadline wijziging' },
-    { id: 'team', name: 'Team', description: 'Team samenstelling wijziging' },
-    { id: 'budget', name: 'Budget', description: 'Budget wijziging' },
+    { id: 'scope', name: 'Scope', label: 'Scope', description: 'Scope wijziging' },
+    { id: 'deadline', name: 'Deadline', label: 'Deadline', description: 'Deadline wijziging' },
+    { id: 'team', name: 'Team', label: 'Team', description: 'Team samenstelling wijziging' },
+    { id: 'budget', name: 'Budget', label: 'Budget', description: 'Budget wijziging' },
   ]
 }
 
-/**
- * Indicatieve periodes - hardcoded
- */
 export async function getIndicatievePeriodes(): Promise<IndicatievePeriode[]> {
   return [
-    { id: '1_dag', name: '1 dag', description: '1 werkdag', days: 1 },
-    { id: '2_3_dagen', name: '2-3 dagen', description: '2 tot 3 werkdagen', days: 2.5 },
-    { id: '1_week', name: '1 week', description: '1 werkweek (5 dagen)', days: 5 },
-    { id: '2_weken', name: '2 weken', description: '2 werkweken (10 dagen)', days: 10 },
-    { id: '1_maand', name: '1 maand', description: '1 maand (20 dagen)', days: 20 },
+    { id: '1_dag', name: '1 dag', label: '1 dag', description: '1 werkdag', days: 1 },
+    { id: '2_3_dagen', name: '2-3 dagen', label: '2-3 dagen', description: '2 tot 3 werkdagen', days: 2.5 },
+    { id: '1_week', name: '1 week', label: '1 week', description: '1 werkweek (5 dagen)', days: 5 },
+    { id: '2_weken', name: '2 weken', label: '2 weken', description: '2 werkweken (10 dagen)', days: 10 },
+    { id: '1_maand', name: '1 maand', label: '1 maand', description: '1 maand (20 dagen)', days: 20 },
   ]
 }
 
-/**
- * Effort eenheden - hardcoded
- */
 export async function getEffortEenheden(): Promise<EffortEenheid[]> {
   return [
-    { id: 'uren', name: 'Uren', description: 'Aantal uren' },
-    { id: 'dagen', name: 'Dagen', description: 'Aantal dagen' },
-    { id: 'weken', name: 'Weken', description: 'Aantal weken' },
+    { id: 'uren', name: 'Uren', label: 'Uren', description: 'Aantal uren' },
+    { id: 'dagen', name: 'Dagen', label: 'Dagen', description: 'Aantal dagen' },
+    { id: 'weken', name: 'Weken', label: 'Weken', description: 'Aantal weken' },
   ]
 }
 
-/**
- * Prioriteiten - hardcoded
- */
 export async function getPrioriteiten(): Promise<Prioriteit[]> {
   return [
-    { id: 'laag', name: 'Laag', description: 'Lage prioriteit', color: '#10b981' },
-    { id: 'normaal', name: 'Normaal', description: 'Normale prioriteit', color: '#3b82f6' },
-    { id: 'hoog', name: 'Hoog', description: 'Hoge prioriteit', color: '#f59e0b' },
-    { id: 'urgent', name: 'Urgent', description: 'Urgent', color: '#ef4444' },
+    { id: 'laag', name: 'Laag', label: 'Laag', description: 'Lage prioriteit', color: '#10b981' },
+    { id: 'normaal', name: 'Normaal', label: 'Normaal', description: 'Normale prioriteit', color: '#3b82f6' },
+    { id: 'hoog', name: 'Hoog', label: 'Hoog', description: 'Hoge prioriteit', color: '#f59e0b' },
+    { id: 'urgent', name: 'Urgent', label: 'Urgent', description: 'Urgent', color: '#ef4444' },
   ]
 }
 
 // ===========================================
-// BULK FETCH - Get all configurable data at once
+// BULK FETCH
 // ===========================================
 
 export async function getAllConfigurableData(): Promise<ConfigurableData> {
@@ -491,20 +548,15 @@ export async function getAllConfigurableData(): Promise<ConfigurableData> {
     indicatievePeriodes,
     effortEenheden,
     prioriteiten,
-    planningRules: [], // Nog niet geïmplementeerd
+    planningRules: [],
   }
 }
 
 // ===========================================
-// LEGACY FUNCTIONS (voor backwards compatibility)
+// LEGACY FUNCTIONS
 // ===========================================
 
-export async function updateEmployee(employee: Employee): Promise<Employee> {
-  console.log('updateEmployee not yet implemented:', employee)
-  return employee
-}
-
-export async function updateClient(client: Client): Promise<Client> {
-  console.log('updateClient not yet implemented:', client)
-  return client
-}
+export const fetchEmployees = getEmployees
+export const fetchClients = getClients
+export const fetchWorkTypes = getWorkTypes
+export const fetchTasks = getTasks

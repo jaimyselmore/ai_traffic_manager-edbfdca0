@@ -1,17 +1,28 @@
 // ===========================================
 // CENTRALIZED DATA TYPES
-// All configurable data that will come from Google Sheets
+// All configurable data that will come from Supabase
 // ===========================================
 
-// ---- EMPLOYEES (Supabase: "users" with werknemer_id) ----
+// ---- EMPLOYEES (Supabase: "medewerkers") ----
 export interface Employee {
   id: string;
   name: string;
-  role: string;
-  email?: string;
+  email: string;
+  primaryRole: string;
+  secondaryRole?: string;
+  tertiaryRole?: string;
+  discipline: string;
+  duoTeam?: string;
+  isPlanner: boolean | null;
+  workHours: number | null;
+  partTimeDay?: string;
+  available: boolean | null;
+  skills: string;
+  notes: string;
+  // Legacy compatibility
+  role?: string;
   avatar?: string;
-  availability: 'available' | 'busy' | 'full';
-  isPlanner?: boolean;
+  availability?: 'available' | 'busy' | 'full';
   werknemerId?: number;
 }
 
@@ -19,66 +30,83 @@ export interface Employee {
 export interface Client {
   id: string;
   name: string;
+  code?: string;
   klantnummer?: string;
   contactPerson?: string;
   email?: string;
+  phone?: string;
   telefoon?: string;
+  address?: string;
   adres?: string;
+  notes?: string;
   notities?: string;
 }
 
 // ---- PROJECT TYPES (Sheet: "Project Types") ----
 export interface ProjectType {
   id: string;
-  label: string;
-  // Future fields:
-  // estimatedHours?: number;
-  // defaultDisciplines?: string[];
+  name: string;
+  label?: string;
+  description?: string;
 }
 
-// ---- WORK TYPES / DISCIPLINES (Sheet: "Disciplines") ----
+// ---- WORK TYPES / DISCIPLINES (Supabase: "disciplines") ----
 export interface WorkType {
-  id: string;
-  label: string;
-  color: string; // Tailwind class like 'bg-task-concept'
-  // Future fields:
-  // category?: string;
+  id: number | string;
+  name: string;
+  label?: string;
+  description?: string;
+  color: string;
 }
 
 // ---- VERLOF TYPES (Sheet: "Verlof Types") ----
 export interface VerlofType {
   id: string;
-  label: string;
+  name: string;
+  label?: string;
+  description?: string;
 }
 
 // ---- MEETING TYPES (Sheet: "Meeting Types") ----
 export interface MeetingType {
   id: string;
-  label: string;
+  name: string;
+  label?: string;
+  description?: string;
 }
 
 // ---- WIJZIGING TYPES (Sheet: "Wijziging Types") ----
 export interface WijzigingType {
   id: string;
-  label: string;
+  name: string;
+  label?: string;
+  description?: string;
 }
 
 // ---- INDICATIEVE PERIODES (Sheet: "Periodes" or computed) ----
 export interface IndicatievePeriode {
   id: string;
-  label: string;
+  name: string;
+  label?: string;
+  description?: string;
+  days?: number;
 }
 
 // ---- EFFORT EENHEDEN (Sheet: "Configuratie") ----
 export interface EffortEenheid {
   id: string;
-  label: string;
+  name: string;
+  label?: string;
+  description?: string;
 }
 
 // ---- PRIORITEITEN (Sheet: "Configuratie") ----
 export interface Prioriteit {
   id: string;
-  label: string;
+  name: string;
+  label?: string;
+  description?: string;
+  color?: string;
 }
 
 // ---- PLANNING RULES (Sheet: "Regels") ----
@@ -87,23 +115,28 @@ export interface PlanningRule {
   name: string;
   description: string;
   isActive: boolean;
-  // Future: complex rule definitions
 }
 
-// ---- NOTIFICATIONS / TASKS (Sheet: "Taken" or computed) ----
+// ---- NOTIFICATIONS (Supabase: "notificaties") ----
 export interface Notification {
   id: string;
-  type: 'late' | 'upcoming' | 'review' | 'change' | 'active';
-  clientId: string;
-  client: string;
-  projectId?: string;
-  project: string;
-  workType: string;
-  employeeId: string;
-  employee: string;
-  deadline: string;
+  type: 'late' | 'upcoming' | 'review' | 'change' | 'active' | string;
   severity: 'low' | 'medium' | 'high';
+  title: string;
+  description?: string;
+  projectNumber?: string;
+  clientName?: string;
+  deadline?: string;
+  count?: number;
   isDone: boolean;
+  // Legacy fields
+  clientId?: string;
+  client?: string;
+  projectId?: string;
+  project?: string;
+  workType?: string;
+  employeeId?: string;
+  employee?: string;
 }
 
 // ---- PROJECTS (Sheet: "Projecten") ----
@@ -120,20 +153,33 @@ export interface Project {
   updatedAt: string;
 }
 
-// ---- TASKS / PLANNING BLOCKS (Sheet: "Planning") ----
+// ---- TASKS / PLANNING BLOCKS (Supabase: "taken") ----
 export interface Task {
   id: string;
-  title: string;
-  clientId: string;
   employeeId: string;
-  projectId?: string;
-  type: string; // workType id
-  date: string;
-  startTime: string;
-  endTime: string;
-  planStatus: 'concept' | 'vast'; // concept = semi-transparent, vast = full color
+  projectId: string;
+  clientName: string;
+  projectNumber: string;
+  phaseName: string;
+  workType: string;
+  discipline: string;
+  weekStart: Date;
+  dayOfWeek: number;
+  startHour: number;
+  durationHours: number;
+  status: 'concept' | 'vast';
+  isHardLock: boolean | null;
+  createdBy: string;
+  // Legacy compatibility fields
+  title?: string;
+  clientId?: string;
+  type?: string;
+  date?: string;
+  startTime?: string;
+  endTime?: string;
+  planStatus?: 'concept' | 'vast';
   projectType?: 'productie' | 'nieuw_project' | 'meeting' | 'verlof' | 'wijziging';
-  faseNaam?: string; // e.g. 'PP', 'PPM', 'Shoot', etc.
+  faseNaam?: string;
 }
 
 // ---- DASHBOARD STATS (Computed from other sheets) ----

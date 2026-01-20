@@ -58,6 +58,53 @@ export type Database = {
           },
         ]
       }
+      beschikbaarheid_medewerkers: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          eind_datum: string
+          id: string
+          reden: string | null
+          start_datum: string
+          status: string | null
+          type: string
+          updated_at: string | null
+          werknemer_naam: string
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          eind_datum: string
+          id?: string
+          reden?: string | null
+          start_datum: string
+          status?: string | null
+          type: string
+          updated_at?: string | null
+          werknemer_naam: string
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          eind_datum?: string
+          id?: string
+          reden?: string | null
+          start_datum?: string
+          status?: string | null
+          type?: string
+          updated_at?: string | null
+          werknemer_naam?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "verlof_aanvragen_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       disciplines: {
         Row: {
           beschrijving: string | null
@@ -159,7 +206,79 @@ export type Database = {
         }
         Relationships: []
       }
-      meetings: {
+      medewerkers: {
+        Row: {
+          beschikbaar: boolean | null
+          created_at: string | null
+          derde_rol: string | null
+          discipline: string | null
+          duo_team: string | null
+          email: string | null
+          in_planning: boolean | null
+          is_planner: boolean | null
+          microsoft_connected: boolean | null
+          microsoft_connected_at: string | null
+          microsoft_email: string | null
+          naam_werknemer: string
+          notities: string | null
+          parttime_dag: string | null
+          planner_volgorde: number | null
+          primaire_rol: string | null
+          tweede_rol: string | null
+          updated_at: string | null
+          vaardigheden: string | null
+          werknemer_id: number
+          werkuren: number | null
+        }
+        Insert: {
+          beschikbaar?: boolean | null
+          created_at?: string | null
+          derde_rol?: string | null
+          discipline?: string | null
+          duo_team?: string | null
+          email?: string | null
+          in_planning?: boolean | null
+          is_planner?: boolean | null
+          microsoft_connected?: boolean | null
+          microsoft_connected_at?: string | null
+          microsoft_email?: string | null
+          naam_werknemer: string
+          notities?: string | null
+          parttime_dag?: string | null
+          planner_volgorde?: number | null
+          primaire_rol?: string | null
+          tweede_rol?: string | null
+          updated_at?: string | null
+          vaardigheden?: string | null
+          werknemer_id: number
+          werkuren?: number | null
+        }
+        Update: {
+          beschikbaar?: boolean | null
+          created_at?: string | null
+          derde_rol?: string | null
+          discipline?: string | null
+          duo_team?: string | null
+          email?: string | null
+          in_planning?: boolean | null
+          is_planner?: boolean | null
+          microsoft_connected?: boolean | null
+          microsoft_connected_at?: string | null
+          microsoft_email?: string | null
+          naam_werknemer?: string
+          notities?: string | null
+          parttime_dag?: string | null
+          planner_volgorde?: number | null
+          primaire_rol?: string | null
+          tweede_rol?: string | null
+          updated_at?: string | null
+          vaardigheden?: string | null
+          werknemer_id?: number
+          werkuren?: number | null
+        }
+        Relationships: []
+      }
+      "meetings & presentaties": {
         Row: {
           created_at: string | null
           created_by: string | null
@@ -222,6 +341,44 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "projecten"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      microsoft_tokens: {
+        Row: {
+          access_token_encrypted: string
+          created_at: string | null
+          id: string
+          refresh_token_encrypted: string
+          token_expires_at: string
+          updated_at: string | null
+          werknemer_id: number
+        }
+        Insert: {
+          access_token_encrypted: string
+          created_at?: string | null
+          id?: string
+          refresh_token_encrypted: string
+          token_expires_at: string
+          updated_at?: string | null
+          werknemer_id: number
+        }
+        Update: {
+          access_token_encrypted?: string
+          created_at?: string | null
+          id?: string
+          refresh_token_encrypted?: string
+          token_expires_at?: string
+          updated_at?: string | null
+          werknemer_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "microsoft_tokens_werknemer_id_fkey"
+            columns: ["werknemer_id"]
+            isOneToOne: true
+            referencedRelation: "medewerkers"
+            referencedColumns: ["werknemer_id"]
           },
         ]
       }
@@ -492,10 +649,13 @@ export type Database = {
           is_hard_lock: boolean | null
           klant_naam: string
           locked_by: string | null
+          microsoft_event_id: string | null
+          microsoft_synced_at: string | null
           plan_status: string | null
           project_id: string | null
           project_nummer: string
           start_uur: number
+          synced_to_microsoft: boolean | null
           updated_at: string | null
           week_start: string
           werknemer_naam: string
@@ -513,10 +673,13 @@ export type Database = {
           is_hard_lock?: boolean | null
           klant_naam: string
           locked_by?: string | null
+          microsoft_event_id?: string | null
+          microsoft_synced_at?: string | null
           plan_status?: string | null
           project_id?: string | null
           project_nummer: string
           start_uur: number
+          synced_to_microsoft?: boolean | null
           updated_at?: string | null
           week_start: string
           werknemer_naam: string
@@ -534,10 +697,13 @@ export type Database = {
           is_hard_lock?: boolean | null
           klant_naam?: string
           locked_by?: string | null
+          microsoft_event_id?: string | null
+          microsoft_synced_at?: string | null
           plan_status?: string | null
           project_id?: string | null
           project_nummer?: string
           start_uur?: number
+          synced_to_microsoft?: boolean | null
           updated_at?: string | null
           week_start?: string
           werknemer_naam?: string
@@ -607,110 +773,6 @@ export type Database = {
           rol?: string
           updated_at?: string | null
           werknemer_id?: number | null
-        }
-        Relationships: []
-      }
-      verlof_aanvragen: {
-        Row: {
-          created_at: string | null
-          created_by: string | null
-          eind_datum: string
-          id: string
-          reden: string | null
-          start_datum: string
-          status: string | null
-          type: string
-          updated_at: string | null
-          werknemer_naam: string
-        }
-        Insert: {
-          created_at?: string | null
-          created_by?: string | null
-          eind_datum: string
-          id?: string
-          reden?: string | null
-          start_datum: string
-          status?: string | null
-          type: string
-          updated_at?: string | null
-          werknemer_naam: string
-        }
-        Update: {
-          created_at?: string | null
-          created_by?: string | null
-          eind_datum?: string
-          id?: string
-          reden?: string | null
-          start_datum?: string
-          status?: string | null
-          type?: string
-          updated_at?: string | null
-          werknemer_naam?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "verlof_aanvragen_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      werknemers: {
-        Row: {
-          beschikbaar: boolean | null
-          created_at: string | null
-          derde_rol: string | null
-          discipline: string | null
-          duo_team: string | null
-          email: string | null
-          is_planner: boolean | null
-          naam_werknemer: string
-          notities: string | null
-          parttime_dag: string | null
-          primaire_rol: string | null
-          tweede_rol: string | null
-          updated_at: string | null
-          vaardigheden: string | null
-          werknemer_id: number
-          werkuren: number | null
-        }
-        Insert: {
-          beschikbaar?: boolean | null
-          created_at?: string | null
-          derde_rol?: string | null
-          discipline?: string | null
-          duo_team?: string | null
-          email?: string | null
-          is_planner?: boolean | null
-          naam_werknemer: string
-          notities?: string | null
-          parttime_dag?: string | null
-          primaire_rol?: string | null
-          tweede_rol?: string | null
-          updated_at?: string | null
-          vaardigheden?: string | null
-          werknemer_id: number
-          werkuren?: number | null
-        }
-        Update: {
-          beschikbaar?: boolean | null
-          created_at?: string | null
-          derde_rol?: string | null
-          discipline?: string | null
-          duo_team?: string | null
-          email?: string | null
-          is_planner?: boolean | null
-          naam_werknemer?: string
-          notities?: string | null
-          parttime_dag?: string | null
-          primaire_rol?: string | null
-          tweede_rol?: string | null
-          updated_at?: string | null
-          vaardigheden?: string | null
-          werknemer_id?: number
-          werkuren?: number | null
         }
         Relationships: []
       }

@@ -18,13 +18,11 @@ import {
   getNotifications,
   getTasks,
   getAllConfigurableData,
-  updateEmployee,
-  updateClient,
   createTask,
   updateTask,
   deleteTask,
 } from './dataService';
-import type { Employee, Client, Task } from './types';
+import type { Employee, Client } from './types';
 
 // ===========================================
 // QUERY KEYS - Centralized for consistency
@@ -158,28 +156,6 @@ export function useAllConfigurableData() {
 // ===========================================
 // MUTATION HOOKS
 // ===========================================
-
-export function useUpdateEmployee() {
-  const queryClient = useQueryClient();
-  
-  return useMutation({
-    mutationFn: updateEmployee,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: dataKeys.employees() });
-    },
-  });
-}
-
-export function useUpdateClient() {
-  const queryClient = useQueryClient();
-  
-  return useMutation({
-    mutationFn: updateClient,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: dataKeys.clients() });
-    },
-  });
-}
 
 export function useCreateTask() {
   const queryClient = useQueryClient();
