@@ -416,12 +416,14 @@ export function AgendasFlow() {
   };
 
   return (
-    <div className="max-w-6xl pl-8 pr-8 pt-6 pb-10">
-      {/* Header - only week title */}
-      <h1 className="text-2xl font-semibold text-foreground mb-6">
-        <span className="font-bold">Week {weekNumber}</span>
-        <span className="font-normal text-muted-foreground"> – {dateRange}</span>
-      </h1>
+    <div className="space-y-8">
+      {/* Header */}
+      <div>
+        <h1 className="text-3xl font-bold text-foreground">Agenda's</h1>
+        <p className="mt-1 text-base text-muted-foreground">
+          Week {weekNumber} – {dateRange}
+        </p>
+      </div>
 
       {/* Legend + Selection card row */}
       <div className="flex items-start gap-6 mb-6">

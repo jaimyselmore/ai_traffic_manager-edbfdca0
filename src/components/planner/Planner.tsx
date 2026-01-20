@@ -89,13 +89,18 @@ export function Planner() {
   };
 
   return (
-    <div className="space-y-4">
-      {/* Row 1: Title + Zoom & Download */}
+    <div className="space-y-8">
+      {/* Header */}
+      <div>
+        <h1 className="text-3xl font-bold text-foreground">Planner</h1>
+        <p className="mt-1 text-base text-muted-foreground">
+          Week {weekNumber} – {dateRange}
+        </p>
+      </div>
+
+      {/* Controls Row */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-foreground">
-          <span className="font-bold">Week {weekNumber}</span>
-          <span className="font-normal text-muted-foreground"> – {dateRange}</span>
-        </h1>
+        <div></div>
 
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1">

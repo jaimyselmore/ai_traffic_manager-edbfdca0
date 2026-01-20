@@ -42,15 +42,15 @@ export default function EllenChatPage() {
   };
 
   return (
-    <div className="h-full flex flex-col">
-      <div className="px-8 pt-6 pb-4 border-b border-border">
-        <h1 className="text-2xl font-semibold mb-1 text-foreground">Chat met Ellen</h1>
-        <p className="text-sm text-muted-foreground">
-          Stel je vraag over de planning, projecten of capaciteit. Ellen denkt met je mee, maar past de planning nooit automatisch aan.
+    <div className="h-full flex flex-col space-y-8">
+      <div className="px-6 pt-0">
+        <h1 className="text-3xl font-bold text-foreground">Ellen</h1>
+        <p className="mt-1 text-base text-muted-foreground">
+          Stel je vraag over de planning, projecten of capaciteit
         </p>
       </div>
 
-      <div className="flex-1 px-8 pb-6 pt-4">
+      <div className="flex-1 px-6 pb-6">
         <EllenChat 
           initialMessages={messages}
           isLoading={isLoading}
