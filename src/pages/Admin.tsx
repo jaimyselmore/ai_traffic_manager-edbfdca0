@@ -30,9 +30,9 @@ export default function Admin() {
       <div className="flex flex-1 flex-col h-full overflow-hidden">
         <TopBar />
         <main className="flex-1 overflow-y-auto p-6">
-          <div className="mb-6">
-            <h1 className="text-2xl font-bold text-foreground">Instellingen</h1>
-            <p className="text-muted-foreground">Beheer referentiedata voor de planning</p>
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-foreground">Instellingen</h1>
+            <p className="mt-1 text-base text-muted-foreground">Beheer referentiedata voor de planning</p>
           </div>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
