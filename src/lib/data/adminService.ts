@@ -305,6 +305,7 @@ export async function getKlanten() {
 
 export async function createKlant(
   klant: {
+    klantnummer: string;
     naam: string;
     contactpersoon?: string;
     email?: string;
@@ -314,24 +315,11 @@ export async function createKlant(
   },
   _userId?: string
 ) {
-  // Generate next klantnummer
-  const { data: maxData } = await secureSelect<{ klantnummer: string }>('klanten', {
-    columns: 'klantnummer',
-    order: { column: 'klantnummer', ascending: false },
-    limit: 1,
-  });
-
-  let nextNum = 1001;
-  if (maxData?.[0]?.klantnummer) {
-    const num = parseInt(maxData[0].klantnummer.replace('K', ''), 10);
-    if (!isNaN(num)) nextNum = num + 1;
-  }
-
   const { data, error } = await secureInsert<{
     id: string;
     klantnummer: string;
     naam: string;
-  }>('klanten', { ...klant, klantnummer: `K${nextNum}` });
+  }>('klanten', klant);
 
   if (error) throw mapErrorMessage(error);
 
