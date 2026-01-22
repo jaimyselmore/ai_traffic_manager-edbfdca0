@@ -50,21 +50,37 @@ export function BetrokkenTeam({ data, onChange, showEllenToggle = true, ellenDef
                 </SelectTrigger>
                 <SelectContent>
                   {employees.filter(e => {
-                    const role = e.role.toLowerCase();
-                    // Only include creative team members, NOT studio/editors
-                    return (
+                    // Explicitly exclude studio team members by name
+                    const studioNames = ['Martijn', 'Daniël', 'Jaimy'];
+                    if (studioNames.includes(e.name)) {
+                      return false;
+                    }
+
+                    const role = (e.role || '').toLowerCase();
+                    const discipline = (e.discipline || '').toLowerCase();
+
+                    // Check if discipline is creative-related
+                    const isCreativeDiscipline =
+                      discipline.includes('creatief') ||
+                      discipline.includes('creative') ||
+                      discipline.includes('concept');
+
+                    // Check if role is creative-related
+                    const isCreativeRole =
                       role.includes('creatief') ||
                       role.includes('creative') ||
                       role.includes('art director') ||
                       role.includes('copywriter') ||
-                      role.includes('concept')
-                    ) && (
-                      // Explicitly exclude studio/editor roles
-                      !role.includes('editor') &&
-                      !role.includes('motion') &&
-                      !role.includes('designer') &&
-                      !role.includes('studio')
-                    );
+                      role.includes('concept');
+
+                    // Exclude studio/editor roles explicitly
+                    const isStudioRole =
+                      role.includes('editor') ||
+                      role.includes('motion') ||
+                      role.includes('designer') ||
+                      role.includes('studio');
+
+                    return (isCreativeDiscipline || isCreativeRole) && !isStudioRole;
                   }).map((emp) => (
                     <SelectItem key={emp.id} value={emp.id}>{emp.name}</SelectItem>
                   ))}
