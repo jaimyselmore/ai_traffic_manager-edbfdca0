@@ -77,7 +77,9 @@ export function KlantenTab() {
   const createMutation = useMutation({
     mutationFn: (data: typeof form) => createKlant(data, user?.id),
     onSuccess: () => {
+      // Invalidate both query keys to sync all dropdowns
       queryClient.invalidateQueries({ queryKey: ['klanten'] });
+      queryClient.invalidateQueries({ queryKey: ['clients'] });
       toast.success('Klant toegevoegd');
       closeDialog();
     },
@@ -88,7 +90,9 @@ export function KlantenTab() {
     mutationFn: ({ id, data }: { id: string; data: typeof form }) =>
       updateKlant(id, data, user?.id),
     onSuccess: () => {
+      // Invalidate both query keys to sync all dropdowns
       queryClient.invalidateQueries({ queryKey: ['klanten'] });
+      queryClient.invalidateQueries({ queryKey: ['clients'] });
       toast.success('Klant bijgewerkt');
       closeDialog();
     },
@@ -98,7 +102,9 @@ export function KlantenTab() {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteKlant(id, user?.id),
     onSuccess: () => {
+      // Invalidate both query keys to sync all dropdowns
       queryClient.invalidateQueries({ queryKey: ['klanten'] });
+      queryClient.invalidateQueries({ queryKey: ['clients'] });
       toast.success('Klant verwijderd');
       setIsDeleteOpen(false);
       setDeleteItem(null);
