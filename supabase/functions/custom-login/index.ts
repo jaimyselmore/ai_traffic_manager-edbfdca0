@@ -85,7 +85,10 @@ Deno.serve(async (req) => {
 
   try {
     const { email, password, username } = await req.json();
-    const loginIdentifier = username || email; // Accept either username or email for backwards compat
+    // Accept either username or email (backwards compat), but our DB uses `gebruikersnaam`.
+    // If someone pastes an email address, use the part before '@' as identifier.
+    const rawIdentifier = (username || email || '').trim();
+    const loginIdentifier = rawIdentifier.includes('@') ? rawIdentifier.split('@')[0] : rawIdentifier;
 
     if (!loginIdentifier || !password) {
       return new Response(
@@ -144,14 +147,19 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Look up user by gebruikersnaam (username) - try gebruikersnaam first, fallback to email for backwards compatibility
+    // Look up user by `gebruikersnaam`.
+    // NOTE: We intentionally do NOT reference an `email` column for privacy and because it may not exist in the DB.
     const { data: user, error: userError } = await supabase
       .from('users')
-      .select('id, email, gebruikersnaam, naam, password_hash, is_planner, rol')
-      .or(`gebruikersnaam.eq.${loginIdentifier.toLowerCase().trim()},email.eq.${loginIdentifier.toLowerCase().trim()}`)
+      .select('id, gebruikersnaam, naam, password_hash, is_planner, rol')
+      .ilike('gebruikersnaam', loginIdentifier.trim())
       .maybeSingle();
 
     if (userError || !user) {
+      if (userError) {
+        // Don't leak details to client, but log schema/query errors for debugging.
+        console.error('User lookup error:', userError);
+      }
       // Log failed attempt - user not found
       await logLoginAttempt(supabase, loginIdentifier, ipAddress, false);
 
@@ -207,7 +215,9 @@ Deno.serve(async (req) => {
       { alg: 'HS256', typ: 'JWT' },
       {
         sub: user.id,
-        email: user.email || user.gebruikersnaam, // Use gebruikersnaam as fallback if no email
+        // Keep `email` claim for backwards compatibility with client code,
+        // but we store the gebruikersnaam here to avoid exposing real emails.
+        email: user.gebruikersnaam,
         gebruikersnaam: user.gebruikersnaam,
         naam: user.naam,
         isPlanner: user.is_planner,
@@ -221,7 +231,7 @@ Deno.serve(async (req) => {
     // Return user data with session token
     const userData = {
       id: user.id,
-      email: user.email || user.gebruikersnaam, // Use gebruikersnaam as fallback for backwards compatibility
+      email: user.gebruikersnaam, // backwards compatibility for the frontend type
       gebruikersnaam: user.gebruikersnaam,
       naam: user.naam,
       isPlanner: user.is_planner,
