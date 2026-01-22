@@ -444,7 +444,7 @@ export function AgendasFlow() {
         <div className="shrink-0">
           <div className="rounded-xl border border-border bg-card px-6 py-5 shadow-sm">
             {/* Week controls */}
-            <div className="flex items-center gap-3 mb-4 whitespace-nowrap">
+            <div className="flex items-center justify-between mb-4">
               <Button 
                 variant="outline" 
                 size="sm"
@@ -452,22 +452,24 @@ export function AgendasFlow() {
               >
                 Huidige week
               </Button>
-              <span className="text-sm text-muted-foreground">Ga naar week:</span>
-              <Select 
-                value={weekNumber.toString()} 
-                onValueChange={(v) => goToWeek(parseInt(v))}
-              >
-                <SelectTrigger className="w-16">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Array.from({ length: 52 }, (_, i) => i + 1).map((week) => (
-                    <SelectItem key={week} value={week.toString()}>
-                      {week}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground whitespace-nowrap">Ga naar week:</span>
+                <Select 
+                  value={weekNumber.toString()} 
+                  onValueChange={(v) => goToWeek(parseInt(v))}
+                >
+                  <SelectTrigger className="w-16">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 52 }, (_, i) => i + 1).map((week) => (
+                      <SelectItem key={week} value={week.toString()}>
+                        {week}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             {/* Medewerker select */}
