@@ -23,7 +23,8 @@ interface EmployeeData {
   role?: string;
 }
 
-const dayNames = ['Maandag', 'Dinsdag', 'Woensdag', 'Donderdag', 'Vrijdag'];
+const dayNamesShort = ['Ma', 'Di', 'Wo', 'Do', 'Vr'];
+const timeSlots = [9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
 
 /**
  * Convert day of week number and week start to actual date
@@ -42,7 +43,30 @@ function formatHour(hour: number): string {
 }
 
 /**
- * Export planning data to CSV format
+ * Get task for a specific cell (employee, day, hour)
+ */
+function getTaskForCell(
+  tasks: TaskData[],
+  employeeName: string,
+  dayOfWeek: number,
+  hour: number
+): TaskData | null {
+  return tasks.find((task) => {
+    if (task.werknemer_naam !== employeeName || task.dag_van_week !== dayOfWeek) return false;
+    const endHour = task.start_uur + task.duur_uren;
+    return hour >= task.start_uur && hour < endHour;
+  }) || null;
+}
+
+/**
+ * Check if this hour is the start of a task
+ */
+function isTaskStart(task: TaskData, hour: number): boolean {
+  return task.start_uur === hour;
+}
+
+/**
+ * Export planning data to CSV format (grid layout)
  */
 export function exportToCSV(
   tasks: TaskData[],
@@ -50,46 +74,73 @@ export function exportToCSV(
   weekStart: Date,
   weekNumber: number
 ): void {
-  // CSV headers
-  const headers = [
-    'Medewerker',
-    'Dag',
-    'Datum',
-    'Starttijd',
-    'Eindtijd',
-    'Duur (uren)',
-    'Klant',
-    'Projectnummer',
-    'Fase',
-    'Werktype',
-    'Discipline',
-    'Status',
-  ];
-
-  // Convert tasks to CSV rows
-  const rows = tasks.map((task) => {
-    const dayDate = getDayDate(weekStart, task.dag_van_week);
-    const endHour = task.start_uur + task.duur_uren;
+  // Build header row: Medewerker | Rol | Uur | Ma date | Di date | Wo date | Do date | Vr date
+  const weekDates = dayNamesShort.map((name, index) => {
+    const date = getDayDate(weekStart, index);
+    return `${name} ${format(date, 'd/M')}`;
+  });
+  
+  const headers = ['Medewerker', 'Rol', 'Uur', ...weekDates];
+  
+  const rows: string[][] = [];
+  
+  // For each employee, create rows for each time slot
+  employees.forEach((employee) => {
+    timeSlots.forEach((hour, hourIndex) => {
+      const row: string[] = [];
+      
+      // Employee name only on first row
+      if (hourIndex === 0) {
+        row.push(employee.name);
+        row.push(employee.role || '');
+      } else {
+        row.push('');
+        row.push('');
+      }
+      
+      // Time column
+      if (hour === 13) {
+        row.push('Lunch');
+      } else {
+        row.push(formatHour(hour));
+      }
+      
+      // For each day, check if there's a task
+      dayNamesShort.forEach((_, dayIndex) => {
+        const task = getTaskForCell(tasks, employee.name, dayIndex, hour);
+        
+        if (task && isTaskStart(task, hour)) {
+          // Show task info: Klant - Fase (Status)
+          const status = task.plan_status === 'concept' ? ' [C]' : '';
+          row.push(`${task.klant_naam} - ${task.fase_naam}${status}`);
+        } else if (task) {
+          // Task continues from previous hour
+          row.push('↓');
+        } else if (hour === 13) {
+          // Lunch hour
+          row.push('—');
+        } else {
+          // Empty cell
+          row.push('');
+        }
+      });
+      
+      rows.push(row);
+    });
     
-    return [
-      task.werknemer_naam,
-      dayNames[task.dag_van_week] || `Dag ${task.dag_van_week}`,
-      format(dayDate, 'dd-MM-yyyy', { locale: nl }),
-      formatHour(task.start_uur),
-      formatHour(endHour),
-      task.duur_uren.toString(),
-      task.klant_naam,
-      task.project_nummer,
-      task.fase_naam,
-      task.werktype,
-      task.discipline,
-      task.plan_status === 'concept' ? 'Concept' : 'Vast',
-    ];
+    // Add empty row between employees for readability
+    rows.push(['', '', '', '', '', '', '', '']);
   });
 
   // Build CSV content
   const csvContent = [
+    // Title row
+    [`Planning Week ${weekNumber}`, '', '', '', '', '', '', ''].join(';'),
+    // Empty row
+    ['', '', '', '', '', '', '', ''].join(';'),
+    // Headers
     headers.join(';'),
+    // Data rows
     ...rows.map((row) => row.map((cell) => `"${cell}"`).join(';')),
   ].join('\n');
 
@@ -109,7 +160,7 @@ export function exportToCSV(
 }
 
 /**
- * Generate HTML content for PDF export
+ * Generate HTML content for PDF export (grid layout matching the planner view)
  */
 function generatePlanningHTML(
   tasks: TaskData[],
@@ -118,28 +169,78 @@ function generatePlanningHTML(
   weekNumber: number,
   dateRange: string
 ): string {
-  // Group tasks by employee
-  const tasksByEmployee = new Map<string, TaskData[]>();
-  
-  tasks.forEach((task) => {
-    const existing = tasksByEmployee.get(task.werknemer_naam) || [];
-    existing.push(task);
-    tasksByEmployee.set(task.werknemer_naam, existing);
-  });
-
-  // Sort tasks within each employee by day and hour
-  tasksByEmployee.forEach((empTasks, empName) => {
-    empTasks.sort((a, b) => {
-      if (a.dag_van_week !== b.dag_van_week) return a.dag_van_week - b.dag_van_week;
-      return a.start_uur - b.start_uur;
-    });
-  });
-
   // Generate weekday headers with dates
-  const weekDates = dayNames.map((name, index) => {
+  const weekDates = dayNamesShort.map((name, index) => {
     const date = getDayDate(weekStart, index);
-    return `${name} ${format(date, 'd/M')}`;
+    return { name, date: format(date, 'd/M') };
   });
+
+  // Task colors matching the app
+  const taskColors: Record<string, { bg: string; text: string }> = {
+    concept: { bg: '#8B5CF6', text: '#fff' },
+    review: { bg: '#F59E0B', text: '#fff' },
+    uitwerking: { bg: '#3B82F6', text: '#fff' },
+    productie: { bg: '#10B981', text: '#fff' },
+    extern: { bg: '#EC4899', text: '#fff' },
+    optie: { bg: '#6B7280', text: '#fff' },
+  };
+
+  // Generate employee rows with time slots
+  const employeeRowsHTML = employees.map((employee) => {
+    const timeRowsHTML = timeSlots.map((hour, hourIndex) => {
+      const isLunch = hour === 13;
+      const timeLabel = isLunch ? 'Lunch' : formatHour(hour);
+      
+      const dayCellsHTML = weekDates.map((_, dayIndex) => {
+        const task = getTaskForCell(tasks, employee.name, dayIndex, hour);
+        
+        if (task && isTaskStart(task, hour)) {
+          const colors = taskColors[task.werktype] || taskColors.optie;
+          const isConcept = task.plan_status === 'concept';
+          const opacity = isConcept ? '0.6' : '1';
+          
+          return `
+            <td class="day-cell" style="background: ${isLunch ? '#fef3c7' : '#fff'};">
+              <div class="task-block" style="background: ${colors.bg}; color: ${colors.text}; opacity: ${opacity};">
+                <div class="task-client">${task.klant_naam}</div>
+                <div class="task-phase">${task.fase_naam}</div>
+              </div>
+            </td>
+          `;
+        } else if (task) {
+          // Task continues
+          const colors = taskColors[task.werktype] || taskColors.optie;
+          const isConcept = task.plan_status === 'concept';
+          const opacity = isConcept ? '0.6' : '1';
+          return `
+            <td class="day-cell" style="background: ${isLunch ? '#fef3c7' : '#fff'};">
+              <div class="task-block task-continue" style="background: ${colors.bg}; opacity: ${opacity};"></div>
+            </td>
+          `;
+        } else {
+          return `<td class="day-cell ${isLunch ? 'lunch-cell' : ''}"></td>`;
+        }
+      }).join('');
+      
+      return `
+        <tr>
+          ${hourIndex === 0 ? `
+            <td rowspan="${timeSlots.length}" class="employee-cell">
+              <div class="employee-avatar">${employee.name.split(' ').map(n => n[0]).join('')}</div>
+              <div class="employee-info">
+                <div class="employee-name">${employee.name}</div>
+                <div class="employee-role">${employee.role || ''}</div>
+              </div>
+            </td>
+          ` : ''}
+          <td class="time-cell ${isLunch ? 'lunch-cell' : ''}">${timeLabel}</td>
+          ${dayCellsHTML}
+        </tr>
+      `;
+    }).join('');
+    
+    return timeRowsHTML;
+  }).join('');
 
   return `
 <!DOCTYPE html>
@@ -151,76 +252,138 @@ function generatePlanningHTML(
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { 
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      font-size: 11px;
-      line-height: 1.4;
-      padding: 20px;
+      font-size: 10px;
+      line-height: 1.3;
+      padding: 15px;
       background: white;
     }
     .header {
-      margin-bottom: 20px;
-      border-bottom: 2px solid #333;
+      margin-bottom: 15px;
       padding-bottom: 10px;
+      border-bottom: 2px solid #333;
     }
     .header h1 {
-      font-size: 18px;
+      font-size: 16px;
       font-weight: 600;
       color: #333;
     }
     .header p {
-      font-size: 12px;
+      font-size: 11px;
       color: #666;
-      margin-top: 4px;
+      margin-top: 3px;
     }
     table {
       width: 100%;
       border-collapse: collapse;
-      margin-top: 10px;
+      table-layout: fixed;
     }
     th, td {
-      border: 1px solid #ddd;
-      padding: 6px 8px;
-      text-align: left;
-      vertical-align: top;
+      border: 1px solid #e5e7eb;
+      padding: 4px;
+      text-align: center;
+      vertical-align: middle;
     }
     th {
-      background: #f5f5f5;
+      background: #f3f4f6;
       font-weight: 600;
-      font-size: 10px;
-      text-transform: uppercase;
-      color: #555;
+      font-size: 9px;
+      color: #374151;
+      padding: 6px 4px;
     }
-    .employee-row {
-      background: #fafafa;
-      font-weight: 600;
+    th.employee-header {
+      width: 120px;
+      text-align: left;
     }
-    .employee-row td {
+    th.time-header {
+      width: 50px;
+    }
+    .employee-cell {
+      background: #fff;
+      text-align: left;
+      vertical-align: top;
       padding: 8px;
-      border-top: 2px solid #ccc;
+      border-right: 2px solid #d1d5db;
     }
-    .task-row td {
-      font-size: 10px;
+    .employee-avatar {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: #6366f1;
+      color: white;
+      font-size: 8px;
+      font-weight: 600;
+      margin-bottom: 4px;
     }
-    .status-concept {
-      color: #888;
-      font-style: italic;
+    .employee-info {
+      margin-top: 4px;
     }
-    .status-vast {
-      color: #333;
+    .employee-name {
+      font-weight: 600;
+      font-size: 9px;
+      color: #111827;
+    }
+    .employee-role {
+      font-size: 8px;
+      color: #6b7280;
+    }
+    .time-cell {
+      background: #fff;
+      font-size: 8px;
+      color: #6b7280;
       font-weight: 500;
+      width: 50px;
     }
-    .no-tasks {
-      color: #999;
-      font-style: italic;
+    .day-cell {
+      height: 24px;
+      padding: 2px;
+      vertical-align: top;
+    }
+    .lunch-cell {
+      background: #fef3c7 !important;
+    }
+    .task-block {
+      border-radius: 3px;
+      padding: 2px 4px;
+      height: 100%;
+      min-height: 18px;
+      overflow: hidden;
+    }
+    .task-continue {
+      height: 100%;
+      min-height: 18px;
+    }
+    .task-client {
+      font-size: 8px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .task-phase {
+      font-size: 7px;
+      opacity: 0.85;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .print-footer {
-      margin-top: 30px;
-      font-size: 9px;
-      color: #999;
+      margin-top: 20px;
+      font-size: 8px;
+      color: #9ca3af;
       text-align: center;
+    }
+    .no-employees {
+      text-align: center;
+      padding: 40px;
+      color: #6b7280;
+      font-style: italic;
     }
     @media print {
       body { padding: 10px; }
-      .header { margin-bottom: 15px; }
+      .header { margin-bottom: 10px; }
     }
   </style>
 </head>
@@ -233,42 +396,17 @@ function generatePlanningHTML(
   <table>
     <thead>
       <tr>
-        <th style="width: 120px;">Medewerker</th>
-        <th style="width: 80px;">Dag</th>
-        <th style="width: 70px;">Tijd</th>
-        <th>Klant</th>
-        <th>Project</th>
-        <th>Fase</th>
-        <th style="width: 60px;">Status</th>
+        <th class="employee-header">Medewerker</th>
+        <th class="time-header">Uur</th>
+        ${weekDates.map(d => `<th>${d.name}<br/><span style="font-weight: normal;">${d.date}</span></th>`).join('')}
       </tr>
     </thead>
     <tbody>
-      ${Array.from(tasksByEmployee.entries()).map(([empName, empTasks]) => {
-        const rows = empTasks.map((task, index) => {
-          const dayDate = getDayDate(weekStart, task.dag_van_week);
-          const endHour = task.start_uur + task.duur_uren;
-          const statusClass = task.plan_status === 'concept' ? 'status-concept' : 'status-vast';
-          
-          return `
-            <tr class="task-row">
-              ${index === 0 ? `<td rowspan="${empTasks.length}" class="employee-row">${empName}</td>` : ''}
-              <td>${dayNames[task.dag_van_week]} ${format(dayDate, 'd/M')}</td>
-              <td>${formatHour(task.start_uur)} - ${formatHour(endHour)}</td>
-              <td>${task.klant_naam}</td>
-              <td>${task.project_nummer}</td>
-              <td>${task.fase_naam}</td>
-              <td class="${statusClass}">${task.plan_status === 'concept' ? 'Concept' : 'Vast'}</td>
-            </tr>
-          `;
-        });
-        
-        return rows.join('');
-      }).join('')}
-      ${tasksByEmployee.size === 0 ? `
+      ${employees.length > 0 ? employeeRowsHTML : `
         <tr>
-          <td colspan="7" class="no-tasks">Geen taken gepland voor deze week</td>
+          <td colspan="7" class="no-employees">Geen medewerkers in de planning</td>
         </tr>
-      ` : ''}
+      `}
     </tbody>
   </table>
   
@@ -293,7 +431,7 @@ export function exportToPDF(
   const htmlContent = generatePlanningHTML(tasks, employees, weekStart, weekNumber, dateRange);
   
   // Open new window with print dialog
-  const printWindow = window.open('', '_blank', 'width=900,height=700');
+  const printWindow = window.open('', '_blank', 'width=1100,height=800');
   
   if (printWindow) {
     printWindow.document.write(htmlContent);
