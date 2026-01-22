@@ -452,8 +452,8 @@ export function AgendasFlow() {
               >
                 Huidige week
               </Button>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground whitespace-nowrap">Ga naar week:</span>
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-muted-foreground whitespace-nowrap mr-1">Ga naar week:</span>
                 <Select 
                   value={weekNumber.toString()} 
                   onValueChange={(v) => goToWeek(parseInt(v))}
