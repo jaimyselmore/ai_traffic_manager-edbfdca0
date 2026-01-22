@@ -103,17 +103,17 @@ CREATE POLICY "Alleen planners kunnen klanten verwijderen"
   );
 
 -- =====================================================
--- 4. MEDEWERKERS TABLE - ADD INLOG COLUMN & MIGRATE
+-- 4. USERS TABLE - ADD GEBRUIKERSNAAM COLUMN & MIGRATE
 -- =====================================================
 
--- Add inlog column if it doesn't exist
-ALTER TABLE medewerkers
-ADD COLUMN IF NOT EXISTS inlog TEXT UNIQUE;
+-- Add gebruikersnaam column to users table if it doesn't exist
+ALTER TABLE users
+ADD COLUMN IF NOT EXISTS gebruikersnaam TEXT UNIQUE;
 
--- Populate inlog from email (remove @selmore.com)
-UPDATE medewerkers
-SET inlog = REPLACE(email, '@selmore.com', '')
-WHERE email IS NOT NULL AND inlog IS NULL;
+-- Populate gebruikersnaam from email (remove @selmore.com)
+UPDATE users
+SET gebruikersnaam = REPLACE(email, '@selmore.com', '')
+WHERE email IS NOT NULL AND gebruikersnaam IS NULL;
 
 -- =====================================================
 -- 5. VERIFICATIE QUERY
@@ -132,8 +132,8 @@ WHERE schemaname = 'public'
   AND tablename IN ('users', 'klanten', 'medewerkers')
 ORDER BY tablename, cmd;
 
--- Check medewerkers inlog values
-SELECT id, naam, email, inlog
-FROM medewerkers
-WHERE email LIKE '%@selmore.com%'
+-- Check users gebruikersnaam values
+SELECT id, naam, email, gebruikersnaam
+FROM users
+WHERE is_planner = true
 ORDER BY naam;

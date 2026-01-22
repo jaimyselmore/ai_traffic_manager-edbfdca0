@@ -144,11 +144,11 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Look up user by inlog (username) - try inlog first, fallback to email for backwards compatibility
+    // Look up user by gebruikersnaam (username) - try gebruikersnaam first, fallback to email for backwards compatibility
     const { data: user, error: userError } = await supabase
       .from('users')
-      .select('id, email, inlog, naam, password_hash, is_planner, rol')
-      .or(`inlog.eq.${loginIdentifier.toLowerCase().trim()},email.eq.${loginIdentifier.toLowerCase().trim()}`)
+      .select('id, email, gebruikersnaam, naam, password_hash, is_planner, rol')
+      .or(`gebruikersnaam.eq.${loginIdentifier.toLowerCase().trim()},email.eq.${loginIdentifier.toLowerCase().trim()}`)
       .maybeSingle();
 
     if (userError || !user) {
@@ -207,8 +207,8 @@ Deno.serve(async (req) => {
       { alg: 'HS256', typ: 'JWT' },
       {
         sub: user.id,
-        email: user.email || user.inlog, // Use inlog as fallback if no email
-        inlog: user.inlog,
+        email: user.email || user.gebruikersnaam, // Use gebruikersnaam as fallback if no email
+        gebruikersnaam: user.gebruikersnaam,
         naam: user.naam,
         isPlanner: user.is_planner,
         rol: user.rol,
@@ -221,8 +221,8 @@ Deno.serve(async (req) => {
     // Return user data with session token
     const userData = {
       id: user.id,
-      email: user.email || user.inlog, // Use inlog as fallback for backwards compatibility
-      inlog: user.inlog,
+      email: user.email || user.gebruikersnaam, // Use gebruikersnaam as fallback for backwards compatibility
+      gebruikersnaam: user.gebruikersnaam,
       naam: user.naam,
       isPlanner: user.is_planner,
       rol: user.rol,
