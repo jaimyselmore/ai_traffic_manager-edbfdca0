@@ -185,21 +185,21 @@ export type Database = {
       login_attempts: {
         Row: {
           created_at: string | null
-          email: string
+          gebruikersnaam: string
           id: string
           ip_address: string | null
           success: boolean
         }
         Insert: {
           created_at?: string | null
-          email: string
+          gebruikersnaam: string
           id?: string
           ip_address?: string | null
           success?: boolean
         }
         Update: {
           created_at?: string | null
-          email?: string
+          gebruikersnaam?: string
           id?: string
           ip_address?: string | null
           success?: boolean
@@ -213,7 +213,7 @@ export type Database = {
           derde_rol: string | null
           discipline: string | null
           duo_team: string | null
-          email: string | null
+          gebruikersnaam: string | null
           in_planning: boolean | null
           is_planner: boolean | null
           microsoft_connected: boolean | null
@@ -236,7 +236,7 @@ export type Database = {
           derde_rol?: string | null
           discipline?: string | null
           duo_team?: string | null
-          email?: string | null
+          gebruikersnaam?: string | null
           in_planning?: boolean | null
           is_planner?: boolean | null
           microsoft_connected?: boolean | null
@@ -259,7 +259,7 @@ export type Database = {
           derde_rol?: string | null
           discipline?: string | null
           duo_team?: string | null
-          email?: string | null
+          gebruikersnaam?: string | null
           in_planning?: boolean | null
           is_planner?: boolean | null
           microsoft_connected?: boolean | null
@@ -743,7 +743,7 @@ export type Database = {
       users: {
         Row: {
           created_at: string | null
-          email: string
+          gebruikersnaam: string
           id: string
           is_planner: boolean | null
           naam: string
@@ -754,7 +754,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
-          email: string
+          gebruikersnaam: string
           id?: string
           is_planner?: boolean | null
           naam: string
@@ -765,7 +765,7 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
-          email?: string
+          gebruikersnaam?: string
           id?: string
           is_planner?: boolean | null
           naam?: string

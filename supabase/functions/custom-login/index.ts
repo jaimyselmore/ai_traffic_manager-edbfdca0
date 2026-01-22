@@ -30,14 +30,14 @@ async function getJwtKey(secret: string): Promise<CryptoKey> {
 // deno-lint-ignore no-explicit-any
 async function getRecentFailedAttempts(
   supabase: SupabaseClient<any>,
-  email: string
+  gebruikersnaam: string
 ): Promise<number> {
   const windowStart = new Date(Date.now() - LOCKOUT_WINDOW_MINUTES * 60 * 1000).toISOString();
   
   const { count, error } = await supabase
     .from('login_attempts')
     .select('*', { count: 'exact', head: true })
-    .eq('email', email.toLowerCase().trim())
+    .eq('gebruikersnaam', gebruikersnaam.toLowerCase().trim())
     .eq('success', false)
     .gte('created_at', windowStart);
 
@@ -53,14 +53,14 @@ async function getRecentFailedAttempts(
 // deno-lint-ignore no-explicit-any
 async function logLoginAttempt(
   supabase: SupabaseClient<any>,
-  email: string,
+  gebruikersnaam: string,
   ipAddress: string | null,
   success: boolean
 ): Promise<void> {
   const { error } = await supabase
     .from('login_attempts')
     .insert({
-      email: email.toLowerCase().trim(),
+      gebruikersnaam: gebruikersnaam.toLowerCase().trim(),
       ip_address: ipAddress,
       success,
     });
