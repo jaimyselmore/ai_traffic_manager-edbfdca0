@@ -84,11 +84,12 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { email, password } = await req.json();
+    const { email, password, username } = await req.json();
+    const loginIdentifier = username || email; // Accept either username or email for backwards compat
 
-    if (!email || !password) {
+    if (!loginIdentifier || !password) {
       return new Response(
-        JSON.stringify({ error: 'Email en wachtwoord zijn verplicht' }),
+        JSON.stringify({ error: 'Gebruikersnaam en wachtwoord zijn verplicht' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -116,14 +117,14 @@ Deno.serve(async (req) => {
     });
 
     // ===== RATE LIMITING CHECK =====
-    const failedAttempts = await getRecentFailedAttempts(supabase, email);
-    
+    const failedAttempts = await getRecentFailedAttempts(supabase, loginIdentifier);
+
     if (failedAttempts >= MAX_FAILED_ATTEMPTS) {
       const lockoutMinutes = getLockoutMinutes(failedAttempts);
-      
+
       if (lockoutMinutes > 0) {
         // Log this blocked attempt
-        await logLoginAttempt(supabase, email, ipAddress, false);
+        await logLoginAttempt(supabase, loginIdentifier, ipAddress, false);
         
         return new Response(
           JSON.stringify({ 
@@ -143,27 +144,27 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Look up user by email
+    // Look up user by inlog (username) - try inlog first, fallback to email for backwards compatibility
     const { data: user, error: userError } = await supabase
       .from('users')
-      .select('id, email, naam, password_hash, is_planner, rol')
-      .eq('email', email.toLowerCase().trim())
-      .single();
+      .select('id, email, inlog, naam, password_hash, is_planner, rol')
+      .or(`inlog.eq.${loginIdentifier.toLowerCase().trim()},email.eq.${loginIdentifier.toLowerCase().trim()}`)
+      .maybeSingle();
 
     if (userError || !user) {
       // Log failed attempt - user not found
-      await logLoginAttempt(supabase, email, ipAddress, false);
-      
+      await logLoginAttempt(supabase, loginIdentifier, ipAddress, false);
+
       return new Response(
-        JSON.stringify({ error: 'Ongeldige email of wachtwoord' }),
+        JSON.stringify({ error: 'Ongeldige gebruikersnaam of wachtwoord' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     if (!user.password_hash) {
       // Log failed attempt - no password set
-      await logLoginAttempt(supabase, email, ipAddress, false);
-      
+      await logLoginAttempt(supabase, loginIdentifier, ipAddress, false);
+
       return new Response(
         JSON.stringify({ error: 'Geen wachtwoord ingesteld voor dit account' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -175,10 +176,10 @@ Deno.serve(async (req) => {
 
     if (!passwordValid) {
       // Log failed attempt - wrong password
-      await logLoginAttempt(supabase, email, ipAddress, false);
-      
+      await logLoginAttempt(supabase, loginIdentifier, ipAddress, false);
+
       return new Response(
-        JSON.stringify({ error: 'Ongeldige email of wachtwoord' }),
+        JSON.stringify({ error: 'Ongeldige gebruikersnaam of wachtwoord' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -186,8 +187,8 @@ Deno.serve(async (req) => {
     // Check if user is planner
     if (!user.is_planner) {
       // Log failed attempt - not a planner (authorization failure)
-      await logLoginAttempt(supabase, email, ipAddress, false);
-      
+      await logLoginAttempt(supabase, loginIdentifier, ipAddress, false);
+
       return new Response(
         JSON.stringify({ error: 'Geen planner rechten' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -195,7 +196,7 @@ Deno.serve(async (req) => {
     }
 
     // ===== SUCCESS - Log and create JWT =====
-    await logLoginAttempt(supabase, email, ipAddress, true);
+    await logLoginAttempt(supabase, loginIdentifier, ipAddress, true);
 
     // Create signed JWT token (expires in 24 hours)
     const key = await getJwtKey(jwtSecret);
@@ -206,7 +207,8 @@ Deno.serve(async (req) => {
       { alg: 'HS256', typ: 'JWT' },
       {
         sub: user.id,
-        email: user.email,
+        email: user.email || user.inlog, // Use inlog as fallback if no email
+        inlog: user.inlog,
         naam: user.naam,
         isPlanner: user.is_planner,
         rol: user.rol,
@@ -219,7 +221,8 @@ Deno.serve(async (req) => {
     // Return user data with session token
     const userData = {
       id: user.id,
-      email: user.email,
+      email: user.email || user.inlog, // Use inlog as fallback for backwards compatibility
+      inlog: user.inlog,
       naam: user.naam,
       isPlanner: user.is_planner,
       rol: user.rol,

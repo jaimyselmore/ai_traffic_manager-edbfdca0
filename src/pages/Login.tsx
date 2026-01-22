@@ -9,11 +9,11 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, LogIn } from 'lucide-react';
 
 export default function Login() {
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   const { signIn } = useAuth();
   const navigate = useNavigate();
 
@@ -22,8 +22,8 @@ export default function Login() {
     setError(null);
     setIsSubmitting(true);
 
-    const { error } = await signIn(email, password);
-    
+    const { error } = await signIn(username, password);
+
     if (error) {
       setError('Ongeldige gebruikersnaam of wachtwoord');
       setIsSubmitting(false);
@@ -53,13 +53,13 @@ export default function Login() {
             )}
             
             <div className="space-y-2">
-              <Label htmlFor="email">Gebruikersnaam</Label>
+              <Label htmlFor="username">Gebruikersnaam</Label>
               <Input
-                id="email"
+                id="username"
                 type="text"
                 placeholder="jaimywals"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 required
                 autoComplete="username"
               />

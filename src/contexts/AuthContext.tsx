@@ -19,7 +19,7 @@ interface AuthContextType {
   user: AuthUser | null;
   sessionToken: string | null;
   isLoading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signIn: (username: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   verifySession: () => Promise<boolean>;
 }
@@ -99,11 +99,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(interval);
   }, [sessionToken, verifySession]);
 
-  const signIn = async (email: string, password: string): Promise<{ error: Error | null }> => {
+  const signIn = async (username: string, password: string): Promise<{ error: Error | null }> => {
     try {
-      // Call custom login edge function
+      // Call custom login edge function with username
       const { data, error } = await supabase.functions.invoke('custom-login', {
-        body: { email, password },
+        body: { username, password },
       });
 
       if (error) {
