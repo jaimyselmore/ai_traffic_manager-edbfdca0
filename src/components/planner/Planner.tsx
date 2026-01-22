@@ -28,6 +28,7 @@ const zoomLevels = [50, 75, 100, 125, 150];
 
 export function Planner() {
   const [currentWeekStart, setCurrentWeekStart] = useState(() => getWeekStart(new Date()));
+  const currentWeekNumber = getWeekNumber(getWeekStart(new Date())); // The actual current week
   const [selectedEmployee, setSelectedEmployee] = useState<string>('all');
   const [selectedClient, setSelectedClient] = useState<string>('all');
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -175,7 +176,9 @@ export function Planner() {
             }}
           >
             <SelectTrigger className="w-[200px]">
-              <SelectValue>Huidige week</SelectValue>
+              <SelectValue>
+                {weekNumber === currentWeekNumber ? 'Huidige week' : `Week ${weekNumber}`}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {Array.from({ length: 52 }, (_, i) => i + 1).map((week) => (
