@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { ArrowLeft, Eye, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { mockEmployees, getWeekStart, getWeekNumber, formatDateRange } from '@/lib/mockData';
+import { getWeekStart, getWeekNumber, formatDateRange } from '@/lib/mockData';
+import { useEmployees } from '@/hooks/use-employees';
 import { addWeeks, addDays, format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 
@@ -26,6 +27,9 @@ export function BeschikbaarheidMedewerkers({ onBack }: BeschikbaarheidMedewerker
   const [isLoading, setIsLoading] = useState(false);
   const [events, setEvents] = useState<MicrosoftEvent[]>([]);
   const [hasLoaded, setHasLoaded] = useState(false);
+
+  // Fetch employees from Supabase
+  const { data: employees = [], isLoading: isLoadingEmployees } = useEmployees();
 
   const weekNumber = getWeekNumber(currentWeekStart);
   const dateRange = formatDateRange(currentWeekStart);
@@ -204,14 +208,14 @@ export function BeschikbaarheidMedewerkers({ onBack }: BeschikbaarheidMedewerker
           {/* Employee selector */}
           <div className="flex items-center gap-3">
             <span className="text-sm text-muted-foreground w-24">Medewerker:</span>
-            <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
+            <Select value={selectedEmployee} onValueChange={setSelectedEmployee} disabled={isLoadingEmployees}>
               <SelectTrigger className="flex-1">
-                <SelectValue placeholder="Selecteer een medewerker" />
+                <SelectValue placeholder={isLoadingEmployees ? "Laden..." : "Selecteer een medewerker"} />
               </SelectTrigger>
               <SelectContent>
-                {mockEmployees.map((emp) => (
+                {employees.map((emp) => (
                   <SelectItem key={emp.id} value={emp.id}>
-                    {emp.name} – {emp.role}
+                    {emp.name} – {emp.role || 'Geen rol'}
                   </SelectItem>
                 ))}
               </SelectContent>
