@@ -263,15 +263,15 @@ export function KlantenTab() {
       <div className="rounded-md border">
         <Table>
           <TableHeader>
-            <TableRow className="bg-muted/50">
-              <TableHead className="w-28 font-semibold">Klantnr</TableHead>
-              <TableHead className="font-semibold">Naam</TableHead>
-              <TableHead className="font-semibold">Contactpersoon</TableHead>
-              <TableHead className="font-semibold">Email</TableHead>
-              <TableHead className="font-semibold">Telefoon</TableHead>
-              <TableHead className="font-semibold">Adres</TableHead>
-              <TableHead className="font-semibold">Notities</TableHead>
-              <TableHead className="w-20"></TableHead>
+            <TableRow>
+              <TableHead className="w-24">Klantnr</TableHead>
+              <TableHead>Naam</TableHead>
+              <TableHead>Contactpersoon</TableHead>
+              <TableHead>Email</TableHead>
+              <TableHead>Telefoon</TableHead>
+              <TableHead>Adres</TableHead>
+              <TableHead>Notities</TableHead>
+              <TableHead className="w-24">Acties</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -289,20 +289,20 @@ export function KlantenTab() {
               </TableRow>
             ) : (
               filtered.map((k: Klant) => (
-                <TableRow key={k.id} className="hover:bg-muted/30">
-                  <TableCell className="font-mono text-sm">{k.klantnummer}</TableCell>
+                <TableRow key={k.id}>
+                  <TableCell className="font-mono text-xs">{k.klantnummer}</TableCell>
                   <TableCell className="font-medium">{k.naam}</TableCell>
-                  <TableCell className="text-muted-foreground">{k.contactpersoon || '-'}</TableCell>
-                  <TableCell className="text-muted-foreground">{k.email || '-'}</TableCell>
-                  <TableCell className="text-muted-foreground">{k.telefoon || '-'}</TableCell>
-                  <TableCell className="max-w-[180px] truncate text-muted-foreground" title={k.adres || ''}>{k.adres || '-'}</TableCell>
-                  <TableCell className="max-w-[180px] truncate text-muted-foreground" title={k.notities || ''}>{k.notities || '-'}</TableCell>
+                  <TableCell>{k.contactpersoon || '-'}</TableCell>
+                  <TableCell>{k.email || '-'}</TableCell>
+                  <TableCell>{k.telefoon || '-'}</TableCell>
+                  <TableCell className="max-w-[200px] truncate" title={k.adres || ''}>{k.adres || '-'}</TableCell>
+                  <TableCell className="max-w-[200px] truncate" title={k.notities || ''}>{k.notities || '-'}</TableCell>
                   <TableCell>
-                    <div className="flex gap-1 justify-end">
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(k)}>
+                    <div className="flex gap-1">
+                      <Button variant="ghost" size="icon" onClick={() => openEdit(k)}>
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => confirmDelete(k)}>
+                      <Button variant="ghost" size="icon" onClick={() => confirmDelete(k)}>
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </div>
