@@ -442,10 +442,10 @@ export function AgendasFlow() {
       <div className="flex items-start gap-6 mb-6">
         {/* Week + Medewerker + Options + Toon planner card - LEFT */}
         <div className="shrink-0">
-          <div className="rounded-xl border border-border bg-card px-6 py-5 shadow-sm w-[420px]">
-            {/* Week controls */}
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-6">
+          <div className="rounded-xl border border-border bg-card px-6 py-5 shadow-sm w-[560px]">
+            {/* Row 1: Week controls + Huidige agenda checkbox */}
+            <div className="flex items-center mb-4">
+              <div className="flex items-center gap-6 w-[232px]">
                 <Button 
                   variant="outline" 
                   size="sm"
@@ -472,9 +472,21 @@ export function AgendasFlow() {
                   </SelectContent>
                 </Select>
               </div>
+              {selectedEmployee && (
+                <div className="flex items-center space-x-2 ml-6">
+                  <Checkbox 
+                    id="currentAgenda" 
+                    checked={showCurrentAgenda}
+                    onCheckedChange={(checked) => setShowCurrentAgenda(checked === true)}
+                  />
+                  <label htmlFor="currentAgenda" className="text-sm font-medium leading-none cursor-pointer whitespace-nowrap">
+                    Huidige agenda
+                  </label>
+                </div>
+              )}
             </div>
 
-            {/* Medewerker select */}
+            {/* Row 2: Medewerker select + Nieuwe planning checkbox */}
             <div className="flex items-center mb-4">
               <span className="text-sm text-muted-foreground shrink-0 w-[232px]">Medewerker:</span>
               <div className="w-[140px]">
@@ -491,33 +503,20 @@ export function AgendasFlow() {
                   </SelectContent>
                 </Select>
               </div>
-            </div>
-
-            {/* View options - only show after employee is selected */}
-            {selectedEmployee && (
-              <div className="flex items-center gap-6 mb-4">
-                <div className="flex items-center space-x-2">
-                  <Checkbox 
-                    id="currentAgenda" 
-                    checked={showCurrentAgenda}
-                    onCheckedChange={(checked) => setShowCurrentAgenda(checked === true)}
-                  />
-                  <label htmlFor="currentAgenda" className="text-sm font-medium leading-none cursor-pointer">
-                    Huidige agenda
-                  </label>
-                </div>
-                <div className="flex items-center space-x-2">
+              {selectedEmployee && (
+                <div className="flex items-center space-x-2 ml-6">
                   <Checkbox 
                     id="newPlanning" 
                     checked={showNewPlanning}
                     onCheckedChange={(checked) => setShowNewPlanning(checked === true)}
                   />
-                  <label htmlFor="newPlanning" className="text-sm font-medium leading-none cursor-pointer">
+                  <label htmlFor="newPlanning" className="text-sm font-medium leading-none cursor-pointer whitespace-nowrap">
                     Nieuwe planning
                   </label>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
+
             {validationMessage && (
               <p className="text-xs text-amber-600 mb-4">{validationMessage}</p>
             )}
