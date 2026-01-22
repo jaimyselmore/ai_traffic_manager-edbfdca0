@@ -458,7 +458,7 @@ export function AgendasFlow() {
                   value={weekNumber.toString()} 
                   onValueChange={(v) => goToWeek(parseInt(v))}
                 >
-                  <SelectTrigger className="w-40">
+                  <SelectTrigger className="w-16">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
