@@ -213,7 +213,6 @@ export function AccountSettingsDialog({ open, onOpenChange }: AccountSettingsDia
                   <Input
                     id="newUsername"
                     type="text"
-                    placeholder="jouw nieuwe naam"
                     value={newUsername}
                     onChange={(e) => setNewUsername(e.target.value)}
                     disabled={usernameLoading || usernameSuccess}
