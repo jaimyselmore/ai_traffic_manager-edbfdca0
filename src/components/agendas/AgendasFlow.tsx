@@ -441,10 +441,10 @@ export function AgendasFlow() {
       {/* Selection card + Legend row */}
       <div className="flex items-start gap-6 mb-6">
         {/* Week + Medewerker + Options + Toon planner card - LEFT */}
-        <div className="shrink-0 w-80">
+        <div className="shrink-0">
           <div className="rounded-xl border border-border bg-card px-6 py-5 shadow-sm">
             {/* Week controls */}
-            <div className="flex items-center gap-3 mb-4">
+            <div className="flex items-center gap-3 mb-4 whitespace-nowrap">
               <Button 
                 variant="outline" 
                 size="sm"
@@ -453,42 +453,38 @@ export function AgendasFlow() {
                 Huidige week
               </Button>
               <span className="text-sm text-muted-foreground">Ga naar week:</span>
-              <div className="ml-auto w-20">
-                <Select 
-                  value={weekNumber.toString()} 
-                  onValueChange={(v) => goToWeek(parseInt(v))}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Array.from({ length: 52 }, (_, i) => i + 1).map((week) => (
-                      <SelectItem key={week} value={week.toString()}>
-                        {week}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <Select 
+                value={weekNumber.toString()} 
+                onValueChange={(v) => goToWeek(parseInt(v))}
+              >
+                <SelectTrigger className="w-16">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 52 }, (_, i) => i + 1).map((week) => (
+                    <SelectItem key={week} value={week.toString()}>
+                      {week}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Medewerker select */}
-            <div className="flex items-center gap-2 mb-4">
+            <div className="flex items-center gap-2 mb-4 whitespace-nowrap">
               <span className="text-sm text-muted-foreground">Medewerker:</span>
-              <div className="ml-auto w-48">
-                <Select value={selectedEmployee} onValueChange={setSelectedEmployee} disabled={isLoadingEmployees}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder={isLoadingEmployees ? 'Laden...' : 'Selecteer medewerker'} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {employees.map((emp) => (
-                      <SelectItem key={emp.id} value={emp.id}>
-                        {emp.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <Select value={selectedEmployee} onValueChange={setSelectedEmployee} disabled={isLoadingEmployees}>
+                <SelectTrigger className="w-auto min-w-[160px]">
+                  <SelectValue placeholder={isLoadingEmployees ? 'Laden...' : 'Selecteer medewerker'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {employees.map((emp) => (
+                    <SelectItem key={emp.id} value={emp.id}>
+                      {emp.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* View options */}
@@ -517,11 +513,6 @@ export function AgendasFlow() {
                 <p className="text-xs text-amber-600">{validationMessage}</p>
               )}
             </div>
-
-            {/* Description */}
-            <p className="text-sm text-muted-foreground mb-4">
-              Kies welke weergaven je wilt zien: de huidige agenda, de nieuwe planning, of allebei.
-            </p>
 
             {/* Show planner button */}
             <Button 
