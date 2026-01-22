@@ -90,19 +90,17 @@ export function Planner() {
 
   return (
     <div className="space-y-8">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Planner</h1>
-        <p className="mt-1 text-base text-muted-foreground">
-          Week {weekNumber} – {dateRange}
-        </p>
-      </div>
+      {/* Header with controls on same line */}
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Planner</h1>
+          <p className="mt-1 text-base text-muted-foreground">
+            Week {weekNumber} – {dateRange}
+          </p>
+        </div>
 
-      {/* Controls Row */}
-      <div className="flex items-center justify-between">
-        <div></div>
-
-        <div className="flex items-center gap-3">
+        {/* Zoom, Download, Vergroot planner - right side, responsive */}
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <div className="flex items-center gap-1">
             <Button
               variant="ghost"
@@ -138,9 +136,9 @@ export function Planner() {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline">
+              <Button variant="outline" size="sm" className="h-9">
                 <Download className="mr-2 h-4 w-4" />
-                Download
+                <span className="hidden sm:inline">Download</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
@@ -153,9 +151,9 @@ export function Planner() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <Button variant="outline" onClick={() => setIsFullscreen(true)}>
+          <Button variant="outline" size="sm" className="h-9" onClick={() => setIsFullscreen(true)}>
             <Maximize2 className="mr-2 h-4 w-4" />
-            Vergroot planner
+            <span className="hidden sm:inline">Vergroot planner</span>
           </Button>
         </div>
       </div>
