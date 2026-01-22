@@ -271,7 +271,7 @@ export function KlantenTab() {
               <TableHead>Telefoon</TableHead>
               <TableHead>Adres</TableHead>
               <TableHead>Notities</TableHead>
-              <TableHead className="w-24">Acties</TableHead>
+              <TableHead className="w-24"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
