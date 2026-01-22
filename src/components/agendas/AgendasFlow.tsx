@@ -10,9 +10,11 @@ import {
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
-import { mockEmployees, mockClients, generateMockTasks, getWeekStart, getWeekNumber, formatDateRange, Task, Employee } from '@/lib/mockData';
+import { mockClients, generateMockTasks, getWeekStart, getWeekNumber, formatDateRange, Task } from '@/lib/mockData';
 import { TaskLegend } from '@/components/planner/TaskLegend';
 import { Loader2, CheckCircle2, XCircle } from 'lucide-react';
+import { useEmployees } from '@/hooks/use-employees';
+import type { Employee } from '@/lib/data/types';
 
 const dayNames = ['Ma', 'Di', 'Wo', 'Do', 'Vr'];
 const timeSlots = [9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
@@ -227,6 +229,9 @@ export function AgendasFlow() {
   const [currentWeekStart, setCurrentWeekStart] = useState(() => getWeekStart(new Date()));
   const [selectedEmployee, setSelectedEmployee] = useState<string>('');
   const [showPlanner, setShowPlanner] = useState(false);
+
+  // Medewerkers uit Supabase (zelfde bron als Planner)
+  const { data: employees = [], isLoading: isLoadingEmployees } = useEmployees();
   
   // Selection states for Huidige agenda
   const [isSelectingCurrent, setIsSelectingCurrent] = useState(false);
@@ -269,8 +274,16 @@ export function AgendasFlow() {
   }, [tasks, selectedEmployee]);
 
   const selectedEmployeeData = useMemo(() => {
-    return mockEmployees.find(emp => emp.id === selectedEmployee);
-  }, [selectedEmployee]);
+    return employees.find((emp) => emp.id === selectedEmployee);
+  }, [employees, selectedEmployee]);
+
+  // Als de geselecteerde medewerker niet meer bestaat (bijv. verwijderd), reset selectie.
+  useEffect(() => {
+    if (!selectedEmployee) return;
+    if (employees.length === 0) return;
+    const exists = employees.some((e) => e.id === selectedEmployee);
+    if (!exists) setSelectedEmployee('');
+  }, [employees, selectedEmployee]);
 
   // Ensure at least one view is selected
   useEffect(() => {
@@ -468,12 +481,12 @@ export function AgendasFlow() {
             <div className="flex items-center gap-2 mb-4">
               <span className="text-sm text-muted-foreground">Medewerker:</span>
               <div className="ml-auto w-48">
-                <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
+                <Select value={selectedEmployee} onValueChange={setSelectedEmployee} disabled={isLoadingEmployees}>
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Selecteer medewerker" />
+                    <SelectValue placeholder={isLoadingEmployees ? 'Laden...' : 'Selecteer medewerker'} />
                   </SelectTrigger>
                   <SelectContent>
-                    {mockEmployees.map((emp) => (
+                    {employees.map((emp) => (
                       <SelectItem key={emp.id} value={emp.id}>
                         {emp.name}
                       </SelectItem>
