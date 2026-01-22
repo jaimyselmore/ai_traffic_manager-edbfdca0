@@ -58,6 +58,18 @@ interface KlantRow {
   notities: string | null
 }
 
+interface ProjectRow {
+  id: string
+  projectnummer: string
+  volgnummer: number
+  klant_id: string | null
+  omschrijving: string
+  projecttype: string
+  datum_aanvraag: string
+  deadline: string
+  status: string | null
+}
+
 interface TaakRow {
   id: string
   project_id: string | null
@@ -292,6 +304,56 @@ export async function createClient(clientData: {
     address: result.adres || '',
     notes: result.notities || '',
   }
+}
+
+// ===========================================
+// PROJECTS (projecten)
+// ===========================================
+
+export interface ProjectSummary {
+  id: string
+  projectnummer: string
+  omschrijving: string
+  projecttype: string
+  klant_id: string | null
+  klant_naam?: string
+  deadline: string
+  status: string | null
+}
+
+/**
+ * Haal projecten op uit Supabase met klantnaam
+ */
+export async function getProjects(): Promise<ProjectSummary[]> {
+  const { data, error } = await supabase
+    .from('projecten')
+    .select(`
+      id,
+      projectnummer,
+      omschrijving,
+      projecttype,
+      klant_id,
+      deadline,
+      status,
+      klanten (naam)
+    `)
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    console.error('Fout bij ophalen projecten:', error)
+    throw new Error(`Fout bij ophalen projecten: ${error.message}`)
+  }
+
+  return ((data || []) as any[]).map((project) => ({
+    id: project.id,
+    projectnummer: project.projectnummer,
+    omschrijving: project.omschrijving,
+    projecttype: project.projecttype,
+    klant_id: project.klant_id,
+    klant_naam: project.klanten?.naam || 'Onbekende klant',
+    deadline: project.deadline,
+    status: project.status,
+  }))
 }
 
 // ===========================================
