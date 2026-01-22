@@ -270,19 +270,20 @@ export function KlantenTab() {
               <TableHead>Email</TableHead>
               <TableHead>Telefoon</TableHead>
               <TableHead>Adres</TableHead>
+              <TableHead>Notities</TableHead>
               <TableHead className="w-24">Acties</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                   Laden...
                 </TableCell>
               </TableRow>
             ) : filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                   Geen klanten gevonden
                 </TableCell>
               </TableRow>
@@ -295,6 +296,7 @@ export function KlantenTab() {
                   <TableCell>{k.email || '-'}</TableCell>
                   <TableCell>{k.telefoon || '-'}</TableCell>
                   <TableCell className="max-w-[200px] truncate" title={k.adres || ''}>{k.adres || '-'}</TableCell>
+                  <TableCell className="max-w-[200px] truncate" title={k.notities || ''}>{k.notities || '-'}</TableCell>
                   <TableCell>
                     <div className="flex gap-1">
                       <Button variant="ghost" size="icon" onClick={() => openEdit(k)}>
