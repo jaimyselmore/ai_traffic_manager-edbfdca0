@@ -173,7 +173,7 @@ export function Planner() {
             </Button>
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground whitespace-nowrap">Ga naar week:</span>
-              <div className="w-16">
+              <div className="w-40">
                 <Select 
                   value={weekNumber.toString()} 
                   onValueChange={(v) => {
