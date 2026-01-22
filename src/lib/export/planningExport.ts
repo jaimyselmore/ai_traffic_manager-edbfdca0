@@ -442,8 +442,8 @@ export function exportToPDF(
     },
     jsPDF: { 
       unit: 'mm', 
-      format: 'a4', 
-      orientation: 'landscape' as const,
+      format: 'a3', 
+      orientation: 'portrait' as const,
     },
   };
   
