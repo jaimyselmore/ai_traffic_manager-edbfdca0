@@ -14,3 +14,18 @@ verify_jwt = false
 
 [functions.update-account]
 verify_jwt = false
+
+[functions.microsoft-login]
+verify_jwt = false
+
+[functions.microsoft-callback]
+verify_jwt = false
+
+[functions.microsoft-status]
+verify_jwt = false
+
+[functions.microsoft-disconnect]
+verify_jwt = false
+
+[functions.get-calendar-events]
+verify_jwt = false

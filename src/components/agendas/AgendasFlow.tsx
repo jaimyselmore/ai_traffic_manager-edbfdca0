@@ -438,15 +438,10 @@ export function AgendasFlow() {
         </p>
       </div>
 
-      {/* Legend + Selection card row */}
+      {/* Selection card + Legend row */}
       <div className="flex items-start gap-6 mb-6">
-        {/* Legend card */}
-        <div className="shrink-0">
-          <TaskLegend />
-        </div>
-
-        {/* Week + Medewerker + Options + Toon planner card */}
-        <div className="flex-1 max-w-md">
+        {/* Week + Medewerker + Options + Toon planner card - LEFT */}
+        <div className="shrink-0 w-80">
           <div className="rounded-xl border border-border bg-card px-6 py-5 shadow-sm">
             {/* Week controls */}
             <div className="flex items-center gap-3 mb-4">
@@ -538,6 +533,13 @@ export function AgendasFlow() {
             </Button>
           </div>
         </div>
+
+        {/* Legend card - RIGHT, only visible when Nieuwe planning is checked */}
+        {showNewPlanning && (
+          <div className="shrink-0">
+            <TaskLegend />
+          </div>
+        )}
       </div>
 
       {/* Planner views for selected employee */}
