@@ -163,7 +163,7 @@ export function Planner() {
         {/* Left: Filter card */}
         <div className="rounded-xl border border-border bg-card px-6 py-4 shadow-sm w-[320px]">
           {/* Row 1: Week controls */}
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center mb-4">
             <Button 
               variant="outline" 
               size="sm"
@@ -171,8 +171,8 @@ export function Planner() {
             >
               Huidige week
             </Button>
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-muted-foreground whitespace-nowrap mr-1">Ga naar week:</span>
+            <div className="flex items-center gap-3 ml-8">
+              <span className="text-sm text-muted-foreground whitespace-nowrap">Ga naar week:</span>
               <div className="w-16">
                 <Select 
                   value={weekNumber.toString()} 

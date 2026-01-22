@@ -444,7 +444,7 @@ export function AgendasFlow() {
         <div className="shrink-0">
           <div className="rounded-xl border border-border bg-card px-6 py-5 shadow-sm">
             {/* Week controls */}
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center mb-4">
               <Button 
                 variant="outline" 
                 size="sm"
@@ -452,8 +452,8 @@ export function AgendasFlow() {
               >
                 Huidige week
               </Button>
-              <div className="flex items-center gap-3">
-                <span className="text-sm text-muted-foreground whitespace-nowrap mr-1">Ga naar week:</span>
+              <div className="flex items-center gap-3 ml-8">
+                <span className="text-sm text-muted-foreground whitespace-nowrap">Ga naar week:</span>
                 <Select 
                   value={weekNumber.toString()} 
                   onValueChange={(v) => goToWeek(parseInt(v))}
