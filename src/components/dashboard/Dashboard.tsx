@@ -5,7 +5,8 @@ import { StatCard } from './StatCard';
 import { RequestBlock } from './RequestBlock';
 import { NotificationPanel, type Notification as PanelNotification, type NotificationType } from './NotificationPanel';
 import { getWeekNumber, getWeekStart, formatDateRange } from '@/lib/mockData';
-import { useEmployees, useNotifications } from '@/lib/data';
+import { useNotifications } from '@/lib/data';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface DashboardProps {
   selectedEmployeeId: string;
@@ -13,7 +14,7 @@ interface DashboardProps {
 
 export function Dashboard({ selectedEmployeeId }: DashboardProps) {
   const navigate = useNavigate();
-  const { data: employees = [] } = useEmployees();
+  const { user } = useAuth();
   const { data: initialNotifications = [] } = useNotifications();
 
   // Convert data layer notifications to panel notifications
@@ -45,8 +46,8 @@ export function Dashboard({ selectedEmployeeId }: DashboardProps) {
   const weekNumber = getWeekNumber(today);
   const dateRange = formatDateRange(weekStart);
 
-  const currentEmployee = employees.find(emp => emp.id === selectedEmployeeId);
-  const employeeName = currentEmployee?.name.split(' ')[0] || 'Gebruiker';
+  // Gebruik de naam van de ingelogde gebruiker
+  const employeeName = user?.naam?.split(' ')[0] || 'Gebruiker';
 
   // Calculate counts per type (only open items)
   const getCount = (type: NotificationType) =>
