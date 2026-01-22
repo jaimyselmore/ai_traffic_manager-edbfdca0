@@ -164,11 +164,11 @@ export function Planner() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
-              <DropdownMenuItem onClick={handleDownloadCSV}>
-                Deze week als CSV
-              </DropdownMenuItem>
               <DropdownMenuItem onClick={handleDownloadPDF}>
                 Deze week als PDF
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleDownloadCSV}>
+                Deze week als CSV
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
