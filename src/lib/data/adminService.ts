@@ -353,3 +353,69 @@ export async function deleteKlant(id: string, _userId?: string) {
 
   if (error) throw mapErrorMessage(error);
 }
+
+// ===========================================
+// PROJECTTYPES CRUD
+// ===========================================
+
+export async function getProjecttypes() {
+  const { data, error } = await secureSelect<{
+    id: string;
+    code: string;
+    naam: string;
+    omschrijving: string | null;
+    is_system: boolean;
+  }>('projecttypes', {
+    order: { column: 'naam', ascending: true },
+  });
+
+  if (error) throw mapErrorMessage(error);
+  return data || [];
+}
+
+export async function createProjecttype(
+  projecttype: {
+    code: string;
+    naam: string;
+    omschrijving?: string;
+  },
+  _userId?: string
+) {
+  const { data, error } = await secureInsert<{
+    id: string;
+    code: string;
+    naam: string;
+  }>('projecttypes', {
+    ...projecttype,
+    code: projecttype.code.toLowerCase().replace(/\s+/g, '_'),
+    is_system: false,
+  });
+
+  if (error) throw mapErrorMessage(error);
+
+  return data?.[0];
+}
+
+export async function updateProjecttype(
+  id: string,
+  updates: Partial<{
+    naam: string;
+    omschrijving: string;
+  }>,
+  _userId?: string
+) {
+  const { data, error } = await secureUpdate<{
+    id: string;
+    naam: string;
+  }>('projecttypes', updates, [{ column: 'id', operator: 'eq', value: id }]);
+
+  if (error) throw mapErrorMessage(error);
+
+  return data?.[0];
+}
+
+export async function deleteProjecttype(id: string, _userId?: string) {
+  const { error } = await secureDelete('projecttypes', [{ column: 'id', operator: 'eq', value: id }]);
+
+  if (error) throw mapErrorMessage(error);
+}

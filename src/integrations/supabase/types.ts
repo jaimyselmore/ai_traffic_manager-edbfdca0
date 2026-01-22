@@ -609,6 +609,36 @@ export type Database = {
           },
         ]
       }
+      projecttypes: {
+        Row: {
+          code: string
+          created_at: string
+          id: string
+          is_system: boolean
+          naam: string
+          omschrijving: string | null
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          id?: string
+          is_system?: boolean
+          naam: string
+          omschrijving?: string | null
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          id?: string
+          is_system?: boolean
+          naam?: string
+          omschrijving?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       rolprofielen: {
         Row: {
           beschrijving_rol: string | null
