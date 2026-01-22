@@ -104,8 +104,9 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
         land: tempNewClient.land || undefined,
       });
 
-      // Invalidate clients cache so all dropdowns update
+      // Invalidate both client cache keys so all dropdowns update (including admin panel)
       await queryClient.invalidateQueries({ queryKey: ['clients'] });
+      await queryClient.invalidateQueries({ queryKey: ['klanten'] });
 
       // Update form with new client
       const volledigProjectId = computeVolledigProjectId(newClient.code || '', data.projectVolgnummer);
