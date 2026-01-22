@@ -42,9 +42,23 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
     contactpersoon: '', 
     email: '', 
     telefoon: '', 
-    adres: '', 
+    postcode: '',
+    huisnummer: '',
+    plaats: '',
+    land: '',
     notities: '' 
   });
+
+  // Helper to combine address fields
+  const combineAddress = (postcode: string, huisnummer: string, plaats: string, land: string): string => {
+    const parts: string[] = [];
+    if (postcode || huisnummer) {
+      parts.push([postcode, huisnummer].filter(Boolean).join(' '));
+    }
+    if (plaats) parts.push(plaats);
+    if (land) parts.push(land);
+    return parts.join(', ');
+  };
 
   // Compute volledig project-ID
   const computeVolledigProjectId = (klantIdBasis: string, volgnummer: string): string => {
@@ -115,7 +129,7 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
         contactpersoon: tempNewClient.contactpersoon || undefined,
         email: tempNewClient.email || undefined,
         telefoon: tempNewClient.telefoon || undefined,
-        adres: tempNewClient.adres || undefined,
+        adres: combineAddress(tempNewClient.postcode, tempNewClient.huisnummer, tempNewClient.plaats, tempNewClient.land) || undefined,
         notities: tempNewClient.notities || undefined,
       });
 
@@ -139,7 +153,7 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
       });
 
       setIsAddingNewClient(false);
-      setTempNewClient({ klantnummer: '', naam: '', contactpersoon: '', email: '', telefoon: '', adres: '', notities: '' });
+      setTempNewClient({ klantnummer: '', naam: '', contactpersoon: '', email: '', telefoon: '', postcode: '', huisnummer: '', plaats: '', land: '', notities: '' });
     } catch (error) {
       console.error('Fout bij opslaan klant:', error);
       toast({
@@ -154,7 +168,7 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
 
   const handleCancelNewClient = () => {
     setIsAddingNewClient(false);
-    setTempNewClient({ klantnummer: '', naam: '', contactpersoon: '', email: '', telefoon: '', adres: '', notities: '' });
+    setTempNewClient({ klantnummer: '', naam: '', contactpersoon: '', email: '', telefoon: '', postcode: '', huisnummer: '', plaats: '', land: '', notities: '' });
   };
 
   // Find selected client name for display
@@ -243,12 +257,42 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
                   disabled={isSavingClient}
                 />
               </div>
-              <div className="col-span-2">
-                <Label className="text-xs">Adres</Label>
+              <div>
+                <Label className="text-xs">Postcode</Label>
                 <Input
-                  value={tempNewClient.adres}
-                  onChange={(e) => setTempNewClient({ ...tempNewClient, adres: e.target.value })}
-                  placeholder="Volledig adres"
+                  value={tempNewClient.postcode}
+                  onChange={(e) => setTempNewClient({ ...tempNewClient, postcode: e.target.value })}
+                  placeholder="1234 AB"
+                  className="mt-1"
+                  disabled={isSavingClient}
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Huisnummer</Label>
+                <Input
+                  value={tempNewClient.huisnummer}
+                  onChange={(e) => setTempNewClient({ ...tempNewClient, huisnummer: e.target.value })}
+                  placeholder="123a"
+                  className="mt-1"
+                  disabled={isSavingClient}
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Plaats</Label>
+                <Input
+                  value={tempNewClient.plaats}
+                  onChange={(e) => setTempNewClient({ ...tempNewClient, plaats: e.target.value })}
+                  placeholder="Amsterdam"
+                  className="mt-1"
+                  disabled={isSavingClient}
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Land</Label>
+                <Input
+                  value={tempNewClient.land}
+                  onChange={(e) => setTempNewClient({ ...tempNewClient, land: e.target.value })}
+                  placeholder="Nederland"
                   className="mt-1"
                   disabled={isSavingClient}
                 />

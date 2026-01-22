@@ -55,8 +55,56 @@ const emptyForm = {
   contactpersoon: '',
   email: '',
   telefoon: '',
-  adres: '',
+  postcode: '',
+  huisnummer: '',
+  plaats: '',
+  land: '',
   notities: '',
+};
+
+// Helper to combine address fields into single string
+const combineAddress = (postcode: string, huisnummer: string, plaats: string, land: string): string => {
+  const parts: string[] = [];
+  if (postcode || huisnummer) {
+    parts.push([postcode, huisnummer].filter(Boolean).join(' '));
+  }
+  if (plaats) parts.push(plaats);
+  if (land) parts.push(land);
+  return parts.join(', ');
+};
+
+// Helper to parse address string back into components
+const parseAddress = (adres: string | null): { postcode: string; huisnummer: string; plaats: string; land: string } => {
+  if (!adres) return { postcode: '', huisnummer: '', plaats: '', land: '' };
+  
+  const parts = adres.split(', ').map(p => p.trim());
+  if (parts.length === 0) return { postcode: '', huisnummer: '', plaats: '', land: '' };
+  
+  // Try to extract postcode and huisnummer from first part
+  const firstPart = parts[0] || '';
+  const postcodeMatch = firstPart.match(/^(\d{4}\s?[A-Z]{2})\s*(.*)$/i);
+  
+  let postcode = '';
+  let huisnummer = '';
+  
+  if (postcodeMatch) {
+    postcode = postcodeMatch[1] || '';
+    huisnummer = postcodeMatch[2] || '';
+  } else {
+    // If no Dutch postcode pattern, just use the first part as-is
+    const spaceParts = firstPart.split(' ');
+    if (spaceParts.length >= 2) {
+      postcode = spaceParts[0] || '';
+      huisnummer = spaceParts.slice(1).join(' ');
+    } else {
+      postcode = firstPart;
+    }
+  }
+  
+  const plaats = parts[1] || '';
+  const land = parts[2] || '';
+  
+  return { postcode, huisnummer, plaats, land };
 };
 
 export function KlantenTab() {
@@ -75,8 +123,19 @@ export function KlantenTab() {
     queryFn: getKlanten,
   });
 
+  // Type for database operations (with combined adres field)
+  type KlantDbData = {
+    klantnummer: string;
+    naam: string;
+    contactpersoon: string;
+    email: string;
+    telefoon: string;
+    adres: string;
+    notities: string;
+  };
+
   const createMutation = useMutation({
-    mutationFn: (data: typeof form) => createKlant(data, user?.id),
+    mutationFn: (data: KlantDbData) => createKlant(data, user?.id),
     onSuccess: () => {
       // Invalidate both query keys to sync all dropdowns
       queryClient.invalidateQueries({ queryKey: ['klanten'] });
@@ -88,7 +147,7 @@ export function KlantenTab() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: typeof form }) =>
+    mutationFn: ({ id, data }: { id: string; data: KlantDbData }) =>
       updateKlant(id, data, user?.id),
     onSuccess: () => {
       // Invalidate both query keys to sync all dropdowns
@@ -128,13 +187,17 @@ export function KlantenTab() {
 
   const openEdit = (item: Klant) => {
     setEditingItem(item);
+    const parsed = parseAddress(item.adres);
     setForm({
       klantnummer: item.klantnummer,
       naam: item.naam,
       contactpersoon: item.contactpersoon || '',
       email: item.email || '',
       telefoon: item.telefoon || '',
-      adres: item.adres || '',
+      postcode: parsed.postcode,
+      huisnummer: parsed.huisnummer,
+      plaats: parsed.plaats,
+      land: parsed.land,
       notities: item.notities || '',
     });
     setIsDialogOpen(true);
@@ -156,10 +219,21 @@ export function KlantenTab() {
       toast.error('Naam is verplicht');
       return;
     }
+    // Combine address fields into single adres string for database
+    const formData = {
+      klantnummer: form.klantnummer,
+      naam: form.naam,
+      contactpersoon: form.contactpersoon,
+      email: form.email,
+      telefoon: form.telefoon,
+      adres: combineAddress(form.postcode, form.huisnummer, form.plaats, form.land),
+      notities: form.notities,
+    };
+    
     if (editingItem) {
-      updateMutation.mutate({ id: editingItem.id, data: form });
+      updateMutation.mutate({ id: editingItem.id, data: formData });
     } else {
-      createMutation.mutate(form);
+      createMutation.mutate(formData);
     }
   };
 
@@ -284,11 +358,36 @@ export function KlantenTab() {
                   onChange={(e) => setForm({ ...form, telefoon: e.target.value })}
                 />
               </div>
-              <div className="space-y-2 col-span-2">
-                <Label>Adres</Label>
+              <div className="space-y-2">
+                <Label>Postcode</Label>
                 <Input
-                  value={form.adres}
-                  onChange={(e) => setForm({ ...form, adres: e.target.value })}
+                  value={form.postcode}
+                  onChange={(e) => setForm({ ...form, postcode: e.target.value })}
+                  placeholder="1234 AB"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Huisnummer</Label>
+                <Input
+                  value={form.huisnummer}
+                  onChange={(e) => setForm({ ...form, huisnummer: e.target.value })}
+                  placeholder="123a"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Plaats</Label>
+                <Input
+                  value={form.plaats}
+                  onChange={(e) => setForm({ ...form, plaats: e.target.value })}
+                  placeholder="Amsterdam"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Land</Label>
+                <Input
+                  value={form.land}
+                  onChange={(e) => setForm({ ...form, land: e.target.value })}
+                  placeholder="Nederland"
                 />
               </div>
             </div>
