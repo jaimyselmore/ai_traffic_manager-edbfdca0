@@ -5,7 +5,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { useClients } from '@/lib/data';
+import { createClient } from '@/lib/data/dataService';
 import { toast } from '@/hooks/use-toast';
+import { useQueryClient } from '@tanstack/react-query';
+import { Loader2 } from 'lucide-react';
 
 export interface ProjectHeaderData {
   klantId: string;
@@ -18,7 +21,7 @@ export interface ProjectHeaderData {
   datumAanvraag: string;
   deadline: string;
   opmerkingen: string;
-  // New client fields
+  // New client fields (kept for display purposes)
   nieuweKlantNaam?: string;
   nieuweKlantStad?: string;
   nieuweKlantLand?: string;
@@ -30,17 +33,11 @@ interface ProjectHeaderProps {
   errors?: Record<string, string>;
 }
 
-// Helper to generate client ID basis (mock - in real app from backend)
-const generateKlantIdBasis = (clientName: string): string => {
-  // Simple mock: take first 3 chars uppercase + random 6 digits
-  const prefix = clientName.substring(0, 3).toUpperCase();
-  const suffix = Math.floor(100000 + Math.random() * 900000);
-  return `${prefix}${suffix}`;
-};
-
 export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
   const { data: clients = [] } = useClients();
+  const queryClient = useQueryClient();
   const [isAddingNewClient, setIsAddingNewClient] = useState(false);
+  const [isSavingClient, setIsSavingClient] = useState(false);
   const [tempNewClient, setTempNewClient] = useState({ naam: '', stad: '', land: '' });
 
   // Compute volledig project-ID
@@ -62,8 +59,8 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
     } else {
       setIsAddingNewClient(false);
       const selectedClient = clients.find(c => c.id === value);
-      // Mock klant ID basis - in real app this would come from backend
-      const klantIdBasis = selectedClient ? `23${value.padStart(7, '0')}` : '';
+      // Use client code as basis for project ID
+      const klantIdBasis = selectedClient?.code || '';
       const volledigProjectId = computeVolledigProjectId(klantIdBasis, data.projectVolgnummer);
       onChange({
         ...data,
@@ -88,7 +85,7 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
     });
   };
 
-  const handleSaveNewClient = () => {
+  const handleSaveNewClient = async () => {
     if (!tempNewClient.naam.trim()) {
       toast({
         title: 'Klantnaam is verplicht',
@@ -97,33 +94,57 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
       return;
     }
 
-    // Generate new client ID basis
-    const newKlantIdBasis = generateKlantIdBasis(tempNewClient.naam);
-    const volledigProjectId = computeVolledigProjectId(newKlantIdBasis, data.projectVolgnummer);
+    setIsSavingClient(true);
+    
+    try {
+      // Save to Supabase
+      const newClient = await createClient({
+        naam: tempNewClient.naam,
+        stad: tempNewClient.stad || undefined,
+        land: tempNewClient.land || undefined,
+      });
 
-    onChange({
-      ...data,
-      klantId: `new-${Date.now()}`, // Temporary ID
-      klantIdBasis: newKlantIdBasis,
-      volledigProjectId,
-      nieuweKlantNaam: tempNewClient.naam,
-      nieuweKlantStad: tempNewClient.stad,
-      nieuweKlantLand: tempNewClient.land,
-    });
+      // Invalidate clients cache so all dropdowns update
+      await queryClient.invalidateQueries({ queryKey: ['clients'] });
 
-    toast({
-      title: 'Nieuwe klant toegevoegd',
-      description: `"${tempNewClient.naam}" is geselecteerd.`,
-    });
+      // Update form with new client
+      const volledigProjectId = computeVolledigProjectId(newClient.code || '', data.projectVolgnummer);
+      onChange({
+        ...data,
+        klantId: newClient.id,
+        klantIdBasis: newClient.code || '',
+        volledigProjectId,
+        nieuweKlantNaam: newClient.name,
+        nieuweKlantStad: tempNewClient.stad,
+        nieuweKlantLand: tempNewClient.land,
+      });
 
-    setIsAddingNewClient(false);
-    setTempNewClient({ naam: '', stad: '', land: '' });
+      toast({
+        title: 'Klant toegevoegd',
+        description: `"${newClient.name}" is opgeslagen en geselecteerd.`,
+      });
+
+      setIsAddingNewClient(false);
+      setTempNewClient({ naam: '', stad: '', land: '' });
+    } catch (error) {
+      console.error('Fout bij opslaan klant:', error);
+      toast({
+        title: 'Fout bij opslaan',
+        description: error instanceof Error ? error.message : 'Onbekende fout',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSavingClient(false);
+    }
   };
 
   const handleCancelNewClient = () => {
     setIsAddingNewClient(false);
     setTempNewClient({ naam: '', stad: '', land: '' });
   };
+
+  // Find selected client name for display
+  const selectedClientName = clients.find(c => c.id === data.klantId)?.name;
 
   return (
     <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
@@ -163,6 +184,7 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
                 onChange={(e) => setTempNewClient({ ...tempNewClient, naam: e.target.value })}
                 placeholder="Naam van de klant"
                 className="mt-1"
+                disabled={isSavingClient}
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -173,6 +195,7 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
                   onChange={(e) => setTempNewClient({ ...tempNewClient, stad: e.target.value })}
                   placeholder="Stad"
                   className="mt-1"
+                  disabled={isSavingClient}
                 />
               </div>
               <div>
@@ -182,24 +205,26 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
                   onChange={(e) => setTempNewClient({ ...tempNewClient, land: e.target.value })}
                   placeholder="Land"
                   className="mt-1"
+                  disabled={isSavingClient}
                 />
               </div>
             </div>
             <div className="flex gap-2 pt-2">
-              <Button size="sm" onClick={handleSaveNewClient}>
+              <Button size="sm" onClick={handleSaveNewClient} disabled={isSavingClient}>
+                {isSavingClient && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Toevoegen
               </Button>
-              <Button size="sm" variant="ghost" onClick={handleCancelNewClient}>
+              <Button size="sm" variant="ghost" onClick={handleCancelNewClient} disabled={isSavingClient}>
                 Annuleren
               </Button>
             </div>
           </div>
         )}
 
-        {/* Show new client name if just added */}
-        {data.nieuweKlantNaam && !isAddingNewClient && (
+        {/* Show selected client info */}
+        {selectedClientName && !isAddingNewClient && data.nieuweKlantNaam && (
           <p className="text-sm text-muted-foreground">
-            Nieuwe klant: <span className="font-medium text-foreground">{data.nieuweKlantNaam}</span>
+            Nieuwe klant: <span className="font-medium text-foreground">{selectedClientName}</span>
             {data.nieuweKlantStad && `, ${data.nieuweKlantStad}`}
             {data.nieuweKlantLand && ` (${data.nieuweKlantLand})`}
           </p>
