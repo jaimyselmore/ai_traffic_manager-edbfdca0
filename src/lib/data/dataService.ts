@@ -179,10 +179,17 @@ export async function getPlannableEmployees(): Promise<Employee[]> {
     )
 
     if (partner) {
+      // Combine roles for duo team display
+      const combinedRole = employee.primaryRole === partner.primaryRole
+        ? employee.primaryRole // Same role, show once
+        : `${employee.primaryRole} & ${partner.primaryRole}` // Different roles, show both
+      
       processedEmployees.push({
         ...employee,
         id: `${employee.id},${partner.id}`,
         name: `${employee.name} & ${partner.name}`,
+        role: combinedRole,
+        primaryRole: combinedRole,
       })
       processedDuoTeams.add(employee.duoTeam)
     } else {
