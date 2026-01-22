@@ -442,60 +442,39 @@ export function AgendasFlow() {
       <div className="flex items-start gap-6 mb-6">
         {/* Week + Medewerker + Options + Toon planner card - LEFT */}
         <div className="shrink-0">
-          <div className="rounded-xl border border-border bg-card px-6 py-5 shadow-sm w-[420px]">
-            {/* Week controls */}
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-6">
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => setCurrentWeekStart(getWeekStart(new Date()))}
-                >
-                  Huidige week
-                </Button>
-                <span className="text-sm text-muted-foreground whitespace-nowrap">Ga naar week:</span>
-              </div>
-              <div className="w-[140px]">
-                <Select 
-                  value={weekNumber.toString()} 
-                  onValueChange={(v) => goToWeek(parseInt(v))}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Array.from({ length: 52 }, (_, i) => i + 1).map((week) => (
-                      <SelectItem key={week} value={week.toString()}>
-                        {week}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+          <div className="rounded-xl border border-border bg-card px-4 py-4 shadow-sm flex flex-col gap-3">
+            <Select 
+              value={weekNumber.toString()} 
+              onValueChange={(v) => goToWeek(parseInt(v))}
+            >
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="Selecteer week" />
+              </SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: 52 }, (_, i) => i + 1).map((week) => (
+                  <SelectItem key={week} value={week.toString()}>
+                    Week {week}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-            {/* Medewerker select */}
-            <div className="flex items-center mb-4">
-              <span className="text-sm text-muted-foreground shrink-0 w-[232px]">Medewerker:</span>
-              <div className="w-[140px]">
-                <Select value={selectedEmployee} onValueChange={setSelectedEmployee} disabled={isLoadingEmployees}>
-                  <SelectTrigger className="w-full text-left">
-                    <SelectValue placeholder={isLoadingEmployees ? 'Laden...' : 'Selecteer'} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {employees.map((emp) => (
-                      <SelectItem key={emp.id} value={emp.id}>
-                        {emp.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+            <Select value={selectedEmployee} onValueChange={setSelectedEmployee} disabled={isLoadingEmployees}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder={isLoadingEmployees ? 'Laden...' : 'Selecteer medewerker'} />
+              </SelectTrigger>
+              <SelectContent>
+                {employees.map((emp) => (
+                  <SelectItem key={emp.id} value={emp.id}>
+                    {emp.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
             {/* View options - only show after employee is selected */}
             {selectedEmployee && (
-              <div className="flex items-center gap-6 mb-4">
+              <div className="flex items-center gap-6 pt-2 border-t border-border mt-2">
                 <div className="flex items-center space-x-2">
                   <Checkbox 
                     id="currentAgenda" 
@@ -519,12 +498,12 @@ export function AgendasFlow() {
               </div>
             )}
             {validationMessage && (
-              <p className="text-xs text-amber-600 mb-4">{validationMessage}</p>
+              <p className="text-xs text-amber-600 mt-2">{validationMessage}</p>
             )}
 
             {/* Show planner button */}
             <Button 
-              className="w-full" 
+              className="w-full mt-3" 
               disabled={!selectedEmployee}
               onClick={handleShowPlanner}
             >
