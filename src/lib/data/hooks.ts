@@ -7,6 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getEmployees,
   getClients,
+  getProjects,
   getProjectTypes,
   getWorkTypes,
   getVerlofTypes,
@@ -32,6 +33,7 @@ export const dataKeys = {
   all: ['data'] as const,
   employees: () => [...dataKeys.all, 'employees'] as const,
   clients: () => [...dataKeys.all, 'clients'] as const,
+  projects: () => [...dataKeys.all, 'projects'] as const,
   projectTypes: () => [...dataKeys.all, 'projectTypes'] as const,
   workTypes: () => [...dataKeys.all, 'workTypes'] as const,
   verlofTypes: () => [...dataKeys.all, 'verlofTypes'] as const,
@@ -61,6 +63,14 @@ export function useClients() {
   return useQuery({
     queryKey: dataKeys.clients(),
     queryFn: getClients,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useProjects() {
+  return useQuery({
+    queryKey: dataKeys.projects(),
+    queryFn: getProjects,
     staleTime: 5 * 60 * 1000,
   });
 }

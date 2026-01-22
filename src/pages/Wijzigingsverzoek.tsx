@@ -7,14 +7,14 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ProjectHeader, ProjectHeaderData, emptyProjectHeaderData } from '@/components/forms/ProjectHeader';
+import { ExistingProjectSelector, ExistingProjectData } from '@/components/forms/ExistingProjectSelector';
 import { useEmployees, useWijzigingTypes } from '@/lib/data';
 import { toast } from '@/hooks/use-toast';
 
 const STORAGE_KEY = 'concept_wijzigingsverzoek';
 
 interface WijzigingsverzoekFormData {
-  projectHeader: ProjectHeaderData;
+  selectedProject: ExistingProjectData | null;
   wijzigingType: string;
   beschrijving: string;
   deadline: string;
@@ -22,7 +22,7 @@ interface WijzigingsverzoekFormData {
 }
 
 const emptyFormData: WijzigingsverzoekFormData = {
-  projectHeader: emptyProjectHeaderData,
+  selectedProject: null,
   wijzigingType: '',
   beschrijving: '',
   deadline: '',
@@ -64,8 +64,8 @@ export default function Wijzigingsverzoek() {
   const handleSubmit = async () => {
     const newErrors: Record<string, string> = {};
     
-    if (!formData.projectHeader.klantId) {
-      newErrors.klantId = 'Selecteer een klant';
+    if (!formData.selectedProject) {
+      newErrors.projectId = 'Selecteer een project';
     }
     if (!formData.wijzigingType) {
       newErrors.wijzigingType = 'Selecteer een type wijziging';
@@ -79,7 +79,7 @@ export default function Wijzigingsverzoek() {
     if (Object.keys(newErrors).length > 0) {
       toast({
         title: 'Vul alle verplichte velden in',
-        description: 'Klant, type wijziging en beschrijving zijn verplicht.',
+        description: 'Project, type wijziging en beschrijving zijn verplicht.',
         variant: 'destructive',
       });
       return;
@@ -98,7 +98,9 @@ export default function Wijzigingsverzoek() {
         requestType: 'wijziging',
         formData: {
           ...formData,
-          project_id_volledig: formData.projectHeader.volledigProjectId,
+          project_id: formData.selectedProject?.projectId,
+          project_nummer: formData.selectedProject?.projectnummer,
+          klant_naam: formData.selectedProject?.klantNaam,
           plan_status: 'concept',
         },
       },
@@ -125,11 +127,11 @@ export default function Wijzigingsverzoek() {
           </p>
         </div>
 
-        {/* Shared Project Header */}
-        <ProjectHeader
-          data={formData.projectHeader}
-          onChange={(data) => setFormData({ ...formData, projectHeader: data })}
-          errors={errors}
+        {/* Existing Project Selector */}
+        <ExistingProjectSelector
+          value={formData.selectedProject?.projectId || ''}
+          onChange={(data) => setFormData({ ...formData, selectedProject: data })}
+          error={errors.projectId}
         />
 
         {/* Wijziging details */}
