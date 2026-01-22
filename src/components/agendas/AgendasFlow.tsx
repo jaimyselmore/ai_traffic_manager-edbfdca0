@@ -227,6 +227,7 @@ function EllenPopup({ isOpen, status, action, onClose, onRetry, onCancel }: Elle
 export function AgendasFlow() {
   const navigate = useNavigate();
   const [currentWeekStart, setCurrentWeekStart] = useState(() => getWeekStart(new Date()));
+  const currentWeekNumber = getWeekNumber(getWeekStart(new Date())); // The actual current week
   const [selectedEmployee, setSelectedEmployee] = useState<string>('');
   const [showPlanner, setShowPlanner] = useState(false);
 
@@ -448,7 +449,9 @@ export function AgendasFlow() {
               onValueChange={(v) => goToWeek(parseInt(v))}
             >
               <SelectTrigger className="w-[200px]">
-                <SelectValue>Selecteer week</SelectValue>
+                <SelectValue>
+                  {weekNumber === currentWeekNumber ? 'Huidige week' : `Week ${weekNumber}`}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {Array.from({ length: 52 }, (_, i) => i + 1).map((week) => (
