@@ -106,10 +106,20 @@ CREATE POLICY "Alleen planners kunnen klanten verwijderen"
 ALTER TABLE users
 ADD COLUMN IF NOT EXISTS gebruikersnaam TEXT UNIQUE;
 
--- Populate gebruikersnaam from email (remove @selmore.com)
-UPDATE users
-SET gebruikersnaam = REPLACE(email, '@selmore.com', '')
-WHERE email IS NOT NULL AND gebruikersnaam IS NULL;
+-- Populate gebruikersnaam from email (remove @selmore.com) - only if email column exists
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+    AND table_name = 'users'
+    AND column_name = 'email'
+  ) THEN
+    UPDATE users
+    SET gebruikersnaam = REPLACE(email, '@selmore.com', '')
+    WHERE email IS NOT NULL AND gebruikersnaam IS NULL;
+  END IF;
+END $$;
 
 -- =====================================================
 -- 5. VERIFICATIE QUERY
@@ -128,8 +138,8 @@ WHERE schemaname = 'public'
   AND tablename IN ('users', 'klanten', 'medewerkers')
 ORDER BY tablename, cmd;
 
--- Check users gebruikersnaam values
-SELECT id, naam, email, gebruikersnaam
+-- Check users gebruikersnaam values (simple version)
+SELECT id, naam, gebruikersnaam
 FROM users
 WHERE is_planner = true
 ORDER BY naam;
