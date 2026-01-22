@@ -161,48 +161,48 @@ export function Planner() {
       {/* Filter card left + Legend right */}
       <div className="mt-4 flex items-start gap-8">
         {/* Left: Filter card */}
-        <div className="rounded-xl border border-border bg-card px-6 py-4 shadow-sm">
+        <div className="rounded-xl border border-border bg-card px-6 py-4 shadow-sm w-[420px]">
           {/* Row 1: Week controls */}
-          <div className="flex items-center mb-4">
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => setCurrentWeekStart(getWeekStart(new Date()))}
-            >
-              Huidige week
-            </Button>
-            <div className="flex items-center gap-3 ml-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-6">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setCurrentWeekStart(getWeekStart(new Date()))}
+              >
+                Huidige week
+              </Button>
               <span className="text-sm text-muted-foreground whitespace-nowrap">Ga naar week:</span>
-              <div className="w-16">
-                <Select 
-                  value={weekNumber.toString()} 
-                  onValueChange={(v) => {
-                    const targetWeek = parseInt(v);
-                    const year = currentWeekStart.getFullYear();
-                    const jan1 = new Date(year, 0, 1);
-                    const firstMonday = getWeekStart(jan1);
-                    const targetDate = new Date(firstMonday);
-                    targetDate.setDate(targetDate.getDate() + (targetWeek - 1) * 7);
-                    setCurrentWeekStart(targetDate);
-                  }}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Array.from({ length: 52 }, (_, i) => i + 1).map((week) => (
-                      <SelectItem key={week} value={week.toString()}>
-                        {week}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            </div>
+            <div className="w-[180px]">
+              <Select 
+                value={weekNumber.toString()} 
+                onValueChange={(v) => {
+                  const targetWeek = parseInt(v);
+                  const year = currentWeekStart.getFullYear();
+                  const jan1 = new Date(year, 0, 1);
+                  const firstMonday = getWeekStart(jan1);
+                  const targetDate = new Date(firstMonday);
+                  targetDate.setDate(targetDate.getDate() + (targetWeek - 1) * 7);
+                  setCurrentWeekStart(targetDate);
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 52 }, (_, i) => i + 1).map((week) => (
+                    <SelectItem key={week} value={week.toString()}>
+                      {week}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
           {/* Row 2: Medewerker */}
-          <div className="flex items-center gap-2 mb-3">
+          <div className="flex items-center justify-between mb-3">
             <span className="text-sm text-muted-foreground shrink-0">Medewerker:</span>
             <div className="w-[180px]">
               <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
@@ -222,7 +222,7 @@ export function Planner() {
           </div>
 
           {/* Row 3: Klant */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between">
             <span className="text-sm text-muted-foreground shrink-0">Klant:</span>
             <div className="w-[180px]">
               <Select value={selectedClient} onValueChange={setSelectedClient}>
