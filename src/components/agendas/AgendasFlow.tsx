@@ -442,7 +442,7 @@ export function AgendasFlow() {
       <div className="flex items-start gap-6 mb-6">
         {/* Week + Medewerker + Options + Toon planner card - LEFT */}
         <div className="shrink-0">
-          <div className="rounded-xl border border-border bg-card px-6 py-5 shadow-sm w-[400px]">
+          <div className="rounded-xl border border-border bg-card px-6 py-5 shadow-sm">
             {/* Week controls */}
             <div className="flex items-center mb-4">
               <Button 
@@ -454,7 +454,7 @@ export function AgendasFlow() {
               </Button>
               <div className="flex items-center gap-3 ml-6">
                 <span className="text-sm text-muted-foreground whitespace-nowrap">Ga naar week:</span>
-                <div className="w-[148px]">
+                <div className="w-[180px]">
                   <Select 
                     value={weekNumber.toString()} 
                     onValueChange={(v) => goToWeek(parseInt(v))}
@@ -476,8 +476,8 @@ export function AgendasFlow() {
 
             {/* Medewerker select */}
             <div className="flex items-center gap-2 mb-4 whitespace-nowrap">
-              <span className="text-sm text-muted-foreground w-[88px]">Medewerker:</span>
-              <div className="w-[148px] ml-auto">
+              <span className="text-sm text-muted-foreground shrink-0">Medewerker:</span>
+              <div className="w-[180px]">
                 <Select value={selectedEmployee} onValueChange={setSelectedEmployee} disabled={isLoadingEmployees}>
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder={isLoadingEmployees ? 'Laden...' : 'Selecteer medewerker'} />
