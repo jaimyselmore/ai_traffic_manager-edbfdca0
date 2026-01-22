@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { ArrowLeft, Calendar, Upload, Info, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { mockEmployees, mockClients, getWeekStart, getWeekNumber, formatDateRange } from '@/lib/mockData';
+import { getWeekStart, getWeekNumber, formatDateRange } from '@/lib/mockData';
+import { useEmployees } from '@/hooks/use-employees';
+import { useClients } from '@/hooks/use-clients';
 import { addWeeks, addDays, format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -41,6 +43,10 @@ export function PlanningPlaatsen({ onBack }: PlanningPlaatsenProps) {
   const [microsoftEvents, setMicrosoftEvents] = useState<MicrosoftEvent[]>([]);
   const [plannerTasks, setPlannerTasks] = useState<PlannerTask[]>([]);
   const [syncResult, setSyncResult] = useState<string | null>(null);
+
+  // Fetch employees and clients from Supabase
+  const { data: employees = [], isLoading: isLoadingEmployees } = useEmployees();
+  const { data: clients = [], isLoading: isLoadingClients } = useClients();
 
   const weekNumber = getWeekNumber(currentWeekStart);
   const dateRange = formatDateRange(currentWeekStart);
@@ -103,7 +109,9 @@ export function PlanningPlaatsen({ onBack }: PlanningPlaatsenProps) {
       for (let i = 0; i < numTasks; i++) {
         const day = Math.floor(Math.random() * 5);
         const startHour = 9 + Math.floor(Math.random() * 7);
-        const client = mockClients[Math.floor(Math.random() * mockClients.length)];
+        const client = clients.length > 0 
+          ? clients[Math.floor(Math.random() * clients.length)] 
+          : { name: 'Onbekend' };
         mockPlanner.push({
           id: `task-${w}-${i}`,
           clientName: client.name,
@@ -153,7 +161,7 @@ export function PlanningPlaatsen({ onBack }: PlanningPlaatsenProps) {
       }
     });
 
-    const employee = mockEmployees.find(e => e.id === selectedEmployee);
+    const employee = employees.find(e => e.id === selectedEmployee);
     if (conflicts > 0) {
       setSyncResult(`${synced} blokken geplaatst voor ${employee?.name}. ${conflicts} overgeslagen wegens conflicten.`);
     } else {
@@ -310,14 +318,14 @@ export function PlanningPlaatsen({ onBack }: PlanningPlaatsenProps) {
           {/* Employee selector */}
           <div className="flex items-center gap-3">
             <span className="text-sm text-muted-foreground w-24">Medewerker:</span>
-            <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
+            <Select value={selectedEmployee} onValueChange={setSelectedEmployee} disabled={isLoadingEmployees}>
               <SelectTrigger className="flex-1">
-                <SelectValue placeholder="Selecteer een medewerker" />
+                <SelectValue placeholder={isLoadingEmployees ? "Laden..." : "Selecteer een medewerker"} />
               </SelectTrigger>
               <SelectContent>
-                {mockEmployees.map((emp) => (
+                {employees.map((emp) => (
                   <SelectItem key={emp.id} value={emp.id}>
-                    {emp.name} – {emp.role}
+                    {emp.name} – {emp.role || 'Geen rol'}
                   </SelectItem>
                 ))}
               </SelectContent>
