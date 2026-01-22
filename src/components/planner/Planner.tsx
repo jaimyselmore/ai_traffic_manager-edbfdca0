@@ -175,7 +175,7 @@ export function Planner() {
             }}
           >
             <SelectTrigger className="w-[200px]">
-              <SelectValue>Selecteer week</SelectValue>
+              <SelectValue>Huidige week</SelectValue>
             </SelectTrigger>
             <SelectContent>
               {Array.from({ length: 52 }, (_, i) => i + 1).map((week) => (
