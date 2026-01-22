@@ -25,7 +25,7 @@ export default function Login() {
     const { error } = await signIn(email, password);
     
     if (error) {
-      setError('Ongeldige email of wachtwoord');
+      setError('Ongeldige gebruikersnaam of wachtwoord');
       setIsSubmitting(false);
     } else {
       navigate('/');
@@ -53,15 +53,15 @@ export default function Login() {
             )}
             
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">Gebruikersnaam</Label>
               <Input
                 id="email"
-                type="email"
-                placeholder="naam@selmore.nl"
+                type="text"
+                placeholder="jaimywals"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                autoComplete="email"
+                autoComplete="username"
               />
             </div>
             
