@@ -91,7 +91,7 @@ export function Planner() {
   return (
     <div className="space-y-8">
       {/* Header with controls on same line */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Planner</h1>
           <p className="mt-1 text-base text-muted-foreground">
@@ -100,7 +100,7 @@ export function Planner() {
         </div>
 
         {/* Zoom, Download, Vergroot planner - right side, responsive */}
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 self-center">
           <div className="flex items-center gap-1">
             <Button
               variant="ghost"
