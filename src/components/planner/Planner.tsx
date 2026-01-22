@@ -22,7 +22,9 @@ import { getWeekStart, getWeekNumber, formatDateRange } from '@/lib/mockData';
 import { useEmployees } from '@/hooks/use-employees';
 import { usePlannableEmployees } from '@/hooks/use-plannable-employees';
 import { useClients } from '@/hooks/use-clients';
+import { useTasks } from '@/hooks/use-tasks';
 import { toast } from '@/hooks/use-toast';
+import { exportToCSV, exportToPDF } from '@/lib/export/planningExport';
 
 const zoomLevels = [50, 75, 100, 125, 150];
 
@@ -40,6 +42,7 @@ export function Planner() {
   const { data: employees = [], isLoading: isLoadingEmployees } = useEmployees();
   const { data: plannableEmployees = [], isLoading: isLoadingPlannableEmployees } = usePlannableEmployees();
   const { data: clients = [], isLoading: isLoadingClients } = useClients();
+  const { data: tasksFromDb = [], isLoading: isLoadingTasks } = useTasks(currentWeekStart);
 
   const weekNumber = getWeekNumber(currentWeekStart);
   const dateRange = formatDateRange(currentWeekStart);
@@ -62,17 +65,53 @@ export function Planner() {
   }, [selectedEmployee, plannableEmployees]);
 
   const handleDownloadCSV = () => {
-    toast({
-      title: 'Export gestart',
-      description: 'CSV wordt gedownload...',
-    });
+    if (tasksFromDb.length === 0) {
+      toast({
+        title: 'Geen taken',
+        description: 'Er zijn geen taken om te exporteren voor deze week.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    try {
+      exportToCSV(tasksFromDb, plannableEmployees, currentWeekStart, weekNumber);
+      toast({
+        title: 'Export geslaagd',
+        description: 'CSV is gedownload.',
+      });
+    } catch (error) {
+      toast({
+        title: 'Export mislukt',
+        description: 'Er is een fout opgetreden bij het exporteren.',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleDownloadPDF = () => {
-    toast({
-      title: 'Export gestart',
-      description: 'PDF wordt gegenereerd...',
-    });
+    if (tasksFromDb.length === 0) {
+      toast({
+        title: 'Geen taken',
+        description: 'Er zijn geen taken om te exporteren voor deze week.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    try {
+      exportToPDF(tasksFromDb, plannableEmployees, currentWeekStart, weekNumber, dateRange);
+      toast({
+        title: 'PDF geopend',
+        description: 'Print dialoog wordt geopend...',
+      });
+    } catch (error) {
+      toast({
+        title: 'Export mislukt',
+        description: 'Er is een fout opgetreden bij het genereren van de PDF.',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleZoomOut = () => {
