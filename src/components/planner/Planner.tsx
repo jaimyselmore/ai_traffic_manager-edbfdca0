@@ -161,7 +161,7 @@ export function Planner() {
       {/* Filter card left + Legend right */}
       <div className="mt-4 flex items-start gap-8">
         {/* Left: Filter card */}
-        <div className="rounded-xl border border-border bg-card px-6 py-4 shadow-sm">
+        <div className="rounded-xl border border-border bg-card px-6 py-4 shadow-sm w-[320px]">
           {/* Row 1: Huidige week + Ga naar week + week select */}
           <div className="flex items-center gap-3 mb-4 whitespace-nowrap">
             <Button 
@@ -172,65 +172,71 @@ export function Planner() {
               Huidige week
             </Button>
             <span className="text-sm text-muted-foreground">Ga naar week:</span>
-            <Select 
-              value={weekNumber.toString()} 
-              onValueChange={(v) => {
-                const targetWeek = parseInt(v);
-                const year = currentWeekStart.getFullYear();
-                const jan1 = new Date(year, 0, 1);
-                const firstMonday = getWeekStart(jan1);
-                const targetDate = new Date(firstMonday);
-                targetDate.setDate(targetDate.getDate() + (targetWeek - 1) * 7);
-                setCurrentWeekStart(targetDate);
-              }}
-            >
-              <SelectTrigger className="w-16">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Array.from({ length: 52 }, (_, i) => i + 1).map((week) => (
-                  <SelectItem key={week} value={week.toString()}>
-                    {week}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="ml-auto w-16">
+              <Select 
+                value={weekNumber.toString()} 
+                onValueChange={(v) => {
+                  const targetWeek = parseInt(v);
+                  const year = currentWeekStart.getFullYear();
+                  const jan1 = new Date(year, 0, 1);
+                  const firstMonday = getWeekStart(jan1);
+                  const targetDate = new Date(firstMonday);
+                  targetDate.setDate(targetDate.getDate() + (targetWeek - 1) * 7);
+                  setCurrentWeekStart(targetDate);
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 52 }, (_, i) => i + 1).map((week) => (
+                    <SelectItem key={week} value={week.toString()}>
+                      {week}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {/* Row 2: Medewerker */}
-          <div className="flex items-center gap-2 mb-3 whitespace-nowrap">
+          <div className="flex items-center gap-2 mb-3">
             <span className="text-sm text-muted-foreground">Medewerker:</span>
-            <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
-              <SelectTrigger className="w-auto min-w-[140px]">
-                <SelectValue placeholder="Alle medewerkers" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Alle medewerkers</SelectItem>
-                {plannableEmployees.map((emp) => (
-                  <SelectItem key={emp.id} value={emp.id}>
-                    {emp.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="ml-auto w-40">
+              <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Alle medewerkers" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Alle medewerkers</SelectItem>
+                  {plannableEmployees.map((emp) => (
+                    <SelectItem key={emp.id} value={emp.id}>
+                      {emp.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {/* Row 3: Klant */}
-          <div className="flex items-center gap-2 whitespace-nowrap">
+          <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">Klant:</span>
-            <Select value={selectedClient} onValueChange={setSelectedClient}>
-              <SelectTrigger className="w-auto min-w-[120px]">
-                <SelectValue placeholder="Alle klanten" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Alle klanten</SelectItem>
-                {clients.map((client) => (
-                  <SelectItem key={client.id} value={client.id}>
-                    {client.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="ml-auto w-40">
+              <Select value={selectedClient} onValueChange={setSelectedClient}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Alle klanten" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Alle klanten</SelectItem>
+                  {clients.map((client) => (
+                    <SelectItem key={client.id} value={client.id}>
+                      {client.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
 
