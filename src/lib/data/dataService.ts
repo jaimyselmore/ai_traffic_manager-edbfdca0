@@ -58,6 +58,14 @@ interface KlantRow {
   notities: string | null
 }
 
+interface ProjectTypeRow {
+  id: string
+  code: string
+  naam: string
+  omschrijving: string | null
+  is_system: boolean
+}
+
 interface ProjectRow {
   id: string
   projectnummer: string
@@ -558,17 +566,70 @@ export async function getNotifications(): Promise<Notification[]> {
 }
 
 // ===========================================
-// STATIC DATA (hardcoded, geen DB tabel voor)
+// PROJECTTYPES (uit Supabase)
 // ===========================================
 
 export async function getProjectTypes(): Promise<ProjectType[]> {
-  return [
-    { id: 'productie', name: 'Productie', label: 'Productie', description: 'Reguliere productie opdracht' },
-    { id: 'guiding_idea', name: 'Guiding Idea', label: 'Guiding Idea', description: 'Strategische guiding idea sessie' },
-    { id: 'nieuw_project', name: 'Nieuw Project', label: 'Nieuw Project', description: 'Compleet nieuw project setup' },
-    { id: 'algemeen', name: 'Algemeen', label: 'Algemeen', description: 'Algemene taken en overleg' },
-  ]
+  const { data, error } = await supabase
+    .from('projecttypes')
+    .select('*')
+    .order('naam')
+
+  if (error) {
+    console.error('Fout bij ophalen projecttypes:', error)
+    throw new Error(`Fout bij ophalen projecttypes: ${error.message}`)
+  }
+
+  return ((data || []) as ProjectTypeRow[]).map((pt) => ({
+    id: pt.code,
+    name: pt.naam,
+    label: pt.naam,
+    description: pt.omschrijving || '',
+  }))
 }
+
+/**
+ * Maak nieuw projecttype aan in Supabase
+ */
+export async function createProjectType(projectTypeData: {
+  code: string
+  naam: string
+  omschrijving?: string
+}): Promise<ProjectType> {
+  const insertData = {
+    code: projectTypeData.code.toLowerCase().replace(/\s+/g, '_'),
+    naam: projectTypeData.naam,
+    omschrijving: projectTypeData.omschrijving || null,
+    is_system: false,
+  }
+
+  const { data, error } = await supabase
+    .from('projecttypes')
+    .insert(insertData as any)
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Fout bij aanmaken projecttype:', error)
+    throw new Error(`Fout bij aanmaken projecttype: ${error.message}`)
+  }
+
+  const result = data as ProjectTypeRow
+  if (!result) {
+    throw new Error('Geen data teruggekregen bij aanmaken projecttype')
+  }
+
+  return {
+    id: result.code,
+    name: result.naam,
+    label: result.naam,
+    description: result.omschrijving || '',
+  }
+}
+
+// ===========================================
+// STATIC DATA (hardcoded, geen DB tabel voor)
+// ===========================================
 
 export async function getVerlofTypes(): Promise<VerlofType[]> {
   return [
