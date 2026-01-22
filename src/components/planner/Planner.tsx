@@ -161,7 +161,7 @@ export function Planner() {
       {/* Filter card left + Legend right */}
       <div className="mt-4 flex items-start gap-8">
         {/* Left: Filter card */}
-        <div className="rounded-xl border border-border bg-card px-6 py-4 shadow-sm w-[320px]">
+        <div className="rounded-xl border border-border bg-card px-6 py-4 shadow-sm w-[360px]">
           {/* Row 1: Week controls */}
           <div className="flex items-center mb-4">
             <Button 
@@ -171,9 +171,9 @@ export function Planner() {
             >
               Huidige week
             </Button>
-            <div className="flex items-center gap-3 ml-8">
+            <div className="flex items-center gap-3 ml-6">
               <span className="text-sm text-muted-foreground whitespace-nowrap">Ga naar week:</span>
-              <div className="w-16">
+              <div className="w-[148px]">
                 <Select 
                   value={weekNumber.toString()} 
                   onValueChange={(v) => {
@@ -203,8 +203,8 @@ export function Planner() {
 
           {/* Row 2: Medewerker */}
           <div className="flex items-center gap-2 mb-3">
-            <span className="text-sm text-muted-foreground">Medewerker:</span>
-            <div className="ml-auto w-40">
+            <span className="text-sm text-muted-foreground w-[88px]">Medewerker:</span>
+            <div className="w-[148px] ml-auto">
               <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Alle medewerkers" />
@@ -223,8 +223,8 @@ export function Planner() {
 
           {/* Row 3: Klant */}
           <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">Klant:</span>
-            <div className="ml-auto w-40">
+            <span className="text-sm text-muted-foreground w-[88px]">Klant:</span>
+            <div className="w-[148px] ml-auto">
               <Select value={selectedClient} onValueChange={setSelectedClient}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Alle klanten" />
