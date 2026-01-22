@@ -23,8 +23,6 @@ export interface ProjectHeaderData {
   opmerkingen: string;
   // New client fields (kept for display purposes)
   nieuweKlantNaam?: string;
-  nieuweKlantStad?: string;
-  nieuweKlantLand?: string;
 }
 
 interface ProjectHeaderProps {
@@ -38,7 +36,15 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
   const queryClient = useQueryClient();
   const [isAddingNewClient, setIsAddingNewClient] = useState(false);
   const [isSavingClient, setIsSavingClient] = useState(false);
-  const [tempNewClient, setTempNewClient] = useState({ klantnummer: '', naam: '', stad: '', land: '' });
+  const [tempNewClient, setTempNewClient] = useState({ 
+    klantnummer: '', 
+    naam: '', 
+    contactpersoon: '', 
+    email: '', 
+    telefoon: '', 
+    adres: '', 
+    notities: '' 
+  });
 
   // Compute volledig project-ID
   const computeVolledigProjectId = (klantIdBasis: string, volgnummer: string): string => {
@@ -68,8 +74,6 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
         klantIdBasis,
         volledigProjectId,
         nieuweKlantNaam: undefined,
-        nieuweKlantStad: undefined,
-        nieuweKlantLand: undefined,
       });
     }
   };
@@ -108,8 +112,11 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
       const newClient = await createClient({
         klantnummer: tempNewClient.klantnummer,
         naam: tempNewClient.naam,
-        stad: tempNewClient.stad || undefined,
-        land: tempNewClient.land || undefined,
+        contactpersoon: tempNewClient.contactpersoon || undefined,
+        email: tempNewClient.email || undefined,
+        telefoon: tempNewClient.telefoon || undefined,
+        adres: tempNewClient.adres || undefined,
+        notities: tempNewClient.notities || undefined,
       });
 
       // Invalidate both client cache keys so all dropdowns update (including admin panel)
@@ -124,8 +131,6 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
         klantIdBasis: newClient.code || '',
         volledigProjectId,
         nieuweKlantNaam: newClient.name,
-        nieuweKlantStad: tempNewClient.stad,
-        nieuweKlantLand: tempNewClient.land,
       });
 
       toast({
@@ -134,7 +139,7 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
       });
 
       setIsAddingNewClient(false);
-      setTempNewClient({ klantnummer: '', naam: '', stad: '', land: '' });
+      setTempNewClient({ klantnummer: '', naam: '', contactpersoon: '', email: '', telefoon: '', adres: '', notities: '' });
     } catch (error) {
       console.error('Fout bij opslaan klant:', error);
       toast({
@@ -149,7 +154,7 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
 
   const handleCancelNewClient = () => {
     setIsAddingNewClient(false);
-    setTempNewClient({ klantnummer: '', naam: '', stad: '', land: '' });
+    setTempNewClient({ klantnummer: '', naam: '', contactpersoon: '', email: '', telefoon: '', adres: '', notities: '' });
   };
 
   // Find selected client name for display
@@ -198,7 +203,7 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
                 />
               </div>
               <div>
-                <Label className="text-xs">Klantnaam *</Label>
+                <Label className="text-xs">Naam *</Label>
                 <Input
                   value={tempNewClient.naam}
                   onChange={(e) => setTempNewClient({ ...tempNewClient, naam: e.target.value })}
@@ -207,28 +212,58 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
                   disabled={isSavingClient}
                 />
               </div>
+              <div>
+                <Label className="text-xs">Contactpersoon</Label>
+                <Input
+                  value={tempNewClient.contactpersoon}
+                  onChange={(e) => setTempNewClient({ ...tempNewClient, contactpersoon: e.target.value })}
+                  placeholder="Contactpersoon"
+                  className="mt-1"
+                  disabled={isSavingClient}
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Email</Label>
+                <Input
+                  type="email"
+                  value={tempNewClient.email}
+                  onChange={(e) => setTempNewClient({ ...tempNewClient, email: e.target.value })}
+                  placeholder="email@voorbeeld.nl"
+                  className="mt-1"
+                  disabled={isSavingClient}
+                />
+              </div>
+              <div className="col-span-2">
+                <Label className="text-xs">Telefoon</Label>
+                <Input
+                  value={tempNewClient.telefoon}
+                  onChange={(e) => setTempNewClient({ ...tempNewClient, telefoon: e.target.value })}
+                  placeholder="Telefoonnummer"
+                  className="mt-1"
+                  disabled={isSavingClient}
+                />
+              </div>
+              <div className="col-span-2">
+                <Label className="text-xs">Adres</Label>
+                <Input
+                  value={tempNewClient.adres}
+                  onChange={(e) => setTempNewClient({ ...tempNewClient, adres: e.target.value })}
+                  placeholder="Volledig adres"
+                  className="mt-1"
+                  disabled={isSavingClient}
+                />
+              </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs">Stad (optioneel)</Label>
-                <Input
-                  value={tempNewClient.stad}
-                  onChange={(e) => setTempNewClient({ ...tempNewClient, stad: e.target.value })}
-                  placeholder="Stad"
-                  className="mt-1"
-                  disabled={isSavingClient}
-                />
-              </div>
-              <div>
-                <Label className="text-xs">Land (optioneel)</Label>
-                <Input
-                  value={tempNewClient.land}
-                  onChange={(e) => setTempNewClient({ ...tempNewClient, land: e.target.value })}
-                  placeholder="Land"
-                  className="mt-1"
-                  disabled={isSavingClient}
-                />
-              </div>
+            <div>
+              <Label className="text-xs">Notities</Label>
+              <Textarea
+                value={tempNewClient.notities}
+                onChange={(e) => setTempNewClient({ ...tempNewClient, notities: e.target.value })}
+                placeholder="Extra notities..."
+                rows={2}
+                className="mt-1"
+                disabled={isSavingClient}
+              />
             </div>
             <div className="flex gap-2 pt-2">
               <Button size="sm" onClick={handleSaveNewClient} disabled={isSavingClient}>
@@ -246,8 +281,6 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
         {selectedClientName && !isAddingNewClient && data.nieuweKlantNaam && (
           <p className="text-sm text-muted-foreground">
             Nieuwe klant: <span className="font-medium text-foreground">{selectedClientName}</span>
-            {data.nieuweKlantStad && `, ${data.nieuweKlantStad}`}
-            {data.nieuweKlantLand && ` (${data.nieuweKlantLand})`}
           </p>
         )}
       </div>
