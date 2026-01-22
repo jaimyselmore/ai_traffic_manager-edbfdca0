@@ -479,8 +479,8 @@ export function AgendasFlow() {
               <span className="text-sm text-muted-foreground shrink-0">Medewerker:</span>
               <div className="w-[140px]">
                 <Select value={selectedEmployee} onValueChange={setSelectedEmployee} disabled={isLoadingEmployees}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder={isLoadingEmployees ? 'Laden...' : 'Selecteer medewerker'} />
+                  <SelectTrigger className="w-full text-left">
+                    <SelectValue placeholder={isLoadingEmployees ? 'Laden...' : 'Selecteer'} />
                   </SelectTrigger>
                   <SelectContent>
                     {employees.map((emp) => (
