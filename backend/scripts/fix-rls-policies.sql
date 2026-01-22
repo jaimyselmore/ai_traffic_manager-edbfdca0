@@ -45,10 +45,6 @@ CREATE POLICY "Alleen planners kunnen users updaten"
       WHERE u.id = auth.uid()
       AND u.is_planner = true
     )
-  )
-  WITH CHECK (
-    -- Voorkom dat password_hash wordt gewijzigd via normale updates
-    password_hash = OLD.password_hash
   );
 
 -- INSERT en DELETE zijn DENY (geen policies = deny by default)
