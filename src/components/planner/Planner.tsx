@@ -202,7 +202,7 @@ export function Planner() {
           </div>
 
           {/* Row 2: Medewerker */}
-          <div className="flex items-center gap-2 mb-3 pl-4">
+          <div className="flex items-center gap-2 mb-3">
             <span className="text-sm text-muted-foreground">Medewerker:</span>
             <div className="ml-auto w-40">
               <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
@@ -222,7 +222,7 @@ export function Planner() {
           </div>
 
           {/* Row 3: Klant */}
-          <div className="flex items-center gap-2 pl-4">
+          <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">Klant:</span>
             <div className="ml-auto w-40">
               <Select value={selectedClient} onValueChange={setSelectedClient}>
