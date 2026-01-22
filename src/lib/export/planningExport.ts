@@ -403,10 +403,6 @@ function generatePlanningHTML(
       `}
     </tbody>
   </table>
-  
-  <div class="print-footer">
-    Gegenereerd op ${format(new Date(), 'dd-MM-yyyy HH:mm', { locale: nl })}
-  </div>
 </body>
 </html>
   `;
