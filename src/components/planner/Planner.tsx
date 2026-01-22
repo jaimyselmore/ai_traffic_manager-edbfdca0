@@ -65,15 +65,6 @@ export function Planner() {
   }, [selectedEmployee, plannableEmployees]);
 
   const handleDownloadCSV = () => {
-    if (tasksFromDb.length === 0) {
-      toast({
-        title: 'Geen taken',
-        description: 'Er zijn geen taken om te exporteren voor deze week.',
-        variant: 'destructive',
-      });
-      return;
-    }
-    
     try {
       exportToCSV(tasksFromDb, plannableEmployees, currentWeekStart, weekNumber);
       toast({
@@ -90,15 +81,6 @@ export function Planner() {
   };
 
   const handleDownloadPDF = () => {
-    if (tasksFromDb.length === 0) {
-      toast({
-        title: 'Geen taken',
-        description: 'Er zijn geen taken om te exporteren voor deze week.',
-        variant: 'destructive',
-      });
-      return;
-    }
-    
     try {
       exportToPDF(tasksFromDb, plannableEmployees, currentWeekStart, weekNumber, dateRange);
       toast({
