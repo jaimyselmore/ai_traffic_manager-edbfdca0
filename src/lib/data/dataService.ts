@@ -245,47 +245,14 @@ export async function getClients(): Promise<Client[]> {
 }
 
 /**
- * Genereer een uniek klantnummer
- */
-async function generateKlantnummer(): Promise<string> {
-  // Get highest existing klantnummer
-  const { data, error } = await supabase
-    .from('klanten')
-    .select('klantnummer')
-    .order('klantnummer', { ascending: false })
-    .limit(1)
-
-  if (error) {
-    console.error('Fout bij ophalen klantnummers:', error)
-    // Fallback: generate random
-    return `K${Date.now().toString().slice(-6)}`
-  }
-
-  const results = data as { klantnummer: string }[] | null
-  if (results && results.length > 0) {
-    // Extract number from existing klantnummer and increment
-    const lastNumber = results[0].klantnummer
-    const numMatch = lastNumber.match(/\d+/)
-    if (numMatch) {
-      const nextNum = parseInt(numMatch[0]) + 1
-      return `K${nextNum.toString().padStart(4, '0')}`
-    }
-  }
-
-  // First customer
-  return 'K0001'
-}
-
-/**
  * Maak nieuwe klant aan in Supabase
  */
 export async function createClient(clientData: {
+  klantnummer: string
   naam: string
   stad?: string
   land?: string
 }): Promise<Client> {
-  const klantnummer = await generateKlantnummer()
-  
   // Build address from stad and land
   const adresParts: string[] = []
   if (clientData.stad) adresParts.push(clientData.stad)
@@ -293,7 +260,7 @@ export async function createClient(clientData: {
   const adres = adresParts.join(', ')
 
   const insertData = {
-    klantnummer,
+    klantnummer: clientData.klantnummer,
     naam: clientData.naam,
     adres: adres || null,
   }

@@ -38,7 +38,7 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
   const queryClient = useQueryClient();
   const [isAddingNewClient, setIsAddingNewClient] = useState(false);
   const [isSavingClient, setIsSavingClient] = useState(false);
-  const [tempNewClient, setTempNewClient] = useState({ naam: '', stad: '', land: '' });
+  const [tempNewClient, setTempNewClient] = useState({ klantnummer: '', naam: '', stad: '', land: '' });
 
   // Compute volledig project-ID
   const computeVolledigProjectId = (klantIdBasis: string, volgnummer: string): string => {
@@ -86,6 +86,13 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
   };
 
   const handleSaveNewClient = async () => {
+    if (!tempNewClient.klantnummer.trim()) {
+      toast({
+        title: 'Klantnummer is verplicht',
+        variant: 'destructive',
+      });
+      return;
+    }
     if (!tempNewClient.naam.trim()) {
       toast({
         title: 'Klantnaam is verplicht',
@@ -99,6 +106,7 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
     try {
       // Save to Supabase
       const newClient = await createClient({
+        klantnummer: tempNewClient.klantnummer,
         naam: tempNewClient.naam,
         stad: tempNewClient.stad || undefined,
         land: tempNewClient.land || undefined,
@@ -126,7 +134,7 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
       });
 
       setIsAddingNewClient(false);
-      setTempNewClient({ naam: '', stad: '', land: '' });
+      setTempNewClient({ klantnummer: '', naam: '', stad: '', land: '' });
     } catch (error) {
       console.error('Fout bij opslaan klant:', error);
       toast({
@@ -141,7 +149,7 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
 
   const handleCancelNewClient = () => {
     setIsAddingNewClient(false);
-    setTempNewClient({ naam: '', stad: '', land: '' });
+    setTempNewClient({ klantnummer: '', naam: '', stad: '', land: '' });
   };
 
   // Find selected client name for display
@@ -178,15 +186,27 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
         {isAddingNewClient && (
           <div className="mt-3 p-4 bg-secondary/50 rounded-lg space-y-3">
             <p className="text-sm font-medium text-foreground">Nieuwe klant toevoegen</p>
-            <div>
-              <Label className="text-xs">Klantnaam *</Label>
-              <Input
-                value={tempNewClient.naam}
-                onChange={(e) => setTempNewClient({ ...tempNewClient, naam: e.target.value })}
-                placeholder="Naam van de klant"
-                className="mt-1"
-                disabled={isSavingClient}
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Klantnummer *</Label>
+                <Input
+                  value={tempNewClient.klantnummer}
+                  onChange={(e) => setTempNewClient({ ...tempNewClient, klantnummer: e.target.value })}
+                  placeholder="bijv. K001 of ABC123"
+                  className="mt-1"
+                  disabled={isSavingClient}
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Klantnaam *</Label>
+                <Input
+                  value={tempNewClient.naam}
+                  onChange={(e) => setTempNewClient({ ...tempNewClient, naam: e.target.value })}
+                  placeholder="Naam van de klant"
+                  className="mt-1"
+                  disabled={isSavingClient}
+                />
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>

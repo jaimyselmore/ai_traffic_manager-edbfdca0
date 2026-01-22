@@ -50,6 +50,7 @@ type Klant = {
 };
 
 const emptyForm = {
+  klantnummer: '',
   naam: '',
   contactpersoon: '',
   email: '',
@@ -128,6 +129,7 @@ export function KlantenTab() {
   const openEdit = (item: Klant) => {
     setEditingItem(item);
     setForm({
+      klantnummer: item.klantnummer,
       naam: item.naam,
       contactpersoon: item.contactpersoon || '',
       email: item.email || '',
@@ -146,6 +148,10 @@ export function KlantenTab() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!form.klantnummer.trim()) {
+      toast.error('Klantnummer is verplicht');
+      return;
+    }
     if (!form.naam.trim()) {
       toast.error('Naam is verplicht');
       return;
@@ -239,7 +245,16 @@ export function KlantenTab() {
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2 col-span-2">
+              <div className="space-y-2">
+                <Label>Klantnummer *</Label>
+                <Input
+                  value={form.klantnummer}
+                  onChange={(e) => setForm({ ...form, klantnummer: e.target.value })}
+                  placeholder="bijv. K001 of ABC123"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
                 <Label>Naam *</Label>
                 <Input
                   value={form.naam}
