@@ -442,7 +442,7 @@ export function AgendasFlow() {
       <div className="flex items-start gap-6 mb-6">
         {/* Week + Medewerker + Options + Toon planner card - LEFT */}
         <div className="shrink-0">
-          <div className="rounded-xl border border-border bg-card px-6 py-5 shadow-sm">
+          <div className="rounded-xl border border-border bg-card px-6 py-5 shadow-sm w-[400px]">
             {/* Week controls */}
             <div className="flex items-center mb-4">
               <Button 
@@ -452,19 +452,40 @@ export function AgendasFlow() {
               >
                 Huidige week
               </Button>
-              <div className="flex items-center gap-3 ml-8">
+              <div className="flex items-center gap-3 ml-6">
                 <span className="text-sm text-muted-foreground whitespace-nowrap">Ga naar week:</span>
-                <Select 
-                  value={weekNumber.toString()} 
-                  onValueChange={(v) => goToWeek(parseInt(v))}
-                >
-                  <SelectTrigger className="w-16">
-                    <SelectValue />
+                <div className="w-[148px]">
+                  <Select 
+                    value={weekNumber.toString()} 
+                    onValueChange={(v) => goToWeek(parseInt(v))}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 52 }, (_, i) => i + 1).map((week) => (
+                        <SelectItem key={week} value={week.toString()}>
+                          {week}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+
+            {/* Medewerker select */}
+            <div className="flex items-center gap-2 mb-4 whitespace-nowrap">
+              <span className="text-sm text-muted-foreground w-[88px]">Medewerker:</span>
+              <div className="w-[148px] ml-auto">
+                <Select value={selectedEmployee} onValueChange={setSelectedEmployee} disabled={isLoadingEmployees}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder={isLoadingEmployees ? 'Laden...' : 'Selecteer medewerker'} />
                   </SelectTrigger>
                   <SelectContent>
-                    {Array.from({ length: 52 }, (_, i) => i + 1).map((week) => (
-                      <SelectItem key={week} value={week.toString()}>
-                        {week}
+                    {employees.map((emp) => (
+                      <SelectItem key={emp.id} value={emp.id}>
+                        {emp.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -472,49 +493,34 @@ export function AgendasFlow() {
               </div>
             </div>
 
-            {/* Medewerker select */}
-            <div className="flex items-center gap-2 mb-4 whitespace-nowrap">
-              <span className="text-sm text-muted-foreground">Medewerker:</span>
-              <Select value={selectedEmployee} onValueChange={setSelectedEmployee} disabled={isLoadingEmployees}>
-                <SelectTrigger className="w-auto min-w-[160px]">
-                  <SelectValue placeholder={isLoadingEmployees ? 'Laden...' : 'Selecteer medewerker'} />
-                </SelectTrigger>
-                <SelectContent>
-                  {employees.map((emp) => (
-                    <SelectItem key={emp.id} value={emp.id}>
-                      {emp.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* View options */}
-            <div className="space-y-3 mb-4">
-              <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="currentAgenda" 
-                  checked={showCurrentAgenda}
-                  onCheckedChange={(checked) => setShowCurrentAgenda(checked === true)}
-                />
-                <label htmlFor="currentAgenda" className="text-sm font-medium leading-none cursor-pointer">
-                  Huidige agenda
-                </label>
+            {/* View options - only show after employee is selected */}
+            {selectedEmployee && (
+              <div className="flex items-center gap-6 mb-4">
+                <div className="flex items-center space-x-2">
+                  <Checkbox 
+                    id="currentAgenda" 
+                    checked={showCurrentAgenda}
+                    onCheckedChange={(checked) => setShowCurrentAgenda(checked === true)}
+                  />
+                  <label htmlFor="currentAgenda" className="text-sm font-medium leading-none cursor-pointer">
+                    Huidige agenda
+                  </label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox 
+                    id="newPlanning" 
+                    checked={showNewPlanning}
+                    onCheckedChange={(checked) => setShowNewPlanning(checked === true)}
+                  />
+                  <label htmlFor="newPlanning" className="text-sm font-medium leading-none cursor-pointer">
+                    Nieuwe planning
+                  </label>
+                </div>
               </div>
-              <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="newPlanning" 
-                  checked={showNewPlanning}
-                  onCheckedChange={(checked) => setShowNewPlanning(checked === true)}
-                />
-                <label htmlFor="newPlanning" className="text-sm font-medium leading-none cursor-pointer">
-                  Nieuwe planning
-                </label>
-              </div>
-              {validationMessage && (
-                <p className="text-xs text-amber-600">{validationMessage}</p>
-              )}
-            </div>
+            )}
+            {validationMessage && (
+              <p className="text-xs text-amber-600 mb-4">{validationMessage}</p>
+            )}
 
             {/* Show planner button */}
             <Button 
@@ -527,8 +533,8 @@ export function AgendasFlow() {
           </div>
         </div>
 
-        {/* Legend card - RIGHT, only visible when Nieuwe planning is checked */}
-        {showNewPlanning && (
+        {/* Legend card - RIGHT, only visible when planner is shown and Nieuwe planning is checked */}
+        {showPlanner && showNewPlanning && (
           <div className="shrink-0">
             <TaskLegend />
           </div>
