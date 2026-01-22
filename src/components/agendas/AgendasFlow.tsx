@@ -475,8 +475,8 @@ export function AgendasFlow() {
             </div>
 
             {/* Medewerker select */}
-            <div className="flex items-center justify-between mb-4">
-              <span className="text-sm text-muted-foreground shrink-0">Medewerker:</span>
+            <div className="flex items-center mb-4">
+              <span className="text-sm text-muted-foreground shrink-0 w-[232px]">Medewerker:</span>
               <div className="w-[140px]">
                 <Select value={selectedEmployee} onValueChange={setSelectedEmployee} disabled={isLoadingEmployees}>
                   <SelectTrigger className="w-full text-left">
