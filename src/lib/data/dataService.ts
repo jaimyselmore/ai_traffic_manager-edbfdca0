@@ -250,19 +250,20 @@ export async function getClients(): Promise<Client[]> {
 export async function createClient(clientData: {
   klantnummer: string
   naam: string
-  stad?: string
-  land?: string
+  contactpersoon?: string
+  email?: string
+  telefoon?: string
+  adres?: string
+  notities?: string
 }): Promise<Client> {
-  // Build address from stad and land
-  const adresParts: string[] = []
-  if (clientData.stad) adresParts.push(clientData.stad)
-  if (clientData.land) adresParts.push(clientData.land)
-  const adres = adresParts.join(', ')
-
   const insertData = {
     klantnummer: clientData.klantnummer,
     naam: clientData.naam,
-    adres: adres || null,
+    contactpersoon: clientData.contactpersoon || null,
+    email: clientData.email || null,
+    telefoon: clientData.telefoon || null,
+    adres: clientData.adres || null,
+    notities: clientData.notities || null,
   }
 
   const { data, error } = await supabase
