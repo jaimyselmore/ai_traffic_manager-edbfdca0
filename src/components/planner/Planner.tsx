@@ -91,7 +91,7 @@ export function Planner() {
   return (
     <div className="space-y-8">
       {/* Header with controls on same line */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Planner</h1>
           <p className="mt-1 text-base text-muted-foreground">
@@ -99,8 +99,8 @@ export function Planner() {
           </p>
         </div>
 
-        {/* Zoom, Download, Vergroot planner - right side, stacks vertically when narrow */}
-        <div className="flex flex-col items-end gap-2 shrink-0">
+        {/* Zoom, Download, Vergroot planner - right side, responsive */}
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 self-center">
           <div className="flex items-center gap-1">
             <Button
               variant="ghost"
@@ -134,29 +134,27 @@ export function Planner() {
             </Button>
           </div>
 
-          <div className="flex items-center gap-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="h-9">
-                  <Download className="mr-2 h-4 w-4" />
-                  <span className="hidden sm:inline">Download</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuItem onClick={handleDownloadCSV}>
-                  Deze week als CSV
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleDownloadPDF}>
-                  Deze week als PDF
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-9">
+                <Download className="mr-2 h-4 w-4" />
+                <span className="hidden sm:inline">Download</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={handleDownloadCSV}>
+                Deze week als CSV
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleDownloadPDF}>
+                Deze week als PDF
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
-            <Button variant="outline" size="sm" className="h-9" onClick={() => setIsFullscreen(true)}>
-              <Maximize2 className="mr-2 h-4 w-4" />
-              <span className="hidden sm:inline">Vergroot planner</span>
-            </Button>
-          </div>
+          <Button variant="outline" size="sm" className="h-9" onClick={() => setIsFullscreen(true)}>
+            <Maximize2 className="mr-2 h-4 w-4" />
+            <span className="hidden sm:inline">Vergroot planner</span>
+          </Button>
         </div>
       </div>
 
