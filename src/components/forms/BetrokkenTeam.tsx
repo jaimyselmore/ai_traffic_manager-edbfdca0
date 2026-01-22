@@ -49,11 +49,23 @@ export function BetrokkenTeam({ data, onChange, showEllenToggle = true, ellenDef
                   <SelectValue placeholder="Selecteer creatief duo/team" />
                 </SelectTrigger>
                 <SelectContent>
-                  {employees.filter(e => 
-                    e.role.toLowerCase().includes('creatief') || 
-                    e.role.toLowerCase().includes('design') ||
-                    e.role.toLowerCase().includes('art')
-                  ).map((emp) => (
+                  {employees.filter(e => {
+                    const role = e.role.toLowerCase();
+                    // Only include creative team members, NOT studio/editors
+                    return (
+                      role.includes('creatief') ||
+                      role.includes('creative') ||
+                      role.includes('art director') ||
+                      role.includes('copywriter') ||
+                      role.includes('concept')
+                    ) && (
+                      // Explicitly exclude studio/editor roles
+                      !role.includes('editor') &&
+                      !role.includes('motion') &&
+                      !role.includes('designer') &&
+                      !role.includes('studio')
+                    );
+                  }).map((emp) => (
                     <SelectItem key={emp.id} value={emp.id}>{emp.name}</SelectItem>
                   ))}
                 </SelectContent>

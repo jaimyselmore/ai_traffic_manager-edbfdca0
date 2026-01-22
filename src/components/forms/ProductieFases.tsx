@@ -9,9 +9,12 @@ import { Button } from '@/components/ui/button';
 import { useEmployees } from '@/lib/data';
 
 export interface FaseData {
+  enabled?: boolean;
   startDatum?: string;
   eindDatum?: string;
   dagen?: number;
+  inspanning?: number;  // Alias for dagen, for automation compatibility
+  medewerkers?: string[];  // Employee names for automation
   datumTijd?: string;
   locatie?: 'selmore' | 'klant';
   reistijd?: boolean;
@@ -325,17 +328,17 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
 
 export const emptyProductieFasesData: ProductieFasesData = {
   fases: {
-    pp: { startDatum: '', eindDatum: '', creatief: false },
-    ppm: { datumTijd: '', locatie: 'selmore', reistijd: false },
-    shoot: { dagen: 1, startDatum: '', eindDatum: '', aanwezig: [] },
-    offlineEdit: { dagen: 2, startDatum: '', eindDatum: '', creatief: false },
-    presentatieOffline: { datumTijd: '', locatie: 'selmore', reistijd: false },
-    reEdit: { dagen: 1, startDatum: '', eindDatum: '' },
-    presentatieReEdit: { datumTijd: '', locatie: 'selmore', reistijd: false },
-    onlineGrading: { dagen: 2, startDatum: '', eindDatum: '' },
-    geluid: { dagen: 2, startDatum: '', eindDatum: '' },
-    presentatieFinals: { datumTijd: '', locatie: 'selmore', reistijd: false },
-    deliverables: { dagen: 1, startDatum: '', eindDatum: '' },
+    pp: { enabled: false, startDatum: '', eindDatum: '', creatief: false, dagen: 2, medewerkers: [] },
+    ppm: { enabled: false, datumTijd: '', locatie: 'selmore', reistijd: false },
+    shoot: { enabled: false, dagen: 1, startDatum: '', eindDatum: '', aanwezig: [], medewerkers: [] },
+    offlineEdit: { enabled: false, dagen: 2, startDatum: '', eindDatum: '', creatief: false, medewerkers: [] },
+    presentatieOffline: { enabled: false, datumTijd: '', locatie: 'selmore', reistijd: false },
+    reEdit: { enabled: false, dagen: 1, startDatum: '', eindDatum: '', medewerkers: [] },
+    presentatieReEdit: { enabled: false, datumTijd: '', locatie: 'selmore', reistijd: false },
+    onlineGrading: { enabled: false, dagen: 2, startDatum: '', eindDatum: '', medewerkers: [] },
+    geluid: { enabled: false, dagen: 2, startDatum: '', eindDatum: '', medewerkers: [] },
+    presentatieFinals: { enabled: false, datumTijd: '', locatie: 'selmore', reistijd: false },
+    deliverables: { enabled: false, dagen: 1, startDatum: '', eindDatum: '', medewerkers: [] },
   },
   extraPresentaties: [],
   deadlineOplevering: '',

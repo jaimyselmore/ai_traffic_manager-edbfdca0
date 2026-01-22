@@ -20,6 +20,7 @@ export interface MedewerkerEffort {
 export interface FaseData {
   enabled: boolean;
   medewerkers: MedewerkerEffort[];
+  inspanning?: number; // Total days for the fase
 }
 
 export interface PresentatieMoment {
@@ -178,6 +179,22 @@ export function PlanningModeForm({ data, onChange }: PlanningModeFormProps) {
 
         {faseData.enabled && (
           <div className="pl-6 space-y-4">
+            <div>
+              <Label className="text-sm">Totale inspanning (dagen)</Label>
+              <Input
+                type="number"
+                min="1"
+                max="30"
+                className="w-32"
+                value={faseData.inspanning || ''}
+                onChange={(e) => updateFase(fase, { inspanning: parseInt(e.target.value) || undefined })}
+                placeholder="Bijv. 2"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Dit is de totale duur van deze fase over alle medewerkers
+              </p>
+            </div>
+
             <div>
               <Label className="text-sm">Betrokken medewerkers</Label>
               <div className="grid grid-cols-2 gap-2 mt-2">
@@ -474,10 +491,12 @@ export const emptyPlanningModeData: PlanningModeData = {
   conceptontwikkeling: {
     enabled: false,
     medewerkers: [],
+    inspanning: undefined,
   },
   conceptuitwerking: {
     enabled: false,
     medewerkers: [],
+    inspanning: undefined,
   },
   presentatiesEnabled: false,
   presentatieMomenten: [],

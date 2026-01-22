@@ -12,6 +12,9 @@ import { BetrokkenTeam, BetrokkenTeamData, emptyBetrokkenTeamData } from '@/comp
 import { ProductieFases, ProductieFasesData, emptyProductieFasesData } from '@/components/forms/ProductieFases';
 import { PlanningModeForm, PlanningModeData, emptyPlanningModeData } from '@/components/forms/PlanningModeForm';
 import { toast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { createProjectAndSchedule } from '@/lib/services/planningAutomation';
+import { useClients } from '@/lib/data';
 
 const STORAGE_KEY = 'concept_nieuw_project';
 
@@ -42,6 +45,8 @@ const emptyFormData: NieuwProjectFormData = {
 
 export default function NieuwProject() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { data: clients = [] } = useClients();
 
   const [formData, setFormData] = useState<NieuwProjectFormData>(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -127,20 +132,144 @@ export default function NieuwProject() {
       return;
     }
 
+    if (!user) {
+      toast({
+        title: 'Fout',
+        description: 'Je moet ingelogd zijn om een project aan te maken',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     toast({
-      title: 'Plan wordt ingediend...',
-      description: 'Even geduld alstublieft.',
+      title: 'Project wordt aangemaakt...',
+      description: 'Blokken worden geplaatst in de planner...',
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    localStorage.removeItem(STORAGE_KEY);
+    // Find client name
+    const selectedClient = clients.find(c => c.id === formData.projectHeader.klantId);
+    const klantNaam = selectedClient?.name || 'Onbekend';
 
-    toast({
-      title: 'Plan succesvol ingediend!',
-      description: 'Je project is aangemaakt.',
-    });
+    // Build fases array from form data
+    const fases: any[] = [];
 
-    navigate('/');
+    // For productie type, use productie fases
+    if (formData.projectType === 'productie') {
+      const productieFases = formData.productieFases.fases;
+
+      if (productieFases.pp?.enabled) {
+        fases.push({
+          fase_naam: 'PP',
+          medewerkers: productieFases.pp.medewerkers || [],
+          start_datum: productieFases.pp.startDatum || formData.projectHeader.datumAanvraag || new Date().toISOString().split('T')[0],
+          duur_dagen: productieFases.pp.dagen || 2,
+          uren_per_dag: 8
+        });
+      }
+      if (productieFases.shoot?.enabled) {
+        fases.push({
+          fase_naam: 'Shoot',
+          medewerkers: productieFases.shoot.medewerkers || [],
+          start_datum: productieFases.shoot.startDatum || formData.projectHeader.datumAanvraag || new Date().toISOString().split('T')[0],
+          duur_dagen: productieFases.shoot.dagen || 1,
+          uren_per_dag: 8
+        });
+      }
+      if (productieFases.offlineEdit?.enabled) {
+        fases.push({
+          fase_naam: 'Offline edit',
+          medewerkers: productieFases.offlineEdit.medewerkers || [],
+          start_datum: productieFases.offlineEdit.startDatum || formData.projectHeader.datumAanvraag || new Date().toISOString().split('T')[0],
+          duur_dagen: productieFases.offlineEdit.dagen || 2,
+          uren_per_dag: 8
+        });
+      }
+      if (productieFases.onlineGrading?.enabled) {
+        fases.push({
+          fase_naam: 'Online/VFX',
+          medewerkers: productieFases.onlineGrading.medewerkers || [],
+          start_datum: productieFases.onlineGrading.startDatum || formData.projectHeader.datumAanvraag || new Date().toISOString().split('T')[0],
+          duur_dagen: productieFases.onlineGrading.dagen || 2,
+          uren_per_dag: 8
+        });
+      }
+    } else if (formData.projectType === 'nieuw_project') {
+      // For nieuw_project type, use planning mode fases
+      if (formData.planningMode.conceptontwikkeling.enabled) {
+        // Extract employee names from MedewerkerEffort objects
+        const medewerkers = formData.planningMode.conceptontwikkeling.medewerkers.map(m => m.medewerkerNaam);
+
+        fases.push({
+          fase_naam: 'Conceptontwikkeling',
+          medewerkers: medewerkers,
+          start_datum: formData.projectHeader.datumAanvraag || new Date().toISOString().split('T')[0],
+          duur_dagen: formData.planningMode.conceptontwikkeling.inspanning || 2,
+          uren_per_dag: 6
+        });
+      }
+      if (formData.planningMode.conceptuitwerking.enabled) {
+        // Extract employee names from MedewerkerEffort objects
+        const medewerkers = formData.planningMode.conceptuitwerking.medewerkers.map(m => m.medewerkerNaam);
+
+        fases.push({
+          fase_naam: 'Conceptuitwerking',
+          medewerkers: medewerkers,
+          start_datum: formData.projectHeader.datumAanvraag || new Date().toISOString().split('T')[0],
+          duur_dagen: formData.planningMode.conceptuitwerking.inspanning || 2,
+          uren_per_dag: 6
+        });
+      }
+    }
+
+    // If no fases, create a default one
+    if (fases.length === 0) {
+      toast({
+        title: 'Fout',
+        description: 'Selecteer minimaal één fase voor dit project',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Call automation service
+    const result = await createProjectAndSchedule(
+      {
+        klant_id: formData.projectHeader.klantId,
+        klant_naam: klantNaam,
+        projectnaam: formData.projectHeader.projectomschrijving,
+        projecttype: formData.projectType,
+        deadline: formData.projectHeader.deadline,
+        fases
+      },
+      user.id
+    );
+
+    if (result.success) {
+      localStorage.removeItem(STORAGE_KEY);
+
+      toast({
+        title: 'Project aangemaakt!',
+        description: `${result.blokkenAantal} blokken zijn geplaatst in de planner`,
+      });
+
+      if (result.warnings && result.warnings.length > 0) {
+        setTimeout(() => {
+          toast({
+            title: 'Let op',
+            description: result.warnings!.join('\n'),
+            variant: 'default',
+          });
+        }, 1000);
+      }
+
+      navigate('/planner');
+    } else {
+      toast({
+        title: 'Fout bij aanmaken project',
+        description: result.errors?.join('\n') || 'Er ging iets mis',
+        variant: 'destructive',
+      });
+    }
   };
 
   const getPageTitle = () => {
