@@ -244,6 +244,88 @@ export async function getClients(): Promise<Client[]> {
   }))
 }
 
+/**
+ * Genereer een uniek klantnummer
+ */
+async function generateKlantnummer(): Promise<string> {
+  // Get highest existing klantnummer
+  const { data, error } = await supabase
+    .from('klanten')
+    .select('klantnummer')
+    .order('klantnummer', { ascending: false })
+    .limit(1)
+
+  if (error) {
+    console.error('Fout bij ophalen klantnummers:', error)
+    // Fallback: generate random
+    return `K${Date.now().toString().slice(-6)}`
+  }
+
+  const results = data as { klantnummer: string }[] | null
+  if (results && results.length > 0) {
+    // Extract number from existing klantnummer and increment
+    const lastNumber = results[0].klantnummer
+    const numMatch = lastNumber.match(/\d+/)
+    if (numMatch) {
+      const nextNum = parseInt(numMatch[0]) + 1
+      return `K${nextNum.toString().padStart(4, '0')}`
+    }
+  }
+
+  // First customer
+  return 'K0001'
+}
+
+/**
+ * Maak nieuwe klant aan in Supabase
+ */
+export async function createClient(clientData: {
+  naam: string
+  stad?: string
+  land?: string
+}): Promise<Client> {
+  const klantnummer = await generateKlantnummer()
+  
+  // Build address from stad and land
+  const adresParts: string[] = []
+  if (clientData.stad) adresParts.push(clientData.stad)
+  if (clientData.land) adresParts.push(clientData.land)
+  const adres = adresParts.join(', ')
+
+  const insertData = {
+    klantnummer,
+    naam: clientData.naam,
+    adres: adres || null,
+  }
+
+  const { data, error } = await supabase
+    .from('klanten')
+    .insert(insertData as any)
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Fout bij aanmaken klant:', error)
+    throw new Error(`Fout bij aanmaken klant: ${error.message}`)
+  }
+
+  const result = data as KlantRow
+  if (!result) {
+    throw new Error('Geen data teruggekregen bij aanmaken klant')
+  }
+
+  return {
+    id: result.id,
+    code: result.klantnummer,
+    name: result.naam,
+    contactPerson: result.contactpersoon || '',
+    email: result.email || '',
+    phone: result.telefoon || '',
+    address: result.adres || '',
+    notes: result.notities || '',
+  }
+}
+
 // ===========================================
 // PLANNING / TAKEN
 // ===========================================
