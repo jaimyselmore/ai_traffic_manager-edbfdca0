@@ -1,5 +1,6 @@
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
+import html2pdf from 'html2pdf.js';
 
 interface TaskData {
   id: string;
@@ -21,6 +22,8 @@ interface EmployeeData {
   id: string;
   name: string;
   role?: string;
+  primaryRole?: string;
+  secondaryRole?: string;
 }
 
 const dayNamesShort = ['Ma', 'Di', 'Wo', 'Do', 'Vr'];
@@ -40,6 +43,15 @@ function getDayDate(weekStart: Date, dayOfWeek: number): Date {
  */
 function formatHour(hour: number): string {
   return `${hour.toString().padStart(2, '0')}:00`;
+}
+
+/**
+ * Get the role display text for an employee
+ * For duo teams, this shows the role of the first person
+ * For individual employees, shows their primary role
+ */
+function getEmployeeRole(employee: EmployeeData): string {
+  return employee.primaryRole || employee.role || '';
 }
 
 /**
@@ -92,7 +104,7 @@ export function exportToCSV(
       // Employee name only on first row
       if (hourIndex === 0) {
         row.push(employee.name);
-        row.push(employee.role || '');
+        row.push(getEmployeeRole(employee));
       } else {
         row.push('');
         row.push('');
@@ -226,11 +238,8 @@ function generatePlanningHTML(
         <tr>
           ${hourIndex === 0 ? `
             <td rowspan="${timeSlots.length}" class="employee-cell">
-              <div class="employee-avatar">${employee.name.split(' ').map(n => n[0]).join('')}</div>
-              <div class="employee-info">
-                <div class="employee-name">${employee.name}</div>
-                <div class="employee-role">${employee.role || ''}</div>
-              </div>
+              <div class="employee-name">${employee.name}</div>
+              <div class="employee-role">${getEmployeeRole(employee)}</div>
             </td>
           ` : ''}
           <td class="time-cell ${isLunch ? 'lunch-cell' : ''}">${timeLabel}</td>
@@ -304,26 +313,11 @@ function generatePlanningHTML(
       padding: 8px;
       border-right: 2px solid #d1d5db;
     }
-    .employee-avatar {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 24px;
-      height: 24px;
-      border-radius: 50%;
-      background: #6366f1;
-      color: white;
-      font-size: 8px;
-      font-weight: 600;
-      margin-bottom: 4px;
-    }
-    .employee-info {
-      margin-top: 4px;
-    }
     .employee-name {
       font-weight: 600;
-      font-size: 9px;
+      font-size: 10px;
       color: #111827;
+      margin-bottom: 2px;
     }
     .employee-role {
       font-size: 8px;
@@ -419,7 +413,7 @@ function generatePlanningHTML(
 }
 
 /**
- * Export planning data to PDF (opens print dialog)
+ * Export planning data to PDF (downloads directly to Downloads folder)
  */
 export function exportToPDF(
   tasks: TaskData[],
@@ -430,17 +424,40 @@ export function exportToPDF(
 ): void {
   const htmlContent = generatePlanningHTML(tasks, employees, weekStart, weekNumber, dateRange);
   
-  // Open new window with print dialog
-  const printWindow = window.open('', '_blank', 'width=1100,height=800');
+  // Create a temporary container for html2pdf
+  const container = document.createElement('div');
+  container.innerHTML = htmlContent;
+  document.body.appendChild(container);
   
-  if (printWindow) {
-    printWindow.document.write(htmlContent);
-    printWindow.document.close();
-    
-    // Wait for content to load, then trigger print
-    printWindow.onload = () => {
-      printWindow.focus();
-      printWindow.print();
-    };
-  }
+  const filename = `planning-week-${weekNumber}-${format(weekStart, 'yyyy-MM-dd')}.pdf`;
+  
+  const options = {
+    margin: 10,
+    filename: filename,
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { 
+      scale: 2,
+      useCORS: true,
+      letterRendering: true,
+    },
+    jsPDF: { 
+      unit: 'mm', 
+      format: 'a4', 
+      orientation: 'landscape' as const,
+    },
+  };
+  
+  html2pdf()
+    .set(options)
+    .from(container)
+    .save()
+    .then(() => {
+      // Clean up the temporary container
+      document.body.removeChild(container);
+    })
+    .catch((error: Error) => {
+      console.error('PDF generation failed:', error);
+      document.body.removeChild(container);
+      throw error;
+    });
 }
