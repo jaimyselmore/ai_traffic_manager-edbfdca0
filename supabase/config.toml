@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.ensure-public-user]
 verify_jwt = false
+
+[functions.update-account]
+verify_jwt = false
