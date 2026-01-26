@@ -10,7 +10,8 @@ import {
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
-import { mockClients, generateMockTasks, getWeekStart, getWeekNumber, formatDateRange, Task } from '@/lib/mockData';
+import { mockClients, generateMockTasks, Task } from '@/lib/mockData';
+import { getWeekStart, getWeekNumber, formatDateRange } from '@/lib/helpers/dateHelpers';
 import { TaskLegend } from '@/components/planner/TaskLegend';
 import { Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { useEmployees } from '@/hooks/use-employees';

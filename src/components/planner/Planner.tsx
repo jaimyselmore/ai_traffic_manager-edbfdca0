@@ -18,7 +18,7 @@ import {
 import { TaskLegend } from './TaskLegend';
 import { PlannerGrid } from './PlannerGrid';
 import { FullscreenPlanner } from './FullscreenPlanner';
-import { getWeekStart, getWeekNumber, formatDateRange } from '@/lib/mockData';
+import { getWeekStart, getWeekNumber, formatDateRange } from '@/lib/helpers/dateHelpers';
 import { useEmployees } from '@/hooks/use-employees';
 import { usePlannableEmployees } from '@/hooks/use-plannable-employees';
 import { useClients } from '@/hooks/use-clients';
@@ -47,12 +47,12 @@ export function Planner() {
   const weekNumber = getWeekNumber(currentWeekStart);
   const dateRange = formatDateRange(currentWeekStart);
 
-  const tasks = useMemo(() => [], [currentWeekStart]); // TODO: Load from Supabase
+  const tasks = useMemo(() => tasksFromDb, [tasksFromDb]);
 
   const filteredTasks = useMemo(() => {
     return tasks.filter((task) => {
       if (selectedEmployee !== 'all' && task.employeeId !== selectedEmployee) return false;
-      if (selectedClient !== 'all' && task.clientId !== selectedClient) return false;
+      if (selectedClient !== 'all' && task.clientName !== selectedClient) return false;
       return true;
     });
   }, [tasks, selectedEmployee, selectedClient]);

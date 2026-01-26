@@ -107,3 +107,65 @@ export function getWorkingDaysBetween(startDate: Date | string, endDate: Date | 
   const allDays = getDaysBetween(startDate, endDate);
   return allDays.filter(date => !isWeekend(date));
 }
+
+/**
+ * Get week number of a date (ISO 8601)
+ */
+export function getWeekNumber(date: Date): number {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+}
+
+/**
+ * Get the Monday (week start) of the week for a given date
+ */
+export function getWeekStart(date: Date): Date {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  d.setDate(diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+/**
+ * Format date range for week display (Dutch)
+ */
+export function formatDateRange(weekStart: Date): string {
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekEnd.getDate() + 4); // Friday
+
+  const months = [
+    'januari', 'februari', 'maart', 'april', 'mei', 'juni',
+    'juli', 'augustus', 'september', 'oktober', 'november', 'december'
+  ];
+
+  const startDay = weekStart.getDate();
+  const endDay = weekEnd.getDate();
+  const month = months[weekEnd.getMonth()];
+  const year = weekEnd.getFullYear();
+
+  return `${startDay} t/m ${endDay} ${month} ${year}`;
+}
+
+/**
+ * Get the end of the week (Sunday) for a given week start
+ */
+export function getWeekEnd(weekStart: Date): Date {
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekEnd.getDate() + 6);
+  return weekEnd;
+}
+
+/**
+ * Check if a date is in the current week
+ */
+export function isCurrentWeek(date: Date): boolean {
+  const today = new Date();
+  const weekStart = getWeekStart(today);
+  const weekEnd = getWeekEnd(weekStart);
+  return date >= weekStart && date <= weekEnd;
+}

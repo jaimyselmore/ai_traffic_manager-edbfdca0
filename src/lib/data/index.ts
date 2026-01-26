@@ -5,8 +5,9 @@
 // Export all types
 export * from './types';
 
-// Export mock data (for direct access if needed)
-export * from './mockData';
+// Mock data moved to ../mockData.ts (for backward compatibility)
+// Re-export from parent lib folder if needed
+// export * from '../mockData';
 
 // Export data service functions
 export * from './dataService';

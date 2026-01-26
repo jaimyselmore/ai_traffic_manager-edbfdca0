@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ArrowLeft, Calendar, Upload, Info, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { getWeekStart, getWeekNumber, formatDateRange } from '@/lib/mockData';
+import { getWeekStart, getWeekNumber, formatDateRange } from '@/lib/helpers/dateHelpers';
 import { useEmployees } from '@/hooks/use-employees';
 import { useClients } from '@/hooks/use-clients';
 import { addWeeks, addDays, format } from 'date-fns';

@@ -9,7 +9,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { PlannerGrid } from './PlannerGrid';
-import { Employee, generateMockTasks, getWeekNumber, formatDateRange } from '@/lib/mockData';
+import { Employee, generateMockTasks } from '@/lib/mockData';
+import { getWeekNumber, formatDateRange } from '@/lib/helpers/dateHelpers';
 
 interface FullscreenPlannerProps {
   currentWeekStart: Date;

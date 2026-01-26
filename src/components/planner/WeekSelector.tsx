@@ -6,7 +6,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { getWeekNumber } from '@/lib/mockData';
+import { getWeekNumber } from '@/lib/helpers/dateHelpers';
 
 interface WeekSelectorProps {
   currentWeekStart: Date;
