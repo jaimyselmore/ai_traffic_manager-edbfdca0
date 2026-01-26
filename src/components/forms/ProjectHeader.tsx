@@ -16,7 +16,6 @@ export interface ProjectHeaderData {
   projectVolgnummer: string;
   volledigProjectId: string;
   projectomschrijving: string;
-  infoKlant: string;
   datumAanvraag: string;
   deadline: string;
   opmerkingen: string;
@@ -381,17 +380,6 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
         )}
       </div>
 
-      {/* Info klant */}
-      <div>
-        <Label className="text-sm">Info klant</Label>
-        <Textarea
-          value={data.infoKlant}
-          onChange={(e) => onChange({ ...data, infoKlant: e.target.value })}
-          placeholder="Extra informatie over de klant of context..."
-          rows={2}
-        />
-      </div>
-
       {/* Datum aanvraag */}
       <div>
         <Label className="text-sm">Datum aanvraag</Label>
@@ -435,7 +423,6 @@ export const emptyProjectHeaderData: ProjectHeaderData = {
   projectVolgnummer: '',
   volledigProjectId: '',
   projectomschrijving: '',
-  infoKlant: '',
   datumAanvraag: new Date().toISOString().split('T')[0],
   deadline: '',
   opmerkingen: '',

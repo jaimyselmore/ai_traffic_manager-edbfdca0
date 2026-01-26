@@ -18,7 +18,7 @@ import { useClients } from '@/hooks/use-clients';
 
 const STORAGE_KEY = 'concept_nieuw_project';
 
-type ProjectType = 'nieuw_project' | 'productie' | '';
+type ProjectType = 'algemeen' | 'productie' | 'nieuw_type' | '';
 type SaveAsType = 'alleen_project' | 'nieuw_type' | '';
 
 interface NieuwProjectFormData {
@@ -91,11 +91,7 @@ export default function NieuwProject() {
       newErrors.projectomschrijving = 'Voer een projectomschrijving in';
     }
     if (!formData.projectType) {
-      newErrors.projectType = 'Selecteer eerst een projecttype.';
-    }
-    // For nieuw_project type, require at least one phase
-    if (formData.projectType === 'nieuw_project' && !hasAtLeastOnePhase()) {
-      newErrors.phases = 'Selecteer minimaal één fase (Conceptontwikkeling, Conceptuitwerking of Presentatie/meetingmomenten).';
+      newErrors.projectType = 'Selecteer eerst een project planning.';
     }
     // Only validate saveAsType if projectType is selected (since it's hidden otherwise)
     if (formData.projectType && !formData.saveAsType) {
@@ -112,11 +108,8 @@ export default function NieuwProject() {
   const getMissingFieldsMessage = (): string => {
     const missing: string[] = [];
     if (!formData.projectHeader.klantId) missing.push('Klant');
-    if (!formData.projectType) missing.push('Projecttype');
+    if (!formData.projectType) missing.push('Project planning');
     if (!formData.projectHeader.projectomschrijving) missing.push('Projectomschrijving');
-    if (formData.projectType === 'nieuw_project' && !hasAtLeastOnePhase()) {
-      missing.push('minimaal één fase');
-    }
     if (formData.projectType && !formData.saveAsType) missing.push('Opslagoptie');
     return missing.join(', ');
   };
@@ -193,8 +186,8 @@ export default function NieuwProject() {
           uren_per_dag: 8
         });
       }
-    } else if (formData.projectType === 'nieuw_project') {
-      // For nieuw_project type, use planning mode fases
+    } else if (formData.projectType === 'algemeen' || formData.projectType === 'nieuw_type') {
+      // For algemeen and nieuw_type, placeholder - no fases yet
       if (formData.planningMode.conceptontwikkeling.enabled) {
         // Extract employee names from MedewerkerEffort objects
         const medewerkers = formData.planningMode.conceptontwikkeling.medewerkers.map(m => m.medewerkerNaam);
@@ -275,7 +268,8 @@ export default function NieuwProject() {
   const getPageTitle = () => {
     switch (formData.projectType) {
       case 'productie': return 'Nieuw project – Productie';
-      case 'nieuw_project': return 'Nieuw project';
+      case 'algemeen': return 'Nieuw project – Algemeen';
+      case 'nieuw_type': return 'Nieuw project – Nieuw Type';
       default: return 'Nieuw project';
     }
   };
@@ -285,7 +279,6 @@ export default function NieuwProject() {
     if (!formData.projectHeader.klantId) return false;
     if (!formData.projectType) return false;
     if (!formData.projectHeader.projectomschrijving) return false;
-    if (formData.projectType === 'nieuw_project' && !hasAtLeastOnePhase()) return false;
     if (!formData.saveAsType) return false;
     if (formData.saveAsType === 'nieuw_type' && !formData.nieuwTypenaam) return false;
     return true;
@@ -320,21 +313,22 @@ export default function NieuwProject() {
           errors={errors}
         />
 
-        {/* Projecttype selector */}
+        {/* Project Planning selector */}
         <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
-          <h2 className="text-lg font-semibold text-foreground">Projecttype</h2>
+          <h2 className="text-lg font-semibold text-foreground">Project Planning</h2>
           <div>
-            <Label className="text-sm">Selecteer projecttype *</Label>
+            <Label className="text-sm">Selecteer project *</Label>
             <Select
               value={formData.projectType || undefined}
               onValueChange={(value) => setFormData({ ...formData, projectType: value as ProjectType })}
             >
               <SelectTrigger className={errors.projectType ? 'border-destructive' : ''}>
-                <SelectValue placeholder="Selecteer projecttype…" />
+                <SelectValue placeholder="Selecteer project planning…" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="nieuw_project">Nieuw project</SelectItem>
+                <SelectItem value="algemeen">Algemeen</SelectItem>
                 <SelectItem value="productie">Productie</SelectItem>
+                <SelectItem value="nieuw_type">+ Nieuw Project Type</SelectItem>
               </SelectContent>
             </Select>
             {errors.projectType && (
@@ -346,28 +340,40 @@ export default function NieuwProject() {
         {/* Conditional sections based on project type */}
         {formData.projectType && (
           <>
-            {/* Planning mode - show for all except productie which has its own flow */}
-            {formData.projectType !== 'productie' && (
-              <PlanningModeForm
-                data={formData.planningMode}
-                onChange={(data) => setFormData({ ...formData, planningMode: data })}
-              />
+            {/* Algemeen - Placeholder */}
+            {formData.projectType === 'algemeen' && (
+              <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
+                <h2 className="text-lg font-semibold text-foreground">Algemeen Project</h2>
+                <p className="text-sm text-muted-foreground">
+                  Dit formulier is nog in ontwikkeling. Hier kun je straks een algemeen project configureren.
+                </p>
+              </div>
             )}
-
-            {/* Betrokken team - show for all types */}
-            <BetrokkenTeam
-              data={formData.betrokkenTeam}
-              onChange={(data) => setFormData({ ...formData, betrokkenTeam: data })}
-              showEllenToggle={formData.projectType === 'productie'}
-              ellenDefaultOn={false}
-            />
 
             {/* Productie-specific phases */}
             {formData.projectType === 'productie' && (
-              <ProductieFases
-                data={formData.productieFases}
-                onChange={(data) => setFormData({ ...formData, productieFases: data })}
-              />
+              <>
+                <BetrokkenTeam
+                  data={formData.betrokkenTeam}
+                  onChange={(data) => setFormData({ ...formData, betrokkenTeam: data })}
+                  showEllenToggle={true}
+                  ellenDefaultOn={false}
+                />
+                <ProductieFases
+                  data={formData.productieFases}
+                  onChange={(data) => setFormData({ ...formData, productieFases: data })}
+                />
+              </>
+            )}
+
+            {/* Nieuw Project Type - Placeholder */}
+            {formData.projectType === 'nieuw_type' && (
+              <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
+                <h2 className="text-lg font-semibold text-foreground">+ Nieuw Project Type</h2>
+                <p className="text-sm text-muted-foreground">
+                  Hier kun je straks een volledig nieuw project type template aanmaken.
+                </p>
+              </div>
             )}
           </>
         )}
