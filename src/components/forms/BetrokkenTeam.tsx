@@ -2,7 +2,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { useEmployees } from '@/lib/data';
+import { useEmployees } from '@/hooks/use-employees';
 
 export interface BetrokkenTeamData {
   betrokkenCreatie: boolean;

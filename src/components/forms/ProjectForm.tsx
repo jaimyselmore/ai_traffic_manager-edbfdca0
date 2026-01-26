@@ -12,9 +12,9 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/lib/utils';
+import { useEmployees } from '@/hooks/use-employees';
+import { useClients } from '@/hooks/use-clients';
 import {
-  useEmployees,
-  useClients,
   useProjectTypes,
   useIndicatievePeriodes,
   useEffortEenheden,

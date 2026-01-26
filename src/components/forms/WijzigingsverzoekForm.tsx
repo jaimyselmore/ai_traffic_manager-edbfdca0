@@ -9,7 +9,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { useEmployees, useClients, useWijzigingTypes } from '@/lib/data';
+import { useEmployees } from '@/hooks/use-employees';
+import { useClients } from '@/hooks/use-clients';
+import { useWijzigingTypes } from '@/lib/data';
 
 export interface WijzigingsverzoekFormData {
   klant: string;

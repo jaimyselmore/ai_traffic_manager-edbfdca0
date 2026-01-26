@@ -8,7 +8,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useEmployees, useVerlofTypes } from '@/lib/data';
+import { useEmployees } from '@/hooks/use-employees';
+import { useVerlofTypes } from '@/lib/data';
 
 export interface VerlofFormData {
   medewerker: string;

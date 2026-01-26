@@ -14,7 +14,7 @@ import { PlanningModeForm, PlanningModeData, emptyPlanningModeData } from '@/com
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { createProjectAndSchedule } from '@/lib/services/planningAutomation';
-import { useClients } from '@/lib/data';
+import { useClients } from '@/hooks/use-clients';
 
 const STORAGE_KEY = 'concept_nieuw_project';
 

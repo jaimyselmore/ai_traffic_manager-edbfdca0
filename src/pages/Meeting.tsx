@@ -6,7 +6,9 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { useEmployees, useMeetingTypes, useClients } from '@/lib/data';
+import { useEmployees } from '@/hooks/use-employees';
+import { useClients } from '@/hooks/use-clients';
+import { useMeetingTypes } from '@/lib/data';
 import { toast } from '@/hooks/use-toast';
 
 const STORAGE_KEY = 'concept_meeting';

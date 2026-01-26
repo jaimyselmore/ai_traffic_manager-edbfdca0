@@ -8,7 +8,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ExistingProjectSelector, ExistingProjectData } from '@/components/forms/ExistingProjectSelector';
-import { useEmployees, useWijzigingTypes } from '@/lib/data';
+import { useEmployees } from '@/hooks/use-employees';
+import { useWijzigingTypes } from '@/lib/data';
 import { toast } from '@/hooks/use-toast';
 
 const STORAGE_KEY = 'concept_wijzigingsverzoek';
