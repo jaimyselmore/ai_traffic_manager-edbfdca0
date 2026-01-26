@@ -14,7 +14,6 @@ import Meeting from "./pages/Meeting";
 import Verlof from "./pages/Verlof";
 
 import AgendaResultaat from "./pages/AgendaResultaat";
-import EllenConversationPage from "./pages/EllenConversationPage";
 import NotFound from "./pages/NotFound";
 
 // Initialize API (for development auth helper)
@@ -39,7 +38,6 @@ const App = () => (
             <Route path="/meeting" element={<ProtectedRoute><Meeting /></ProtectedRoute>} />
             <Route path="/verlof" element={<ProtectedRoute><Verlof /></ProtectedRoute>} />
             <Route path="/agenda-resultaat" element={<ProtectedRoute><AgendaResultaat /></ProtectedRoute>} />
-            <Route path="/ellen-session" element={<ProtectedRoute><EllenConversationPage /></ProtectedRoute>} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
