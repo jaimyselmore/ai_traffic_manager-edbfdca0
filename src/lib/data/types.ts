@@ -160,6 +160,7 @@ export interface Task {
   projectId: string;
   clientName: string;
   projectNumber: string;
+  projectTitel?: string;
   phaseName: string;
   workType: string;
   discipline: string;

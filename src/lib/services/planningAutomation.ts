@@ -19,6 +19,7 @@ interface ProjectInput {
   klant_id: string;
   klant_naam: string;
   projectnaam: string;
+  projectTitel?: string;
   projecttype?: string;
   deadline?: string;
   fases: ProjectFaseInput[];
@@ -49,6 +50,7 @@ export async function createProjectAndSchedule(
       .insert({
         klant_id: projectData.klant_id,
         omschrijving: projectData.projectnaam,
+        titel: projectData.projectTitel,
         projecttype: projectData.projecttype || 'algemeen',
         deadline: projectData.deadline,
         status: 'concept',
@@ -96,6 +98,7 @@ export async function createProjectAndSchedule(
         faseId: projectFase.id,
         klantNaam: projectData.klant_naam,
         projectNummer: project.projectnummer,
+        projectTitel: projectData.projectTitel,
         faseNaam: fase.fase_naam,
         medewerkers: fase.medewerkers,
         startDatum: fase.start_datum,
@@ -133,6 +136,7 @@ interface ScheduleFaseBlocksConfig {
   faseId: string;
   klantNaam: string;
   projectNummer: string;
+  projectTitel?: string;
   faseNaam: string;
   medewerkers: string[];
   startDatum: string;
@@ -198,6 +202,7 @@ async function scheduleFaseBlocks(config: ScheduleFaseBlocksConfig): Promise<any
             werknemer_naam: medewerker,
             klant_naam: config.klantNaam,
             project_nummer: config.projectNummer,
+            project_titel: config.projectTitel,
             fase_naam: config.faseNaam,
             werktype: config.faseNaam,
             discipline: discipline,

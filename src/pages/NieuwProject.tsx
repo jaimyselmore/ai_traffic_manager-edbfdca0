@@ -230,6 +230,7 @@ export default function NieuwProject() {
         klant_id: formData.projectHeader.klantId,
         klant_naam: klantNaam,
         projectnaam: formData.projectHeader.projectomschrijving,
+        projectTitel: formData.projectHeader.projectTitel,
         projecttype: formData.projectType,
         deadline: formData.projectHeader.deadline,
         fases

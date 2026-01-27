@@ -6,6 +6,7 @@ interface Task {
   werknemer_naam: string;
   klant_naam: string;
   project_nummer: string;
+  project_titel?: string;
   fase_naam: string;
   werktype: string;
   discipline: string;

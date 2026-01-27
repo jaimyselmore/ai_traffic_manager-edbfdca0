@@ -139,10 +139,14 @@ export function PlannerGrid({ weekStart, employees, tasks, compact = false }: Pl
                               taskColors[task.type],
                               isConcept && 'opacity-50'
                             )}
-                            title={`${getClientName(task.clientId)} - ${getTaskLabel(task.type)}${isConcept ? ' (concept)' : ''}\n${task.startTime} - ${task.endTime}${task.faseNaam ? `\nFase: ${task.faseNaam}` : ''}`}
+                            title={`${task.projectTitel || getClientName(task.clientId)} - ${getTaskLabel(task.type)}${isConcept ? ' (concept)' : ''}\n${task.startTime} - ${task.endTime}${task.faseNaam ? `\nFase: ${task.faseNaam}` : ''}`}
                           >
                             <div className="truncate font-medium">
-                              {compact ? getClientName(task.clientId).substring(0, 4) : getClientName(task.clientId)}
+                              {task.projectTitel ? (
+                                compact ? task.projectTitel.substring(0, 8) : task.projectTitel
+                              ) : (
+                                compact ? getClientName(task.clientId).substring(0, 4) : getClientName(task.clientId)
+                              )}
                             </div>
                             {!compact && (
                               <div className="truncate opacity-80 text-[10px]">

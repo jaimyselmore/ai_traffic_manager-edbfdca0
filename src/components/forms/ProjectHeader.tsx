@@ -15,6 +15,7 @@ export interface ProjectHeaderData {
   klantIdBasis: string;
   projectVolgnummer: string;
   volledigProjectId: string;
+  projectTitel: string;
   projectomschrijving: string;
   datumAanvraag: string;
   deadline: string;
@@ -65,6 +66,12 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
     return `${klantIdBasis}${paddedVolgnummer}`;
   };
 
+  // Compute project titel
+  const computeProjectTitel = (klantnaam: string, volledigProjectId: string): string => {
+    if (!klantnaam || !volledigProjectId) return '';
+    return `${klantnaam}_${volledigProjectId}`;
+  };
+
   const handleKlantChange = (value: string) => {
     if (value === 'new') {
       setIsAddingNewClient(true);
@@ -73,18 +80,22 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
         klantId: '',
         klantIdBasis: '',
         volledigProjectId: '',
+        projectTitel: '',
       });
     } else {
       setIsAddingNewClient(false);
       const selectedClient = clients.find(c => c.id === value);
       // Use client code as basis for project ID
       const klantIdBasis = selectedClient?.code || '';
+      const klantnaam = selectedClient?.name || '';
       const volledigProjectId = computeVolledigProjectId(klantIdBasis, data.projectVolgnummer);
+      const projectTitel = computeProjectTitel(klantnaam, volledigProjectId);
       onChange({
         ...data,
         klantId: value,
         klantIdBasis,
         volledigProjectId,
+        projectTitel,
         nieuweKlantNaam: undefined,
       });
     }
@@ -94,10 +105,14 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
     // Only allow 2 digits
     const sanitized = value.replace(/\D/g, '').slice(0, 2);
     const volledigProjectId = computeVolledigProjectId(data.klantIdBasis, sanitized);
+    const selectedClient = clients.find(c => c.id === data.klantId);
+    const klantnaam = selectedClient?.name || '';
+    const projectTitel = computeProjectTitel(klantnaam, volledigProjectId);
     onChange({
       ...data,
       projectVolgnummer: sanitized,
       volledigProjectId,
+      projectTitel,
     });
   };
 
@@ -137,11 +152,13 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
 
       // Update form with new client
       const volledigProjectId = computeVolledigProjectId(newClient.code || '', data.projectVolgnummer);
+      const projectTitel = computeProjectTitel(newClient.name, volledigProjectId);
       onChange({
         ...data,
         klantId: newClient.id,
         klantIdBasis: newClient.code || '',
         volledigProjectId,
+        projectTitel,
         nieuweKlantNaam: newClient.name,
       });
 
@@ -365,6 +382,18 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
         </div>
       )}
 
+      {/* Project titel (read-only) */}
+      {data.projectTitel && (
+        <div className="p-3 bg-primary/10 rounded-lg border border-primary/20">
+          <p className="text-sm text-muted-foreground">
+            Project titel: <span className="font-semibold text-foreground">{data.projectTitel}</span>
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Deze titel wordt gebruikt in de planner en planning communicatie.
+          </p>
+        </div>
+      )}
+
       {/* Projectomschrijving */}
       <div>
         <Label className="text-sm">Projectomschrijving *</Label>
@@ -422,6 +451,7 @@ export const emptyProjectHeaderData: ProjectHeaderData = {
   klantIdBasis: '',
   projectVolgnummer: '',
   volledigProjectId: '',
+  projectTitel: '',
   projectomschrijving: '',
   datumAanvraag: new Date().toISOString().split('T')[0],
   deadline: '',
