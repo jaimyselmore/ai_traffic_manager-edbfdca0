@@ -71,6 +71,7 @@ interface ProjectRow {
   projectnummer: string
   volgnummer: number
   klant_id: string | null
+  titel?: string | null
   omschrijving: string
   projecttype: string
   datum_aanvraag: string
@@ -321,6 +322,7 @@ export async function createClient(clientData: {
 export interface ProjectSummary {
   id: string
   projectnummer: string
+  titel?: string | null
   omschrijving: string
   projecttype: string
   klant_id: string | null
@@ -355,6 +357,7 @@ export async function getProjects(): Promise<ProjectSummary[]> {
   return ((data || []) as any[]).map((project) => ({
     id: project.id,
     projectnummer: project.projectnummer,
+    titel: null, // titel kolom bestaat nog niet in database
     omschrijving: project.omschrijving,
     projecttype: project.projecttype,
     klant_id: project.klant_id,

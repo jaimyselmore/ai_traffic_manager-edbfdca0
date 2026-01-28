@@ -29,7 +29,6 @@ export function useProjects(status?: 'concept' | 'vast' | 'afgerond') {
           id,
           klant_id,
           projectnummer,
-          titel,
           omschrijving,
           projecttype,
           deadline,
@@ -54,7 +53,11 @@ export function useProjects(status?: 'concept' | 'vast' | 'afgerond') {
         throw new Error(`Fout bij ophalen projecten: ${error.message}`);
       }
 
-      return (data || []) as Project[];
+      // Map data to include titel as null (column doesn't exist yet)
+      return ((data || []) as any[]).map(p => ({
+        ...p,
+        titel: null
+      })) as Project[];
     },
     staleTime: 5 * 60 * 1000, // 5 minuten
   });

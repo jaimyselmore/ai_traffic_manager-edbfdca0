@@ -50,8 +50,8 @@ export default function Meeting() {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [selectedProject, setSelectedProject] = useState<{
-    id: string;
-    titel: string;
+    projectId: string;
+    projectTitel: string;
     klantNaam: string;
   } | null>(null);
 
@@ -164,19 +164,28 @@ export default function Meeting() {
             <Label className="text-sm">Project *</Label>
             <ProjectSelector
               value={formData.projectId}
-              onChange={(projectId, projectData) => {
-                setFormData({
-                  ...formData,
-                  projectId,
-                  projectTitel: projectData?.titel
-                });
-                setSelectedProject(projectData);
+              onChange={(projectData) => {
+                if (projectData) {
+                  setFormData({
+                    ...formData,
+                    projectId: projectData.projectId,
+                    projectTitel: projectData.projectTitel
+                  });
+                  setSelectedProject(projectData);
+                } else {
+                  setFormData({
+                    ...formData,
+                    projectId: '',
+                    projectTitel: ''
+                  });
+                  setSelectedProject(null);
+                }
               }}
               placeholder="Selecteer een project"
             />
             {selectedProject && (
               <p className="text-xs text-muted-foreground mt-2">
-                {selectedProject.klantNaam} - {selectedProject.titel}
+                {selectedProject.klantNaam} - {selectedProject.projectTitel}
               </p>
             )}
             {errors.projectId && (

@@ -22,7 +22,7 @@ import { getWeekStart, getWeekNumber, formatDateRange } from '@/lib/helpers/date
 import { useEmployees } from '@/hooks/use-employees';
 import { usePlannableEmployees } from '@/hooks/use-plannable-employees';
 import { useClients } from '@/hooks/use-clients';
-import { useTasks } from '@/hooks/use-tasks';
+import { useTasks, Task } from '@/hooks/use-tasks';
 import { toast } from '@/hooks/use-toast';
 import { exportToCSV, exportToPDF } from '@/lib/export/planningExport';
 

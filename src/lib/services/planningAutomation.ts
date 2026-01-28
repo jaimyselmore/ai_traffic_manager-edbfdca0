@@ -45,17 +45,21 @@ export async function createProjectAndSchedule(
 
   try {
     // 1. Create project record
+    const insertPayload = {
+      klant_id: projectData.klant_id,
+      omschrijving: projectData.projectnaam,
+      projecttype: projectData.projecttype || 'algemeen',
+      deadline: projectData.deadline,
+      status: 'concept',
+      created_by: createdBy,
+      datum_aanvraag: new Date().toISOString().split('T')[0],
+      volgnummer: Date.now() % 10000, // temporary unique number
+      projectnummer: `P-${Date.now().toString().slice(-6)}` // temporary project number
+    };
+
     const { data: project, error: projectError } = await supabase
       .from('projecten')
-      .insert({
-        klant_id: projectData.klant_id,
-        omschrijving: projectData.projectnaam,
-        titel: projectData.projectTitel,
-        projecttype: projectData.projecttype || 'algemeen',
-        deadline: projectData.deadline,
-        status: 'concept',
-        created_by: createdBy
-      })
+      .insert(insertPayload)
       .select()
       .single();
 

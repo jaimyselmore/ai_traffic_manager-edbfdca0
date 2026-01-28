@@ -441,7 +441,7 @@ export default function NieuwProject() {
                 Selecteer medewerkers en geef per persoon aan hoeveel dagen ze nodig zijn
               </p>
               <div className="space-y-3 mt-3">
-                {employees.map((emp) => {
+                {(employees || []).map((emp) => {
                   const allocatie = formData.algemeen.medewerkerAllocaties.find(a => a.medewerkerId === emp.id);
                   const isSelected = !!allocatie;
 
@@ -456,7 +456,7 @@ export default function NieuwProject() {
                         {emp.name}
                         <span className="text-muted-foreground ml-1 text-xs">({emp.role})</span>
                       </Label>
-                      {isSelected && (
+                      {isSelected && allocatie && (
                         <div className="flex items-center gap-2">
                           <Input
                             type="number"
