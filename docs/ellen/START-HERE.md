@@ -113,44 +113,144 @@ Stap-voor-stap plan om Ellen te bouwen.
 
 ---
 
+### 6. [ellen-role-definition.md](./ellen-role-definition.md)
+**KRITIEK DOCUMENT** - Ellen's exacte verantwoordelijkheden.
+
+**Lees dit voor:**
+- Wat Ellen WEL doet (Nieuw Project, Wijzigingen, Verlof conflicten)
+- Wat Ellen NIET doet (Ad-hoc meetings, Team updates, Reistijd)
+- Autonomie level (altijd voorstellen, nooit direct uitvoeren)
+- Template → Ellen flow
+- Status levels (CONCEPT vs VAST)
+
+**Belangrijk voor:** Iedereen die met Ellen werkt
+
+---
+
+### 7. [detailed-workflows.md](./detailed-workflows.md)
+**MEEST GEDETAILLEERD** - Stap-voor-stap flows voor elk scenario.
+
+**Lees dit voor:**
+- WORKFLOW 1: Nieuw Project (8 stappen met UI mockups)
+- WORKFLOW 2: Wijzigingen (impact analyse)
+- WORKFLOW 3: Ad-hoc Meeting (zonder Ellen)
+- WORKFLOW 4: Verlof (preventief + reactief)
+- Volledige conversation voorbeelden
+
+**Belangrijk voor:** UX designers, Wizard of Oz testers
+
+---
+
+### 8. [template-specifications.md](./template-specifications.md)
+Complete specificatie van alle template velden.
+
+**Lees dit voor:**
+- Exacte velden per template (NieuwProject, Meeting, Wijziging, Verlof)
+- Validatie regels
+- Data types en formats
+- Missing velden die toegevoegd moeten worden
+- UI/UX requirements
+
+**Belangrijk voor:** Frontend developers (Fase 2)
+
+---
+
+### 9. [automation-workflows.md](./automation-workflows.md)
+Workflows die ZONDER Ellen draaien (pure automation).
+
+**Lees dit voor:**
+- Pre-Ellen data fetching (Outlook, verlof, workload)
+- Quick Add Meeting workflow
+- Status updates (CONCEPT → VAST)
+- Notification workflows
+- Data sync (Outlook bidirectional)
+
+**Belangrijk voor:** Backend developers, DevOps
+
+---
+
+### 10. [wizard-of-oz-test-scenarios.md](./wizard-of-oz-test-scenarios.md)
+Test scenarios voor Wizard of Oz testing.
+
+**Lees dit voor:**
+- 7 complete test scenarios met expected responses
+- Operator dashboard design
+- Response templates
+- Success criteria
+- Test execution plan
+
+**Belangrijk voor:** Test operators, UX researchers (Fase 3)
+
+---
+
 ## Huidige Status
 
-### ✅ Voltooid
-- Documentatie compleet
-- Architectuur beslissingen gemaakt
-- Tools gedefinieerd
-- Planning automation service werkt al
+### ✅ FASE 1 VOLTOOID: Documentatie
+- ✅ Ellen's rol en functionaliteit gedocumenteerd
+- ✅ Architectuur uitgedacht
+- ✅ Workflows beschreven (gedetailleerd)
+- ✅ Tools gedefinieerd (alle 15+ tools)
+- ✅ Implementation plan gemaakt
+- ✅ Template specificaties compleet
+- ✅ Automation workflows gedocumenteerd
+- ✅ Wizard of Oz test scenarios klaar
 
-### 🔄 Bezig (Fase 2)
-- Titel integratie in templates fixen
-- Missing velden toevoegen
-- Template data flows testen
+**Totaal: 10 documenten, ~120 KB documentatie**
 
-### ⏳ Nog te doen
-- Wizard of Oz test opzetten (Fase 3)
-- Echte Ellen bouwen (Fase 4)
+### 🔄 FASE 2 READY: Templates & Workflows
+**Volgende stap:** Template updates implementeren
+
+**Te doen:**
+- [ ] Meeting.tsx: Replace klanten dropdown with ProjectSelector
+- [ ] Meeting.tsx: Add locatie + reistijd fields
+- [ ] Wijzigingsverzoek.tsx: Add context fields (reden, situaties, urgentie)
+- [ ] Verlof.tsx: Add verlofCategorie + backupPersoon
+- [ ] Database: Add beschikbaarheid column to klanten table
+- [ ] Client Form: Add beschikbaarheid UI
+- [ ] Test data flows end-to-end
+
+### ⏳ FASE 3 TODO: Wizard of Oz Testing
+- Setup mock Ellen interface
+- Train operator
+- Execute 7 test scenarios
+- Iterate based on feedback
+
+### ⏳ FASE 4 TODO: Echte Ellen Bouwen
+- Supabase Edge Function + Claude API
+- Implement all tools
+- Frontend integration
+- Deploy & test
 
 ---
 
 ## Volgende Stappen
 
-### Voor Template Developers:
-1. Lees [workflows.md](./workflows.md) secties 2, 3, 4
-2. Check welke velden missen in templates
-3. Fix titel integratie (Meeting.tsx, Wijzigingsverzoek.tsx)
-4. Voeg extra velden toe (reden, impact, etc.)
+### Voor Template Developers (Fase 2):
+1. Lees [template-specifications.md](./template-specifications.md) volledig
+2. Implementeer missing velden:
+   - Meeting.tsx: ProjectSelector, locatie, reistijd
+   - Wijzigingsverzoek.tsx: reden, situaties, urgentie
+   - Verlof.tsx: categorie, backupPersoon
+3. Database: Add beschikbaarheid to klanten table
+4. Test data flows end-to-end
+5. Checklist afwerken in template-specifications.md
 
-### Voor UX/Product:
-1. Lees [workflows.md](./workflows.md) sectie 7 (Conversation Patterns)
-2. Bedenk Wizard of Oz test scenarios
-3. Schrijf Ellen scripts voor test
-4. Ontwerp user journey
+### Voor UX/Product (Fase 3):
+1. Lees [ellen-role-definition.md](./ellen-role-definition.md) - Ellen's persoonlijkheid
+2. Lees [detailed-workflows.md](./detailed-workflows.md) - Conversation patterns
+3. Lees [wizard-of-oz-test-scenarios.md](./wizard-of-oz-test-scenarios.md)
+4. Setup mock Ellen interface
+5. Train operator met response templates
+6. Execute test scenarios
+7. Itereer op basis van feedback
 
-### Voor Backend Developers (later):
+### Voor Backend Developers (Fase 4 - later):
 1. Lees [architecture.md](./architecture.md)
-2. Lees [tools.md](./tools.md)
-3. Lees [implementation-plan.md](./implementation-plan.md)
-4. Start met Fase 1: Backend Foundation
+2. Lees [tools.md](./tools.md) - Alle 15+ tool implementaties
+3. Lees [automation-workflows.md](./automation-workflows.md)
+4. Lees [implementation-plan.md](./implementation-plan.md)
+5. Start met Supabase Edge Function + Claude API
+6. Implement tools stap voor stap
 
 ---
 
@@ -226,10 +326,14 @@ Een mens speelt Ellen's rol om de workflow te testen voordat de echte AI gebouwd
 
 ## Vragen?
 
-- **Over workflows:** Check [workflows.md](./workflows.md) sectie 5 (Ellen's Decision Tree)
-- **Over techniek:** Check [architecture.md](./architecture.md)
-- **Over implementatie:** Check [implementation-plan.md](./implementation-plan.md)
-- **Over tools:** Check [tools.md](./tools.md)
+- **Wat doet Ellen precies?** → [ellen-role-definition.md](./ellen-role-definition.md)
+- **Hoe werken de workflows?** → [detailed-workflows.md](./detailed-workflows.md)
+- **Welke velden moet ik toevoegen?** → [template-specifications.md](./template-specifications.md)
+- **Hoe test ik dit?** → [wizard-of-oz-test-scenarios.md](./wizard-of-oz-test-scenarios.md)
+- **Over techniek:** → [architecture.md](./architecture.md)
+- **Over automation:** → [automation-workflows.md](./automation-workflows.md)
+- **Over implementatie:** → [implementation-plan.md](./implementation-plan.md)
+- **Over tools:** → [tools.md](./tools.md)
 
 ---
 
@@ -239,7 +343,10 @@ Een mens speelt Ellen's rol om de workflow te testen voordat de echte AI gebouwd
 - **Templates:** `/src/pages/` (Meeting.tsx, Wijzigingsverzoek.tsx, Verlof.tsx)
 - **Forms:** `/src/components/forms/`
 - **Current automation:** `/src/lib/services/planningAutomation.ts`
+- **Database:** Supabase (projecten, taken, meetings_en_presentaties, etc.)
 
 ---
 
-**Last updated:** 2024-01-27
+**Last updated:** 2024-01-28
+**Documentation Status:** ✅ FASE 1 COMPLEET
+**Total Documentation:** 10 files, ~120 KB
