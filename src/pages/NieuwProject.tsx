@@ -19,15 +19,20 @@ const STORAGE_KEY = 'concept_nieuw_project';
 
 type ProjectType = 'algemeen' | 'productie' | '';
 
-interface AlgemeenProjectData {
-  medewerkers: string[];
+interface MedewerkerAllocatie {
+  medewerkerId: string;
   aantalDagen: number;
+}
+
+interface AlgemeenProjectData {
+  medewerkerAllocaties: MedewerkerAllocatie[];
+  planningMode: 'team' | 'individueel' | '';
   startDatum: string;
 }
 
 const emptyAlgemeenData: AlgemeenProjectData = {
-  medewerkers: [],
-  aantalDagen: 5,
+  medewerkerAllocaties: [],
+  planningMode: '',
   startDatum: '',
 };
 
@@ -89,8 +94,18 @@ export default function NieuwProject() {
     if (!formData.projectType) {
       newErrors.projectType = 'Selecteer een projecttype';
     }
-    if (formData.projectType === 'algemeen' && formData.algemeen.medewerkers.length === 0) {
-      newErrors.algemeen = 'Selecteer minimaal één medewerker';
+    if (formData.projectType === 'algemeen') {
+      if (formData.algemeen.medewerkerAllocaties.length === 0) {
+        newErrors.algemeen = 'Selecteer minimaal één medewerker';
+      }
+      if (!formData.algemeen.planningMode) {
+        newErrors.planningMode = 'Selecteer een planning modus';
+      }
+      // Check if all selected employees have days > 0
+      const invalidAllocaties = formData.algemeen.medewerkerAllocaties.filter(a => a.aantalDagen <= 0);
+      if (invalidAllocaties.length > 0) {
+        newErrors.aantalDagen = 'Alle medewerkers moeten minimaal 1 dag hebben';
+      }
     }
 
     setErrors(newErrors);
@@ -102,7 +117,10 @@ export default function NieuwProject() {
     if (!formData.projectHeader.klantId) missing.push('Klant');
     if (!formData.projectHeader.projectomschrijving) missing.push('Projectomschrijving');
     if (!formData.projectType) missing.push('Projecttype');
-    if (formData.projectType === 'algemeen' && formData.algemeen.medewerkers.length === 0) missing.push('Medewerkers');
+    if (formData.projectType === 'algemeen') {
+      if (formData.algemeen.medewerkerAllocaties.length === 0) missing.push('Medewerkers');
+      if (!formData.algemeen.planningMode) missing.push('Planning modus');
+    }
     return missing.join(', ');
   };
 
@@ -139,14 +157,32 @@ export default function NieuwProject() {
     const fases: any[] = [];
 
     if (formData.projectType === 'algemeen') {
-      // For algemeen: create one generic fase with all selected employees
-      fases.push({
-        fase_naam: 'Algemeen',
-        medewerkers: formData.algemeen.medewerkers,
-        start_datum: formData.algemeen.startDatum || formData.projectHeader.datumAanvraag || new Date().toISOString().split('T')[0],
-        duur_dagen: formData.algemeen.aantalDagen || 5,
-        uren_per_dag: 8
-      });
+      // For algemeen: create fases based on planning mode
+      if (formData.algemeen.planningMode === 'team') {
+        // Plan as team: one fase with all employees
+        const allMedewerkers = formData.algemeen.medewerkerAllocaties.map(a => a.medewerkerId);
+        // Use the maximum days from allocations for team planning
+        const maxDagen = Math.max(...formData.algemeen.medewerkerAllocaties.map(a => a.aantalDagen));
+        fases.push({
+          fase_naam: 'Algemeen (Team)',
+          medewerkers: allMedewerkers,
+          start_datum: formData.algemeen.startDatum || formData.projectHeader.datumAanvraag || new Date().toISOString().split('T')[0],
+          duur_dagen: maxDagen,
+          uren_per_dag: 8
+        });
+      } else {
+        // Plan individually: separate fase for each employee
+        formData.algemeen.medewerkerAllocaties.forEach(allocatie => {
+          const employee = employees.find(e => e.id === allocatie.medewerkerId);
+          fases.push({
+            fase_naam: `Algemeen - ${employee?.name || 'Medewerker'}`,
+            medewerkers: [allocatie.medewerkerId],
+            start_datum: formData.algemeen.startDatum || formData.projectHeader.datumAanvraag || new Date().toISOString().split('T')[0],
+            duur_dagen: allocatie.aantalDagen,
+            uren_per_dag: 8
+          });
+        });
+      }
     } else {
       // For productie: use productie fases
       const productieFases = formData.productieFases.fases;
@@ -246,18 +282,51 @@ export default function NieuwProject() {
     if (!formData.projectHeader.klantId) return false;
     if (!formData.projectHeader.projectomschrijving) return false;
     if (!formData.projectType) return false;
-    if (formData.projectType === 'algemeen' && formData.algemeen.medewerkers.length === 0) return false;
+    if (formData.projectType === 'algemeen') {
+      if (formData.algemeen.medewerkerAllocaties.length === 0) return false;
+      if (!formData.algemeen.planningMode) return false;
+      // Check if all allocations have valid days
+      if (formData.algemeen.medewerkerAllocaties.some(a => a.aantalDagen <= 0)) return false;
+    }
     return true;
   };
 
   const handleMedewerkerToggle = (id: string) => {
+    setFormData(prev => {
+      const exists = prev.algemeen.medewerkerAllocaties.find(a => a.medewerkerId === id);
+      if (exists) {
+        // Remove employee
+        return {
+          ...prev,
+          algemeen: {
+            ...prev.algemeen,
+            medewerkerAllocaties: prev.algemeen.medewerkerAllocaties.filter(a => a.medewerkerId !== id)
+          }
+        };
+      } else {
+        // Add employee with default 5 days
+        return {
+          ...prev,
+          algemeen: {
+            ...prev.algemeen,
+            medewerkerAllocaties: [
+              ...prev.algemeen.medewerkerAllocaties,
+              { medewerkerId: id, aantalDagen: 5 }
+            ]
+          }
+        };
+      }
+    });
+  };
+
+  const handleMedewerkerDagenChange = (id: string, dagen: number) => {
     setFormData(prev => ({
       ...prev,
       algemeen: {
         ...prev.algemeen,
-        medewerkers: prev.algemeen.medewerkers.includes(id)
-          ? prev.algemeen.medewerkers.filter(m => m !== id)
-          : [...prev.algemeen.medewerkers, id]
+        medewerkerAllocaties: prev.algemeen.medewerkerAllocaties.map(a =>
+          a.medewerkerId === id ? { ...a, aantalDagen: dagen } : a
+        )
       }
     }));
   };
@@ -324,54 +393,90 @@ export default function NieuwProject() {
           <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
             <h2 className="text-lg font-semibold text-foreground">Planning</h2>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="text-sm">Aantal dagen *</Label>
-                <Input
-                  type="number"
-                  min="1"
-                  value={formData.algemeen.aantalDagen}
-                  onChange={(e) => setFormData({
-                    ...formData,
-                    algemeen: { ...formData.algemeen, aantalDagen: parseInt(e.target.value) || 5 }
-                  })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-sm">Startdatum (optioneel)</Label>
-                <Input
-                  type="date"
-                  value={formData.algemeen.startDatum}
-                  onChange={(e) => setFormData({
-                    ...formData,
-                    algemeen: { ...formData.algemeen, startDatum: e.target.value }
-                  })}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Laat leeg voor automatische planning
-                </p>
-              </div>
+            <div className="space-y-2">
+              <Label className="text-sm">Planning modus *</Label>
+              <RadioGroup
+                value={formData.algemeen.planningMode}
+                onValueChange={(value: 'team' | 'individueel') => setFormData({
+                  ...formData,
+                  algemeen: { ...formData.algemeen, planningMode: value }
+                })}
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="team" id="team" />
+                  <Label htmlFor="team" className="text-sm font-normal cursor-pointer">
+                    Plan team samen (als één blok in de planner)
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="individueel" id="individueel" />
+                  <Label htmlFor="individueel" className="text-sm font-normal cursor-pointer">
+                    Plan individueel (aparte blokken per medewerker)
+                  </Label>
+                </div>
+              </RadioGroup>
+              {errors.planningMode && (
+                <p className="text-xs text-destructive mt-1">{errors.planningMode}</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-sm">Startdatum (optioneel)</Label>
+              <Input
+                type="date"
+                value={formData.algemeen.startDatum}
+                onChange={(e) => setFormData({
+                  ...formData,
+                  algemeen: { ...formData.algemeen, startDatum: e.target.value }
+                })}
+              />
+              <p className="text-xs text-muted-foreground">
+                Laat leeg voor automatische planning door Ellen
+              </p>
             </div>
 
             <div className="space-y-2">
               <Label className="text-sm">Betrokken medewerkers *</Label>
-              <div className="grid grid-cols-2 gap-3">
-                {employees.map((emp) => (
-                  <div key={emp.id} className="flex items-center gap-2">
-                    <Checkbox
-                      id={`emp-${emp.id}`}
-                      checked={formData.algemeen.medewerkers.includes(emp.id)}
-                      onCheckedChange={() => handleMedewerkerToggle(emp.id)}
-                    />
-                    <Label htmlFor={`emp-${emp.id}`} className="text-sm cursor-pointer">
-                      {emp.name}
-                      <span className="text-muted-foreground ml-1 text-xs">({emp.role})</span>
-                    </Label>
-                  </div>
-                ))}
+              <p className="text-xs text-muted-foreground">
+                Selecteer medewerkers en geef per persoon aan hoeveel dagen ze nodig zijn
+              </p>
+              <div className="space-y-3 mt-3">
+                {employees.map((emp) => {
+                  const allocatie = formData.algemeen.medewerkerAllocaties.find(a => a.medewerkerId === emp.id);
+                  const isSelected = !!allocatie;
+
+                  return (
+                    <div key={emp.id} className="flex items-center gap-3 p-3 border border-border rounded-lg">
+                      <Checkbox
+                        id={`emp-${emp.id}`}
+                        checked={isSelected}
+                        onCheckedChange={() => handleMedewerkerToggle(emp.id)}
+                      />
+                      <Label htmlFor={`emp-${emp.id}`} className="flex-1 text-sm cursor-pointer">
+                        {emp.name}
+                        <span className="text-muted-foreground ml-1 text-xs">({emp.role})</span>
+                      </Label>
+                      {isSelected && (
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            min="1"
+                            value={allocatie.aantalDagen}
+                            onChange={(e) => handleMedewerkerDagenChange(emp.id, parseInt(e.target.value) || 1)}
+                            className="w-20"
+                          />
+                          <span className="text-sm text-muted-foreground">dagen</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
               {errors.algemeen && (
                 <p className="text-xs text-destructive mt-1">{errors.algemeen}</p>
+              )}
+              {errors.aantalDagen && (
+                <p className="text-xs text-destructive mt-1">{errors.aantalDagen}</p>
               )}
             </div>
           </div>
