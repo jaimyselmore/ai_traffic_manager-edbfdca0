@@ -2,6 +2,10 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { ProjectHeader, ProjectHeaderData, emptyProjectHeaderData } from '@/components/forms/ProjectHeader';
 import { BetrokkenTeam, BetrokkenTeamData, emptyBetrokkenTeamData } from '@/components/forms/BetrokkenTeam';
 import { ProductieFases, ProductieFasesData, emptyProductieFasesData } from '@/components/forms/ProductieFases';
@@ -9,17 +13,36 @@ import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { createProjectAndSchedule } from '@/lib/services/planningAutomation';
 import { useClients } from '@/hooks/use-clients';
+import { useEmployees } from '@/hooks/use-employees';
 
 const STORAGE_KEY = 'concept_nieuw_project';
 
+type ProjectType = 'algemeen' | 'productie' | '';
+
+interface AlgemeenProjectData {
+  medewerkers: string[];
+  aantalDagen: number;
+  startDatum: string;
+}
+
+const emptyAlgemeenData: AlgemeenProjectData = {
+  medewerkers: [],
+  aantalDagen: 5,
+  startDatum: '',
+};
+
 interface NieuwProjectFormData {
   projectHeader: ProjectHeaderData;
+  projectType: ProjectType;
+  algemeen: AlgemeenProjectData;
   betrokkenTeam: BetrokkenTeamData;
   productieFases: ProductieFasesData;
 }
 
 const emptyFormData: NieuwProjectFormData = {
   projectHeader: emptyProjectHeaderData,
+  projectType: '',
+  algemeen: emptyAlgemeenData,
   betrokkenTeam: emptyBetrokkenTeamData,
   productieFases: emptyProductieFasesData,
 };
@@ -28,6 +51,7 @@ export default function NieuwProject() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { data: clients = [] } = useClients();
+  const { data: employees = [] } = useEmployees();
 
   const [formData, setFormData] = useState<NieuwProjectFormData>(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -62,6 +86,12 @@ export default function NieuwProject() {
     if (!formData.projectHeader.projectomschrijving) {
       newErrors.projectomschrijving = 'Voer een projectomschrijving in';
     }
+    if (!formData.projectType) {
+      newErrors.projectType = 'Selecteer een projecttype';
+    }
+    if (formData.projectType === 'algemeen' && formData.algemeen.medewerkers.length === 0) {
+      newErrors.algemeen = 'Selecteer minimaal één medewerker';
+    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -71,6 +101,8 @@ export default function NieuwProject() {
     const missing: string[] = [];
     if (!formData.projectHeader.klantId) missing.push('Klant');
     if (!formData.projectHeader.projectomschrijving) missing.push('Projectomschrijving');
+    if (!formData.projectType) missing.push('Projecttype');
+    if (formData.projectType === 'algemeen' && formData.algemeen.medewerkers.length === 0) missing.push('Medewerkers');
     return missing.join(', ');
   };
 
@@ -103,9 +135,21 @@ export default function NieuwProject() {
     const selectedClient = clients.find(c => c.id === formData.projectHeader.klantId);
     const klantNaam = selectedClient?.name || 'Onbekend';
 
-    // Build fases array from productie fases
+    // Build fases array based on project type
     const fases: any[] = [];
-    const productieFases = formData.productieFases.fases;
+
+    if (formData.projectType === 'algemeen') {
+      // For algemeen: create one generic fase with all selected employees
+      fases.push({
+        fase_naam: 'Algemeen',
+        medewerkers: formData.algemeen.medewerkers,
+        start_datum: formData.algemeen.startDatum || formData.projectHeader.datumAanvraag || new Date().toISOString().split('T')[0],
+        duur_dagen: formData.algemeen.aantalDagen || 5,
+        uren_per_dag: 8
+      });
+    } else {
+      // For productie: use productie fases
+      const productieFases = formData.productieFases.fases;
 
     if (productieFases.pp?.enabled) {
       fases.push({
@@ -143,6 +187,7 @@ export default function NieuwProject() {
         uren_per_dag: 8
       });
     }
+    }
 
     // If no fases, create a default one
     if (fases.length === 0) {
@@ -161,7 +206,7 @@ export default function NieuwProject() {
         klant_naam: klantNaam,
         projectnaam: formData.projectHeader.projectomschrijving,
         projectTitel: formData.projectHeader.projectTitel,
-        projecttype: 'productie',
+        projecttype: formData.projectType,
         deadline: formData.projectHeader.deadline,
         fases
       },
@@ -200,7 +245,21 @@ export default function NieuwProject() {
   const canSubmit = () => {
     if (!formData.projectHeader.klantId) return false;
     if (!formData.projectHeader.projectomschrijving) return false;
+    if (!formData.projectType) return false;
+    if (formData.projectType === 'algemeen' && formData.algemeen.medewerkers.length === 0) return false;
     return true;
+  };
+
+  const handleMedewerkerToggle = (id: string) => {
+    setFormData(prev => ({
+      ...prev,
+      algemeen: {
+        ...prev.algemeen,
+        medewerkers: prev.algemeen.medewerkers.includes(id)
+          ? prev.algemeen.medewerkers.filter(m => m !== id)
+          : [...prev.algemeen.medewerkers, id]
+      }
+    }));
   };
 
   const isSubmitDisabled = !canSubmit();
@@ -219,30 +278,120 @@ export default function NieuwProject() {
 
       <div className="max-w-3xl mx-auto px-6 pb-24 space-y-6">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Nieuw project – Productie</h1>
+          <h1 className="text-2xl font-semibold text-foreground">Nieuw project</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Maak een nieuw productieproject aan in de planning met klant, team en fases.
+            Maak een nieuw project aan in de planning met klant, team en planning.
           </p>
         </div>
 
-        {/* Shared Project Header */}
+        {/* Project Header */}
         <ProjectHeader
           data={formData.projectHeader}
           onChange={(data) => setFormData({ ...formData, projectHeader: data })}
           errors={errors}
         />
 
-        {/* Productie-specific sections */}
-        <BetrokkenTeam
-          data={formData.betrokkenTeam}
-          onChange={(data) => setFormData({ ...formData, betrokkenTeam: data })}
-          showEllenToggle={true}
-          ellenDefaultOn={false}
-        />
-        <ProductieFases
-          data={formData.productieFases}
-          onChange={(data) => setFormData({ ...formData, productieFases: data })}
-        />
+        {/* Project Type Selection */}
+        <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
+          <h2 className="text-lg font-semibold text-foreground">Project Informatie</h2>
+          <div className="space-y-2">
+            <Label className="text-sm">Projecttype *</Label>
+            <RadioGroup
+              value={formData.projectType}
+              onValueChange={(value: ProjectType) => setFormData({ ...formData, projectType: value })}
+            >
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="algemeen" id="algemeen" />
+                <Label htmlFor="algemeen" className="text-sm font-normal cursor-pointer">
+                  Algemeen project
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="productie" id="productie" />
+                <Label htmlFor="productie" className="text-sm font-normal cursor-pointer">
+                  Productie project
+                </Label>
+              </div>
+            </RadioGroup>
+            {errors.projectType && (
+              <p className="text-xs text-destructive mt-1">{errors.projectType}</p>
+            )}
+          </div>
+        </div>
+
+        {/* Algemeen Project Form */}
+        {formData.projectType === 'algemeen' && (
+          <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
+            <h2 className="text-lg font-semibold text-foreground">Planning</h2>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-sm">Aantal dagen *</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  value={formData.algemeen.aantalDagen}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    algemeen: { ...formData.algemeen, aantalDagen: parseInt(e.target.value) || 5 }
+                  })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm">Startdatum (optioneel)</Label>
+                <Input
+                  type="date"
+                  value={formData.algemeen.startDatum}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    algemeen: { ...formData.algemeen, startDatum: e.target.value }
+                  })}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Laat leeg voor automatische planning
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-sm">Betrokken medewerkers *</Label>
+              <div className="grid grid-cols-2 gap-3">
+                {employees.map((emp) => (
+                  <div key={emp.id} className="flex items-center gap-2">
+                    <Checkbox
+                      id={`emp-${emp.id}`}
+                      checked={formData.algemeen.medewerkers.includes(emp.id)}
+                      onCheckedChange={() => handleMedewerkerToggle(emp.id)}
+                    />
+                    <Label htmlFor={`emp-${emp.id}`} className="text-sm cursor-pointer">
+                      {emp.name}
+                      <span className="text-muted-foreground ml-1 text-xs">({emp.role})</span>
+                    </Label>
+                  </div>
+                ))}
+              </div>
+              {errors.algemeen && (
+                <p className="text-xs text-destructive mt-1">{errors.algemeen}</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Productie Project Form */}
+        {formData.projectType === 'productie' && (
+          <>
+            <BetrokkenTeam
+              data={formData.betrokkenTeam}
+              onChange={(data) => setFormData({ ...formData, betrokkenTeam: data })}
+              showEllenToggle={true}
+              ellenDefaultOn={false}
+            />
+            <ProductieFases
+              data={formData.productieFases}
+              onChange={(data) => setFormData({ ...formData, productieFases: data })}
+            />
+          </>
+        )}
       </div>
 
       {/* Fixed bottom-right buttons */}
