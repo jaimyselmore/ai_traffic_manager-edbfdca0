@@ -8,14 +8,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useEmployees } from '@/hooks/use-employees';
 import { useVerlofTypes } from '@/lib/data';
+import { useMemo } from 'react';
 
 export interface VerlofFormData {
   medewerker: string;
   verlofType: string;
+  verlofCategorie: 'gepland' | 'urgent' | '';
   startdatum: string;
   einddatum: string;
+  backupPersoon?: string;
   reden: string;
 }
 
@@ -28,9 +32,24 @@ export function VerlofForm({ data, onChange }: VerlofFormProps) {
   const { data: employees = [] } = useEmployees();
   const { data: verlofTypes = [] } = useVerlofTypes();
 
-  const handleFieldChange = (field: keyof VerlofFormData, value: string) => {
+  const handleFieldChange = (field: keyof VerlofFormData, value: string | undefined) => {
     onChange({ ...data, [field]: value });
   };
+
+  // Filter backup personen: same discipline as selected employee, exclude selected employee
+  const selectedEmployee = useMemo(
+    () => employees.find((emp) => emp.id === data.medewerker),
+    [employees, data.medewerker]
+  );
+
+  const backupOptions = useMemo(
+    () =>
+      employees.filter(
+        (emp) =>
+          emp.id !== data.medewerker && emp.role === selectedEmployee?.role
+      ),
+    [employees, data.medewerker, selectedEmployee]
+  );
 
   return (
     <div className="space-y-6">
@@ -72,6 +91,29 @@ export function VerlofForm({ data, onChange }: VerlofFormProps) {
         </Select>
       </div>
 
+      <div className="space-y-2">
+        <Label>Categorie *</Label>
+        <RadioGroup
+          value={data.verlofCategorie}
+          onValueChange={(value: 'gepland' | 'urgent') =>
+            handleFieldChange('verlofCategorie', value)
+          }
+        >
+          <div className="flex items-center space-x-2">
+            <RadioGroupItem value="gepland" id="gepland" />
+            <Label htmlFor="gepland" className="text-sm font-normal cursor-pointer">
+              Gepland verlof (vooraf aangevraagd)
+            </Label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <RadioGroupItem value="urgent" id="urgent" />
+            <Label htmlFor="urgent" className="text-sm font-normal cursor-pointer">
+              Urgent verlof (nu/vandaag)
+            </Label>
+          </div>
+        </RadioGroup>
+      </div>
+
       <div className="grid grid-cols-2 gap-6">
         <div className="space-y-2">
           <Label htmlFor="startdatum">Startdatum *</Label>
@@ -92,6 +134,33 @@ export function VerlofForm({ data, onChange }: VerlofFormProps) {
           />
         </div>
       </div>
+
+      {/* Backup persoon - alleen tonen als medewerker is geselecteerd */}
+      {data.medewerker && backupOptions.length > 0 && (
+        <div className="space-y-2">
+          <Label htmlFor="backupPersoon">Backup persoon (optioneel)</Label>
+          <Select
+            value={data.backupPersoon || ''}
+            onValueChange={(value) => handleFieldChange('backupPersoon', value || undefined)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Selecteer backup" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Geen backup</SelectItem>
+              {backupOptions.map((emp) => (
+                <SelectItem key={emp.id} value={emp.id}>
+                  {emp.name}{' '}
+                  <span className="text-muted-foreground">({emp.role})</span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Ellen gebruikt dit als startpunt voor taak herverdeling
+          </p>
+        </div>
+      )}
 
       <div className="space-y-2">
         <Label htmlFor="reden">Reden / Toelichting</Label>

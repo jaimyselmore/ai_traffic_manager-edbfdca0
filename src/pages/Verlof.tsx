@@ -10,8 +10,10 @@ const STORAGE_KEY = 'concept_verlof';
 const emptyFormData: VerlofFormData = {
   medewerker: '',
   verlofType: '',
+  verlofCategorie: '',
   startdatum: '',
   einddatum: '',
+  backupPersoon: undefined,
   reden: '',
 };
 
@@ -35,10 +37,10 @@ export default function Verlof() {
   };
 
   const handleSubmit = async () => {
-    if (!formData.medewerker || !formData.verlofType || !formData.startdatum || !formData.einddatum) {
+    if (!formData.medewerker || !formData.verlofType || !formData.verlofCategorie || !formData.startdatum || !formData.einddatum) {
       toast({
         title: 'Vul alle verplichte velden in',
-        description: 'Medewerker, type, startdatum en einddatum zijn verplicht.',
+        description: 'Medewerker, type, categorie, startdatum en einddatum zijn verplicht.',
         variant: 'destructive',
       });
       return;

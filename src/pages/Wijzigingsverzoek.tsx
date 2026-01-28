@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { ExistingProjectSelector, ExistingProjectData } from '@/components/forms/ExistingProjectSelector';
 import { useEmployees } from '@/hooks/use-employees';
 import { useWijzigingTypes } from '@/lib/data';
@@ -17,17 +18,25 @@ const STORAGE_KEY = 'concept_wijzigingsverzoek';
 interface WijzigingsverzoekFormData {
   selectedProject: ExistingProjectData | null;
   wijzigingType: string;
-  beschrijving: string;
+  reden: string;
+  huidigeSituatie: string;
+  gewensteSituatie: string;
+  urgentie: 'laag' | 'midden' | 'hoog' | '';
   deadline: string;
   medewerkers: string[];
+  opmerkingen: string;
 }
 
 const emptyFormData: WijzigingsverzoekFormData = {
   selectedProject: null,
   wijzigingType: '',
-  beschrijving: '',
+  reden: '',
+  huidigeSituatie: '',
+  gewensteSituatie: '',
+  urgentie: '',
   deadline: '',
   medewerkers: [],
+  opmerkingen: '',
 };
 
 export default function Wijzigingsverzoek() {
@@ -64,15 +73,24 @@ export default function Wijzigingsverzoek() {
 
   const handleSubmit = async () => {
     const newErrors: Record<string, string> = {};
-    
+
     if (!formData.selectedProject) {
       newErrors.projectId = 'Selecteer een project';
     }
     if (!formData.wijzigingType) {
       newErrors.wijzigingType = 'Selecteer een type wijziging';
     }
-    if (!formData.beschrijving) {
-      newErrors.beschrijving = 'Voer een beschrijving in';
+    if (!formData.urgentie) {
+      newErrors.urgentie = 'Selecteer een urgentie level';
+    }
+    if (!formData.reden || formData.reden.length < 20) {
+      newErrors.reden = 'Voer een reden in (minimaal 20 karakters)';
+    }
+    if (!formData.huidigeSituatie || formData.huidigeSituatie.length < 20) {
+      newErrors.huidigeSituatie = 'Beschrijf de huidige situatie (minimaal 20 karakters)';
+    }
+    if (!formData.gewensteSituatie || formData.gewensteSituatie.length < 20) {
+      newErrors.gewensteSituatie = 'Beschrijf de gewenste situatie (minimaal 20 karakters)';
     }
 
     setErrors(newErrors);
@@ -80,7 +98,7 @@ export default function Wijzigingsverzoek() {
     if (Object.keys(newErrors).length > 0) {
       toast({
         title: 'Vul alle verplichte velden in',
-        description: 'Project, type wijziging en beschrijving zijn verplicht.',
+        description: 'Project, type, urgentie, reden en situaties zijn verplicht (min 20 karakters).',
         variant: 'destructive',
       });
       return;
@@ -160,25 +178,99 @@ export default function Wijzigingsverzoek() {
           </div>
 
           <div>
-            <Label className="text-sm">Beschrijving van de wijziging *</Label>
-            <Textarea
-              value={formData.beschrijving}
-              onChange={(e) => setFormData({ ...formData, beschrijving: e.target.value })}
-              placeholder="Beschrijf wat er moet worden aangepast..."
-              rows={4}
-              className={errors.beschrijving ? 'border-destructive' : ''}
-            />
-            {errors.beschrijving && (
-              <p className="text-xs text-destructive mt-1">{errors.beschrijving}</p>
+            <Label className="text-sm">Urgentie *</Label>
+            <RadioGroup
+              value={formData.urgentie}
+              onValueChange={(value: 'laag' | 'midden' | 'hoog') =>
+                setFormData({ ...formData, urgentie: value })
+              }
+              className={errors.urgentie ? 'border border-destructive rounded-md p-2' : ''}
+            >
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="laag" id="laag" />
+                <Label htmlFor="laag" className="text-sm font-normal cursor-pointer">
+                  Laag - Kan wachten, niet urgent
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="midden" id="midden" />
+                <Label htmlFor="midden" className="text-sm font-normal cursor-pointer">
+                  Midden - Moet binnen een week geregeld
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="hoog" id="hoog" />
+                <Label htmlFor="hoog" className="text-sm font-normal cursor-pointer">
+                  Hoog - Asap, blokkeert voortgang
+                </Label>
+              </div>
+            </RadioGroup>
+            {errors.urgentie && (
+              <p className="text-xs text-destructive mt-1">{errors.urgentie}</p>
             )}
           </div>
 
           <div>
-            <Label className="text-sm">Nieuwe deadline (indien van toepassing)</Label>
+            <Label className="text-sm">Reden van wijziging *</Label>
+            <Textarea
+              value={formData.reden}
+              onChange={(e) => setFormData({ ...formData, reden: e.target.value })}
+              placeholder="Waarom is deze wijziging nodig? (min. 20 karakters)"
+              rows={3}
+              className={errors.reden ? 'border-destructive' : ''}
+            />
+            {errors.reden && (
+              <p className="text-xs text-destructive mt-1">{errors.reden}</p>
+            )}
+          </div>
+
+          <div>
+            <Label className="text-sm">Huidige situatie *</Label>
+            <Textarea
+              value={formData.huidigeSituatie}
+              onChange={(e) => setFormData({ ...formData, huidigeSituatie: e.target.value })}
+              placeholder="Beschrijf de huidige planning/situatie (min. 20 karakters)"
+              rows={3}
+              className={errors.huidigeSituatie ? 'border-destructive' : ''}
+            />
+            {errors.huidigeSituatie && (
+              <p className="text-xs text-destructive mt-1">{errors.huidigeSituatie}</p>
+            )}
+          </div>
+
+          <div>
+            <Label className="text-sm">Gewenste situatie *</Label>
+            <Textarea
+              value={formData.gewensteSituatie}
+              onChange={(e) => setFormData({ ...formData, gewensteSituatie: e.target.value })}
+              placeholder="Beschrijf wat de gewenste situatie moet zijn (min. 20 karakters)"
+              rows={3}
+              className={errors.gewensteSituatie ? 'border-destructive' : ''}
+            />
+            {errors.gewensteSituatie && (
+              <p className="text-xs text-destructive mt-1">{errors.gewensteSituatie}</p>
+            )}
+          </div>
+
+          <div>
+            <Label className="text-sm">Nieuwe deadline (optioneel)</Label>
             <Input
               type="date"
               value={formData.deadline}
               onChange={(e) => setFormData({ ...formData, deadline: e.target.value })}
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Alleen invullen als deadline moet veranderen
+            </p>
+          </div>
+
+          <div>
+            <Label className="text-sm">Opmerkingen (optioneel)</Label>
+            <Textarea
+              value={formData.opmerkingen}
+              onChange={(e) => setFormData({ ...formData, opmerkingen: e.target.value })}
+              placeholder="Extra context of opmerkingen..."
+              rows={2}
             />
           </div>
         </div>
