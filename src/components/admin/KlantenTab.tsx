@@ -46,6 +46,7 @@ type Klant = {
   email: string | null;
   telefoon: string | null;
   adres: string | null;
+  beschikbaarheid: string | null;
   notities: string | null;
 };
 
@@ -59,6 +60,7 @@ const emptyForm = {
   huisnummer: '',
   plaats: '',
   land: '',
+  beschikbaarheid: '',
   notities: '',
 };
 
@@ -131,6 +133,7 @@ export function KlantenTab() {
     email: string;
     telefoon: string;
     adres: string;
+    beschikbaarheid: string;
     notities: string;
   };
 
@@ -198,6 +201,7 @@ export function KlantenTab() {
       huisnummer: parsed.huisnummer,
       plaats: parsed.plaats,
       land: parsed.land,
+      beschikbaarheid: item.beschikbaarheid || '',
       notities: item.notities || '',
     });
     setIsDialogOpen(true);
@@ -227,6 +231,7 @@ export function KlantenTab() {
       email: form.email,
       telefoon: form.telefoon,
       adres: combineAddress(form.postcode, form.huisnummer, form.plaats, form.land),
+      beschikbaarheid: form.beschikbaarheid,
       notities: form.notities,
     };
     
@@ -270,6 +275,7 @@ export function KlantenTab() {
               <TableHead>Email</TableHead>
               <TableHead>Telefoon</TableHead>
               <TableHead>Adres</TableHead>
+              <TableHead>Beschikbaarheid</TableHead>
               <TableHead>Notities</TableHead>
               <TableHead className="w-24"></TableHead>
             </TableRow>
@@ -277,13 +283,13 @@ export function KlantenTab() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                   Laden...
                 </TableCell>
               </TableRow>
             ) : filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                   Geen klanten gevonden
                 </TableCell>
               </TableRow>
@@ -296,6 +302,7 @@ export function KlantenTab() {
                   <TableCell>{k.email || '-'}</TableCell>
                   <TableCell>{k.telefoon || '-'}</TableCell>
                   <TableCell className="max-w-[200px] truncate" title={k.adres || ''}>{k.adres || '-'}</TableCell>
+                  <TableCell className="max-w-[150px] truncate" title={k.beschikbaarheid || ''}>{k.beschikbaarheid || '-'}</TableCell>
                   <TableCell className="max-w-[200px] truncate" title={k.notities || ''}>{k.notities || '-'}</TableCell>
                   <TableCell>
                     <div className="flex gap-1">
@@ -394,6 +401,17 @@ export function KlantenTab() {
                   placeholder="Nederland"
                 />
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Beschikbaarheid</Label>
+              <Input
+                value={form.beschikbaarheid}
+                onChange={(e) => setForm({ ...form, beschikbaarheid: e.target.value })}
+                placeholder="bijv. Ma-Vr 09:00-17:00"
+              />
+              <p className="text-xs text-muted-foreground">
+                Wanneer is de klant beschikbaar voor meetings/communicatie?
+              </p>
             </div>
             <div className="space-y-2">
               <Label>Notities</Label>
