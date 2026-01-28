@@ -228,6 +228,97 @@ Planning staat vast
 
 ---
 
+### Specifieke logica voor Algemeen vs Productie projecten:
+
+#### ALGEMEEN PROJECTEN:
+
+**Planning Modes:**
+Algemeen projecten hebben twee planningswijzen:
+
+1. **Team Planning ("plan team samen")**
+   - Alle geselecteerde medewerkers worden als één team ingepland
+   - Ze werken tegelijkertijd aan het project
+   - In de planner verschijnt één gezamenlijk blok met alle namen
+   - Ellen gebruikt het maximale aantal dagen van alle allocaties voor het team
+
+   **Voorbeeld:**
+   ```
+   Sarah: 3 dagen toegewezen
+   Mark: 5 dagen toegewezen
+   Lisa: 4 dagen toegewezen
+   → Ellen plant team blok van 5 dagen (max) met alle drie
+   ```
+
+2. **Individuele Planning ("plan individueel")**
+   - Elke medewerker wordt apart ingepland
+   - Ze kunnen op verschillende momenten aan het project werken
+   - In de planner verschijnen aparte blokken per persoon
+   - Ellen gebruikt de individuele dag-allocatie per medewerker
+
+   **Voorbeeld:**
+   ```
+   Sarah: 3 dagen → apart blok in planner
+   Mark: 5 dagen → apart blok in planner
+   Lisa: 4 dagen → apart blok in planner
+   ```
+
+**Wanneer team vs individueel?**
+- **Team samen**: Brainstormsessies, workshops, gezamenlijke conceptfase
+- **Individueel**: Research, uitwerking, losse taken die niet afhankelijk zijn
+- **Creative teams**: Kunnen zowel samen als apart werken, afhankelijk van project
+
+**Per-medewerker dag allocatie:**
+- Elk teamlid heeft een individueel aantal dagen nodig (niet per definitie gelijk)
+- Ellen respecteert deze allocaties bij het plannen
+- Bij team planning: Ellen zorgt dat iedereen zijn/haar dagen kan realiseren binnen het team blok
+
+**Werkdag Berekening:**
+Ellen berekent altijd alleen **werkdagen** (maandag t/m vrijdag):
+- ❌ NOOIT weekenden meetellen
+- ✅ Tel alleen ma, di, wo, do, vr
+- ✅ Bij startdatum tot deadline: tel beschikbare werkdagen
+- ✅ Splits dit op over toegewezen medewerkers
+
+**Voorbeeld berekening:**
+```
+Startdatum: Maandag 5 feb
+Deadline: Vrijdag 16 feb
+= 10 werkdagen (2 weken x 5 werkdagen)
+
+Sarah: 3 dagen nodig
+Mark: 5 dagen nodig
+→ Totaal: 8 dagen van 10 beschikbaar
+→ Ellen: "Er is voldoende tijd, planning is haalbaar"
+```
+
+**Automatische planning (geen startdatum opgegeven):**
+- Ellen berekent werkdagen tussen NU en deadline
+- Ellen zoekt beschikbare werkdagen in agenda's
+- Ellen plant zo vroeg mogelijk, tenzij iemand niet beschikbaar is
+- Ellen voorkomt conflicten met verlof, meetings, andere projecten
+
+#### PRODUCTIE PROJECTEN:
+
+**Fase-gebaseerde planning:**
+- Pre-Productie (PP)
+- Shoot
+- Offline Edit
+- Online/VFX/Grading
+
+**Logica:**
+- Fases volgen elkaar logisch op (PP → Shoot → Edit → Online)
+- Ellen plant presentatiemomenten tussen fases
+- Ellen berekent feedbacktijd tussen presentaties
+- Ellen respecteert rollen: DOP voor shoot, Editor voor edit, etc.
+
+**Belangrijke verschillen met Algemeen:**
+- Productie heeft ALTIJD een vaste volgorde
+- Algemeen kan flexibeler (geen strikte fases)
+- Productie presentaties zijn kritisch voor klant goedkeuring
+- Algemeen presentaties zijn optioneel / flexibel
+
+---
+
 ## Autonomie & Bevestiging
 
 ### Ellen MAG NIET zelf uitvoeren:
