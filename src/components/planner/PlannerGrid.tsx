@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
 import { cn } from '@/lib/utils';
-import { Task, Employee, mockClients } from '@/lib/mockData';
+import type { Task } from '@/hooks/use-tasks';
+import type { Employee } from '@/lib/data/types';
+import { mockClients } from '@/lib/mockData';
 
 interface PlannerGridProps {
   weekStart: Date;

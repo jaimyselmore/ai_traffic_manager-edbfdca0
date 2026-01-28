@@ -166,7 +166,7 @@ export async function heeftVerlof(medewerkernaam: string, datum: Date): Promise<
   const dateStr = datum.toISOString().split('T')[0];
 
   const { data: verlof, error } = await supabase
-    .from('verlof_aanvragen')
+    .from('beschikbaarheid_medewerkers')
     .select('start_datum, eind_datum')
     .eq('werknemer_naam', medewerkernaam)
     .eq('status', 'goedgekeurd')
