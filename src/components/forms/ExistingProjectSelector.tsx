@@ -5,6 +5,7 @@ import { useProjects } from '@/lib/data';
 export interface ExistingProjectData {
   projectId: string;
   projectnummer: string;
+  projectTitel?: string;
   klantNaam: string;
   omschrijving: string;
 }
@@ -24,6 +25,7 @@ export function ExistingProjectSelector({ value, onChange, error }: ExistingProj
       onChange({
         projectId: selectedProject.id,
         projectnummer: selectedProject.projectnummer,
+        projectTitel: selectedProject.titel,
         klantNaam: selectedProject.klant_naam || 'Onbekende klant',
         omschrijving: selectedProject.omschrijving,
       });
@@ -54,8 +56,17 @@ export function ExistingProjectSelector({ value, onChange, error }: ExistingProj
           <SelectContent>
             {projects.map((project) => (
               <SelectItem key={project.id} value={project.id}>
-                <span className="font-mono text-xs mr-2">{project.projectnummer}</span>
-                <span>{project.klant_naam} - {project.omschrijving}</span>
+                {project.titel ? (
+                  <>
+                    <span className="font-medium">{project.titel}</span>
+                    <span className="text-muted-foreground text-xs ml-2">({project.klant_naam})</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="font-mono text-xs mr-2">{project.projectnummer}</span>
+                    <span>{project.klant_naam} - {project.omschrijving}</span>
+                  </>
+                )}
               </SelectItem>
             ))}
           </SelectContent>
@@ -68,6 +79,12 @@ export function ExistingProjectSelector({ value, onChange, error }: ExistingProj
       {/* Show selected project info */}
       {selectedProject && (
         <div className="p-3 bg-secondary/50 rounded-lg space-y-1">
+          {selectedProject.titel && (
+            <p className="text-sm">
+              <span className="text-muted-foreground">Titel:</span>{' '}
+              <span className="font-medium text-foreground">{selectedProject.titel}</span>
+            </p>
+          )}
           <p className="text-sm">
             <span className="text-muted-foreground">Projectnummer:</span>{' '}
             <span className="font-mono font-medium text-foreground">{selectedProject.projectnummer}</span>
