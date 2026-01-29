@@ -4,8 +4,10 @@ import { Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ProjectHeader, ProjectHeaderData, emptyProjectHeaderData } from '@/components/forms/ProjectHeader';
 import { BetrokkenTeam, BetrokkenTeamData, emptyBetrokkenTeamData } from '@/components/forms/BetrokkenTeam';
 import { ProductieFases, ProductieFasesData, emptyProductieFasesData } from '@/components/forms/ProductieFases';
@@ -22,17 +24,17 @@ type ProjectType = 'algemeen' | 'productie' | '';
 interface MedewerkerAllocatie {
   medewerkerId: string;
   aantalDagen: number;
+  planningType: 'individueel' | 'samen_met_team' | 'beide' | ''; // Hoe deze medewerker moet worden ingepland
+  toelichting: string; // Waarom deze medewerker nodig is en hoe
 }
 
 interface AlgemeenProjectData {
   medewerkerAllocaties: MedewerkerAllocatie[];
-  planningMode: 'team' | 'individueel' | '';
   startDatum: string;
 }
 
 const emptyAlgemeenData: AlgemeenProjectData = {
   medewerkerAllocaties: [],
-  planningMode: '',
   startDatum: '',
 };
 
@@ -139,22 +141,21 @@ export default function NieuwProject() {
         newErrors.algemeen = 'Selecteer minimaal één medewerker';
       }
 
-      // Check if there are creative team members selected
-      const selectedEmployeesWithTeam = formData.algemeen.medewerkerAllocaties
-        .map(allocatie => employees.find(emp => emp.id === allocatie.medewerkerId))
-        .filter(emp => emp && emp.duoTeam);
-
-      const hasCreativeTeamMembers = selectedEmployeesWithTeam.length > 0;
-
-      // Only validate planningMode if there are creative team members
-      if (hasCreativeTeamMembers && !formData.algemeen.planningMode) {
-        newErrors.planningMode = 'Selecteer een planning modus voor creative teams';
-      }
-
       // Check if all selected employees have days > 0
       const invalidAllocaties = formData.algemeen.medewerkerAllocaties.filter(a => a.aantalDagen <= 0);
       if (invalidAllocaties.length > 0) {
         newErrors.aantalDagen = 'Alle medewerkers moeten minimaal 1 dag hebben';
+      }
+
+      // Check if creative team members have selected a planning type
+      const creativeTeamMembersWithoutPlanningType = formData.algemeen.medewerkerAllocaties
+        .filter(allocatie => {
+          const emp = employees.find(e => e.id === allocatie.medewerkerId);
+          return emp && emp.duoTeam && !allocatie.planningType;
+        });
+
+      if (creativeTeamMembersWithoutPlanningType.length > 0) {
+        newErrors.planningType = 'Selecteer voor alle creative team members hoe ze moeten worden ingepland';
       }
     }
 
@@ -170,16 +171,15 @@ export default function NieuwProject() {
     if (formData.projectType === 'algemeen') {
       if (formData.algemeen.medewerkerAllocaties.length === 0) missing.push('Medewerkers');
 
-      // Check if there are creative team members selected
-      const selectedEmployeesWithTeam = formData.algemeen.medewerkerAllocaties
-        .map(allocatie => employees.find(emp => emp.id === allocatie.medewerkerId))
-        .filter(emp => emp && emp.duoTeam);
+      // Check if creative team members have planning type selected
+      const creativeTeamMembersWithoutPlanningType = formData.algemeen.medewerkerAllocaties
+        .filter(allocatie => {
+          const emp = employees.find(e => e.id === allocatie.medewerkerId);
+          return emp && emp.duoTeam && !allocatie.planningType;
+        });
 
-      const hasCreativeTeamMembers = selectedEmployeesWithTeam.length > 0;
-
-      // Only require planningMode if there are creative team members
-      if (hasCreativeTeamMembers && !formData.algemeen.planningMode) {
-        missing.push('Planning modus');
+      if (creativeTeamMembersWithoutPlanningType.length > 0) {
+        missing.push('Planning type voor creative teams');
       }
     }
     return missing.join(', ');
@@ -218,45 +218,72 @@ export default function NieuwProject() {
     const fases: any[] = [];
 
     if (formData.projectType === 'algemeen') {
-      // Check if there are creative team members selected
-      const selectedEmployeesWithTeam = formData.algemeen.medewerkerAllocaties
-        .map(allocatie => employees.find(emp => emp.id === allocatie.medewerkerId))
-        .filter(emp => emp && emp.duoTeam);
+      // Group allocaties by duo_team for team planning
+      const teamGroups: Record<string, typeof formData.algemeen.medewerkerAllocaties> = {};
+      const individueleAllocaties: typeof formData.algemeen.medewerkerAllocaties = [];
 
-      const hasCreativeTeamMembers = selectedEmployeesWithTeam.length > 0;
+      formData.algemeen.medewerkerAllocaties.forEach(allocatie => {
+        const employee = employees.find(e => e.id === allocatie.medewerkerId);
+        const isCreativeTeam = employee && employee.duoTeam;
 
-      // Only use team planning if there are creative team members AND team mode is selected
-      // Otherwise, always plan individually
-      const effectivePlanningMode = hasCreativeTeamMembers && formData.algemeen.planningMode === 'team'
-        ? 'team'
-        : 'individueel';
+        // Handle "beide" case - add to both team and individual
+        if (allocatie.planningType === 'beide') {
+          // Add to team planning if part of creative team
+          if (isCreativeTeam) {
+            const teamKey = employee.duoTeam;
+            if (!teamGroups[teamKey]) teamGroups[teamKey] = [];
+            teamGroups[teamKey].push({ ...allocatie, aantalDagen: Math.floor(allocatie.aantalDagen / 2) });
+          }
+          // Also add to individual planning
+          individueleAllocaties.push({ ...allocatie, aantalDagen: Math.ceil(allocatie.aantalDagen / 2) });
+        }
+        // Handle "samen_met_team" case
+        else if (allocatie.planningType === 'samen_met_team' && isCreativeTeam) {
+          const teamKey = employee.duoTeam;
+          if (!teamGroups[teamKey]) teamGroups[teamKey] = [];
+          teamGroups[teamKey].push(allocatie);
+        }
+        // Handle "individueel" case or no creative team
+        else {
+          individueleAllocaties.push(allocatie);
+        }
+      });
 
-      // For algemeen: create fases based on effective planning mode
-      if (effectivePlanningMode === 'team') {
-        // Plan as team: one fase with all employees
-        const allMedewerkers = formData.algemeen.medewerkerAllocaties.map(a => a.medewerkerId);
-        // Use the maximum days from allocations for team planning
-        const maxDagen = Math.max(...formData.algemeen.medewerkerAllocaties.map(a => a.aantalDagen));
+      // Create team fases (one per creative team)
+      Object.entries(teamGroups).forEach(([teamName, allocaties]) => {
+        const medewerkers = allocaties.map(a => a.medewerkerId);
+        const maxDagen = Math.max(...allocaties.map(a => a.aantalDagen));
+        // Get toelichtingen from allocaties
+        const toelichtingen = allocaties
+          .filter(a => a.toelichting)
+          .map(a => {
+            const emp = employees.find(e => e.id === a.medewerkerId);
+            return `${emp?.name}: ${a.toelichting}`;
+          })
+          .join('; ');
+
         fases.push({
-          fase_naam: 'Algemeen (Creative Team)',
-          medewerkers: allMedewerkers,
+          fase_naam: `Algemeen (Team ${teamName})`,
+          medewerkers,
           start_datum: formData.algemeen.startDatum || formData.projectHeader.datumAanvraag || new Date().toISOString().split('T')[0],
           duur_dagen: maxDagen,
-          uren_per_dag: 8
+          uren_per_dag: 8,
+          notities: toelichtingen || undefined
         });
-      } else {
-        // Plan individually: separate fase for each employee
-        formData.algemeen.medewerkerAllocaties.forEach(allocatie => {
-          const employee = employees.find(e => e.id === allocatie.medewerkerId);
-          fases.push({
-            fase_naam: `Algemeen - ${employee?.name || 'Medewerker'}`,
-            medewerkers: [allocatie.medewerkerId],
-            start_datum: formData.algemeen.startDatum || formData.projectHeader.datumAanvraag || new Date().toISOString().split('T')[0],
-            duur_dagen: allocatie.aantalDagen,
-            uren_per_dag: 8
-          });
+      });
+
+      // Create individual fases
+      individueleAllocaties.forEach(allocatie => {
+        const employee = employees.find(e => e.id === allocatie.medewerkerId);
+        fases.push({
+          fase_naam: `Algemeen - ${employee?.name || 'Medewerker'}`,
+          medewerkers: [allocatie.medewerkerId],
+          start_datum: formData.algemeen.startDatum || formData.projectHeader.datumAanvraag || new Date().toISOString().split('T')[0],
+          duur_dagen: allocatie.aantalDagen,
+          uren_per_dag: 8,
+          notities: allocatie.toelichting || undefined
         });
-      }
+      });
     } else {
       // For productie: use productie fases
       const productieFases = formData.productieFases.fases;
@@ -358,9 +385,14 @@ export default function NieuwProject() {
     if (!formData.projectType) return false;
     if (formData.projectType === 'algemeen') {
       if (formData.algemeen.medewerkerAllocaties.length === 0) return false;
-      if (!formData.algemeen.planningMode) return false;
       // Check if all allocations have valid days
       if (formData.algemeen.medewerkerAllocaties.some(a => a.aantalDagen <= 0)) return false;
+      // Check if creative team members have planning type selected
+      const creativeTeamMembersWithoutPlanningType = formData.algemeen.medewerkerAllocaties.some(allocatie => {
+        const emp = employees.find(e => e.id === allocatie.medewerkerId);
+        return emp && emp.duoTeam && !allocatie.planningType;
+      });
+      if (creativeTeamMembersWithoutPlanningType) return false;
     }
     return true;
   };
@@ -378,14 +410,19 @@ export default function NieuwProject() {
           }
         };
       } else {
-        // Add employee with default 5 days
+        // Add employee with default values
         return {
           ...prev,
           algemeen: {
             ...prev.algemeen,
             medewerkerAllocaties: [
               ...prev.algemeen.medewerkerAllocaties,
-              { medewerkerId: id, aantalDagen: 5 }
+              {
+                medewerkerId: id,
+                aantalDagen: 5,
+                planningType: '',
+                toelichting: ''
+              }
             ]
           }
         };
@@ -400,6 +437,30 @@ export default function NieuwProject() {
         ...prev.algemeen,
         medewerkerAllocaties: prev.algemeen.medewerkerAllocaties.map(a =>
           a.medewerkerId === id ? { ...a, aantalDagen: dagen } : a
+        )
+      }
+    }));
+  };
+
+  const handleMedewerkerPlanningTypeChange = (id: string, planningType: 'individueel' | 'samen_met_team' | 'beide') => {
+    setFormData(prev => ({
+      ...prev,
+      algemeen: {
+        ...prev.algemeen,
+        medewerkerAllocaties: prev.algemeen.medewerkerAllocaties.map(a =>
+          a.medewerkerId === id ? { ...a, planningType } : a
+        )
+      }
+    }));
+  };
+
+  const handleMedewerkerToelichtingChange = (id: string, toelichting: string) => {
+    setFormData(prev => ({
+      ...prev,
+      algemeen: {
+        ...prev.algemeen,
+        medewerkerAllocaties: prev.algemeen.medewerkerAllocaties.map(a =>
+          a.medewerkerId === id ? { ...a, toelichting } : a
         )
       }
     }));
@@ -463,57 +524,9 @@ export default function NieuwProject() {
         </div>
 
         {/* Algemeen Project Form */}
-        {formData.projectType === 'algemeen' && (() => {
-          // Check if any selected employees are part of a creative team (duo_team)
-          const selectedEmployeesWithTeam = formData.algemeen.medewerkerAllocaties
-            .map(allocatie => employees.find(emp => emp.id === allocatie.medewerkerId))
-            .filter(emp => emp && emp.duoTeam);
-
-          const hasCreativeTeamMembers = selectedEmployeesWithTeam.length > 0;
-
-          return (
-            <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
-              <h2 className="text-lg font-semibold text-foreground">Planning</h2>
-
-              {hasCreativeTeamMembers && (
-                <div className="space-y-2">
-                  <Label className="text-sm">Planning modus voor creative teams *</Label>
-                  <p className="text-xs text-muted-foreground mb-2">
-                    Je hebt creative team members geselecteerd. Kies hoe ze ingepland moeten worden.
-                  </p>
-                  <RadioGroup
-                    value={formData.algemeen.planningMode}
-                    onValueChange={(value: 'team' | 'individueel') => setFormData({
-                      ...formData,
-                      algemeen: { ...formData.algemeen, planningMode: value }
-                    })}
-                  >
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="team" id="team" />
-                      <Label htmlFor="team" className="text-sm font-normal cursor-pointer">
-                        Plan creative teams samen (als één blok in de planner)
-                      </Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="individueel" id="individueel" />
-                      <Label htmlFor="individueel" className="text-sm font-normal cursor-pointer">
-                        Plan iedereen individueel (aparte blokken per medewerker)
-                      </Label>
-                    </div>
-                  </RadioGroup>
-                  {errors.planningMode && (
-                    <p className="text-xs text-destructive mt-1">{errors.planningMode}</p>
-                  )}
-                </div>
-              )}
-
-              {!hasCreativeTeamMembers && formData.algemeen.medewerkerAllocaties.length > 0 && (
-                <div className="p-3 bg-secondary/50 rounded-lg">
-                  <p className="text-sm text-muted-foreground">
-                    Alle medewerkers worden individueel ingepland (geen creative teams geselecteerd)
-                  </p>
-                </div>
-              )}
+        {formData.projectType === 'algemeen' && (
+          <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
+            <h2 className="text-lg font-semibold text-foreground">Planning</h2>
 
             <div className="space-y-2">
               <Label className="text-sm">Startdatum (optioneel)</Label>
@@ -533,34 +546,95 @@ export default function NieuwProject() {
             <div className="space-y-2">
               <Label className="text-sm">Betrokken medewerkers *</Label>
               <p className="text-xs text-muted-foreground">
-                Selecteer medewerkers en geef per persoon aan hoeveel dagen ze nodig zijn
+                Selecteer medewerkers en geef per persoon details over hun betrokkenheid
               </p>
-              <div className="space-y-3 mt-3">
+              <div className="space-y-4 mt-3">
                 {(employees || []).map((emp) => {
                   const allocatie = formData.algemeen.medewerkerAllocaties.find(a => a.medewerkerId === emp.id);
                   const isSelected = !!allocatie;
+                  const isCreativeTeam = !!emp.duoTeam;
 
                   return (
-                    <div key={emp.id} className="flex items-center gap-3 p-3 border border-border rounded-lg">
-                      <Checkbox
-                        id={`emp-${emp.id}`}
-                        checked={isSelected}
-                        onCheckedChange={() => handleMedewerkerToggle(emp.id)}
-                      />
-                      <Label htmlFor={`emp-${emp.id}`} className="flex-1 text-sm cursor-pointer">
-                        {emp.name}
-                        <span className="text-muted-foreground ml-1 text-xs">({emp.role})</span>
-                      </Label>
+                    <div key={emp.id} className="border border-border rounded-lg p-4 space-y-3">
+                      {/* Medewerker selectie en naam */}
+                      <div className="flex items-center gap-3">
+                        <Checkbox
+                          id={`emp-${emp.id}`}
+                          checked={isSelected}
+                          onCheckedChange={() => handleMedewerkerToggle(emp.id)}
+                        />
+                        <Label htmlFor={`emp-${emp.id}`} className="flex-1 text-sm font-medium cursor-pointer">
+                          {emp.name}
+                          <span className="text-muted-foreground ml-1 text-xs">({emp.role})</span>
+                          {isCreativeTeam && (
+                            <span className="ml-2 text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
+                              Creative Team: {emp.duoTeam}
+                            </span>
+                          )}
+                        </Label>
+                      </div>
+
+                      {/* Details wanneer geselecteerd */}
                       {isSelected && allocatie && (
-                        <div className="flex items-center gap-2">
-                          <Input
-                            type="number"
-                            min="1"
-                            value={allocatie.aantalDagen}
-                            onChange={(e) => handleMedewerkerDagenChange(emp.id, parseInt(e.target.value) || 1)}
-                            className="w-20"
-                          />
-                          <span className="text-sm text-muted-foreground">dagen</span>
+                        <div className="pl-7 space-y-3">
+                          {/* Aantal dagen */}
+                          <div className="flex items-center gap-3">
+                            <Label className="text-sm w-24">Aantal dagen:</Label>
+                            <Input
+                              type="number"
+                              min="1"
+                              value={allocatie.aantalDagen}
+                              onChange={(e) => handleMedewerkerDagenChange(emp.id, parseInt(e.target.value) || 1)}
+                              className="w-20"
+                            />
+                            <span className="text-sm text-muted-foreground">dagen</span>
+                          </div>
+
+                          {/* Planning type - alleen voor creative team members */}
+                          {isCreativeTeam && (
+                            <div className="space-y-2">
+                              <Label className="text-sm">Hoe plannen? *</Label>
+                              <Select
+                                value={allocatie.planningType}
+                                onValueChange={(value: 'individueel' | 'samen_met_team' | 'beide') =>
+                                  handleMedewerkerPlanningTypeChange(emp.id, value)
+                                }
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Selecteer planning type" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="samen_met_team">
+                                    Samen met creative team
+                                  </SelectItem>
+                                  <SelectItem value="individueel">
+                                    Individueel (apart van team)
+                                  </SelectItem>
+                                  <SelectItem value="beide">
+                                    Beide (eerst samen, dan apart)
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <p className="text-xs text-muted-foreground">
+                                Creative team members kunnen samen óf apart worden ingepland
+                              </p>
+                            </div>
+                          )}
+
+                          {/* Toelichting - voor iedereen */}
+                          <div className="space-y-2">
+                            <Label className="text-sm">Toelichting</Label>
+                            <Textarea
+                              value={allocatie.toelichting}
+                              onChange={(e) => handleMedewerkerToelichtingChange(emp.id, e.target.value)}
+                              placeholder="Waarom is deze medewerker nodig? Wat gaat diegene doen? Bijv: 'Eerst 2 dagen samen brainstormen, dan 3 dagen apart uitwerken'"
+                              rows={3}
+                              className="text-sm"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              Dit helpt Ellen om beter te begrijpen hoe de planning moet worden ingericht
+                            </p>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -573,10 +647,12 @@ export default function NieuwProject() {
               {errors.aantalDagen && (
                 <p className="text-xs text-destructive mt-1">{errors.aantalDagen}</p>
               )}
+              {errors.planningType && (
+                <p className="text-xs text-destructive mt-1">{errors.planningType}</p>
+              )}
             </div>
           </div>
-          );
-        })()}
+        )}
 
         {/* Productie Project Form */}
         {formData.projectType === 'productie' && (

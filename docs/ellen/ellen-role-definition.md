@@ -232,55 +232,68 @@ Planning staat vast
 
 #### ALGEMEEN PROJECTEN:
 
-**Planning Modes:**
-Algemeen projecten hebben twee planningswijzen, maar deze zijn ALLEEN relevant voor **creative teams** (medewerkers met een `duo_team` waarde).
+**Per-Medewerker Planning:**
+Bij algemeen projecten wordt per medewerker aangegeven:
+- Aantal dagen nodig
+- Planning type (alleen voor creative teams)
+- Toelichting (waarom nodig, wat gaat diegene doen)
 
-**BELANGRIJKE REGEL:**
-- ✅ **Creative teams** (duo_team): Kunnen samen OF individueel worden ingepland
-- ❌ **Andere medewerkers**: Worden ALTIJD individueel ingepland (geen team optie)
+**Planning Types:**
 
-**Voorbeeld:**
-```
-Geselecteerde medewerkers:
-- Sarah (Creative Team 1)
-- Mark (Creative Team 1)
-- Lisa (geen team / administratief)
-
-→ Planner ziet "plan team samen" optie voor Sarah & Mark
-→ Lisa wordt automatisch individueel ingepland
-```
-
-1. **Team Planning ("plan team samen")** - ALLEEN voor creative teams
-   - Alle geselecteerde creative team members worden als één team ingepland
-   - Ze werken tegelijkertijd aan het project
-   - In de planner verschijnt één gezamenlijk blok met alle namen
-   - Ellen gebruikt het maximale aantal dagen van alle allocaties voor het team
+1. **"Samen met creative team"** - ALLEEN voor creative team members
+   - Deze medewerker werkt tegelijkertijd met andere team members
+   - In de planner: één gezamenlijk blok met alle team members die "samen" hebben gekozen
+   - Ellen gebruikt het maximale aantal dagen van de team members
 
    **Voorbeeld:**
    ```
-   Sarah (Creative Team): 3 dagen toegewezen
-   Mark (Creative Team): 5 dagen toegewezen
-   → Ellen plant team blok van 5 dagen (max) met Sarah & Mark samen
+   Sarah (Creative Team 1): 3 dagen, "samen met creative team"
+   Mark (Creative Team 1): 5 dagen, "samen met creative team"
+   → Ellen plant één team blok van 5 dagen met Sarah & Mark samen
    ```
 
-2. **Individuele Planning ("plan individueel")**
-   - Elke medewerker wordt apart ingepland
-   - Ze kunnen op verschillende momenten aan het project werken
-   - In de planner verschijnen aparte blokken per persoon
-   - Ellen gebruikt de individuele dag-allocatie per medewerker
-   - **Dit is de ENIGE optie voor niet-creative team medewerkers**
+2. **"Individueel"** - Voor alle medewerkers (creative teams EN anderen)
+   - Deze medewerker werkt apart, niet gekoppeld aan team
+   - In de planner: apart blok per medewerker
+   - Ellen gebruikt de individuele dag-allocatie
 
    **Voorbeeld:**
    ```
-   Sarah: 3 dagen → apart blok in planner
-   Mark: 5 dagen → apart blok in planner
-   Lisa: 4 dagen → apart blok in planner
+   Lisa: 4 dagen, "individueel"
+   → Ellen plant individueel blok van 4 dagen voor Lisa
    ```
 
-**Wanneer team vs individueel (voor creative teams)?**
-- **Team samen**: Brainstormsessies, workshops, gezamenlijke conceptfase, creative duo work
+3. **"Beide (eerst samen, dan apart)"** - ALLEEN voor creative team members
+   - Deze medewerker werkt ZOWEL samen met het team ALS individueel
+   - Dagen worden verdeeld: helft samen, helft apart
+   - In de planner: TWO blokken - één team blok, één individueel blok
+
+   **Voorbeeld:**
+   ```
+   Sarah (Creative Team 1): 6 dagen, "beide"
+   Mark (Creative Team 1): 6 dagen, "beide"
+   → Ellen plant:
+     - Team blok van 3 dagen (Sarah & Mark samen)
+     - Individueel blok van 3 dagen voor Sarah
+     - Individueel blok van 3 dagen voor Mark
+   ```
+
+**Toelichtingen:**
+Elke medewerker kan een toelichting hebben met uitleg waarom ze nodig zijn. Ellen gebruikt dit om:
+- Te begrijpen wat de rol van de medewerker is
+- Beter in te schatten wanneer ze nodig zijn
+- Prioriteit te geven aan belangrijke taken
+
+**Voorbeelden van toelichtingen:**
+- "Eerst 2 dagen samen brainstormen, dan 3 dagen apart uitwerken"
+- "Alleen nodig voor kick-off meeting en eindpresentatie"
+- "Creative director - final say op alle visual outputs"
+- "Research en data analyse, geen afhankelijkheden met anderen"
+
+**Wanneer welk planning type (voor creative teams)?**
+- **Samen met team**: Brainstormsessies, workshops, gezamenlijke conceptfase, creative duo work
 - **Individueel**: Research, uitwerking, losse taken die niet afhankelijk zijn
-- **Creative teams**: Kunnen zowel samen als apart werken, afhankelijk van project
+- **Beide**: Complexe projecten waar team samenwerking nodig is, maar ook individueel werk
 
 **Per-medewerker dag allocatie:**
 - Elk teamlid heeft een individueel aantal dagen nodig (niet per definitie gelijk)
