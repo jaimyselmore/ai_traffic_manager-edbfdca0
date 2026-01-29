@@ -603,9 +603,9 @@ export default function NieuwProject() {
             <div className="space-y-2">
               <Label className="text-sm">Betrokken medewerkers *</Label>
               <p className="text-xs text-muted-foreground">
-                Selecteer creative teams als geheel of individuele medewerkers
+                Selecteer wie er nodig is voor dit project
               </p>
-              <div className="space-y-6 mt-3">
+              <div className="space-y-3 mt-3">
                 {(() => {
                   // Group employees by duo_team
                   const teamGroups: Record<string, typeof employees> = {};
@@ -627,18 +627,11 @@ export default function NieuwProject() {
                         const teamAllocatie = formData.algemeen.teamAllocaties.find(t => t.teamName === teamName);
                         const isTeamSelected = !!teamAllocatie;
                         const memberIds = teamMembers.map(m => m.id);
+                        const teamLabel = `${teamMembers.map(m => m.name).join(' & ')} (${teamName})`;
 
                         return (
-                          <div key={teamName} className="border border-primary/20 rounded-lg p-4 space-y-3 bg-primary/5">
-                            {/* Team header */}
-                            <div className="font-medium text-foreground border-b border-primary/20 pb-2">
-                              {teamName}
-                              <span className="ml-2 text-sm text-muted-foreground font-normal">
-                                ({teamMembers.map(m => m.name).join(' & ')})
-                              </span>
-                            </div>
-
-                            {/* Team als geheel selecteren */}
+                          <div key={teamName} className="border border-border rounded-lg p-3 space-y-3">
+                            {/* Team checkbox met namen eerst */}
                             <div className="space-y-3">
                               <div className="flex items-center gap-3">
                                 <Checkbox
@@ -647,14 +640,13 @@ export default function NieuwProject() {
                                   onCheckedChange={() => handleTeamToggle(teamName, memberIds)}
                                 />
                                 <Label htmlFor={`team-${teamName}`} className="text-sm font-medium cursor-pointer">
-                                  Heel team selecteren
+                                  {teamLabel}
                                 </Label>
                               </div>
 
-                              {/* Team details wanneer geselecteerd */}
+                              {/* Team details - alleen tonen als geselecteerd */}
                               {isTeamSelected && teamAllocatie && (
-                                <div className="pl-7 space-y-3 pb-3 border-b border-border">
-                                  {/* Aantal dagen */}
+                                <div className="pl-7 space-y-3">
                                   <div className="flex items-center gap-3">
                                     <Label className="text-sm w-24">Aantal dagen:</Label>
                                     <Input
@@ -667,7 +659,6 @@ export default function NieuwProject() {
                                     <span className="text-sm text-muted-foreground">dagen</span>
                                   </div>
 
-                                  {/* Planning type */}
                                   <div className="space-y-2">
                                     <Label className="text-sm">Hoe plannen? *</Label>
                                     <Select
@@ -690,7 +681,6 @@ export default function NieuwProject() {
                                     </Select>
                                   </div>
 
-                                  {/* Toelichting */}
                                   <div className="space-y-2">
                                     <Label className="text-sm">Toelichting</Label>
                                     <Textarea
@@ -703,118 +693,111 @@ export default function NieuwProject() {
                                   </div>
                                 </div>
                               )}
-                            </div>
 
-                            {/* Individual team members */}
-                            <div className="space-y-2">
-                              {teamMembers.map(emp => {
-                                const allocatie = formData.algemeen.medewerkerAllocaties.find(a => a.medewerkerId === emp.id);
-                                const isSelected = !!allocatie;
+                              {/* Individual members - altijd tonen met border */}
+                              <div className="pl-7 space-y-2 pt-2 border-t border-border">
+                                {teamMembers.map(emp => {
+                                  const allocatie = formData.algemeen.medewerkerAllocaties.find(a => a.medewerkerId === emp.id);
+                                  const isSelected = !!allocatie;
 
-                                return (
-                                  <div key={emp.id} className="space-y-2">
-                                    <div className="flex items-center gap-3">
-                                      <Checkbox
-                                        id={`emp-${emp.id}`}
-                                        checked={isSelected}
-                                        onCheckedChange={() => handleMedewerkerToggle(emp.id)}
-                                        disabled={isTeamSelected}
-                                      />
-                                      <Label htmlFor={`emp-${emp.id}`} className={`text-sm cursor-pointer ${isTeamSelected ? 'opacity-50' : ''}`}>
-                                        {emp.name} (individueel)
-                                      </Label>
-                                    </div>
-
-                                    {/* Individual details */}
-                                    {isSelected && !isTeamSelected && allocatie && (
-                                      <div className="pl-7 space-y-2">
-                                        <div className="flex items-center gap-3">
-                                          <Label className="text-sm w-24">Aantal dagen:</Label>
-                                          <Input
-                                            type="number"
-                                            min="1"
-                                            value={allocatie.aantalDagen}
-                                            onChange={(e) => handleMedewerkerDagenChange(emp.id, parseInt(e.target.value) || 1)}
-                                            className="w-20"
-                                          />
-                                          <span className="text-sm text-muted-foreground">dagen</span>
-                                        </div>
-
-                                        <div className="space-y-2">
-                                          <Label className="text-sm">Toelichting</Label>
-                                          <Textarea
-                                            value={allocatie.toelichting}
-                                            onChange={(e) => handleMedewerkerToelichtingChange(emp.id, e.target.value)}
-                                            placeholder="Waarom nodig? Wat gaat diegene doen?"
-                                            rows={2}
-                                            className="text-sm"
-                                          />
-                                        </div>
+                                  return (
+                                    <div key={emp.id} className="space-y-2">
+                                      <div className="flex items-center gap-3">
+                                        <Checkbox
+                                          id={`emp-${emp.id}`}
+                                          checked={isSelected}
+                                          onCheckedChange={() => handleMedewerkerToggle(emp.id)}
+                                          disabled={isTeamSelected}
+                                        />
+                                        <Label htmlFor={`emp-${emp.id}`} className={`text-sm cursor-pointer ${isTeamSelected ? 'opacity-50' : ''}`}>
+                                          {emp.name} (individueel)
+                                        </Label>
                                       </div>
-                                    )}
-                                  </div>
-                                );
-                              })}
+
+                                      {/* Individual details - alleen tonen als geselecteerd */}
+                                      {isSelected && !isTeamSelected && allocatie && (
+                                        <div className="pl-7 space-y-2">
+                                          <div className="flex items-center gap-3">
+                                            <Label className="text-sm w-24">Aantal dagen:</Label>
+                                            <Input
+                                              type="number"
+                                              min="1"
+                                              value={allocatie.aantalDagen}
+                                              onChange={(e) => handleMedewerkerDagenChange(emp.id, parseInt(e.target.value) || 1)}
+                                              className="w-20"
+                                            />
+                                            <span className="text-sm text-muted-foreground">dagen</span>
+                                          </div>
+
+                                          <div className="space-y-2">
+                                            <Label className="text-sm">Toelichting</Label>
+                                            <Textarea
+                                              value={allocatie.toelichting}
+                                              onChange={(e) => handleMedewerkerToelichtingChange(emp.id, e.target.value)}
+                                              placeholder="Waarom nodig? Wat gaat diegene doen?"
+                                              rows={2}
+                                              className="text-sm"
+                                            />
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
                             </div>
                           </div>
                         );
                       })}
 
-                      {/* Overige medewerkers */}
-                      {individualEmployees.length > 0 && (
-                        <div className="space-y-3">
-                          <div className="font-medium text-muted-foreground text-sm">
-                            Overige medewerkers
-                          </div>
-                          {individualEmployees.map(emp => {
-                            const allocatie = formData.algemeen.medewerkerAllocaties.find(a => a.medewerkerId === emp.id);
-                            const isSelected = !!allocatie;
+                      {/* Overige medewerkers - geen header, gewoon onder elkaar */}
+                      {individualEmployees.map(emp => {
+                        const allocatie = formData.algemeen.medewerkerAllocaties.find(a => a.medewerkerId === emp.id);
+                        const isSelected = !!allocatie;
 
-                            return (
-                              <div key={emp.id} className="border border-border rounded-lg p-4 space-y-3">
+                        return (
+                          <div key={emp.id} className="border border-border rounded-lg p-3 space-y-3">
+                            <div className="flex items-center gap-3">
+                              <Checkbox
+                                id={`emp-${emp.id}`}
+                                checked={isSelected}
+                                onCheckedChange={() => handleMedewerkerToggle(emp.id)}
+                              />
+                              <Label htmlFor={`emp-${emp.id}`} className="text-sm font-medium cursor-pointer">
+                                {emp.name}
+                              </Label>
+                            </div>
+
+                            {/* Details - alleen tonen als geselecteerd */}
+                            {isSelected && allocatie && (
+                              <div className="pl-7 space-y-3">
                                 <div className="flex items-center gap-3">
-                                  <Checkbox
-                                    id={`emp-${emp.id}`}
-                                    checked={isSelected}
-                                    onCheckedChange={() => handleMedewerkerToggle(emp.id)}
+                                  <Label className="text-sm w-24">Aantal dagen:</Label>
+                                  <Input
+                                    type="number"
+                                    min="1"
+                                    value={allocatie.aantalDagen}
+                                    onChange={(e) => handleMedewerkerDagenChange(emp.id, parseInt(e.target.value) || 1)}
+                                    className="w-20"
                                   />
-                                  <Label htmlFor={`emp-${emp.id}`} className="flex-1 text-sm font-medium cursor-pointer">
-                                    {emp.name}
-                                    <span className="text-muted-foreground ml-1 text-xs">({emp.role})</span>
-                                  </Label>
+                                  <span className="text-sm text-muted-foreground">dagen</span>
                                 </div>
 
-                                {isSelected && allocatie && (
-                                  <div className="pl-7 space-y-3">
-                                    <div className="flex items-center gap-3">
-                                      <Label className="text-sm w-24">Aantal dagen:</Label>
-                                      <Input
-                                        type="number"
-                                        min="1"
-                                        value={allocatie.aantalDagen}
-                                        onChange={(e) => handleMedewerkerDagenChange(emp.id, parseInt(e.target.value) || 1)}
-                                        className="w-20"
-                                      />
-                                      <span className="text-sm text-muted-foreground">dagen</span>
-                                    </div>
-
-                                    <div className="space-y-2">
-                                      <Label className="text-sm">Toelichting</Label>
-                                      <Textarea
-                                        value={allocatie.toelichting}
-                                        onChange={(e) => handleMedewerkerToelichtingChange(emp.id, e.target.value)}
-                                        placeholder="Waarom is deze medewerker nodig? Wat gaat diegene doen?"
-                                        rows={3}
-                                        className="text-sm"
-                                      />
-                                    </div>
-                                  </div>
-                                )}
+                                <div className="space-y-2">
+                                  <Label className="text-sm">Toelichting</Label>
+                                  <Textarea
+                                    value={allocatie.toelichting}
+                                    onChange={(e) => handleMedewerkerToelichtingChange(emp.id, e.target.value)}
+                                    placeholder="Waarom is deze medewerker nodig? Wat gaat diegene doen?"
+                                    rows={2}
+                                    className="text-sm"
+                                  />
+                                </div>
                               </div>
-                            );
-                          })}
-                        </div>
-                      )}
+                            )}
+                          </div>
+                        );
+                      })}
                     </>
                   );
                 })()}
