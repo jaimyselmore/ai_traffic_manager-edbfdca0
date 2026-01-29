@@ -98,9 +98,19 @@ export default function NieuwProject() {
       if (formData.algemeen.medewerkerAllocaties.length === 0) {
         newErrors.algemeen = 'Selecteer minimaal één medewerker';
       }
-      if (!formData.algemeen.planningMode) {
-        newErrors.planningMode = 'Selecteer een planning modus';
+
+      // Check if there are creative team members selected
+      const selectedEmployeesWithTeam = formData.algemeen.medewerkerAllocaties
+        .map(allocatie => employees.find(emp => emp.id === allocatie.medewerkerId))
+        .filter(emp => emp && emp.duoTeam);
+
+      const hasCreativeTeamMembers = selectedEmployeesWithTeam.length > 0;
+
+      // Only validate planningMode if there are creative team members
+      if (hasCreativeTeamMembers && !formData.algemeen.planningMode) {
+        newErrors.planningMode = 'Selecteer een planning modus voor creative teams';
       }
+
       // Check if all selected employees have days > 0
       const invalidAllocaties = formData.algemeen.medewerkerAllocaties.filter(a => a.aantalDagen <= 0);
       if (invalidAllocaties.length > 0) {
@@ -119,7 +129,18 @@ export default function NieuwProject() {
     if (!formData.projectType) missing.push('Projecttype');
     if (formData.projectType === 'algemeen') {
       if (formData.algemeen.medewerkerAllocaties.length === 0) missing.push('Medewerkers');
-      if (!formData.algemeen.planningMode) missing.push('Planning modus');
+
+      // Check if there are creative team members selected
+      const selectedEmployeesWithTeam = formData.algemeen.medewerkerAllocaties
+        .map(allocatie => employees.find(emp => emp.id === allocatie.medewerkerId))
+        .filter(emp => emp && emp.duoTeam);
+
+      const hasCreativeTeamMembers = selectedEmployeesWithTeam.length > 0;
+
+      // Only require planningMode if there are creative team members
+      if (hasCreativeTeamMembers && !formData.algemeen.planningMode) {
+        missing.push('Planning modus');
+      }
     }
     return missing.join(', ');
   };
@@ -157,14 +178,27 @@ export default function NieuwProject() {
     const fases: any[] = [];
 
     if (formData.projectType === 'algemeen') {
-      // For algemeen: create fases based on planning mode
-      if (formData.algemeen.planningMode === 'team') {
+      // Check if there are creative team members selected
+      const selectedEmployeesWithTeam = formData.algemeen.medewerkerAllocaties
+        .map(allocatie => employees.find(emp => emp.id === allocatie.medewerkerId))
+        .filter(emp => emp && emp.duoTeam);
+
+      const hasCreativeTeamMembers = selectedEmployeesWithTeam.length > 0;
+
+      // Only use team planning if there are creative team members AND team mode is selected
+      // Otherwise, always plan individually
+      const effectivePlanningMode = hasCreativeTeamMembers && formData.algemeen.planningMode === 'team'
+        ? 'team'
+        : 'individueel';
+
+      // For algemeen: create fases based on effective planning mode
+      if (effectivePlanningMode === 'team') {
         // Plan as team: one fase with all employees
         const allMedewerkers = formData.algemeen.medewerkerAllocaties.map(a => a.medewerkerId);
         // Use the maximum days from allocations for team planning
         const maxDagen = Math.max(...formData.algemeen.medewerkerAllocaties.map(a => a.aantalDagen));
         fases.push({
-          fase_naam: 'Algemeen (Team)',
+          fase_naam: 'Algemeen (Creative Team)',
           medewerkers: allMedewerkers,
           start_datum: formData.algemeen.startDatum || formData.projectHeader.datumAanvraag || new Date().toISOString().split('T')[0],
           duur_dagen: maxDagen,
@@ -389,36 +423,57 @@ export default function NieuwProject() {
         </div>
 
         {/* Algemeen Project Form */}
-        {formData.projectType === 'algemeen' && (
-          <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
-            <h2 className="text-lg font-semibold text-foreground">Planning</h2>
+        {formData.projectType === 'algemeen' && (() => {
+          // Check if any selected employees are part of a creative team (duo_team)
+          const selectedEmployeesWithTeam = formData.algemeen.medewerkerAllocaties
+            .map(allocatie => employees.find(emp => emp.id === allocatie.medewerkerId))
+            .filter(emp => emp && emp.duoTeam);
 
-            <div className="space-y-2">
-              <Label className="text-sm">Planning modus *</Label>
-              <RadioGroup
-                value={formData.algemeen.planningMode}
-                onValueChange={(value: 'team' | 'individueel') => setFormData({
-                  ...formData,
-                  algemeen: { ...formData.algemeen, planningMode: value }
-                })}
-              >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="team" id="team" />
-                  <Label htmlFor="team" className="text-sm font-normal cursor-pointer">
-                    Plan team samen (als één blok in de planner)
-                  </Label>
+          const hasCreativeTeamMembers = selectedEmployeesWithTeam.length > 0;
+
+          return (
+            <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
+              <h2 className="text-lg font-semibold text-foreground">Planning</h2>
+
+              {hasCreativeTeamMembers && (
+                <div className="space-y-2">
+                  <Label className="text-sm">Planning modus voor creative teams *</Label>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Je hebt creative team members geselecteerd. Kies hoe ze ingepland moeten worden.
+                  </p>
+                  <RadioGroup
+                    value={formData.algemeen.planningMode}
+                    onValueChange={(value: 'team' | 'individueel') => setFormData({
+                      ...formData,
+                      algemeen: { ...formData.algemeen, planningMode: value }
+                    })}
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="team" id="team" />
+                      <Label htmlFor="team" className="text-sm font-normal cursor-pointer">
+                        Plan creative teams samen (als één blok in de planner)
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="individueel" id="individueel" />
+                      <Label htmlFor="individueel" className="text-sm font-normal cursor-pointer">
+                        Plan iedereen individueel (aparte blokken per medewerker)
+                      </Label>
+                    </div>
+                  </RadioGroup>
+                  {errors.planningMode && (
+                    <p className="text-xs text-destructive mt-1">{errors.planningMode}</p>
+                  )}
                 </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="individueel" id="individueel" />
-                  <Label htmlFor="individueel" className="text-sm font-normal cursor-pointer">
-                    Plan individueel (aparte blokken per medewerker)
-                  </Label>
-                </div>
-              </RadioGroup>
-              {errors.planningMode && (
-                <p className="text-xs text-destructive mt-1">{errors.planningMode}</p>
               )}
-            </div>
+
+              {!hasCreativeTeamMembers && formData.algemeen.medewerkerAllocaties.length > 0 && (
+                <div className="p-3 bg-secondary/50 rounded-lg">
+                  <p className="text-sm text-muted-foreground">
+                    Alle medewerkers worden individueel ingepland (geen creative teams geselecteerd)
+                  </p>
+                </div>
+              )}
 
             <div className="space-y-2">
               <Label className="text-sm">Startdatum (optioneel)</Label>
@@ -480,7 +535,8 @@ export default function NieuwProject() {
               )}
             </div>
           </div>
-        )}
+          );
+        })()}
 
         {/* Productie Project Form */}
         {formData.projectType === 'productie' && (
