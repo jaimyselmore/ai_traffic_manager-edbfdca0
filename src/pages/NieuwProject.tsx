@@ -58,11 +58,51 @@ export default function NieuwProject() {
   const { data: clients = [] } = useClients();
   const { data: employees = [] } = useEmployees();
 
+  const hydrateStoredFormData = (stored: string): NieuwProjectFormData => {
+    // NOTE: localStorage can contain older shapes; do a deep-ish merge so nested
+    // arrays/objects never become undefined (prevents `.map()` runtime crashes).
+    let parsed: Partial<NieuwProjectFormData> = {};
+    try {
+      parsed = JSON.parse(stored) as Partial<NieuwProjectFormData>;
+    } catch {
+      return emptyFormData;
+    }
+
+    return {
+      ...emptyFormData,
+      ...parsed,
+      projectHeader: {
+        ...emptyProjectHeaderData,
+        ...(parsed.projectHeader ?? {}),
+      },
+      algemeen: {
+        ...emptyAlgemeenData,
+        ...(parsed.algemeen ?? {}),
+        medewerkerAllocaties: (parsed.algemeen?.medewerkerAllocaties ?? []) as MedewerkerAllocatie[],
+      },
+      betrokkenTeam: {
+        ...emptyBetrokkenTeamData,
+        ...(parsed.betrokkenTeam ?? {}),
+      },
+      productieFases: {
+        ...emptyProductieFasesData,
+        ...(parsed.productieFases ?? {}),
+        // `fases` is a nested object inside ProductieFasesData.
+        // Ensure it exists even if older stored data misses it.
+        fases: {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ...(emptyProductieFasesData as any).fases,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ...((parsed.productieFases as any)?.fases ?? {}),
+        },
+      } as ProductieFasesData,
+    };
+  };
+
   const [formData, setFormData] = useState<NieuwProjectFormData>(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
-      const parsed = JSON.parse(stored);
-      return { ...emptyFormData, ...parsed };
+      return hydrateStoredFormData(stored);
     }
     return emptyFormData;
   });
