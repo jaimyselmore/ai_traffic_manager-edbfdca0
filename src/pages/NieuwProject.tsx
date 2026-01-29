@@ -641,9 +641,6 @@ export default function NieuwProject() {
                                 <Label htmlFor={`team-${teamName}`} className="text-sm font-medium cursor-pointer">
                                   {teamMembers.map(m => m.name).join(' & ')}
                                   <span className="text-muted-foreground font-normal ml-1">
-                                    ({teamMembers.map(m => m.role).join(' & ')})
-                                  </span>
-                                  <span className="text-muted-foreground font-normal ml-1">
                                     - {teamName}
                                   </span>
                                 </Label>
