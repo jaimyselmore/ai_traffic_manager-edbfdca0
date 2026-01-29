@@ -627,7 +627,6 @@ export default function NieuwProject() {
                         const teamAllocatie = formData.algemeen.teamAllocaties.find(t => t.teamName === teamName);
                         const isTeamSelected = !!teamAllocatie;
                         const memberIds = teamMembers.map(m => m.id);
-                        const teamLabel = `${teamMembers.map(m => m.name).join(' & ')} (${teamName})`;
 
                         return (
                           <div key={teamName} className="border border-border rounded-lg p-3 space-y-3">
@@ -640,7 +639,13 @@ export default function NieuwProject() {
                                   onCheckedChange={() => handleTeamToggle(teamName, memberIds)}
                                 />
                                 <Label htmlFor={`team-${teamName}`} className="text-sm font-medium cursor-pointer">
-                                  {teamLabel}
+                                  {teamMembers.map(m => m.name).join(' & ')}
+                                  <span className="text-muted-foreground font-normal ml-1">
+                                    ({teamMembers.map(m => m.role).join(' & ')})
+                                  </span>
+                                  <span className="text-muted-foreground font-normal ml-1">
+                                    - {teamName}
+                                  </span>
                                 </Label>
                               </div>
 
@@ -710,7 +715,11 @@ export default function NieuwProject() {
                                           disabled={isTeamSelected}
                                         />
                                         <Label htmlFor={`emp-${emp.id}`} className={`text-sm cursor-pointer ${isTeamSelected ? 'opacity-50' : ''}`}>
-                                          {emp.name} (individueel)
+                                          {emp.name}
+                                          <span className="text-muted-foreground ml-1">
+                                            ({emp.role})
+                                          </span>
+                                          <span className="ml-1">- individueel</span>
                                         </Label>
                                       </div>
 
@@ -765,6 +774,9 @@ export default function NieuwProject() {
                               />
                               <Label htmlFor={`emp-${emp.id}`} className="text-sm font-medium cursor-pointer">
                                 {emp.name}
+                                <span className="text-muted-foreground font-normal ml-1">
+                                  ({emp.role})
+                                </span>
                               </Label>
                             </div>
 
