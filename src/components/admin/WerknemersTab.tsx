@@ -97,6 +97,28 @@ export function MedewerkersTab() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
+  const { data: medewerkers = [], isLoading } = useQuery({
+    queryKey: ['medewerkers'],
+    queryFn: getMedewerkers,
+  });
+
+  // Fetch roles dynamically from database
+  const { data: rolprofielen = [] } = useQuery({
+    queryKey: ['rolprofielen'],
+    queryFn: getRolprofielen,
+  });
+
+  // Build dynamic role-to-discipline mapping from database
+  const roleDisciplineMap: Record<string, string> = {};
+  const availableRoles: string[] = [];
+
+  rolprofielen.forEach((rol) => {
+    availableRoles.push(rol.rol_naam);
+    if (rol.standaard_discipline) {
+      roleDisciplineMap[rol.rol_naam] = rol.standaard_discipline;
+    }
+  });
+
   // Auto-calculate disciplines when roles change
   useEffect(() => {
     const disciplines: string[] = [];
@@ -126,29 +148,8 @@ export function MedewerkersTab() {
       discipline_2: disciplines[1] || '',
       discipline_3: disciplines[2] || '',
     }));
-  }, [form.primaire_rol, form.tweede_rol, form.derde_rol, roleDisciplineMap]);
-
-  const { data: medewerkers = [], isLoading } = useQuery({
-    queryKey: ['medewerkers'],
-    queryFn: getMedewerkers,
-  });
-
-  // Fetch roles dynamically from database
-  const { data: rolprofielen = [] } = useQuery({
-    queryKey: ['rolprofielen'],
-    queryFn: getRolprofielen,
-  });
-
-  // Build dynamic role-to-discipline mapping from database
-  const roleDisciplineMap: Record<string, string> = {};
-  const availableRoles: string[] = [];
-
-  rolprofielen.forEach((rol) => {
-    availableRoles.push(rol.rol_naam);
-    if (rol.standaard_discipline) {
-      roleDisciplineMap[rol.rol_naam] = rol.standaard_discipline;
-    }
-  });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.primaire_rol, form.tweede_rol, form.derde_rol, JSON.stringify(roleDisciplineMap)]);
 
   const createMutation = useMutation({
     mutationFn: (data: typeof form) => createMedewerker(data, user?.id),
@@ -381,7 +382,7 @@ export function MedewerkersTab() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="">Geen</SelectItem>
-                    {AVAILABLE_ROLES.map((rol) => (
+                    {availableRoles.map((rol) => (
                       <SelectItem key={rol} value={rol}>
                         {rol}
                       </SelectItem>
@@ -400,7 +401,7 @@ export function MedewerkersTab() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="">Geen</SelectItem>
-                    {AVAILABLE_ROLES.map((rol) => (
+                    {availableRoles.map((rol) => (
                       <SelectItem key={rol} value={rol}>
                         {rol}
                       </SelectItem>
