@@ -40,7 +40,8 @@ export async function getMedewerkers() {
   const { data, error } = await secureSelect<{
     werknemer_id: number;
     naam_werknemer: string;
-    email: string | null;
+    microsoft_email: string | null;
+    gebruikersnaam: string | null;
     primaire_rol: string | null;
     tweede_rol: string | null;
     derde_rol: string | null;
@@ -61,7 +62,12 @@ export async function getMedewerkers() {
   });
 
   if (error) throw mapErrorMessage(error);
-  return data || [];
+  
+  // Map microsoft_email to email for frontend compatibility
+  return (data || []).map(m => ({
+    ...m,
+    email: m.microsoft_email,
+  }));
 }
 
 // Legacy alias
