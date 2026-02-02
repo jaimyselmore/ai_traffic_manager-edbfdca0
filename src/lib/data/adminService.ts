@@ -44,6 +44,8 @@ export async function getMedewerkers() {
     tweede_rol: string | null;
     derde_rol: string | null;
     discipline: string | null;
+    discipline_2: string | null;
+    discipline_3: string | null;
     werkuren: number | null;
     parttime_dag: string | null;
     duo_team: string | null;
@@ -72,6 +74,8 @@ export async function createMedewerker(
     tweede_rol?: string;
     derde_rol?: string;
     discipline?: string;
+    discipline_2?: string;
+    discipline_3?: string;
     werkuren?: number;
     parttime_dag?: string;
     duo_team?: string;
@@ -136,6 +140,8 @@ export async function updateMedewerker(
     tweede_rol: string;
     derde_rol: string;
     discipline: string;
+    discipline_2: string;
+    discipline_3: string;
     werkuren: number;
     parttime_dag: string;
     duo_team: string;
@@ -182,6 +188,7 @@ export async function getRolprofielen() {
     rol_naam: string;
     beschrijving_rol: string | null;
     taken_rol: string | null;
+    standaard_discipline: string | null;
   }>('rolprofielen', {
     order: { column: 'rol_nummer', ascending: true },
   });

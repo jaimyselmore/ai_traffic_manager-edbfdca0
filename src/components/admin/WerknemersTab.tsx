@@ -1,8 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Pencil, Trash2, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Table,
   TableBody,
@@ -36,7 +43,9 @@ import {
   createMedewerker,
   updateMedewerker,
   deleteMedewerker,
+  getRolprofielen,
 } from '@/lib/data/adminService';
+import { deriveDisciplinesFromRoles } from '@/lib/helpers/roleDisciplineMapping';
 
 type Medewerker = {
   werknemer_id: number;
@@ -46,6 +55,8 @@ type Medewerker = {
   tweede_rol: string | null;
   derde_rol: string | null;
   discipline: string | null;
+  discipline_2: string | null;
+  discipline_3: string | null;
   werkuren: number | null;
   parttime_dag: string | null;
   duo_team: string | null;
@@ -63,6 +74,8 @@ const emptyForm = {
   tweede_rol: '',
   derde_rol: '',
   discipline: '',
+  discipline_2: '',
+  discipline_3: '',
   werkuren: 40,
   parttime_dag: '',
   duo_team: '',
@@ -84,9 +97,57 @@ export function MedewerkersTab() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
+  // Auto-calculate disciplines when roles change
+  useEffect(() => {
+    const disciplines: string[] = [];
+
+    // Add disciplines for each role (skip duplicates and roles without discipline)
+    if (form.primaire_rol && form.primaire_rol !== 'Stagiair' && roleDisciplineMap[form.primaire_rol]) {
+      disciplines.push(roleDisciplineMap[form.primaire_rol]);
+    }
+
+    if (form.tweede_rol && form.tweede_rol !== 'Stagiair' && roleDisciplineMap[form.tweede_rol]) {
+      const disc = roleDisciplineMap[form.tweede_rol];
+      if (!disciplines.includes(disc)) {
+        disciplines.push(disc);
+      }
+    }
+
+    if (form.derde_rol && form.derde_rol !== 'Stagiair' && roleDisciplineMap[form.derde_rol]) {
+      const disc = roleDisciplineMap[form.derde_rol];
+      if (!disciplines.includes(disc)) {
+        disciplines.push(disc);
+      }
+    }
+
+    setForm(prev => ({
+      ...prev,
+      discipline: disciplines[0] || '',
+      discipline_2: disciplines[1] || '',
+      discipline_3: disciplines[2] || '',
+    }));
+  }, [form.primaire_rol, form.tweede_rol, form.derde_rol, roleDisciplineMap]);
+
   const { data: medewerkers = [], isLoading } = useQuery({
     queryKey: ['medewerkers'],
     queryFn: getMedewerkers,
+  });
+
+  // Fetch roles dynamically from database
+  const { data: rolprofielen = [] } = useQuery({
+    queryKey: ['rolprofielen'],
+    queryFn: getRolprofielen,
+  });
+
+  // Build dynamic role-to-discipline mapping from database
+  const roleDisciplineMap: Record<string, string> = {};
+  const availableRoles: string[] = [];
+
+  rolprofielen.forEach((rol) => {
+    availableRoles.push(rol.rol_naam);
+    if (rol.standaard_discipline) {
+      roleDisciplineMap[rol.rol_naam] = rol.standaard_discipline;
+    }
   });
 
   const createMutation = useMutation({
@@ -142,6 +203,8 @@ export function MedewerkersTab() {
       tweede_rol: item.tweede_rol || '',
       derde_rol: item.derde_rol || '',
       discipline: item.discipline || '',
+      discipline_2: item.discipline_2 || '',
+      discipline_3: item.discipline_3 || '',
       werkuren: item.werkuren || 40,
       parttime_dag: item.parttime_dag || '',
       duo_team: item.duo_team || '',
@@ -290,31 +353,89 @@ export function MedewerkersTab() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Primaire rol</Label>
-                <Input
+                <Label>Primaire rol *</Label>
+                <Select
                   value={form.primaire_rol}
-                  onChange={(e) => setForm({ ...form, primaire_rol: e.target.value })}
-                />
+                  onValueChange={(value) => setForm({ ...form, primaire_rol: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecteer primaire rol" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableRoles.map((rol) => (
+                      <SelectItem key={rol} value={rol}>
+                        {rol}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label>Tweede rol</Label>
-                <Input
+                <Select
                   value={form.tweede_rol}
-                  onChange={(e) => setForm({ ...form, tweede_rol: e.target.value })}
-                />
+                  onValueChange={(value) => setForm({ ...form, tweede_rol: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Optioneel" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Geen</SelectItem>
+                    {AVAILABLE_ROLES.map((rol) => (
+                      <SelectItem key={rol} value={rol}>
+                        {rol}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label>Derde rol</Label>
-                <Input
+                <Select
                   value={form.derde_rol}
-                  onChange={(e) => setForm({ ...form, derde_rol: e.target.value })}
+                  onValueChange={(value) => setForm({ ...form, derde_rol: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Optioneel" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Geen</SelectItem>
+                    {AVAILABLE_ROLES.map((rol) => (
+                      <SelectItem key={rol} value={rol}>
+                        {rol}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Primaire discipline (automatisch)</Label>
+                <Input
+                  value={form.discipline}
+                  disabled
+                  className="bg-muted"
+                  placeholder="Wordt automatisch bepaald o.b.v. rol"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Wordt automatisch bepaald op basis van primaire rol
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label>Tweede discipline (automatisch)</Label>
+                <Input
+                  value={form.discipline_2}
+                  disabled
+                  className="bg-muted"
+                  placeholder="Wordt automatisch bepaald o.b.v. tweede rol"
                 />
               </div>
               <div className="space-y-2">
-                <Label>Discipline</Label>
+                <Label>Derde discipline (automatisch)</Label>
                 <Input
-                  value={form.discipline}
-                  onChange={(e) => setForm({ ...form, discipline: e.target.value })}
+                  value={form.discipline_3}
+                  disabled
+                  className="bg-muted"
+                  placeholder="Wordt automatisch bepaald o.b.v. derde rol"
                 />
               </div>
               <div className="space-y-2">
