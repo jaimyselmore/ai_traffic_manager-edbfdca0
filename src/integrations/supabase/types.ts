@@ -212,6 +212,7 @@ export type Database = {
           created_at: string | null
           derde_rol: string | null
           discipline: string | null
+          display_order: number | null
           duo_team: string | null
           gebruikersnaam: string | null
           in_planning: boolean | null
@@ -235,6 +236,7 @@ export type Database = {
           created_at?: string | null
           derde_rol?: string | null
           discipline?: string | null
+          display_order?: number | null
           duo_team?: string | null
           gebruikersnaam?: string | null
           in_planning?: boolean | null
@@ -258,6 +260,7 @@ export type Database = {
           created_at?: string | null
           derde_rol?: string | null
           discipline?: string | null
+          display_order?: number | null
           duo_team?: string | null
           gebruikersnaam?: string | null
           in_planning?: boolean | null
