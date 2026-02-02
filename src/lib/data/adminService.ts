@@ -121,8 +121,14 @@ export async function createMedewerker(
     displayOrder = (allData?.[0]?.display_order || 0) + 1;
   }
 
-  // Remove wachtwoord from medewerker object (it's only for users table, not medewerkers table)
-  const { wachtwoord, ...medewerkerData } = medewerker;
+  // Normalize fields that don't exist on `medewerkers`
+  // - `email` is stored in DB as `microsoft_email`
+  // - `wachtwoord` is only for `users` table (create-user-account)
+  const { wachtwoord, email, ...medewerkerRest } = medewerker;
+  const medewerkerData = {
+    ...medewerkerRest,
+    ...(email !== undefined ? { microsoft_email: email || null } : {}),
+  };
 
   const { data, error } = await secureInsert<{
     werknemer_id: number;
@@ -202,8 +208,14 @@ export async function updateMedewerker(
   const existingMedewerker = existing?.[0];
   const isPlannerActivated = updates.is_planner === true && existingMedewerker?.is_planner !== true;
 
-  // Remove wachtwoord from updates object (it's only for users table, not medewerkers table)
-  const { wachtwoord, ...medewerkerUpdates } = updates;
+  // Normalize fields that don't exist on `medewerkers`
+  // - `email` is stored in DB as `microsoft_email`
+  // - `wachtwoord` is only for `users` table (create-user-account)
+  const { wachtwoord, email, ...medewerkerRest } = updates;
+  const medewerkerUpdates = {
+    ...medewerkerRest,
+    ...(email !== undefined ? { microsoft_email: email || null } : {}),
+  };
 
   // Update medewerker first
   const { data, error } = await secureUpdate<{
