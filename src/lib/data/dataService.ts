@@ -155,7 +155,7 @@ export async function getPlannableEmployees(): Promise<Employee[]> {
     .select('*')
     .eq('beschikbaar', true)
     .eq('in_planning', true)
-    .order('planner_volgorde', { ascending: true, nullsFirst: false })
+    .order('display_order', { ascending: true, nullsFirst: false })
     .order('naam_werknemer')
 
   if (error) {

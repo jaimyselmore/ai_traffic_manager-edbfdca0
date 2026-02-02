@@ -53,6 +53,7 @@ type Medewerker = {
   notities: string | null;
   beschikbaar: boolean | null;
   is_planner: boolean | null;
+  display_order: number | null;
 };
 
 const emptyForm = {
@@ -69,6 +70,7 @@ const emptyForm = {
   notities: '',
   beschikbaar: true,
   is_planner: false,
+  display_order: 0,
 };
 
 export function MedewerkersTab() {
@@ -147,6 +149,7 @@ export function MedewerkersTab() {
       notities: item.notities || '',
       beschikbaar: item.beschikbaar ?? true,
       is_planner: item.is_planner ?? false,
+      display_order: item.display_order || 0,
     });
     setIsDialogOpen(true);
   };
@@ -197,6 +200,7 @@ export function MedewerkersTab() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-20">Volgorde</TableHead>
               <TableHead>ID</TableHead>
               <TableHead>Naam</TableHead>
               <TableHead>Email</TableHead>
@@ -210,19 +214,20 @@ export function MedewerkersTab() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                   Laden...
                 </TableCell>
               </TableRow>
             ) : filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                   Geen medewerkers gevonden
                 </TableCell>
               </TableRow>
             ) : (
               filtered.map((w: Medewerker) => (
                 <TableRow key={w.werknemer_id}>
+                  <TableCell className="font-semibold text-primary">{w.display_order || '-'}</TableCell>
                   <TableCell className="font-mono text-xs">{w.werknemer_id}</TableCell>
                   <TableCell className="font-medium">{w.naam_werknemer}</TableCell>
                   <TableCell>{w.email || '-'}</TableCell>
@@ -263,6 +268,18 @@ export function MedewerkersTab() {
                   onChange={(e) => setForm({ ...form, naam_werknemer: e.target.value })}
                   required
                 />
+              </div>
+              <div className="space-y-2">
+                <Label>Volgorde in planner</Label>
+                <Input
+                  type="number"
+                  value={form.display_order}
+                  onChange={(e) => setForm({ ...form, display_order: parseInt(e.target.value) || 0 })}
+                  placeholder="Automatisch op basis van rol"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Laat leeg voor automatische volgorde bij dezelfde rol
+                </p>
               </div>
               <div className="space-y-2">
                 <Label>Email</Label>

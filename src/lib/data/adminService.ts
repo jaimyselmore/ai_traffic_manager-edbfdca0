@@ -52,8 +52,9 @@ export async function getMedewerkers() {
     beschikbaar: boolean | null;
     is_planner: boolean | null;
     in_planning: boolean | null;
+    display_order: number | null;
   }>('medewerkers', {
-    order: { column: 'werknemer_id', ascending: true },
+    order: { column: 'display_order', ascending: true },
   });
 
   if (error) throw mapErrorMessage(error);
@@ -79,6 +80,7 @@ export async function createMedewerker(
     beschikbaar?: boolean;
     is_planner?: boolean;
     in_planning?: boolean;
+    display_order?: number;
   },
   _userId?: string
 ) {
@@ -91,10 +93,31 @@ export async function createMedewerker(
 
   const nextId = (maxData?.[0]?.werknemer_id || 0) + 1;
 
+  // Auto-calculate display_order if not provided
+  let displayOrder = medewerker.display_order;
+  if (displayOrder === undefined && medewerker.primaire_rol) {
+    // Get max display_order for employees with the same primaire_rol
+    const { data: roleData } = await secureSelect<{ display_order: number }>('medewerkers', {
+      columns: 'display_order',
+      filters: [{ column: 'primaire_rol', operator: 'eq', value: medewerker.primaire_rol }],
+      order: { column: 'display_order', ascending: false },
+      limit: 1,
+    });
+    displayOrder = (roleData?.[0]?.display_order || 0) + 1;
+  } else if (displayOrder === undefined) {
+    // No role specified, put at end
+    const { data: allData } = await secureSelect<{ display_order: number }>('medewerkers', {
+      columns: 'display_order',
+      order: { column: 'display_order', ascending: false },
+      limit: 1,
+    });
+    displayOrder = (allData?.[0]?.display_order || 0) + 1;
+  }
+
   const { data, error } = await secureInsert<{
     werknemer_id: number;
     naam_werknemer: string;
-  }>('medewerkers', { ...medewerker, werknemer_id: nextId });
+  }>('medewerkers', { ...medewerker, werknemer_id: nextId, display_order: displayOrder });
 
   if (error) throw mapErrorMessage(error);
 
@@ -121,6 +144,7 @@ export async function updateMedewerker(
     beschikbaar: boolean;
     is_planner: boolean;
     in_planning: boolean;
+    display_order: number;
   }>,
   _userId?: string
 ) {
