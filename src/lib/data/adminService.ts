@@ -36,6 +36,99 @@ function mapErrorMessage(error: Error): Error {
 // MEDEWERKERS CRUD
 // ===========================================
 
+type MedewerkerOrderRow = {
+  werknemer_id: number;
+  primaire_rol: string | null;
+  display_order: number | null;
+};
+
+function normalizeRoleGroup(rol: string | null | undefined): string {
+  if (!rol) return 'Overig';
+  const lower = rol.toLowerCase();
+  if (lower === 'stagiair') return 'Stagiair';
+  // Account rollen (Account Manager / Head of Account / Account Director, etc.) bij elkaar.
+  if (lower.includes('account')) return 'Account';
+  return rol;
+}
+
+async function reindexMedewerkersDisplayOrder(): Promise<void> {
+  // Best-effort: nooit een create/update blokkeren op herindexering.
+  try {
+    const { data, error } = await secureSelect<MedewerkerOrderRow>('medewerkers', {
+      columns: 'werknemer_id,primaire_rol,display_order',
+      order: { column: 'display_order', ascending: true },
+      limit: 1000,
+    });
+
+    if (error) return;
+    const rows = data ?? [];
+    if (rows.length === 0) return;
+
+    // Groepeer medewerkers
+    const groups = new Map<string, MedewerkerOrderRow[]>();
+    for (const r of rows) {
+      const key = normalizeRoleGroup(r.primaire_rol);
+      const arr = groups.get(key) ?? [];
+      arr.push(r);
+      groups.set(key, arr);
+    }
+
+    // Bepaal groepsvolgorde op basis van huidige (min) display_order.
+    // - display_order <= 0 of null telt niet mee (wordt als "niet gezet" gezien)
+    // - Stagiair altijd als laatste
+    const groupMeta = Array.from(groups.entries()).map(([key, members]) => {
+      const nonZero = members
+        .map((m) => (typeof m.display_order === 'number' && m.display_order > 0 ? m.display_order : null))
+        .filter((v): v is number => v !== null);
+      const minPos = nonZero.length ? Math.min(...nonZero) : Number.POSITIVE_INFINITY;
+      return { key, members, minPos };
+    });
+
+    const nonStagiair = groupMeta
+      .filter((g) => g.key !== 'Stagiair')
+      .sort((a, b) => {
+        if (a.minPos !== b.minPos) return a.minPos - b.minPos;
+        return a.key.localeCompare(b.key);
+      });
+
+    const stagiairGroup = groupMeta.find((g) => g.key === 'Stagiair');
+    const orderedGroups = stagiairGroup ? [...nonStagiair, stagiairGroup] : nonStagiair;
+
+    // Sorteer binnen groep: bestaande display_order eerst (maar 0/null achteraan), daarna werknemer_id
+    for (const g of orderedGroups) {
+      g.members.sort((a, b) => {
+        const ao = typeof a.display_order === 'number' && a.display_order > 0 ? a.display_order : Number.POSITIVE_INFINITY;
+        const bo = typeof b.display_order === 'number' && b.display_order > 0 ? b.display_order : Number.POSITIVE_INFINITY;
+        if (ao !== bo) return ao - bo;
+        return a.werknemer_id - b.werknemer_id;
+      });
+    }
+
+    // Ken nieuwe, opeenvolgende display_order toe
+    const desired = new Map<number, number>();
+    let next = 1;
+    for (const g of orderedGroups) {
+      for (const m of g.members) {
+        desired.set(m.werknemer_id, next);
+        next += 1;
+      }
+    }
+
+    // Update alleen wat echt verandert (van hoog naar laag is niet nodig; geen unique constraint)
+    for (const r of rows) {
+      const wanted = desired.get(r.werknemer_id);
+      if (!wanted) continue;
+      if (r.display_order !== wanted) {
+        await secureUpdate('medewerkers', { display_order: wanted }, [
+          { column: 'werknemer_id', operator: 'eq', value: r.werknemer_id },
+        ]);
+      }
+    }
+  } catch {
+    // stil falen
+  }
+}
+
 export async function getMedewerkers() {
   const { data, error } = await secureSelect<{
     werknemer_id: number;
@@ -106,48 +199,22 @@ export async function createMedewerker(
 
   const nextId = (maxData?.[0]?.werknemer_id || 0) + 1;
 
-  // Auto-calculate display_order if not provided
-  let displayOrder = medewerker.display_order;
-  if (displayOrder === undefined || displayOrder === 0) {
-    if (medewerker.primaire_rol) {
-      // Get max display_order for employees with the same primaire_rol
-      const { data: roleData } = await secureSelect<{ display_order: number }>('medewerkers', {
-        columns: 'display_order',
-        filters: [{ column: 'primaire_rol', operator: 'eq', value: medewerker.primaire_rol }],
-        order: { column: 'display_order', ascending: false },
-        limit: 1,
-      });
-      
-      // New position is right after the last employee of this role
-      const insertPosition = (roleData?.[0]?.display_order || 0) + 1;
-      
-      // Shift all employees with display_order >= insertPosition up by 1
-      const { data: toShift } = await secureSelect<{ werknemer_id: number; display_order: number }>('medewerkers', {
-        columns: 'werknemer_id,display_order',
-        filters: [{ column: 'display_order', operator: 'gte', value: insertPosition }],
-        order: { column: 'display_order', ascending: false }, // Update from highest first to avoid conflicts
-      });
-      
-      if (toShift && toShift.length > 0) {
-        // Update each employee's display_order (from highest to lowest to avoid unique constraint issues)
-        for (const emp of toShift) {
-          await secureUpdate('medewerkers', 
-            { display_order: (emp.display_order || 0) + 1 }, 
-            [{ column: 'werknemer_id', operator: 'eq', value: emp.werknemer_id }]
-          );
-        }
-      }
-      
-      displayOrder = insertPosition;
-    } else {
-      // No role specified, put at end
-      const { data: allData } = await secureSelect<{ display_order: number }>('medewerkers', {
-        columns: 'display_order',
-        order: { column: 'display_order', ascending: false },
-        limit: 1,
-      });
-      displayOrder = (allData?.[0]?.display_order || 0) + 1;
-    }
+  // display_order
+  // - Als je iets invult (>0) respecteren we dat als "hint".
+  // - Anders zetten we hem tijdelijk achteraan; daarna herindexeren we zodat:
+  //   - rollen gegroepeerd blijven
+  //   - nieuwe medewerker onderaan zijn/haar rol-groep komt
+  //   - Stagiair altijd helemaal onderaan eindigt
+  let displayOrder = typeof medewerker.display_order === 'number' && medewerker.display_order > 0
+    ? medewerker.display_order
+    : undefined;
+  if (!displayOrder) {
+    const { data: maxOrder } = await secureSelect<{ display_order: number }>('medewerkers', {
+      columns: 'display_order',
+      order: { column: 'display_order', ascending: false },
+      limit: 1,
+    });
+    displayOrder = (maxOrder?.[0]?.display_order || 0) + 1;
   }
 
   // Normalize fields that don't exist on `medewerkers`
@@ -167,6 +234,9 @@ export async function createMedewerker(
   if (error) throw mapErrorMessage(error);
 
   const newMedewerker = data?.[0];
+
+  // Herindexeer direct na insert (fix o.a. display_order=0 en zet Stagiairs onderaan)
+  await reindexMedewerkersDisplayOrder();
 
   // Create user account if is_planner is true
   if (medewerker.is_planner && medewerker.gebruikersnaam && newMedewerker) {
@@ -253,6 +323,9 @@ export async function updateMedewerker(
   }>('medewerkers', medewerkerUpdates, [{ column: 'werknemer_id', operator: 'eq', value: werknemer_id }]);
 
   if (error) throw mapErrorMessage(error);
+
+  // Na elke update herindexeren we de volgorde (rollen bij elkaar + stagiair onderaan)
+  await reindexMedewerkersDisplayOrder();
 
   // Handle user account creation when is_planner is activated
   if (isPlannerActivated && updates.gebruikersnaam && existingMedewerker) {
