@@ -1,9 +1,9 @@
 // ===========================================
-// DATA SERVICE - Direct Supabase integration
-// Alle data komt nu rechtstreeks uit Supabase
+// DATA SERVICE - Secure Supabase integration via Edge Functions
+// All data operations now go through authenticated edge functions
 // ===========================================
 
-import { supabase } from '../supabase/client'
+import { secureSelect, secureInsert, secureUpdate, secureDelete } from './secureDataClient'
 import type {
   Employee,
   Client,
@@ -38,6 +38,7 @@ interface MedewerkerRow {
   notities: string | null
   in_planning: boolean | null
   planner_volgorde: number | null
+  display_order: number | null
 }
 
 interface DisciplineRow {
@@ -108,23 +109,22 @@ interface NotificatieRow {
 }
 
 // ===========================================
-// REFERENTIEDATA (uit Supabase)
+// REFERENTIEDATA (via secure edge functions)
 // ===========================================
 
 /**
- * Haal ALLE beschikbare werknemers op uit Supabase
+ * Haal ALLE beschikbare werknemers op via secure edge function
  */
 export async function getEmployees(): Promise<Employee[]> {
-  const { data, error } = await supabase
-    .from('medewerkers')
-    .select('*')
-    .eq('beschikbaar', true)
-    .order('planner_volgorde', { ascending: true, nullsFirst: false })
-    .order('naam_werknemer')
+  const { data, error } = await secureSelect<MedewerkerRow>('medewerkers', {
+    columns: '*',
+    filters: [{ column: 'beschikbaar', operator: 'eq', value: true }],
+    order: { column: 'planner_volgorde', ascending: true },
+  })
 
   if (error) {
     console.error('Fout bij ophalen werknemers:', error)
-    throw new Error(`Fout bij ophalen werknemers: ${error.message}`)
+    throw error
   }
 
   return ((data || []) as MedewerkerRow[]).map((werknemer) => ({
@@ -150,17 +150,18 @@ export async function getEmployees(): Promise<Employee[]> {
  * Haal alleen medewerkers op die IN DE PLANNING staan (in_planning = true)
  */
 export async function getPlannableEmployees(): Promise<Employee[]> {
-  const { data, error } = await supabase
-    .from('medewerkers')
-    .select('*')
-    .eq('beschikbaar', true)
-    .eq('in_planning', true)
-    .order('display_order', { ascending: true, nullsFirst: false })
-    .order('naam_werknemer')
+  const { data, error } = await secureSelect<MedewerkerRow>('medewerkers', {
+    columns: '*',
+    filters: [
+      { column: 'beschikbaar', operator: 'eq', value: true },
+      { column: 'in_planning', operator: 'eq', value: true },
+    ],
+    order: { column: 'display_order', ascending: true },
+  })
 
   if (error) {
     console.error('Fout bij ophalen planbare werknemers:', error)
-    throw new Error(`Fout bij ophalen planbare werknemers: ${error.message}`)
+    throw error
   }
 
   const employees = ((data || []) as MedewerkerRow[]).map((werknemer) => ({
@@ -181,7 +182,7 @@ export async function getPlannableEmployees(): Promise<Employee[]> {
     role: werknemer.primaire_rol || 'Onbekend',
   }))
 
-  // Groepeer duo teams
+  // Groepeer duo teams (client-side logic)
   const processedEmployees: Employee[] = []
   const processedDuoTeams = new Set<string>()
 
@@ -217,17 +218,17 @@ export async function getPlannableEmployees(): Promise<Employee[]> {
 }
 
 /**
- * Haal disciplines op uit Supabase
+ * Haal disciplines op via secure edge function
  */
 export async function getWorkTypes(): Promise<WorkType[]> {
-  const { data, error } = await supabase
-    .from('disciplines')
-    .select('*')
-    .order('discipline_naam')
+  const { data, error } = await secureSelect<DisciplineRow>('disciplines', {
+    columns: '*',
+    order: { column: 'discipline_naam', ascending: true },
+  })
 
   if (error) {
     console.error('Fout bij ophalen disciplines:', error)
-    throw new Error(`Fout bij ophalen disciplines: ${error.message}`)
+    throw error
   }
 
   return ((data || []) as DisciplineRow[]).map((discipline) => ({
@@ -240,17 +241,17 @@ export async function getWorkTypes(): Promise<WorkType[]> {
 }
 
 /**
- * Haal klanten op uit Supabase
+ * Haal klanten op via secure edge function
  */
 export async function getClients(): Promise<Client[]> {
-  const { data, error } = await supabase
-    .from('klanten')
-    .select('*')
-    .order('naam')
+  const { data, error } = await secureSelect<KlantRow>('klanten', {
+    columns: '*',
+    order: { column: 'naam', ascending: true },
+  })
 
   if (error) {
     console.error('Fout bij ophalen klanten:', error)
-    throw new Error(`Fout bij ophalen klanten: ${error.message}`)
+    throw error
   }
 
   return ((data || []) as KlantRow[]).map((klant) => ({
@@ -266,7 +267,7 @@ export async function getClients(): Promise<Client[]> {
 }
 
 /**
- * Maak nieuwe klant aan in Supabase
+ * Maak nieuwe klant aan via secure edge function
  */
 export async function createClient(clientData: {
   klantnummer: string
@@ -287,18 +288,14 @@ export async function createClient(clientData: {
     notities: clientData.notities || null,
   }
 
-  const { data, error } = await supabase
-    .from('klanten')
-    .insert(insertData as any)
-    .select()
-    .single()
+  const { data, error } = await secureInsert<KlantRow>('klanten', insertData)
 
   if (error) {
     console.error('Fout bij aanmaken klant:', error)
-    throw new Error(`Fout bij aanmaken klant: ${error.message}`)
+    throw error
   }
 
-  const result = data as KlantRow
+  const result = (data as KlantRow[])?.[0]
   if (!result) {
     throw new Error('Geen data teruggekregen bij aanmaken klant')
   }
@@ -332,36 +329,35 @@ export interface ProjectSummary {
 }
 
 /**
- * Haal projecten op uit Supabase met klantnaam
+ * Haal projecten op via secure edge function
  */
 export async function getProjects(): Promise<ProjectSummary[]> {
-  const { data, error } = await supabase
-    .from('projecten')
-    .select(`
-      id,
-      projectnummer,
-      omschrijving,
-      projecttype,
-      klant_id,
-      deadline,
-      status,
-      klanten (naam)
-    `)
-    .order('created_at', { ascending: false })
+  // First get projects
+  const { data: projectData, error: projectError } = await secureSelect<ProjectRow>('projecten', {
+    columns: '*',
+    order: { column: 'created_at', ascending: false },
+  })
 
-  if (error) {
-    console.error('Fout bij ophalen projecten:', error)
-    throw new Error(`Fout bij ophalen projecten: ${error.message}`)
+  if (projectError) {
+    console.error('Fout bij ophalen projecten:', projectError)
+    throw projectError
   }
 
-  return ((data || []) as any[]).map((project) => ({
+  // Get clients for name lookup
+  const { data: clientData } = await secureSelect<KlantRow>('klanten', {
+    columns: 'id,naam',
+  })
+
+  const clientMap = new Map((clientData || []).map(c => [c.id, c.naam]))
+
+  return ((projectData || []) as ProjectRow[]).map((project) => ({
     id: project.id,
     projectnummer: project.projectnummer,
-    titel: null, // titel kolom bestaat nog niet in database
+    titel: null,
     omschrijving: project.omschrijving,
     projecttype: project.projecttype,
     klant_id: project.klant_id,
-    klant_naam: project.klanten?.naam || 'Onbekende klant',
+    klant_naam: project.klant_id ? clientMap.get(project.klant_id) || 'Onbekende klant' : 'Onbekende klant',
     deadline: project.deadline,
     status: project.status,
   }))
@@ -372,21 +368,20 @@ export async function getProjects(): Promise<ProjectSummary[]> {
 // ===========================================
 
 /**
- * Haal taken op voor specifieke week uit Supabase
+ * Haal taken op voor specifieke week via secure edge function
  */
 export async function getTasks(weekStart: Date): Promise<Task[]> {
   const weekStartISO = weekStart.toISOString().split('T')[0]
 
-  const { data, error } = await supabase
-    .from('taken')
-    .select('*')
-    .eq('week_start', weekStartISO)
-    .order('dag_van_week')
-    .order('start_uur')
+  const { data, error } = await secureSelect<TaakRow>('taken', {
+    columns: '*',
+    filters: [{ column: 'week_start', operator: 'eq', value: weekStartISO }],
+    order: { column: 'dag_van_week', ascending: true },
+  })
 
   if (error) {
     console.error('Fout bij ophalen taken:', error)
-    throw new Error(`Fout bij ophalen taken: ${error.message}`)
+    throw error
   }
 
   return ((data || []) as TaakRow[]).map((taak) => ({
@@ -409,7 +404,7 @@ export async function getTasks(weekStart: Date): Promise<Task[]> {
 }
 
 /**
- * Maak nieuwe taak aan in Supabase
+ * Maak nieuwe taak aan via secure edge function
  */
 export async function createTask(task: Omit<Task, 'id'>): Promise<Task> {
   const weekStartISO = task.weekStart.toISOString().split('T')[0]
@@ -430,18 +425,14 @@ export async function createTask(task: Omit<Task, 'id'>): Promise<Task> {
     is_hard_lock: task.isHardLock || false,
   }
 
-  const { data, error } = await supabase
-    .from('taken')
-    .insert(insertData as any)
-    .select()
-    .single()
+  const { data, error } = await secureInsert<TaakRow>('taken', insertData)
 
   if (error) {
     console.error('Fout bij aanmaken taak:', error)
-    throw new Error(`Fout bij aanmaken taak: ${error.message}`)
+    throw error
   }
 
-  const result = data as TaakRow
+  const result = (data as TaakRow[])?.[0]
   if (!result) {
     throw new Error('Geen data teruggekregen bij aanmaken taak')
   }
@@ -466,7 +457,7 @@ export async function createTask(task: Omit<Task, 'id'>): Promise<Task> {
 }
 
 /**
- * Update bestaande taak in Supabase
+ * Update bestaande taak via secure edge function
  */
 export async function updateTask(task: Task): Promise<Task> {
   const weekStartISO = task.weekStart.toISOString().split('T')[0]
@@ -479,19 +470,18 @@ export async function updateTask(task: Task): Promise<Task> {
     week_start: weekStartISO,
   }
 
-  const { data, error } = await supabase
-    .from('taken')
-    .update(updateData as never)
-    .eq('id', task.id)
-    .select()
-    .single()
+  const { data, error } = await secureUpdate<TaakRow>(
+    'taken',
+    updateData,
+    [{ column: 'id', operator: 'eq', value: task.id }]
+  )
 
   if (error) {
     console.error('Fout bij updaten taak:', error)
-    throw new Error(`Fout bij updaten taak: ${error.message}`)
+    throw error
   }
 
-  const result = data as TaakRow
+  const result = (data as TaakRow[])?.[0]
   if (!result) {
     throw new Error('Geen data teruggekregen bij updaten taak')
   }
@@ -516,17 +506,16 @@ export async function updateTask(task: Task): Promise<Task> {
 }
 
 /**
- * Verwijder taak uit Supabase
+ * Verwijder taak via secure edge function
  */
 export async function deleteTask(taskId: string): Promise<void> {
-  const { error } = await supabase
-    .from('taken')
-    .delete()
-    .eq('id', taskId)
+  const { error } = await secureDelete('taken', [
+    { column: 'id', operator: 'eq', value: taskId }
+  ])
 
   if (error) {
     console.error('Fout bij verwijderen taak:', error)
-    throw new Error(`Fout bij verwijderen taak: ${error.message}`)
+    throw error
   }
 }
 
@@ -535,18 +524,18 @@ export async function deleteTask(taskId: string): Promise<void> {
 // ===========================================
 
 /**
- * Haal notificaties op uit Supabase
+ * Haal notificaties op via secure edge function
  */
 export async function getNotifications(): Promise<Notification[]> {
-  const { data, error } = await supabase
-    .from('notificaties')
-    .select('*')
-    .eq('is_done', false)
-    .order('created_at', { ascending: false })
+  const { data, error } = await secureSelect<NotificatieRow>('notificaties', {
+    columns: '*',
+    filters: [{ column: 'is_done', operator: 'eq', value: false }],
+    order: { column: 'created_at', ascending: false },
+  })
 
   if (error) {
     console.error('Fout bij ophalen notificaties:', error)
-    throw new Error(`Fout bij ophalen notificaties: ${error.message}`)
+    throw error
   }
 
   return ((data || []) as NotificatieRow[]).map((notif) => ({
@@ -569,18 +558,18 @@ export async function getNotifications(): Promise<Notification[]> {
 }
 
 // ===========================================
-// PROJECTTYPES (uit Supabase)
+// PROJECTTYPES (via secure edge function)
 // ===========================================
 
 export async function getProjectTypes(): Promise<ProjectType[]> {
-  const { data, error } = await supabase
-    .from('projecttypes')
-    .select('*')
-    .order('naam')
+  const { data, error } = await secureSelect<ProjectTypeRow>('projecttypes', {
+    columns: '*',
+    order: { column: 'naam', ascending: true },
+  })
 
   if (error) {
     console.error('Fout bij ophalen projecttypes:', error)
-    throw new Error(`Fout bij ophalen projecttypes: ${error.message}`)
+    throw error
   }
 
   return ((data || []) as ProjectTypeRow[]).map((pt) => ({
@@ -592,7 +581,7 @@ export async function getProjectTypes(): Promise<ProjectType[]> {
 }
 
 /**
- * Maak nieuw projecttype aan in Supabase
+ * Maak nieuw projecttype aan via secure edge function
  */
 export async function createProjectType(projectTypeData: {
   code: string
@@ -606,18 +595,14 @@ export async function createProjectType(projectTypeData: {
     is_system: false,
   }
 
-  const { data, error } = await supabase
-    .from('projecttypes')
-    .insert(insertData as any)
-    .select()
-    .single()
+  const { data, error } = await secureInsert<ProjectTypeRow>('projecttypes', insertData)
 
   if (error) {
     console.error('Fout bij aanmaken projecttype:', error)
-    throw new Error(`Fout bij aanmaken projecttype: ${error.message}`)
+    throw error
   }
 
-  const result = data as ProjectTypeRow
+  const result = (data as ProjectTypeRow[])?.[0]
   if (!result) {
     throw new Error('Geen data teruggekregen bij aanmaken projecttype')
   }
