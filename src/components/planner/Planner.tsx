@@ -263,7 +263,8 @@ export function Planner() {
       {isFullscreen && (
         <FullscreenPlanner
           currentWeekStart={currentWeekStart}
-          employees={employees}
+          employees={filteredEmployees}
+          tasks={filteredTasks}
           onClose={() => setIsFullscreen(false)}
           onWeekSelect={setCurrentWeekStart}
           initialZoom={plannerZoom}

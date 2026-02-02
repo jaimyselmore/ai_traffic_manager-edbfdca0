@@ -10,12 +10,13 @@ import {
 } from '@/components/ui/select';
 import { PlannerGrid } from './PlannerGrid';
 import type { Employee } from '@/lib/data/types';
-import { generateMockTasks } from '@/lib/mockData';
+import type { Task } from '@/hooks/use-tasks';
 import { getWeekNumber, formatDateRange } from '@/lib/helpers/dateHelpers';
 
 interface FullscreenPlannerProps {
   currentWeekStart: Date;
   employees: Employee[];
+  tasks: Task[];
   onClose: () => void;
   onWeekSelect: (weekStart: Date) => void;
   initialZoom?: number;
@@ -27,6 +28,7 @@ const zoomLevels = [50, 75, 100, 125, 150];
 export function FullscreenPlanner({
   currentWeekStart,
   employees,
+  tasks,
   onClose,
   onWeekSelect,
   initialZoom = 100,
@@ -42,7 +44,7 @@ export function FullscreenPlanner({
       start: weekStart,
       number: getWeekNumber(weekStart),
       dateRange: formatDateRange(weekStart),
-      tasks: generateMockTasks(weekStart),
+      tasks: tasks, // Use real tasks from database
     };
   });
 
