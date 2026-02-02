@@ -7,6 +7,8 @@ export interface ExistingProjectData {
   projectTitel?: string;
   klantNaam: string;
   omschrijving: string;
+  deadline?: string;
+  projectType?: string;
 }
 
 interface ExistingProjectSelectorProps {
@@ -27,6 +29,8 @@ export function ExistingProjectSelector({ value, onChange, error }: ExistingProj
         projectTitel: selectedProject.titel,
         klantNaam: selectedProject.klant_naam || 'Onbekende klant',
         omschrijving: selectedProject.omschrijving,
+        deadline: selectedProject.deadline || undefined,
+        projectType: selectedProject.projecttype || undefined,
       });
     } else {
       onChange(null);
