@@ -374,14 +374,16 @@ export function MedewerkersTab() {
               <div className="space-y-2">
                 <Label>Tweede rol</Label>
                 <Select
-                  value={form.tweede_rol}
-                  onValueChange={(value) => setForm({ ...form, tweede_rol: value })}
+                  value={form.tweede_rol || undefined}
+                  onValueChange={(value) =>
+                    setForm({ ...form, tweede_rol: value === '__none__' ? '' : value })
+                  }
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Optioneel" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Geen</SelectItem>
+                    <SelectItem value="__none__">Geen</SelectItem>
                     {availableRoles.map((rol) => (
                       <SelectItem key={rol} value={rol}>
                         {rol}
@@ -393,14 +395,16 @@ export function MedewerkersTab() {
               <div className="space-y-2">
                 <Label>Derde rol</Label>
                 <Select
-                  value={form.derde_rol}
-                  onValueChange={(value) => setForm({ ...form, derde_rol: value })}
+                  value={form.derde_rol || undefined}
+                  onValueChange={(value) =>
+                    setForm({ ...form, derde_rol: value === '__none__' ? '' : value })
+                  }
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Optioneel" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Geen</SelectItem>
+                    <SelectItem value="__none__">Geen</SelectItem>
                     {availableRoles.map((rol) => (
                       <SelectItem key={rol} value={rol}>
                         {rol}
