@@ -28,6 +28,9 @@ export interface Wijzigingsverzoek {
   extra_uren: number | null;
   betrokken_mensen: string[] | null;
   status: string | null;
+  original_values: Record<string, unknown> | null;
+  changed_values: Record<string, unknown> | null;
+  change_summary: string | null;
   created_by: string | null;
   created_at: string | null;
   updated_at: string | null;
@@ -52,6 +55,9 @@ export async function createWijzigingsverzoek(
     extra_uren?: number;
     betrokken_mensen?: string[];
     status?: string;
+    original_values?: Record<string, unknown>;
+    changed_values?: Record<string, unknown>;
+    change_summary?: string;
   },
   _userId: string
 ) {
