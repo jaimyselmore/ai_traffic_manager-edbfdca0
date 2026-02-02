@@ -1,4 +1,3 @@
-import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useProjects } from '@/lib/data';
 
@@ -38,20 +37,25 @@ export function ExistingProjectSelector({ value, onChange, error }: ExistingProj
 
   return (
     <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
-      <h2 className="text-lg font-semibold text-foreground">Project koppeling</h2>
+      <h2 className="text-lg font-semibold text-foreground">Project koppeling *</h2>
       <p className="text-sm text-muted-foreground">
         Selecteer het bestaande project waarvoor je een wijziging wilt aanvragen.
       </p>
 
       <div className="space-y-2">
-        <Label className="text-sm">Project *</Label>
         <Select
           value={value}
           onValueChange={handleProjectChange}
-          disabled={isLoading}
+          disabled={isLoading || projects.length === 0}
         >
           <SelectTrigger className={error ? 'border-destructive' : ''}>
-            <SelectValue placeholder={isLoading ? "Laden..." : "Selecteer een project"} />
+            <SelectValue placeholder={
+              isLoading
+                ? "Laden..."
+                : projects.length === 0
+                  ? "Geen projecten beschikbaar"
+                  : "Selecteer een project"
+            } />
           </SelectTrigger>
           <SelectContent>
             {projects.map((project) => (
@@ -71,6 +75,11 @@ export function ExistingProjectSelector({ value, onChange, error }: ExistingProj
             ))}
           </SelectContent>
         </Select>
+        {projects.length === 0 && !isLoading && (
+          <p className="text-xs text-muted-foreground">
+            Er zijn nog geen projecten aangemaakt. Maak eerst een project aan via "Nieuw Project".
+          </p>
+        )}
         {error && (
           <p className="text-xs text-destructive">{error}</p>
         )}

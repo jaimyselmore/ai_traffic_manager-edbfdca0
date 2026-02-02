@@ -11,6 +11,7 @@ export interface Project {
   deadline: string | null;
   status: string;
   created_at: string;
+  klant_naam?: string;
   // Relaties
   klanten?: {
     id: string;
@@ -29,6 +30,7 @@ export function useProjects(status?: 'concept' | 'vast' | 'afgerond') {
           id,
           klant_id,
           projectnummer,
+          titel,
           omschrijving,
           projecttype,
           deadline,
@@ -53,10 +55,10 @@ export function useProjects(status?: 'concept' | 'vast' | 'afgerond') {
         throw new Error(`Fout bij ophalen projecten: ${error.message}`);
       }
 
-      // Map data to include titel as null (column doesn't exist yet)
+      // Map data to include klant_naam for easier access
       return ((data || []) as any[]).map(p => ({
         ...p,
-        titel: null
+        klant_naam: p.klanten?.naam || 'Onbekende klant'
       })) as Project[];
     },
     staleTime: 5 * 60 * 1000, // 5 minuten
