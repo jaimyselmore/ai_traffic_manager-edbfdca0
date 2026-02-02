@@ -3,7 +3,8 @@
 // Uses secure data-access edge function
 // ===========================================
 
-import { secureSelect, secureInsert, secureUpdate, secureDelete } from './secureDataClient';
+import { secureSelect, secureInsert, secureUpdate, secureDelete, getSessionToken } from './secureDataClient';
+import { supabase } from '@/integrations/supabase/client';
 
 // Error codes for client-friendly messages
 const ERROR_MESSAGES: Record<string, string> = {
@@ -70,6 +71,7 @@ export async function createMedewerker(
   medewerker: {
     naam_werknemer: string;
     email?: string;
+    gebruikersnaam?: string;
     primaire_rol?: string;
     tweede_rol?: string;
     derde_rol?: string;
@@ -125,7 +127,33 @@ export async function createMedewerker(
 
   if (error) throw mapErrorMessage(error);
 
-  return data?.[0];
+  const newMedewerker = data?.[0];
+
+  // Create user account if is_planner is true
+  if (medewerker.is_planner && medewerker.gebruikersnaam && newMedewerker) {
+    const userResult = await createUserAccount({
+      gebruikersnaam: medewerker.gebruikersnaam.toLowerCase().trim(),
+      naam: medewerker.naam_werknemer,
+      rol: medewerker.primaire_rol || 'Medewerker',
+      werknemer_id: newMedewerker.werknemer_id,
+      is_planner: true,
+    });
+
+    if (!userResult.success) {
+      // User creation failed - set is_planner back to false
+      await secureUpdate('medewerkers', { is_planner: false }, [
+        { column: 'werknemer_id', operator: 'eq', value: newMedewerker.werknemer_id },
+      ]);
+
+      throw new Error(
+        `Medewerker aangemaakt, maar gebruikersaccount kon niet worden gemaakt: ${
+          userResult.error || 'Onbekende fout'
+        }`
+      );
+    }
+  }
+
+  return newMedewerker;
 }
 
 // Legacy alias
@@ -136,6 +164,7 @@ export async function updateMedewerker(
   updates: Partial<{
     naam_werknemer: string;
     email: string;
+    gebruikersnaam: string;
     primaire_rol: string;
     tweede_rol: string;
     derde_rol: string;
@@ -154,12 +183,70 @@ export async function updateMedewerker(
   }>,
   _userId?: string
 ) {
+  // Get existing medewerker to check current is_planner state
+  const { data: existing } = await secureSelect<{
+    is_planner: boolean | null;
+    naam_werknemer: string;
+    primaire_rol: string | null;
+  }>('medewerkers', {
+    filters: [{ column: 'werknemer_id', operator: 'eq', value: werknemer_id }],
+    limit: 1,
+  });
+
+  const existingMedewerker = existing?.[0];
+  const isPlannerActivated = updates.is_planner === true && existingMedewerker?.is_planner !== true;
+
+  // Update medewerker first
   const { data, error } = await secureUpdate<{
     werknemer_id: number;
     naam_werknemer: string;
   }>('medewerkers', updates, [{ column: 'werknemer_id', operator: 'eq', value: werknemer_id }]);
 
   if (error) throw mapErrorMessage(error);
+
+  // Handle user account creation when is_planner is activated
+  if (isPlannerActivated && updates.gebruikersnaam && existingMedewerker) {
+    // Check if user account already exists
+    const { data: existingUser } = await secureSelect<{
+      id: string;
+      is_planner: boolean;
+    }>('users', {
+      filters: [{ column: 'werknemer_id', operator: 'eq', value: werknemer_id }],
+      limit: 1,
+    });
+
+    if (existingUser?.[0]) {
+      // User exists, just reactivate
+      await secureUpdate('users', { is_planner: true }, [
+        { column: 'id', operator: 'eq', value: existingUser[0].id },
+      ]);
+    } else {
+      // Create new user account
+      const userResult = await createUserAccount({
+        gebruikersnaam: updates.gebruikersnaam.toLowerCase().trim(),
+        naam: existingMedewerker.naam_werknemer,
+        rol: existingMedewerker.primaire_rol || 'Medewerker',
+        werknemer_id: werknemer_id,
+        is_planner: true,
+      });
+
+      if (!userResult.success) {
+        throw new Error(
+          `Medewerker bijgewerkt, maar gebruikersaccount kon niet worden gemaakt: ${
+            userResult.error || 'Onbekende fout'
+          }`
+        );
+      }
+    }
+  }
+
+  // Handle is_planner deactivation
+  if (updates.is_planner === false && existingMedewerker?.is_planner === true) {
+    // Deactivate user account (don't delete - preserve audit trail)
+    await secureUpdate('users', { is_planner: false }, [
+      { column: 'werknemer_id', operator: 'eq', value: werknemer_id },
+    ]);
+  }
 
   return data?.[0];
 }
@@ -177,6 +264,51 @@ export async function deleteMedewerker(werknemer_id: number, _userId?: string) {
 
 // Legacy alias
 export const deleteWerknemer = deleteMedewerker;
+
+// ===========================================
+// USER ACCOUNT CREATION
+// ===========================================
+
+export async function createUserAccount(userData: {
+  gebruikersnaam: string;
+  naam: string;
+  rol: string;
+  werknemer_id: number;
+  is_planner: boolean;
+}): Promise<{ success: boolean; error?: string }> {
+  const sessionToken = getSessionToken();
+
+  if (!sessionToken) {
+    return { success: false, error: 'Geen actieve sessie' };
+  }
+
+  try {
+    const { data, error } = await supabase.functions.invoke('create-user-account', {
+      headers: {
+        Authorization: `Bearer ${sessionToken}`,
+      },
+      body: userData,
+    });
+
+    if (error) {
+      return {
+        success: false,
+        error: error.message || 'Kon account niet aanmaken',
+      };
+    }
+
+    if (data?.error) {
+      return { success: false, error: data.error };
+    }
+
+    return { success: true };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Onbekende fout bij aanmaken account',
+    };
+  }
+}
 
 // ===========================================
 // ROLPROFIELEN CRUD

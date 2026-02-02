@@ -51,6 +51,7 @@ type Medewerker = {
   werknemer_id: number;
   naam_werknemer: string;
   email: string | null;
+  gebruikersnaam?: string | null;
   primaire_rol: string | null;
   tweede_rol: string | null;
   derde_rol: string | null;
@@ -70,6 +71,7 @@ type Medewerker = {
 const emptyForm = {
   naam_werknemer: '',
   email: '',
+  gebruikersnaam: '',
   primaire_rol: '',
   tweede_rol: '',
   derde_rol: '',
@@ -155,10 +157,22 @@ export function MedewerkersTab() {
     mutationFn: (data: typeof form) => createMedewerker(data, user?.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['medewerkers'] });
-      toast.success('Medewerker toegevoegd');
+      toast.success(
+        form.is_planner
+          ? 'Medewerker en gebruikersaccount succesvol aangemaakt'
+          : 'Medewerker succesvol toegevoegd'
+      );
       closeDialog();
     },
-    onError: () => toast.error('Fout bij toevoegen'),
+    onError: (error: Error) => {
+      if (error.message.includes('gebruikersnaam is al in gebruik')) {
+        toast.error('Deze gebruikersnaam bestaat al. Kies een andere.', { duration: 5000 });
+      } else if (error.message.includes('gebruikersaccount kon niet worden gemaakt')) {
+        toast.error(error.message, { duration: 6000 });
+      } else {
+        toast.error('Fout bij toevoegen medewerker: ' + error.message);
+      }
+    },
   });
 
   const updateMutation = useMutation({
@@ -166,10 +180,22 @@ export function MedewerkersTab() {
       updateMedewerker(id, data, user?.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['medewerkers'] });
-      toast.success('Medewerker bijgewerkt');
+      toast.success(
+        form.is_planner && !editingItem?.is_planner
+          ? 'Medewerker bijgewerkt en gebruikersaccount aangemaakt'
+          : 'Medewerker bijgewerkt'
+      );
       closeDialog();
     },
-    onError: () => toast.error('Fout bij bijwerken'),
+    onError: (error: Error) => {
+      if (error.message.includes('gebruikersnaam is al in gebruik')) {
+        toast.error('Deze gebruikersnaam bestaat al. Kies een andere.', { duration: 5000 });
+      } else if (error.message.includes('gebruikersaccount kon niet worden gemaakt')) {
+        toast.error(error.message, { duration: 6000 });
+      } else {
+        toast.error('Fout bij bijwerken medewerker: ' + error.message);
+      }
+    },
   });
 
   const deleteMutation = useMutation({
@@ -200,6 +226,7 @@ export function MedewerkersTab() {
     setForm({
       naam_werknemer: item.naam_werknemer,
       email: item.email || '',
+      gebruikersnaam: item.gebruikersnaam || '',
       primaire_rol: item.primaire_rol || '',
       tweede_rol: item.tweede_rol || '',
       derde_rol: item.derde_rol || '',
@@ -230,6 +257,20 @@ export function MedewerkersTab() {
       toast.error('Naam is verplicht');
       return;
     }
+
+    // Validatie voor planner accounts
+    if (form.is_planner) {
+      if (!form.gebruikersnaam.trim()) {
+        toast.error('Gebruikersnaam is verplicht voor planners');
+        return;
+      }
+
+      if (form.gebruikersnaam.trim().length < 3) {
+        toast.error('Gebruikersnaam moet minimaal 3 tekens zijn');
+        return;
+      }
+    }
+
     if (editingItem) {
       updateMutation.mutate({ id: editingItem.werknemer_id, data: form });
     } else {
@@ -512,9 +553,35 @@ export function MedewerkersTab() {
                   checked={form.is_planner}
                   onCheckedChange={(checked) => setForm({ ...form, is_planner: checked })}
                 />
-                <Label>Is planner</Label>
+                <Label>Planner (toegang tot systeem)</Label>
               </div>
             </div>
+
+            {/* Gebruikersnaam input - alleen tonen als is_planner = true */}
+            {form.is_planner && (
+              <div className="space-y-2">
+                <Label htmlFor="gebruikersnaam">
+                  Gebruikersnaam <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="gebruikersnaam"
+                  value={form.gebruikersnaam}
+                  onChange={(e) => {
+                    // Auto-cleanup: lowercase, alleen letters en cijfers
+                    const cleaned = e.target.value.toLowerCase().replace(/[^a-z0-9]/g, '');
+                    setForm({ ...form, gebruikersnaam: cleaned });
+                  }}
+                  placeholder="bijv. jaimy"
+                  required={form.is_planner}
+                  maxLength={50}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Voor inloggen op het systeem. Alleen kleine letters en cijfers, minimaal 3 tekens.
+                  Standaard wachtwoord: selmore2026
+                </p>
+              </div>
+            )}
+
             <div className="flex justify-end gap-2 pt-4">
               <Button type="button" variant="outline" onClick={closeDialog}>
                 Annuleren

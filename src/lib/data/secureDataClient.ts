@@ -32,10 +32,10 @@ interface DataResponse<T> {
 }
 
 // Get session token from localStorage
-function getSessionToken(): string | null {
+export function getSessionToken(): string | null {
   const storedSession = localStorage.getItem('ellen_auth_session');
   if (!storedSession) return null;
-  
+
   try {
     const session = JSON.parse(storedSession);
     if (session.expiresAt < Date.now()) {
