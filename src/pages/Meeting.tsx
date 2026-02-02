@@ -161,30 +161,6 @@ export default function Meeting() {
             Koppel deze meeting aan een bestaand project, of plan deze standalone.
           </p>
 
-          {/* Geen project checkbox */}
-          <div className="flex items-center gap-2 p-3 bg-secondary/30 rounded-lg">
-            <Checkbox
-              id="geen-project"
-              checked={formData.geenProject}
-              onCheckedChange={(checked) => {
-                setFormData({
-                  ...formData,
-                  geenProject: checked as boolean,
-                  // Clear project selection when checking "geen project"
-                  projectId: checked ? '' : formData.projectId,
-                  projectTitel: checked ? '' : formData.projectTitel,
-                });
-                // Clear project error when checking "geen project"
-                if (checked && errors.projectId) {
-                  setErrors({ ...errors, projectId: '' });
-                }
-              }}
-            />
-            <Label htmlFor="geen-project" className="text-sm font-medium cursor-pointer">
-              Geen project - Dit is een standalone meeting/presentatie
-            </Label>
-          </div>
-
           {/* Project selector - only show when geen project is NOT checked */}
           {!formData.geenProject && (
             <ProjectSelector
@@ -208,11 +184,29 @@ export default function Meeting() {
             />
           )}
 
-          {formData.geenProject && (
-            <p className="text-xs text-muted-foreground">
-              Deze meeting wordt niet gekoppeld aan een project en wordt als standalone activiteit ingepland.
-            </p>
-          )}
+          {/* Geen project checkbox - below the dropdown */}
+          <div className="flex items-center gap-2 p-3 bg-secondary/30 rounded-lg">
+            <Checkbox
+              id="geen-project"
+              checked={formData.geenProject}
+              onCheckedChange={(checked) => {
+                setFormData({
+                  ...formData,
+                  geenProject: checked as boolean,
+                  // Clear project selection when checking "geen project"
+                  projectId: checked ? '' : formData.projectId,
+                  projectTitel: checked ? '' : formData.projectTitel,
+                });
+                // Clear project error when checking "geen project"
+                if (checked && errors.projectId) {
+                  setErrors({ ...errors, projectId: '' });
+                }
+              }}
+            />
+            <Label htmlFor="geen-project" className="text-sm font-medium cursor-pointer">
+              Geen project
+            </Label>
+          </div>
         </div>
 
         {/* Meeting details */}
