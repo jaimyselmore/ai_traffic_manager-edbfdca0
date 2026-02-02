@@ -79,7 +79,7 @@ const ALLOWED_OPERATORS = ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'like', 'ilike
 // Define allowed columns per table for validation
 const TABLE_COLUMNS: Record<string, string[]> = {
   klanten: ['id', 'klantnummer', 'naam', 'contactpersoon', 'email', 'telefoon', 'adres', 'notities', 'created_by', 'created_at', 'updated_at'],
-  medewerkers: ['werknemer_id', 'naam_werknemer', 'email', 'primaire_rol', 'tweede_rol', 'derde_rol', 'discipline', 'werkuren', 'parttime_dag', 'duo_team', 'vaardigheden', 'notities', 'beschikbaar', 'is_planner', 'in_planning', 'planner_volgorde', 'microsoft_connected', 'microsoft_connected_at', 'microsoft_email', 'created_at', 'updated_at'],
+  medewerkers: ['werknemer_id', 'naam_werknemer', 'gebruikersnaam', 'primaire_rol', 'tweede_rol', 'derde_rol', 'discipline', 'werkuren', 'parttime_dag', 'duo_team', 'vaardigheden', 'notities', 'beschikbaar', 'is_planner', 'in_planning', 'planner_volgorde', 'display_order', 'microsoft_connected', 'microsoft_connected_at', 'microsoft_email', 'created_at', 'updated_at'],
   users: ['id', 'email', 'naam', 'rol', 'is_planner', 'werknemer_id', 'created_at', 'updated_at'],
   rolprofielen: ['rol_nummer', 'rol_naam', 'beschrijving_rol', 'taken_rol', 'created_at', 'updated_at'],
   disciplines: ['id', 'discipline_naam', 'beschrijving', 'kleur_hex', 'created_at', 'updated_at'],
