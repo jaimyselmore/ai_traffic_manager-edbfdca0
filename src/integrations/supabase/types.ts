@@ -212,6 +212,8 @@ export type Database = {
           created_at: string | null
           derde_rol: string | null
           discipline: string | null
+          discipline_2: string | null
+          discipline_3: string | null
           display_order: number | null
           duo_team: string | null
           gebruikersnaam: string | null
@@ -236,6 +238,8 @@ export type Database = {
           created_at?: string | null
           derde_rol?: string | null
           discipline?: string | null
+          discipline_2?: string | null
+          discipline_3?: string | null
           display_order?: number | null
           duo_team?: string | null
           gebruikersnaam?: string | null
@@ -260,6 +264,8 @@ export type Database = {
           created_at?: string | null
           derde_rol?: string | null
           discipline?: string | null
+          discipline_2?: string | null
+          discipline_3?: string | null
           display_order?: number | null
           duo_team?: string | null
           gebruikersnaam?: string | null
@@ -648,6 +654,7 @@ export type Database = {
           created_at: string | null
           rol_naam: string
           rol_nummer: number
+          standaard_discipline: string | null
           taken_rol: string | null
           updated_at: string | null
         }
@@ -656,6 +663,7 @@ export type Database = {
           created_at?: string | null
           rol_naam: string
           rol_nummer: number
+          standaard_discipline?: string | null
           taken_rol?: string | null
           updated_at?: string | null
         }
@@ -664,6 +672,7 @@ export type Database = {
           created_at?: string | null
           rol_naam?: string
           rol_nummer?: number
+          standaard_discipline?: string | null
           taken_rol?: string | null
           updated_at?: string | null
         }
