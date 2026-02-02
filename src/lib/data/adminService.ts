@@ -121,10 +121,13 @@ export async function createMedewerker(
     displayOrder = (allData?.[0]?.display_order || 0) + 1;
   }
 
+  // Remove wachtwoord from medewerker object (it's only for users table, not medewerkers table)
+  const { wachtwoord, ...medewerkerData } = medewerker;
+
   const { data, error } = await secureInsert<{
     werknemer_id: number;
     naam_werknemer: string;
-  }>('medewerkers', { ...medewerker, werknemer_id: nextId, display_order: displayOrder });
+  }>('medewerkers', { ...medewerkerData, werknemer_id: nextId, display_order: displayOrder });
 
   if (error) throw mapErrorMessage(error);
 
@@ -199,11 +202,14 @@ export async function updateMedewerker(
   const existingMedewerker = existing?.[0];
   const isPlannerActivated = updates.is_planner === true && existingMedewerker?.is_planner !== true;
 
+  // Remove wachtwoord from updates object (it's only for users table, not medewerkers table)
+  const { wachtwoord, ...medewerkerUpdates } = updates;
+
   // Update medewerker first
   const { data, error } = await secureUpdate<{
     werknemer_id: number;
     naam_werknemer: string;
-  }>('medewerkers', updates, [{ column: 'werknemer_id', operator: 'eq', value: werknemer_id }]);
+  }>('medewerkers', medewerkerUpdates, [{ column: 'werknemer_id', operator: 'eq', value: werknemer_id }]);
 
   if (error) throw mapErrorMessage(error);
 
