@@ -108,23 +108,46 @@ export async function createMedewerker(
 
   // Auto-calculate display_order if not provided
   let displayOrder = medewerker.display_order;
-  if (displayOrder === undefined && medewerker.primaire_rol) {
-    // Get max display_order for employees with the same primaire_rol
-    const { data: roleData } = await secureSelect<{ display_order: number }>('medewerkers', {
-      columns: 'display_order',
-      filters: [{ column: 'primaire_rol', operator: 'eq', value: medewerker.primaire_rol }],
-      order: { column: 'display_order', ascending: false },
-      limit: 1,
-    });
-    displayOrder = (roleData?.[0]?.display_order || 0) + 1;
-  } else if (displayOrder === undefined) {
-    // No role specified, put at end
-    const { data: allData } = await secureSelect<{ display_order: number }>('medewerkers', {
-      columns: 'display_order',
-      order: { column: 'display_order', ascending: false },
-      limit: 1,
-    });
-    displayOrder = (allData?.[0]?.display_order || 0) + 1;
+  if (displayOrder === undefined || displayOrder === 0) {
+    if (medewerker.primaire_rol) {
+      // Get max display_order for employees with the same primaire_rol
+      const { data: roleData } = await secureSelect<{ display_order: number }>('medewerkers', {
+        columns: 'display_order',
+        filters: [{ column: 'primaire_rol', operator: 'eq', value: medewerker.primaire_rol }],
+        order: { column: 'display_order', ascending: false },
+        limit: 1,
+      });
+      
+      // New position is right after the last employee of this role
+      const insertPosition = (roleData?.[0]?.display_order || 0) + 1;
+      
+      // Shift all employees with display_order >= insertPosition up by 1
+      const { data: toShift } = await secureSelect<{ werknemer_id: number; display_order: number }>('medewerkers', {
+        columns: 'werknemer_id,display_order',
+        filters: [{ column: 'display_order', operator: 'gte', value: insertPosition }],
+        order: { column: 'display_order', ascending: false }, // Update from highest first to avoid conflicts
+      });
+      
+      if (toShift && toShift.length > 0) {
+        // Update each employee's display_order (from highest to lowest to avoid unique constraint issues)
+        for (const emp of toShift) {
+          await secureUpdate('medewerkers', 
+            { display_order: (emp.display_order || 0) + 1 }, 
+            [{ column: 'werknemer_id', operator: 'eq', value: emp.werknemer_id }]
+          );
+        }
+      }
+      
+      displayOrder = insertPosition;
+    } else {
+      // No role specified, put at end
+      const { data: allData } = await secureSelect<{ display_order: number }>('medewerkers', {
+        columns: 'display_order',
+        order: { column: 'display_order', ascending: false },
+        limit: 1,
+      });
+      displayOrder = (allData?.[0]?.display_order || 0) + 1;
+    }
   }
 
   // Normalize fields that don't exist on `medewerkers`
