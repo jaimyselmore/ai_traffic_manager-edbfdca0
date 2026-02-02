@@ -16,6 +16,7 @@ const STORAGE_KEY = 'concept_meeting';
 interface MeetingFormData {
   projectId: string;
   projectTitel?: string;
+  geenProject: boolean;
   onderwerp: string;
   meetingType: string;
   datum: string;
@@ -29,6 +30,7 @@ interface MeetingFormData {
 const emptyFormData: MeetingFormData = {
   projectId: '',
   projectTitel: '',
+  geenProject: false,
   onderwerp: '',
   meetingType: '',
   datum: '',
@@ -74,8 +76,9 @@ export default function Meeting() {
   const handleSubmit = async () => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.projectId) {
-      newErrors.projectId = 'Selecteer een project';
+    // Only require project if geenProject is not checked
+    if (!formData.geenProject && !formData.projectId) {
+      newErrors.projectId = 'Selecteer een project of vink "Geen project" aan';
     }
     if (!formData.meetingType) {
       newErrors.meetingType = 'Selecteer een type';
@@ -104,7 +107,9 @@ export default function Meeting() {
     if (Object.keys(newErrors).length > 0) {
       toast({
         title: 'Vul alle verplichte velden in',
-        description: 'Project, type, onderwerp, datum, tijden, locatie en minimaal één deelnemer zijn verplicht.',
+        description: formData.geenProject
+          ? 'Type, onderwerp, datum, tijden, locatie en minimaal één deelnemer zijn verplicht.'
+          : 'Project, type, onderwerp, datum, tijden, locatie en minimaal één deelnemer zijn verplicht.',
         variant: 'destructive',
       });
       return;
@@ -153,27 +158,61 @@ export default function Meeting() {
         <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
           <h2 className="text-lg font-semibold text-foreground">Project koppeling *</h2>
           <p className="text-sm text-muted-foreground">
-            Koppel deze meeting aan een bestaand project.
+            Koppel deze meeting aan een bestaand project, of plan deze standalone.
           </p>
-          <ProjectSelector
-            value={formData.projectId}
-            onChange={(projectData) => {
-              if (projectData) {
+
+          {/* Geen project checkbox */}
+          <div className="flex items-center gap-2 p-3 bg-secondary/30 rounded-lg">
+            <Checkbox
+              id="geen-project"
+              checked={formData.geenProject}
+              onCheckedChange={(checked) => {
                 setFormData({
                   ...formData,
-                  projectId: projectData.projectId,
-                  projectTitel: projectData.projectTitel
+                  geenProject: checked as boolean,
+                  // Clear project selection when checking "geen project"
+                  projectId: checked ? '' : formData.projectId,
+                  projectTitel: checked ? '' : formData.projectTitel,
                 });
-              } else {
-                setFormData({
-                  ...formData,
-                  projectId: '',
-                  projectTitel: ''
-                });
-              }
-            }}
-            error={errors.projectId}
-          />
+                // Clear project error when checking "geen project"
+                if (checked && errors.projectId) {
+                  setErrors({ ...errors, projectId: '' });
+                }
+              }}
+            />
+            <Label htmlFor="geen-project" className="text-sm font-medium cursor-pointer">
+              Geen project - Dit is een standalone meeting/presentatie
+            </Label>
+          </div>
+
+          {/* Project selector - only show when geen project is NOT checked */}
+          {!formData.geenProject && (
+            <ProjectSelector
+              value={formData.projectId}
+              onChange={(projectData) => {
+                if (projectData) {
+                  setFormData({
+                    ...formData,
+                    projectId: projectData.projectId,
+                    projectTitel: projectData.projectTitel
+                  });
+                } else {
+                  setFormData({
+                    ...formData,
+                    projectId: '',
+                    projectTitel: ''
+                  });
+                }
+              }}
+              error={errors.projectId}
+            />
+          )}
+
+          {formData.geenProject && (
+            <p className="text-xs text-muted-foreground">
+              Deze meeting wordt niet gekoppeld aan een project en wordt als standalone activiteit ingepland.
+            </p>
+          )}
         </div>
 
         {/* Meeting details */}
