@@ -49,11 +49,6 @@ export default function Meeting() {
     return stored ? { ...emptyFormData, ...JSON.parse(stored) } : emptyFormData;
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [selectedProject, setSelectedProject] = useState<{
-    projectId: string;
-    projectTitel: string;
-    klantNaam: string;
-  } | null>(null);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(formData));
@@ -160,38 +155,25 @@ export default function Meeting() {
           <p className="text-sm text-muted-foreground">
             Koppel deze meeting aan een bestaand project.
           </p>
-          <div>
-            <Label className="text-sm">Project *</Label>
-            <ProjectSelector
-              value={formData.projectId}
-              onChange={(projectData) => {
-                if (projectData) {
-                  setFormData({
-                    ...formData,
-                    projectId: projectData.projectId,
-                    projectTitel: projectData.projectTitel
-                  });
-                  setSelectedProject(projectData);
-                } else {
-                  setFormData({
-                    ...formData,
-                    projectId: '',
-                    projectTitel: ''
-                  });
-                  setSelectedProject(null);
-                }
-              }}
-              placeholder="Selecteer een project"
-            />
-            {selectedProject && (
-              <p className="text-xs text-muted-foreground mt-2">
-                {selectedProject.klantNaam} - {selectedProject.projectTitel}
-              </p>
-            )}
-            {errors.projectId && (
-              <p className="text-xs text-destructive mt-1">{errors.projectId}</p>
-            )}
-          </div>
+          <ProjectSelector
+            value={formData.projectId}
+            onChange={(projectData) => {
+              if (projectData) {
+                setFormData({
+                  ...formData,
+                  projectId: projectData.projectId,
+                  projectTitel: projectData.projectTitel
+                });
+              } else {
+                setFormData({
+                  ...formData,
+                  projectId: '',
+                  projectTitel: ''
+                });
+              }
+            }}
+            error={errors.projectId}
+          />
         </div>
 
         {/* Meeting details */}
