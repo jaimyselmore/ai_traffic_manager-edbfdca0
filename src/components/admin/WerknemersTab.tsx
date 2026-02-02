@@ -372,7 +372,11 @@ export function MedewerkersTab() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Tweede rol</Label>
+                <Label>
+                  {form.primaire_rol === 'Stagiair'
+                    ? 'Stage bij (primaire afdeling) *'
+                    : 'Tweede rol'}
+                </Label>
                 <Select
                   value={form.tweede_rol || undefined}
                   onValueChange={(value) =>
@@ -380,7 +384,7 @@ export function MedewerkersTab() {
                   }
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Optioneel" />
+                    <SelectValue placeholder={form.primaire_rol === 'Stagiair' ? 'Selecteer afdeling' : 'Optioneel'} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">Geen</SelectItem>
@@ -391,9 +395,18 @@ export function MedewerkersTab() {
                     ))}
                   </SelectContent>
                 </Select>
+                {form.primaire_rol === 'Stagiair' && (
+                  <p className="text-xs text-muted-foreground">
+                    Selecteer de rol/afdeling waar de stagiair primair stage loopt
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
-                <Label>Derde rol</Label>
+                <Label>
+                  {form.primaire_rol === 'Stagiair'
+                    ? 'Stage bij (secundaire afdeling)'
+                    : 'Derde rol'}
+                </Label>
                 <Select
                   value={form.derde_rol || undefined}
                   onValueChange={(value) =>
@@ -412,6 +425,11 @@ export function MedewerkersTab() {
                     ))}
                   </SelectContent>
                 </Select>
+                {form.primaire_rol === 'Stagiair' && (
+                  <p className="text-xs text-muted-foreground">
+                    Optioneel: tweede afdeling waar de stagiair meeloopt
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label>Primaire discipline (automatisch)</Label>
