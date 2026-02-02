@@ -70,7 +70,7 @@ Deno.serve(async (req) => {
     }
 
     // Get request body
-    const { gebruikersnaam, naam, rol, werknemer_id, is_planner } = await req.json();
+    const { gebruikersnaam, naam, rol, werknemer_id, is_planner, wachtwoord } = await req.json();
 
     // Validate required fields
     if (!gebruikersnaam || !naam || !rol || !werknemer_id) {
@@ -116,9 +116,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Hash default password
-    const defaultPassword = 'selmore2026';
-    const passwordHash = await hash(defaultPassword, 10); // 10 rounds zoals in custom-login
+    // Hash password (use provided password or default)
+    const passwordToHash = wachtwoord || 'selmore2026';
+    const passwordHash = await hash(passwordToHash, 10); // 10 rounds zoals in custom-login
 
     // Insert new user
     const { data: newUser, error: insertError } = await supabase

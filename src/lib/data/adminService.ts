@@ -72,6 +72,7 @@ export async function createMedewerker(
     naam_werknemer: string;
     email?: string;
     gebruikersnaam?: string;
+    wachtwoord?: string;
     primaire_rol?: string;
     tweede_rol?: string;
     derde_rol?: string;
@@ -137,6 +138,7 @@ export async function createMedewerker(
       rol: medewerker.primaire_rol || 'Medewerker',
       werknemer_id: newMedewerker.werknemer_id,
       is_planner: true,
+      wachtwoord: medewerker.wachtwoord || 'selmore2026',
     });
 
     if (!userResult.success) {
@@ -165,6 +167,7 @@ export async function updateMedewerker(
     naam_werknemer: string;
     email: string;
     gebruikersnaam: string;
+    wachtwoord: string;
     primaire_rol: string;
     tweede_rol: string;
     derde_rol: string;
@@ -228,6 +231,7 @@ export async function updateMedewerker(
         rol: existingMedewerker.primaire_rol || 'Medewerker',
         werknemer_id: werknemer_id,
         is_planner: true,
+        wachtwoord: updates.wachtwoord || 'selmore2026',
       });
 
       if (!userResult.success) {
@@ -275,6 +279,7 @@ export async function createUserAccount(userData: {
   rol: string;
   werknemer_id: number;
   is_planner: boolean;
+  wachtwoord?: string;
 }): Promise<{ success: boolean; error?: string }> {
   const sessionToken = getSessionToken();
 

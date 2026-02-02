@@ -72,6 +72,7 @@ const emptyForm = {
   naam_werknemer: '',
   email: '',
   gebruikersnaam: '',
+  wachtwoord: 'selmore2026',
   primaire_rol: '',
   tweede_rol: '',
   derde_rol: '',
@@ -227,6 +228,7 @@ export function MedewerkersTab() {
       naam_werknemer: item.naam_werknemer,
       email: item.email || '',
       gebruikersnaam: item.gebruikersnaam || '',
+      wachtwoord: 'selmore2026',
       primaire_rol: item.primaire_rol || '',
       tweede_rol: item.tweede_rol || '',
       derde_rol: item.derde_rol || '',
@@ -557,28 +559,47 @@ export function MedewerkersTab() {
               </div>
             </div>
 
-            {/* Gebruikersnaam input - alleen tonen als is_planner = true */}
+            {/* Gebruikersnaam en wachtwoord - alleen tonen als is_planner = true */}
             {form.is_planner && (
-              <div className="space-y-2">
-                <Label htmlFor="gebruikersnaam">
-                  Gebruikersnaam <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="gebruikersnaam"
-                  value={form.gebruikersnaam}
-                  onChange={(e) => {
-                    // Auto-cleanup: lowercase, alleen letters en cijfers
-                    const cleaned = e.target.value.toLowerCase().replace(/[^a-z0-9]/g, '');
-                    setForm({ ...form, gebruikersnaam: cleaned });
-                  }}
-                  placeholder="bijv. jaimy"
-                  required={form.is_planner}
-                  maxLength={50}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Voor inloggen op het systeem. Alleen kleine letters en cijfers, minimaal 3 tekens.
-                  Standaard wachtwoord: selmore2026
-                </p>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="gebruikersnaam">
+                    Gebruikersnaam <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="gebruikersnaam"
+                    value={form.gebruikersnaam}
+                    onChange={(e) => {
+                      // Auto-cleanup: lowercase, alleen letters en cijfers
+                      const cleaned = e.target.value.toLowerCase().replace(/[^a-z0-9]/g, '');
+                      setForm({ ...form, gebruikersnaam: cleaned });
+                    }}
+                    placeholder="bijv. jaimy"
+                    required={form.is_planner}
+                    maxLength={50}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Voor inloggen op het systeem. Alleen kleine letters en cijfers, minimaal 3 tekens.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="wachtwoord">
+                    Wachtwoord <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="wachtwoord"
+                    type="text"
+                    value={form.wachtwoord}
+                    onChange={(e) => setForm({ ...form, wachtwoord: e.target.value })}
+                    placeholder="Standaard: selmore2026"
+                    required={form.is_planner}
+                    minLength={8}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Standaard wachtwoord is "selmore2026". Kan later gewijzigd worden door gebruiker.
+                  </p>
+                </div>
               </div>
             )}
 
