@@ -116,6 +116,31 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Check if werknemer_id already has a user account
+    const { data: existingWerknemerUser } = await supabase
+      .from('users')
+      .select('id, is_planner')
+      .eq('werknemer_id', werknemer_id)
+      .maybeSingle();
+
+    if (existingWerknemerUser) {
+      // User account already exists - just update is_planner if needed
+      if (is_planner && !existingWerknemerUser.is_planner) {
+        await supabase
+          .from('users')
+          .update({ is_planner: true })
+          .eq('id', existingWerknemerUser.id);
+      }
+      return new Response(
+        JSON.stringify({
+          success: true,
+          user: { id: existingWerknemerUser.id, gebruikersnaam: cleanUsername },
+          message: 'Bestaand account geactiveerd',
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Hash password (use provided password or default)
     const passwordToHash = wachtwoord || 'selmore2026';
     const passwordHash = await hash(passwordToHash, 10); // 10 rounds zoals in custom-login
