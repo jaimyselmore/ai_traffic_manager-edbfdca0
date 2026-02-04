@@ -47,7 +47,8 @@ type Klant = {
   telefoon: string | null;
   adres: string | null;
   beschikbaarheid: string | null;
-  notities: string | null;
+  interne_notities: string | null;
+  planning_instructies: string | null;
 };
 
 const emptyForm = {
@@ -61,7 +62,8 @@ const emptyForm = {
   plaats: '',
   land: '',
   beschikbaarheid: '',
-  notities: '',
+  interne_notities: '',
+  planning_instructies: '',
 };
 
 // Helper to combine address fields into single string
@@ -134,7 +136,8 @@ export function KlantenTab() {
     telefoon: string;
     adres: string;
     beschikbaarheid: string;
-    notities: string;
+    interne_notities: string;
+    planning_instructies: string;
   };
 
   const createMutation = useMutation({
@@ -202,7 +205,8 @@ export function KlantenTab() {
       plaats: parsed.plaats,
       land: parsed.land,
       beschikbaarheid: item.beschikbaarheid || '',
-      notities: item.notities || '',
+      interne_notities: item.interne_notities || '',
+      planning_instructies: item.planning_instructies || '',
     });
     setIsDialogOpen(true);
   };
@@ -232,7 +236,8 @@ export function KlantenTab() {
       telefoon: form.telefoon,
       adres: combineAddress(form.postcode, form.huisnummer, form.plaats, form.land),
       beschikbaarheid: form.beschikbaarheid,
-      notities: form.notities,
+      interne_notities: form.interne_notities,
+      planning_instructies: form.planning_instructies,
     };
     
     if (editingItem) {
@@ -276,20 +281,21 @@ export function KlantenTab() {
               <TableHead>Telefoon</TableHead>
               <TableHead>Adres</TableHead>
               <TableHead>Beschikbaarheid</TableHead>
-              <TableHead>Notities</TableHead>
+              <TableHead>Interne notities</TableHead>
+              <TableHead>Planning instructies</TableHead>
               <TableHead className="w-24"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                   Laden...
                 </TableCell>
               </TableRow>
             ) : filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                   Geen klanten gevonden
                 </TableCell>
               </TableRow>
@@ -303,7 +309,8 @@ export function KlantenTab() {
                   <TableCell>{k.telefoon || '-'}</TableCell>
                   <TableCell className="max-w-[200px] truncate" title={k.adres || ''}>{k.adres || '-'}</TableCell>
                   <TableCell className="max-w-[150px] truncate" title={k.beschikbaarheid || ''}>{k.beschikbaarheid || '-'}</TableCell>
-                  <TableCell className="max-w-[200px] truncate" title={k.notities || ''}>{k.notities || '-'}</TableCell>
+                  <TableCell className="max-w-[200px] truncate" title={k.interne_notities || ''}>{k.interne_notities || '-'}</TableCell>
+                  <TableCell className="max-w-[200px] truncate" title={k.planning_instructies || ''}>{k.planning_instructies || '-'}</TableCell>
                   <TableCell>
                     <div className="flex gap-1">
                       <Button variant="ghost" size="icon" onClick={() => openEdit(k)}>
@@ -414,12 +421,25 @@ export function KlantenTab() {
               </p>
             </div>
             <div className="space-y-2">
-              <Label>Notities</Label>
+              <Label>Interne notities</Label>
               <Textarea
-                value={form.notities}
-                onChange={(e) => setForm({ ...form, notities: e.target.value })}
-                rows={3}
+                value={form.interne_notities}
+                onChange={(e) => setForm({ ...form, interne_notities: e.target.value })}
+                rows={2}
+                placeholder="Algemene opmerkingen over de klant"
               />
+            </div>
+            <div className="space-y-2">
+              <Label>Planning instructies</Label>
+              <Textarea
+                value={form.planning_instructies}
+                onChange={(e) => setForm({ ...form, planning_instructies: e.target.value })}
+                rows={2}
+                placeholder="bijv. 'Klant wil alleen ochtend vergaderen', 'Altijd Jan erbij betrekken'"
+              />
+              <p className="text-xs text-muted-foreground">
+                Specifieke instructies die Ellen gebruikt bij het plannen.
+              </p>
             </div>
             <div className="flex justify-end gap-2 pt-4">
               <Button type="button" variant="outline" onClick={closeDialog}>

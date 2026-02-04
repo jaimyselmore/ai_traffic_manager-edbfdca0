@@ -582,7 +582,9 @@ export async function getKlanten() {
     email: string | null;
     telefoon: string | null;
     adres: string | null;
-    notities: string | null;
+    beschikbaarheid: string | null;
+    interne_notities: string | null;
+    planning_instructies: string | null;
   }>('klanten', {
     order: { column: 'naam', ascending: true },
   });
@@ -599,7 +601,9 @@ export async function createKlant(
     email?: string;
     telefoon?: string;
     adres?: string;
-    notities?: string;
+    beschikbaarheid?: string;
+    interne_notities?: string;
+    planning_instructies?: string;
   },
   _userId?: string
 ) {
@@ -622,7 +626,9 @@ export async function updateKlant(
     email: string;
     telefoon: string;
     adres: string;
-    notities: string;
+    beschikbaarheid: string;
+    interne_notities: string;
+    planning_instructies: string;
   }>,
   _userId?: string
 ) {

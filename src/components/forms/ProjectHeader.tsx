@@ -45,7 +45,8 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
     huisnummer: '',
     plaats: '',
     land: '',
-    notities: '' 
+    interne_notities: '',
+    planning_instructies: '',
   });
 
   // Helper to combine address fields
@@ -143,7 +144,8 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
         email: tempNewClient.email || undefined,
         telefoon: tempNewClient.telefoon || undefined,
         adres: combineAddress(tempNewClient.postcode, tempNewClient.huisnummer, tempNewClient.plaats, tempNewClient.land) || undefined,
-        notities: tempNewClient.notities || undefined,
+        interne_notities: tempNewClient.interne_notities || undefined,
+        planning_instructies: tempNewClient.planning_instructies || undefined,
       });
 
       // Invalidate both client cache keys so all dropdowns update (including admin panel)
@@ -168,7 +170,7 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
       });
 
       setIsAddingNewClient(false);
-      setTempNewClient({ klantnummer: '', naam: '', contactpersoon: '', email: '', telefoon: '', postcode: '', huisnummer: '', plaats: '', land: '', notities: '' });
+      setTempNewClient({ klantnummer: '', naam: '', contactpersoon: '', email: '', telefoon: '', postcode: '', huisnummer: '', plaats: '', land: '', interne_notities: '', planning_instructies: '' });
     } catch (error) {
       console.error('Fout bij opslaan klant:', error);
       toast({
@@ -183,7 +185,7 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
 
   const handleCancelNewClient = () => {
     setIsAddingNewClient(false);
-    setTempNewClient({ klantnummer: '', naam: '', contactpersoon: '', email: '', telefoon: '', postcode: '', huisnummer: '', plaats: '', land: '', notities: '' });
+    setTempNewClient({ klantnummer: '', naam: '', contactpersoon: '', email: '', telefoon: '', postcode: '', huisnummer: '', plaats: '', land: '', interne_notities: '', planning_instructies: '' });
   };
 
   // Find selected client name for display
@@ -314,15 +316,29 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
               </div>
             </div>
             <div>
-              <Label className="text-xs">Notities</Label>
+              <Label className="text-xs">Interne notities</Label>
               <Textarea
-                value={tempNewClient.notities}
-                onChange={(e) => setTempNewClient({ ...tempNewClient, notities: e.target.value })}
-                placeholder="Extra notities..."
+                value={tempNewClient.interne_notities}
+                onChange={(e) => setTempNewClient({ ...tempNewClient, interne_notities: e.target.value })}
+                placeholder="Algemene opmerkingen over de klant"
                 rows={2}
                 className="mt-1"
                 disabled={isSavingClient}
               />
+            </div>
+            <div>
+              <Label className="text-xs">Planning instructies</Label>
+              <Textarea
+                value={tempNewClient.planning_instructies}
+                onChange={(e) => setTempNewClient({ ...tempNewClient, planning_instructies: e.target.value })}
+                placeholder="bijv. 'Klant wil alleen ochtend vergaderen'"
+                rows={2}
+                className="mt-1"
+                disabled={isSavingClient}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Instructies die Ellen gebruikt bij het plannen.
+              </p>
             </div>
             <div className="flex gap-2 pt-2">
               <Button size="sm" onClick={handleSaveNewClient} disabled={isSavingClient}>

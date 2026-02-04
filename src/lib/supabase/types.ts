@@ -74,7 +74,9 @@ export interface Database {
           email: string | null
           telefoon: string | null
           adres: string | null
-          notities: string | null
+          beschikbaarheid: string | null
+          interne_notities: string | null
+          planning_instructies: string | null
           created_by: string | null
           created_at: string
           updated_at: string | null
@@ -87,7 +89,9 @@ export interface Database {
           email?: string | null
           telefoon?: string | null
           adres?: string | null
-          notities?: string | null
+          beschikbaarheid?: string | null
+          interne_notities?: string | null
+          planning_instructies?: string | null
           created_by?: string | null
           created_at?: string
           updated_at?: string | null
@@ -100,7 +104,9 @@ export interface Database {
           email?: string | null
           telefoon?: string | null
           adres?: string | null
-          notities?: string | null
+          beschikbaarheid?: string | null
+          interne_notities?: string | null
+          planning_instructies?: string | null
           created_by?: string | null
           created_at?: string
           updated_at?: string | null

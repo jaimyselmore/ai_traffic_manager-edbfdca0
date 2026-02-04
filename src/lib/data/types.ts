@@ -38,8 +38,9 @@ export interface Client {
   telefoon?: string;
   address?: string;
   adres?: string;
-  notes?: string;
-  notities?: string;
+  beschikbaarheid?: string;
+  interne_notities?: string;
+  planning_instructies?: string;
 }
 
 // ---- PROJECT TYPES (Sheet: "Project Types") ----

@@ -38,7 +38,9 @@ CREATE TABLE klanten (
     email TEXT,
     telefoon TEXT,
     adres TEXT,
-    notities TEXT,
+    beschikbaarheid TEXT,
+    interne_notities TEXT,
+    planning_instructies TEXT,
     created_by UUID REFERENCES users(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()

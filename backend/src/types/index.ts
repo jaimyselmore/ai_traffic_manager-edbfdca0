@@ -64,7 +64,9 @@ export interface Klant {
   email?: string
   telefoon?: string
   adres?: string
-  notities?: string
+  beschikbaarheid?: string
+  interne_notities?: string
+  planning_instructies?: string
   created_by: string
   created_at: string
   updated_at: string

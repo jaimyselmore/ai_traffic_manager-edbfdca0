@@ -56,7 +56,9 @@ interface KlantRow {
   email: string | null
   telefoon: string | null
   adres: string | null
-  notities: string | null
+  beschikbaarheid: string | null
+  interne_notities: string | null
+  planning_instructies: string | null
 }
 
 interface ProjectTypeRow {
@@ -262,7 +264,9 @@ export async function getClients(): Promise<Client[]> {
     email: klant.email || '',
     phone: klant.telefoon || '',
     address: klant.adres || '',
-    notes: klant.notities || '',
+    beschikbaarheid: klant.beschikbaarheid || '',
+    interne_notities: klant.interne_notities || '',
+    planning_instructies: klant.planning_instructies || '',
   }))
 }
 
@@ -276,7 +280,9 @@ export async function createClient(clientData: {
   email?: string
   telefoon?: string
   adres?: string
-  notities?: string
+  beschikbaarheid?: string
+  interne_notities?: string
+  planning_instructies?: string
 }): Promise<Client> {
   const insertData = {
     klantnummer: clientData.klantnummer,
@@ -285,7 +291,9 @@ export async function createClient(clientData: {
     email: clientData.email || null,
     telefoon: clientData.telefoon || null,
     adres: clientData.adres || null,
-    notities: clientData.notities || null,
+    beschikbaarheid: clientData.beschikbaarheid || null,
+    interne_notities: clientData.interne_notities || null,
+    planning_instructies: clientData.planning_instructies || null,
   }
 
   const { data, error } = await secureInsert<KlantRow>('klanten', insertData)
@@ -308,7 +316,9 @@ export async function createClient(clientData: {
     email: result.email || '',
     phone: result.telefoon || '',
     address: result.adres || '',
-    notes: result.notities || '',
+    beschikbaarheid: result.beschikbaarheid || '',
+    interne_notities: result.interne_notities || '',
+    planning_instructies: result.planning_instructies || '',
   }
 }
 

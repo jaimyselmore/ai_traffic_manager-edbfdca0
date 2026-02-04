@@ -135,40 +135,46 @@ export type Database = {
       klanten: {
         Row: {
           adres: string | null
+          beschikbaarheid: string | null
           contactpersoon: string | null
           created_at: string | null
           created_by: string | null
           email: string | null
           id: string
+          interne_notities: string | null
           klantnummer: string
           naam: string
-          notities: string | null
+          planning_instructies: string | null
           telefoon: string | null
           updated_at: string | null
         }
         Insert: {
           adres?: string | null
+          beschikbaarheid?: string | null
           contactpersoon?: string | null
           created_at?: string | null
           created_by?: string | null
           email?: string | null
           id?: string
+          interne_notities?: string | null
           klantnummer: string
           naam: string
-          notities?: string | null
+          planning_instructies?: string | null
           telefoon?: string | null
           updated_at?: string | null
         }
         Update: {
           adres?: string | null
+          beschikbaarheid?: string | null
           contactpersoon?: string | null
           created_at?: string | null
           created_by?: string | null
           email?: string | null
           id?: string
+          interne_notities?: string | null
           klantnummer?: string
           naam?: string
-          notities?: string | null
+          planning_instructies?: string | null
           telefoon?: string | null
           updated_at?: string | null
         }
