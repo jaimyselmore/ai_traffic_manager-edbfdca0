@@ -321,7 +321,29 @@ Deno.serve(async (req) => {
       { auth: { persistSession: false } }
     );
 
-    // 4. Load chat history (laatste 30 berichten voor context)
+    // 4. Haal extra info over de ingelogde planner op
+    let plannerContext = `\n\nJe praat nu met ${session.naam} (${session.rol}).`;
+    try {
+      const { data: medewerker } = await supabase
+        .from('medewerkers')
+        .select('naam_werknemer, primaire_rol, tweede_rol, discipline, werkuren, parttime_dag, duo_team')
+        .ilike('naam_werknemer', `%${session.naam}%`)
+        .limit(1)
+        .single();
+      if (medewerker) {
+        const parts = [`Rol: ${medewerker.primaire_rol}`];
+        if (medewerker.tweede_rol) parts.push(`Tweede rol: ${medewerker.tweede_rol}`);
+        if (medewerker.discipline) parts.push(`Discipline: ${medewerker.discipline}`);
+        if (medewerker.werkuren) parts.push(`Werkuren: ${medewerker.werkuren}u/week`);
+        if (medewerker.parttime_dag) parts.push(`Parttime dag: ${medewerker.parttime_dag}`);
+        if (medewerker.duo_team) parts.push(`Duo team: ${medewerker.duo_team}`);
+        plannerContext = `\n\nJe praat met ${medewerker.naam_werknemer}. ${parts.join('. ')}.`;
+      }
+    } catch {
+      // Geen match gevonden, gebruik basis sessie-info
+    }
+
+    // 5. Load chat history (laatste 30 berichten voor context)
     let historyMessages: Array<{ rol: string; inhoud: string }> = [];
     try {
       const { data: history } = await supabase
@@ -335,7 +357,7 @@ Deno.serve(async (req) => {
       console.error('Kon chatgeschiedenis niet laden:', e);
     }
 
-    // 5. Sla user bericht op
+    // 6. Sla user bericht op
     try {
       await supabase.from('chat_gesprekken').insert({
         sessie_id,
@@ -346,10 +368,10 @@ Deno.serve(async (req) => {
       console.error('Kon bericht niet opslaan:', e);
     }
 
-    // 6. Bouw OpenAI messages array
+    // 7. Bouw OpenAI messages array
     // deno-lint-ignore no-explicit-any
     const openaiMessages: any[] = [
-      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'system', content: SYSTEM_PROMPT + plannerContext },
     ];
 
     for (const msg of historyMessages) {
