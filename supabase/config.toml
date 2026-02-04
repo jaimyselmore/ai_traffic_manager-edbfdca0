@@ -29,3 +29,15 @@ verify_jwt = false
 
 [functions.get-calendar-events]
 verify_jwt = false
+
+[functions.ellen-chat]
+verify_jwt = false
+
+[functions.get-beschikbaarheid]
+verify_jwt = false
+
+[functions.sync-parttime-to-microsoft]
+verify_jwt = false
+
+[functions.create-user-account]
+verify_jwt = false

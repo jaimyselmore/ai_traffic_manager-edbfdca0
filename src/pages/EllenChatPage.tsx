@@ -1,57 +1,87 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { EllenChat, ChatMessage } from '@/components/chat/EllenChat';
+import { supabase } from '@/integrations/supabase/client';
+import { getSessionToken } from '@/lib/data/secureDataClient';
+import { Button } from '@/components/ui/button';
+
+const WELCOME_MESSAGE: ChatMessage = {
+  id: '1',
+  role: 'ellen',
+  content: 'Hoi! Ik ben Ellen, je AI-assistent voor planning. Stel gerust een vraag over projecten, medewerkers, capaciteit, deadlines of teamverdeling. Ik zoek het voor je op!'
+};
 
 export default function EllenChatPage() {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: '1',
-      role: 'ellen',
-      content: 'Hoi! Ik ben Ellen, je AI-assistent voor planning. Stel gerust een vraag over projecten, capaciteit, deadlines of teamverdeling. Ik denk graag met je mee!'
-    }
-  ]);
+  const sessieIdRef = useRef(crypto.randomUUID());
+  const [messages, setMessages] = useState<ChatMessage[]>([WELCOME_MESSAGE]);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSendMessage = (message: string) => {
-    // Add user message
+  const handleNewConversation = useCallback(() => {
+    sessieIdRef.current = crypto.randomUUID();
+    setMessages([WELCOME_MESSAGE]);
+  }, []);
+
+  const handleSendMessage = useCallback(async (message: string) => {
+    const sessionToken = getSessionToken();
+
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
       role: 'user',
-      content: message
+      content: message,
     };
     setMessages(prev => [...prev, userMessage]);
     setIsLoading(true);
 
-    // Simulate Ellen response
-    setTimeout(() => {
-      const responses = [
-        'Dat is een goede vraag! Laat me even kijken naar de huidige planning en beschikbaarheid...',
-        'Ik begrijp wat je bedoelt. Op basis van de projecten die nu lopen, zou ik adviseren om...',
-        'Interessant! Ik zie dat het team vrij druk bezet is de komende weken. Misschien kunnen we...',
-        'Goed punt. De deadline is inderdaad krap, maar als we de taken anders verdelen zou het kunnen lukken.',
-        'Laat me de capaciteit checken. Ik zie nog ruimte bij een paar teamleden in week 48.'
-      ];
-      const randomResponse = responses[Math.floor(Math.random() * responses.length)];
-      
+    try {
+      if (!sessionToken) {
+        throw new Error('Je bent niet ingelogd. Log eerst in.');
+      }
+
+      const { data, error } = await supabase.functions.invoke('ellen-chat', {
+        headers: {
+          Authorization: `Bearer ${sessionToken}`,
+        },
+        body: {
+          sessie_id: sessieIdRef.current,
+          bericht: message,
+        },
+      });
+
+      if (error) throw new Error(error.message || 'Fout bij communicatie met Ellen');
+
+      const antwoord = data?.antwoord || 'Sorry, ik kon geen antwoord genereren. Probeer het opnieuw.';
+
       setMessages(prev => [...prev, {
         id: (Date.now() + 1).toString(),
         role: 'ellen',
-        content: randomResponse
+        content: antwoord,
       }]);
+    } catch (err) {
+      setMessages(prev => [...prev, {
+        id: (Date.now() + 1).toString(),
+        role: 'ellen',
+        content: `Sorry, er ging iets mis: ${err instanceof Error ? err.message : 'Onbekende fout'}`,
+      }]);
+    } finally {
       setIsLoading(false);
-    }, 1200);
-  };
+    }
+  }, []);
 
   return (
     <div className="h-full flex flex-col space-y-8">
-      <div className="px-6 pt-0">
-        <h1 className="text-2xl font-bold text-foreground">Ellen</h1>
-        <p className="mt-1 text-base text-muted-foreground">
-          Stel je vraag over de planning, projecten of capaciteit
-        </p>
+      <div className="px-6 pt-0 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Ellen</h1>
+          <p className="mt-1 text-base text-muted-foreground">
+            Stel je vraag over de planning, projecten of capaciteit
+          </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={handleNewConversation}>
+          Nieuw gesprek
+        </Button>
       </div>
 
       <div className="flex-1 px-6 pb-6">
-        <EllenChat 
+        <EllenChat
           initialMessages={messages}
           isLoading={isLoading}
           onSendMessage={handleSendMessage}
