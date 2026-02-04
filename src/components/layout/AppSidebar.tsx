@@ -12,7 +12,7 @@ interface AppSidebarProps {
 const navItems = [
   { id: 'overzicht' as const, label: 'Overzicht', icon: LayoutDashboard },
   { id: 'planner' as const, label: 'Planner', icon: Calendar },
-  { id: 'agendas' as const, label: "Agenda's", icon: CalendarSync },
+  { id: 'agendas' as const, label: "Microsoft agenda's", icon: CalendarSync },
   { id: 'ellen' as const, label: 'Ellen', icon: Sparkles },
 ];
 

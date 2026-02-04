@@ -253,7 +253,7 @@ export async function getKlantBeschikbaarheid(
   try {
     const { data, error } = await supabase
       .from('klanten')
-      .select('id, naam, beschikbaarheid, voorkeur_dag, voorkeur_tijd')
+      .select('id, naam')
       .eq('id', klantId)
       .single();
 
@@ -262,6 +262,7 @@ export async function getKlantBeschikbaarheid(
       return null;
     }
 
+    // Default beschikbaarheid - klanten tabel heeft nog geen beschikbaarheid kolommen
     const defaultBeschikbaarheid: KlantBeschikbaarheid = {
       maandag: { beschikbaar: true, start: 9, eind: 17 },
       dinsdag: { beschikbaar: true, start: 9, eind: 17 },
@@ -275,9 +276,9 @@ export async function getKlantBeschikbaarheid(
         id: data.id,
         naam: data.naam,
       },
-      beschikbaarheid: data.beschikbaarheid || defaultBeschikbaarheid,
-      voorkeurDag: data.voorkeur_dag,
-      voorkeurTijd: data.voorkeur_tijd,
+      beschikbaarheid: defaultBeschikbaarheid,
+      voorkeurDag: undefined,
+      voorkeurTijd: undefined,
     };
   } catch (err) {
     console.error('Exception in getKlantBeschikbaarheid:', err);
