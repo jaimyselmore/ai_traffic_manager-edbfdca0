@@ -113,7 +113,7 @@ export function Agendas({ onNavigate }: AgendasProps) {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Agenda's (Microsoft)</h1>
+        <h1 className="text-2xl font-bold text-foreground">Microsoft agenda's</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Werk met de Microsoft-agenda's van medewerkers: beschikbaarheid ophalen en planning plaatsen.
         </p>
