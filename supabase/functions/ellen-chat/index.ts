@@ -306,10 +306,36 @@ Deno.serve(async (req) => {
     }
 
     // 2. Parse request
-    const { sessie_id, bericht } = await req.json();
-    if (!sessie_id || !bericht) {
+    const { sessie_id, bericht, actie } = await req.json();
+    if (!sessie_id) {
       return new Response(
-        JSON.stringify({ error: 'sessie_id en bericht zijn verplicht' }),
+        JSON.stringify({ error: 'sessie_id is verplicht' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // 2b. Laad-modus: geef alleen chatgeschiedenis terug
+    if (actie === 'laden') {
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+        { auth: { persistSession: false } }
+      );
+      const { data: berichten } = await supabase
+        .from('chat_gesprekken')
+        .select('rol, inhoud, created_at')
+        .eq('sessie_id', sessie_id)
+        .order('created_at', { ascending: true })
+        .limit(50);
+      return new Response(
+        JSON.stringify({ berichten: berichten || [] }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!bericht) {
+      return new Response(
+        JSON.stringify({ error: 'bericht is verplicht' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
