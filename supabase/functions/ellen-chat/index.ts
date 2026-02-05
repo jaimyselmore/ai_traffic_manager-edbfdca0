@@ -326,7 +326,12 @@ const WIJZIG_VELDEN: Record<string, string[]> = {
   projecten: ['omschrijving', 'deadline', 'status', 'opmerkingen'],
   medewerkers: ['naam_werknemer', 'primaire_rol', 'tweede_rol', 'discipline', 'werkuren', 'parttime_dag', 'notities', 'beschikbaar'],
   taken: ['werknemer_naam', 'week_start', 'dag_van_week', 'start_uur', 'duur_uren', 'plan_status'],
-  disciplines: ['discipline_naam', 'beschrijving', 'kleur_hex'],
+  disciplines: ['naam', 'discipline_naam', 'beschrijving', 'kleur_hex'],
+};
+
+// Veld-aliassen: als AI een andere naam gebruikt, map naar echte kolomnaam
+const VELD_ALIAS: Record<string, Record<string, string>> = {
+  disciplines: { naam: 'discipline_naam' },
 };
 
 // ID-kolom per tabel
@@ -353,6 +358,10 @@ async function executeWijziging(
   if (!WIJZIG_VELDEN[tabel].includes(veld)) {
     return { success: false, message: `Veld '${veld}' mag niet worden aangepast in ${tabel}` };
   }
+  
+  // Map alias naar echte kolomnaam
+  const echteVeld = VELD_ALIAS[tabel]?.[veld] ?? veld;
+  
   // Valideer ID formaat (UUID of nummer)
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
   const isNumber = /^\d+$/.test(id);
@@ -366,13 +375,13 @@ async function executeWijziging(
   try {
     const { error } = await supabase
       .from(tabel)
-      .update({ [veld]: waarde })
+      .update({ [echteVeld]: waarde })
       .eq(idKolom, idValue);
 
     if (error) {
       return { success: false, message: `Database fout: ${error.message}` };
     }
-    return { success: true, message: `${veld} is bijgewerkt.` };
+    return { success: true, message: `${echteVeld} is bijgewerkt.` };
   } catch (err) {
     return { success: false, message: `Fout: ${(err as Error).message}` };
   }
