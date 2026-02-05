@@ -105,6 +105,30 @@ export type Database = {
           },
         ]
       }
+      chat_gesprekken: {
+        Row: {
+          created_at: string | null
+          id: string
+          inhoud: string
+          rol: string
+          sessie_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          inhoud: string
+          rol: string
+          sessie_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          inhoud?: string
+          rol?: string
+          sessie_id?: string
+        }
+        Relationships: []
+      }
       disciplines: {
         Row: {
           beschrijving: string | null
