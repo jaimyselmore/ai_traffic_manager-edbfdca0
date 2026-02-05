@@ -434,8 +434,9 @@ Deno.serve(async (req) => {
     if (actie === 'uitvoeren') {
       if (!tabel || !id || !veld || nieuwe_waarde === undefined) {
         return new Response(
-          JSON.stringify({ error: 'tabel, id, veld en nieuwe_waarde zijn verplicht' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          // NB: we sturen 200 terug om te voorkomen dat supabase-js dit als runtime error logt in de browser.
+          JSON.stringify({ success: false, message: 'tabel, id, veld en nieuwe_waarde zijn verplicht' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
       const supabase = createClient(
@@ -456,7 +457,8 @@ Deno.serve(async (req) => {
 
       return new Response(
         JSON.stringify(result),
-        { status: result.success ? 200 : 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        // NB: altijd 200 om frontend runtime errors te vermijden; gebruik result.success voor UI-handling.
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
