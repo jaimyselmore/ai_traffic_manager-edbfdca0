@@ -326,6 +326,7 @@ const WIJZIG_VELDEN: Record<string, string[]> = {
   projecten: ['omschrijving', 'deadline', 'status', 'opmerkingen'],
   medewerkers: ['naam_werknemer', 'primaire_rol', 'tweede_rol', 'discipline', 'werkuren', 'parttime_dag', 'notities', 'beschikbaar'],
   taken: ['werknemer_naam', 'week_start', 'dag_van_week', 'start_uur', 'duur_uren', 'plan_status'],
+  disciplines: ['discipline_naam', 'beschrijving', 'kleur_hex'],
 };
 
 // ID-kolom per tabel
@@ -334,6 +335,7 @@ const ID_KOLOM: Record<string, string> = {
   projecten: 'id',
   medewerkers: 'werknemer_id',
   taken: 'id',
+  disciplines: 'id',
 };
 
 async function executeWijziging(
