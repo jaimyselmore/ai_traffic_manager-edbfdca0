@@ -21,13 +21,13 @@ function getOrCreateSessieId(): string {
   return id;
 }
 
-// Detecteer voorstel in Ellen's antwoord
-function extractVoorstel(content: string): WijzigingsVoorstel | undefined {
-  // Ellen's antwoord kan een JSON voorstel-object bevatten in de tool output
+// Detecteer voorstel uit opgeslagen chatgeschiedenis (voor laden)
+function extractVoorstelFromHistory(content: string): WijzigingsVoorstel | undefined {
   try {
-    const match = content.match(/\{[\s\S]*"type":\s*"voorstel"[\s\S]*\}/);
+    // Check voor [VOORSTEL:...] formaat in opgeslagen berichten
+    const match = content.match(/\[VOORSTEL:(\{.*\})\]/);
     if (match) {
-      const parsed = JSON.parse(match[0]);
+      const parsed = JSON.parse(match[1]);
       if (parsed.type === 'voorstel' && parsed.tabel && parsed.id && parsed.veld) {
         return {
           tabel: parsed.tabel,
@@ -42,6 +42,11 @@ function extractVoorstel(content: string): WijzigingsVoorstel | undefined {
     // Geen geldig voorstel
   }
   return undefined;
+}
+
+// Verwijder voorstel-tag uit zichtbare content
+function cleanContent(content: string): string {
+  return content.replace(/\n*\[VOORSTEL:\{.*\}\]/g, '').trim();
 }
 
 export default function EllenChatPage() {
@@ -68,17 +73,12 @@ export default function EllenChatPage() {
         if (!error && data?.berichten?.length > 0) {
           const loadedMessages: ChatMessage[] = data.berichten.map(
             (msg: { rol: string; inhoud: string; created_at: string }, i: number) => {
-              const voorstel = msg.rol === 'assistant' ? extractVoorstel(msg.inhoud) : undefined;
-              // Verwijder JSON uit zichtbare content als er een voorstel is
-              let content = msg.inhoud;
-              if (voorstel) {
-                content = content.replace(/\{[\s\S]*"type":\s*"voorstel"[\s\S]*\}/, '').trim();
-                if (!content) content = voorstel.beschrijving;
-              }
+              const voorstel = msg.rol === 'assistant' ? extractVoorstelFromHistory(msg.inhoud) : undefined;
+              const content = cleanContent(msg.inhoud);
               return {
                 id: `hist-${i}`,
                 role: msg.rol === 'user' ? 'user' as const : 'ellen' as const,
-                content,
+                content: content || (voorstel?.beschrijving ?? msg.inhoud),
                 voorstel,
                 timestamp: new Date(msg.created_at),
               };
@@ -127,19 +127,19 @@ export default function EllenChatPage() {
       if (error) throw new Error(error.message || 'Fout bij communicatie met Ellen');
 
       const antwoord = data?.antwoord || 'Sorry, ik kon geen antwoord genereren. Probeer het opnieuw.';
-      const voorstel = extractVoorstel(antwoord);
-
-      // Verwijder JSON uit zichtbare content
-      let cleanContent = antwoord;
-      if (voorstel) {
-        cleanContent = antwoord.replace(/\{[\s\S]*"type":\s*"voorstel"[\s\S]*\}/, '').trim();
-        if (!cleanContent) cleanContent = voorstel.beschrijving;
-      }
+      // Voorstel komt nu direct mee van de backend
+      const voorstel: WijzigingsVoorstel | undefined = data?.voorstel ? {
+        tabel: data.voorstel.tabel,
+        id: data.voorstel.id,
+        veld: data.voorstel.veld,
+        nieuwe_waarde: data.voorstel.nieuwe_waarde,
+        beschrijving: data.voorstel.beschrijving,
+      } : undefined;
 
       setMessages(prev => [...prev, {
         id: (Date.now() + 1).toString(),
         role: 'ellen',
-        content: cleanContent,
+        content: antwoord,
         voorstel,
       }]);
     } catch (err) {

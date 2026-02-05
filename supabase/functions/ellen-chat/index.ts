@@ -547,6 +547,8 @@ Deno.serve(async (req) => {
     // 8. Call OpenAI met tool calling loop (max 5 iteraties)
     let assistantMessage = '';
     // deno-lint-ignore no-explicit-any
+    let pendingVoorstel: any = null; // Bewaar voorstel apart voor frontend
+    // deno-lint-ignore no-explicit-any
     const currentMessages = [...openaiMessages];
 
     for (let i = 0; i < 5; i++) {
@@ -603,6 +605,17 @@ Deno.serve(async (req) => {
         }
 
         const result = await executeTool(supabase, toolCall.function.name, toolArgs);
+
+        // Als dit een wijzigingsvoorstel is, bewaar het apart
+        if (toolCall.function.name === 'stel_wijziging_voor') {
+          try {
+            const parsed = JSON.parse(result);
+            if (parsed.type === 'voorstel') {
+              pendingVoorstel = parsed;
+            }
+          } catch { /* ignore */ }
+        }
+
         currentMessages.push({
           role: 'tool',
           tool_call_id: toolCall.id,
@@ -611,20 +624,23 @@ Deno.serve(async (req) => {
       }
     }
 
-    // 9. Sla assistant antwoord op
+    // 9. Sla assistant antwoord op (inclusief voorstel-info als die er is)
+    const opslaan = pendingVoorstel
+      ? `${assistantMessage}\n\n[VOORSTEL:${JSON.stringify(pendingVoorstel)}]`
+      : assistantMessage;
     try {
       await supabase.from('chat_gesprekken').insert({
         sessie_id,
         rol: 'assistant',
-        inhoud: assistantMessage,
+        inhoud: opslaan,
       });
     } catch (e) {
       console.error('Kon antwoord niet opslaan:', e);
     }
 
-    // 10. Return antwoord
+    // 10. Return antwoord + voorstel apart
     return new Response(
-      JSON.stringify({ antwoord: assistantMessage }),
+      JSON.stringify({ antwoord: assistantMessage, voorstel: pendingVoorstel }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
