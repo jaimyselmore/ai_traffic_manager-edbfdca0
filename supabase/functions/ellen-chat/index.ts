@@ -401,8 +401,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 2. Parse request
-    const { sessie_id, bericht, actie } = await req.json();
+    // 2. Parse request (één keer, alle velden)
+    const body = await req.json();
+    const { sessie_id, bericht, actie, tabel, id, veld, nieuwe_waarde } = body;
     if (!sessie_id) {
       return new Response(
         JSON.stringify({ error: 'sessie_id is verplicht' }),
@@ -431,7 +432,6 @@ Deno.serve(async (req) => {
 
     // 2c. Uitvoeren-modus: voer een bevestigde wijziging uit
     if (actie === 'uitvoeren') {
-      const { tabel, id, veld, nieuwe_waarde } = await req.json().catch(() => ({}));
       if (!tabel || !id || !veld || nieuwe_waarde === undefined) {
         return new Response(
           JSON.stringify({ error: 'tabel, id, veld en nieuwe_waarde zijn verplicht' }),
