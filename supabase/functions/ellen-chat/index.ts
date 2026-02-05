@@ -67,7 +67,13 @@ Regels:
 - Gebruik je tools om data op te zoeken - raad nooit
 - Meerdere dingen opzoeken? Doe het gewoon, geen toestemming vragen
 - Kun je iets niet vinden? Zeg het kort en helder
-- Geen disclaimers of excuses tenzij het echt nodig is`;
+- Geen disclaimers of excuses tenzij het echt nodig is
+
+Wijzigingen:
+- Je kunt data aanpassen via de stel_wijziging_voor tool
+- Zoek ALTIJD eerst het record op met een zoek-tool om het juiste ID te krijgen
+- De gebruiker moet elke wijziging bevestigen via een knop - leg kort uit wat je wilt doen
+- Stel nooit meerdere wijzigingen tegelijk voor, doe het een voor een`;
 
 // ---- OPENAI TOOL DEFINITIONS ----
 
@@ -76,7 +82,7 @@ const TOOLS = [
     type: 'function',
     function: {
       name: 'zoek_klanten',
-      description: 'Zoek klanten op naam of klantnummer. Geeft klantgegevens terug inclusief contactpersoon, email, telefoon, planning instructies.',
+      description: 'Zoek klanten op naam of klantnummer. Geeft klantgegevens terug inclusief ID (voor wijzigingen), contactpersoon, email, telefoon, planning instructies.',
       parameters: {
         type: 'object',
         properties: {
@@ -158,6 +164,28 @@ const TOOLS = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'stel_wijziging_voor',
+      description: 'Stel een wijziging voor aan de gebruiker. De wijziging wordt PAS uitgevoerd na bevestiging. Zoek ALTIJD eerst het record op om het ID te krijgen.',
+      parameters: {
+        type: 'object',
+        properties: {
+          tabel: {
+            type: 'string',
+            description: 'Welke tabel',
+            enum: ['klanten', 'projecten', 'medewerkers', 'taken']
+          },
+          id: { type: 'string', description: 'UUID van het record (uit zoekresultaat)' },
+          veld: { type: 'string', description: 'Welk veld moet worden aangepast' },
+          nieuwe_waarde: { type: 'string', description: 'De nieuwe waarde' },
+          beschrijving: { type: 'string', description: 'Korte uitleg voor de gebruiker wat er verandert' },
+        },
+        required: ['tabel', 'id', 'veld', 'nieuwe_waarde', 'beschrijving'],
+      },
+    },
+  },
 ];
 
 // ---- TOOL EXECUTION ----
@@ -180,7 +208,7 @@ async function executeTool(
         const term = sanitize(args.zoekterm || '');
         const { data, error } = await supabase
           .from('klanten')
-          .select('klantnummer, naam, contactpersoon, email, telefoon, adres, beschikbaarheid, interne_notities, planning_instructies')
+          .select('id, klantnummer, naam, contactpersoon, email, telefoon, adres, beschikbaarheid, interne_notities, planning_instructies')
           .or(`naam.ilike.%${term}%,klantnummer.ilike.%${term}%`)
           .limit(10);
         if (error) return `Fout: ${error.message}`;
@@ -192,7 +220,7 @@ async function executeTool(
         // deno-lint-ignore no-explicit-any
         let query: any = supabase
           .from('projecten')
-          .select('projectnummer, omschrijving, projecttype, deadline, status, datum_aanvraag, opmerkingen');
+          .select('id, projectnummer, omschrijving, projecttype, deadline, status, datum_aanvraag, opmerkingen');
         if (args.zoekterm) {
           const term = sanitize(args.zoekterm);
           query = query.or(`projectnummer.ilike.%${term}%,omschrijving.ilike.%${term}%`);
@@ -227,7 +255,7 @@ async function executeTool(
         // deno-lint-ignore no-explicit-any
         let query: any = supabase
           .from('taken')
-          .select('werknemer_naam, klant_naam, project_nummer, fase_naam, werktype, discipline, week_start, dag_van_week, start_uur, duur_uren, plan_status, is_hard_lock');
+          .select('id, werknemer_naam, klant_naam, project_nummer, fase_naam, werktype, discipline, week_start, dag_van_week, start_uur, duur_uren, plan_status, is_hard_lock');
         if (args.werknemer_naam) {
           query = query.ilike('werknemer_naam', `%${sanitize(args.werknemer_naam)}%`);
         }
@@ -272,11 +300,79 @@ async function executeTool(
         return JSON.stringify(data, null, 2);
       }
 
+      case 'stel_wijziging_voor': {
+        // Retourneer een voorstel-object dat de frontend kan tonen met bevestig-knop
+        return JSON.stringify({
+          type: 'voorstel',
+          tabel: args.tabel,
+          id: args.id,
+          veld: args.veld,
+          nieuwe_waarde: args.nieuwe_waarde,
+          beschrijving: args.beschrijving,
+        });
+      }
+
       default:
         return `Onbekende tool: ${toolName}`;
     }
   } catch (err) {
     return `Fout bij ${toolName}: ${(err as Error).message}`;
+  }
+}
+
+// Toegestane velden per tabel voor wijzigingen
+const WIJZIG_VELDEN: Record<string, string[]> = {
+  klanten: ['naam', 'contactpersoon', 'email', 'telefoon', 'adres', 'beschikbaarheid', 'interne_notities', 'planning_instructies'],
+  projecten: ['omschrijving', 'deadline', 'status', 'opmerkingen'],
+  medewerkers: ['primaire_rol', 'tweede_rol', 'discipline', 'werkuren', 'parttime_dag', 'notities', 'beschikbaar'],
+  taken: ['werknemer_naam', 'week_start', 'dag_van_week', 'start_uur', 'duur_uren', 'plan_status'],
+};
+
+// ID-kolom per tabel
+const ID_KOLOM: Record<string, string> = {
+  klanten: 'id',
+  projecten: 'id',
+  medewerkers: 'werknemer_id',
+  taken: 'id',
+};
+
+async function executeWijziging(
+  supabase: SupabaseClient,
+  tabel: string,
+  id: string,
+  veld: string,
+  waarde: string
+): Promise<{ success: boolean; message: string }> {
+  // Valideer tabel
+  if (!WIJZIG_VELDEN[tabel]) {
+    return { success: false, message: `Onbekende tabel: ${tabel}` };
+  }
+  // Valideer veld
+  if (!WIJZIG_VELDEN[tabel].includes(veld)) {
+    return { success: false, message: `Veld '${veld}' mag niet worden aangepast in ${tabel}` };
+  }
+  // Valideer ID formaat (UUID of nummer)
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+  const isNumber = /^\d+$/.test(id);
+  if (!isUuid && !isNumber) {
+    return { success: false, message: 'Ongeldig ID formaat' };
+  }
+
+  const idKolom = ID_KOLOM[tabel];
+  const idValue = isNumber ? parseInt(id, 10) : id;
+
+  try {
+    const { error } = await supabase
+      .from(tabel)
+      .update({ [veld]: waarde })
+      .eq(idKolom, idValue);
+
+    if (error) {
+      return { success: false, message: `Database fout: ${error.message}` };
+    }
+    return { success: true, message: `${veld} is bijgewerkt.` };
+  } catch (err) {
+    return { success: false, message: `Fout: ${(err as Error).message}` };
   }
 }
 
@@ -330,6 +426,37 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ berichten: berichten || [] }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // 2c. Uitvoeren-modus: voer een bevestigde wijziging uit
+    if (actie === 'uitvoeren') {
+      const { tabel, id, veld, nieuwe_waarde } = await req.json().catch(() => ({}));
+      if (!tabel || !id || !veld || nieuwe_waarde === undefined) {
+        return new Response(
+          JSON.stringify({ error: 'tabel, id, veld en nieuwe_waarde zijn verplicht' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+        { auth: { persistSession: false } }
+      );
+      const result = await executeWijziging(supabase, tabel, id, veld, nieuwe_waarde);
+
+      // Sla uitkomst op in chatgeschiedenis
+      try {
+        await supabase.from('chat_gesprekken').insert({
+          sessie_id,
+          rol: 'assistant',
+          inhoud: result.success ? `✓ ${result.message}` : `✗ ${result.message}`,
+        });
+      } catch { /* ignore */ }
+
+      return new Response(
+        JSON.stringify(result),
+        { status: result.success ? 200 : 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 

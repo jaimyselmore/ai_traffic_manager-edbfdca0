@@ -2,11 +2,19 @@ import { useState, useEffect, useRef, ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
+export interface WijzigingsVoorstel {
+  tabel: string;
+  id: string;
+  veld: string;
+  nieuwe_waarde: string;
+  beschrijving: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: 'ellen' | 'user';
   content: string;
-  isProposal?: boolean;
+  voorstel?: WijzigingsVoorstel;
   timestamp?: Date;
 }
 
@@ -16,34 +24,35 @@ interface EllenChatProps {
   initialMessages?: ChatMessage[];
   isLoading?: boolean;
   onSendMessage?: (message: string) => void;
+  onConfirmProposal?: (voorstel: WijzigingsVoorstel) => void;
+  onRejectProposal?: (voorstel: WijzigingsVoorstel) => void;
   showInput?: boolean;
 }
 
-export function EllenChat({ 
+export function EllenChat({
   contextSummary,
   extraActions,
   initialMessages = [],
   isLoading = false,
   onSendMessage,
+  onConfirmProposal,
+  onRejectProposal,
   showInput = true
 }: EllenChatProps) {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [inputValue, setInputValue] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
 
-  // Update messages when initialMessages changes
   useEffect(() => {
     setMessages(initialMessages);
   }, [initialMessages]);
 
-  // Scroll to bottom on new messages
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
 
   const handleSendMessage = () => {
     if (!inputValue.trim()) return;
-    
     if (onSendMessage) {
       onSendMessage(inputValue);
     }
@@ -59,18 +68,16 @@ export function EllenChat({
 
   return (
     <section className="flex flex-col h-full min-h-[60vh] max-h-[75vh] bg-card rounded-2xl border border-border shadow-sm">
-      {/* Context summary at top if provided */}
       {contextSummary && (
         <div className="border-b border-border p-4">
           {contextSummary}
         </div>
       )}
 
-      {/* Chat messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-muted/30">
         {messages.map((message) => (
-          <div 
-            key={message.id} 
+          <div
+            key={message.id}
             className={`flex items-start gap-2 ${message.role === 'user' ? 'justify-end' : ''}`}
           >
             {message.role === 'ellen' && (
@@ -78,18 +85,52 @@ export function EllenChat({
                 E
               </div>
             )}
-            <div 
-              className={`rounded-2xl px-3 py-2 text-sm max-w-[75%] whitespace-pre-wrap shadow-sm ${
-                message.role === 'ellen' 
-                  ? 'bg-card border border-border text-foreground' 
-                  : 'bg-primary text-primary-foreground'
-              }`}
-            >
-              {message.content}
+            <div className="flex flex-col gap-2 max-w-[75%]">
+              <div
+                className={`rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap shadow-sm ${
+                  message.role === 'ellen'
+                    ? 'bg-card border border-border text-foreground'
+                    : 'bg-primary text-primary-foreground'
+                }`}
+              >
+                {message.content}
+              </div>
+
+              {/* Wijzigingsvoorstel met bevestig-knoppen */}
+              {message.voorstel && (
+                <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl p-3 text-sm">
+                  <div className="font-medium text-amber-800 dark:text-amber-200 mb-2">
+                    Wijzigingsvoorstel
+                  </div>
+                  <div className="text-amber-700 dark:text-amber-300 mb-3">
+                    {message.voorstel.beschrijving}
+                  </div>
+                  <div className="text-xs text-amber-600 dark:text-amber-400 mb-3">
+                    <span className="font-mono">{message.voorstel.tabel}.{message.voorstel.veld}</span> → <span className="font-medium">{message.voorstel.nieuwe_waarde}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="default"
+                      className="bg-green-600 hover:bg-green-700 text-white"
+                      onClick={() => onConfirmProposal?.(message.voorstel!)}
+                    >
+                      Bevestigen
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onRejectProposal?.(message.voorstel!)}
+                    >
+                      Annuleren
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         ))}
-        
+
         {isLoading && (
           <div className="flex items-start gap-2">
             <div className="h-7 w-7 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-[10px] font-semibold">
@@ -104,11 +145,10 @@ export function EllenChat({
             </div>
           </div>
         )}
-        
+
         <div ref={chatEndRef} />
       </div>
 
-      {/* Input + actions */}
       {showInput && (
         <div className="border-t border-border bg-card p-3 space-y-3 rounded-b-2xl">
           <div className="flex gap-2">

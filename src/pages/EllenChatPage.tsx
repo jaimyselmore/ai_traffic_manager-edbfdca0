@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { EllenChat, ChatMessage } from '@/components/chat/EllenChat';
+import { EllenChat, ChatMessage, WijzigingsVoorstel } from '@/components/chat/EllenChat';
 import { supabase } from '@/integrations/supabase/client';
 import { getSessionToken } from '@/lib/data/secureDataClient';
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,29 @@ function getOrCreateSessieId(): string {
     localStorage.setItem(STORAGE_KEY, id);
   }
   return id;
+}
+
+// Detecteer voorstel in Ellen's antwoord
+function extractVoorstel(content: string): WijzigingsVoorstel | undefined {
+  // Ellen's antwoord kan een JSON voorstel-object bevatten in de tool output
+  try {
+    const match = content.match(/\{[\s\S]*"type":\s*"voorstel"[\s\S]*\}/);
+    if (match) {
+      const parsed = JSON.parse(match[0]);
+      if (parsed.type === 'voorstel' && parsed.tabel && parsed.id && parsed.veld) {
+        return {
+          tabel: parsed.tabel,
+          id: parsed.id,
+          veld: parsed.veld,
+          nieuwe_waarde: parsed.nieuwe_waarde,
+          beschrijving: parsed.beschrijving || `${parsed.veld} aanpassen naar "${parsed.nieuwe_waarde}"`,
+        };
+      }
+    }
+  } catch {
+    // Geen geldig voorstel
+  }
+  return undefined;
 }
 
 export default function EllenChatPage() {
@@ -44,17 +67,27 @@ export default function EllenChatPage() {
 
         if (!error && data?.berichten?.length > 0) {
           const loadedMessages: ChatMessage[] = data.berichten.map(
-            (msg: { rol: string; inhoud: string; created_at: string }, i: number) => ({
-              id: `hist-${i}`,
-              role: msg.rol === 'user' ? 'user' as const : 'ellen' as const,
-              content: msg.inhoud,
-              timestamp: new Date(msg.created_at),
-            })
+            (msg: { rol: string; inhoud: string; created_at: string }, i: number) => {
+              const voorstel = msg.rol === 'assistant' ? extractVoorstel(msg.inhoud) : undefined;
+              // Verwijder JSON uit zichtbare content als er een voorstel is
+              let content = msg.inhoud;
+              if (voorstel) {
+                content = content.replace(/\{[\s\S]*"type":\s*"voorstel"[\s\S]*\}/, '').trim();
+                if (!content) content = voorstel.beschrijving;
+              }
+              return {
+                id: `hist-${i}`,
+                role: msg.rol === 'user' ? 'user' as const : 'ellen' as const,
+                content,
+                voorstel,
+                timestamp: new Date(msg.created_at),
+              };
+            }
           );
           setMessages([WELCOME_MESSAGE, ...loadedMessages]);
         }
       } catch {
-        // Geen geschiedenis gevonden, dat is prima
+        // Geen geschiedenis gevonden
       } finally {
         setIsLoadingHistory(false);
       }
@@ -94,11 +127,20 @@ export default function EllenChatPage() {
       if (error) throw new Error(error.message || 'Fout bij communicatie met Ellen');
 
       const antwoord = data?.antwoord || 'Sorry, ik kon geen antwoord genereren. Probeer het opnieuw.';
+      const voorstel = extractVoorstel(antwoord);
+
+      // Verwijder JSON uit zichtbare content
+      let cleanContent = antwoord;
+      if (voorstel) {
+        cleanContent = antwoord.replace(/\{[\s\S]*"type":\s*"voorstel"[\s\S]*\}/, '').trim();
+        if (!cleanContent) cleanContent = voorstel.beschrijving;
+      }
 
       setMessages(prev => [...prev, {
         id: (Date.now() + 1).toString(),
         role: 'ellen',
-        content: antwoord,
+        content: cleanContent,
+        voorstel,
       }]);
     } catch (err) {
       setMessages(prev => [...prev, {
@@ -110,6 +152,66 @@ export default function EllenChatPage() {
       setIsLoading(false);
     }
   }, [sessieId]);
+
+  const handleConfirmProposal = useCallback(async (voorstel: WijzigingsVoorstel) => {
+    const sessionToken = getSessionToken();
+    if (!sessionToken) return;
+
+    setIsLoading(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('ellen-chat', {
+        headers: { Authorization: `Bearer ${sessionToken}` },
+        body: {
+          sessie_id: sessieId,
+          actie: 'uitvoeren',
+          tabel: voorstel.tabel,
+          id: voorstel.id,
+          veld: voorstel.veld,
+          nieuwe_waarde: voorstel.nieuwe_waarde,
+        },
+      });
+
+      const resultMessage: ChatMessage = {
+        id: Date.now().toString(),
+        role: 'ellen',
+        content: data?.success
+          ? `✓ ${data.message || 'Wijziging doorgevoerd!'}`
+          : `✗ ${data?.message || error?.message || 'Wijziging mislukt'}`,
+      };
+
+      // Verwijder voorstel uit het oorspronkelijke bericht
+      setMessages(prev => prev.map(msg =>
+        msg.voorstel?.id === voorstel.id && msg.voorstel?.veld === voorstel.veld
+          ? { ...msg, voorstel: undefined }
+          : msg
+      ));
+      setMessages(prev => [...prev, resultMessage]);
+    } catch (err) {
+      setMessages(prev => [...prev, {
+        id: Date.now().toString(),
+        role: 'ellen',
+        content: `✗ Fout: ${err instanceof Error ? err.message : 'Onbekende fout'}`,
+      }]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [sessieId]);
+
+  const handleRejectProposal = useCallback((voorstel: WijzigingsVoorstel) => {
+    // Verwijder voorstel uit het bericht
+    setMessages(prev => prev.map(msg =>
+      msg.voorstel?.id === voorstel.id && msg.voorstel?.veld === voorstel.veld
+        ? { ...msg, voorstel: undefined }
+        : msg
+    ));
+    // Voeg annuleer-bericht toe
+    setMessages(prev => [...prev, {
+      id: Date.now().toString(),
+      role: 'ellen',
+      content: 'Oké, wijziging geannuleerd.',
+    }]);
+  }, []);
 
   return (
     <div className="h-full flex flex-col space-y-8">
@@ -135,6 +237,8 @@ export default function EllenChatPage() {
             initialMessages={messages}
             isLoading={isLoading}
             onSendMessage={handleSendMessage}
+            onConfirmProposal={handleConfirmProposal}
+            onRejectProposal={handleRejectProposal}
           />
         )}
       </div>
