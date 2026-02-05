@@ -22,8 +22,7 @@ interface MeetingFormData {
   datum: string;
   starttijd: string;
   eindtijd: string;
-  locatie: 'Op kantoor' | 'Bij klant' | 'Online' | '';
-  reistijd?: number;
+  locatie: string;
   medewerkers: string[];
 }
 
@@ -37,7 +36,6 @@ const emptyFormData: MeetingFormData = {
   starttijd: '',
   eindtijd: '',
   locatie: '',
-  reistijd: undefined,
   medewerkers: [],
 };
 
@@ -93,10 +91,7 @@ export default function Meeting() {
       newErrors.tijd = 'Voer start- en eindtijd in';
     }
     if (!formData.locatie) {
-      newErrors.locatie = 'Selecteer een locatie';
-    }
-    if (formData.locatie === 'Bij klant' && !formData.reistijd) {
-      newErrors.reistijd = 'Voer reistijd in bij meeting bij klant';
+      newErrors.locatie = 'Voer een locatie in';
     }
     if (formData.medewerkers.length === 0) {
       newErrors.medewerkers = 'Selecteer minimaal één deelnemer';
@@ -280,55 +275,21 @@ export default function Meeting() {
 
           <div>
             <Label className="text-sm">Locatie *</Label>
-            <Select
+            <Input
+              placeholder="Bijv. Vergaderruimte A, Teams, of extern adres"
               value={formData.locatie}
-              onValueChange={(value: 'Op kantoor' | 'Bij klant' | 'Online') => {
+              onChange={(e) => {
                 setFormData({
                   ...formData,
-                  locatie: value,
-                  // Reset reistijd als locatie niet "Bij klant" is
-                  reistijd: value === 'Bij klant' ? formData.reistijd : undefined
+                  locatie: e.target.value
                 });
               }}
-            >
-              <SelectTrigger className={errors.locatie ? 'border-destructive' : ''}>
-                <SelectValue placeholder="Selecteer locatie" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Op kantoor">Op kantoor</SelectItem>
-                <SelectItem value="Bij klant">Bij klant</SelectItem>
-                <SelectItem value="Online">Online</SelectItem>
-              </SelectContent>
-            </Select>
+              className={errors.locatie ? 'border-destructive' : ''}
+            />
             {errors.locatie && (
               <p className="text-xs text-destructive mt-1">{errors.locatie}</p>
             )}
           </div>
-
-          {/* Reistijd - alleen tonen als locatie = "Bij klant" */}
-          {formData.locatie === 'Bij klant' && (
-            <div>
-              <Label className="text-sm">Reistijd (minuten) *</Label>
-              <Input
-                type="number"
-                min="0"
-                step="15"
-                value={formData.reistijd || ''}
-                onChange={(e) => setFormData({
-                  ...formData,
-                  reistijd: parseInt(e.target.value) || undefined
-                })}
-                placeholder="Bijv. 30"
-                className={errors.reistijd ? 'border-destructive' : ''}
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Deze tijd wordt voor en na de meeting geblokkeerd in de planning
-              </p>
-              {errors.reistijd && (
-                <p className="text-xs text-destructive mt-1">{errors.reistijd}</p>
-              )}
-            </div>
-          )}
         </div>
 
         {/* Deelnemers */}
