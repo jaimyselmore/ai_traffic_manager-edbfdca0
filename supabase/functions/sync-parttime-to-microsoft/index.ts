@@ -44,7 +44,8 @@ function decryptToken(encryptedToken: string): string {
 // Refresh Microsoft access token if expired
 async function refreshAccessToken(
   refreshToken: string,
-  supabase: ReturnType<typeof createClient>,
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
   werknemerId: number
 ): Promise<string> {
   const clientId = Deno.env.get('MICROSOFT_CLIENT_ID');
