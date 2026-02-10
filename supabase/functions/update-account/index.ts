@@ -187,10 +187,14 @@ Deno.serve(async (req) => {
       // Hash new password
       const newPasswordHash = await hash(newPassword, 10);
 
-      // Update password
+      // Update password en reset must_change_password
       const { error: updateError } = await supabase
         .from('users')
-        .update({ password_hash: newPasswordHash, updated_at: new Date().toISOString() })
+        .update({
+          password_hash: newPasswordHash,
+          must_change_password: false,
+          updated_at: new Date().toISOString(),
+        })
         .eq('id', userId);
 
       if (updateError) {

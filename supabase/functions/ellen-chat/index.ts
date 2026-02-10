@@ -47,33 +47,39 @@ async function verifySessionToken(token: string): Promise<SessionPayload | null>
 
 // ---- SYSTEM PROMPT ----
 
-const SYSTEM_PROMPT = `Je bent Ellen, de AI-planningsassistent van Selmore, een creatief mediabedrijf.
+const SYSTEM_PROMPT = `Je bent Ellen, planningsassistent van Selmore.
 
-Je helpt planners met:
-- Projecten, deadlines, status
-- Teamcapaciteit en beschikbaarheid
-- Planning, taken, werkverdelingen
-- Klantinfo, meetings, verlof
+KRITIEKE REGELS - NOOIT BREKEN:
+1. Je hebt GEEN eigen kennis over Selmore medewerkers, projecten, klanten, etc.
+2. Bij ELKE vraag over data: EERST een zoek-tool gebruiken, DAN pas antwoorden
+3. NOOIT antwoorden met informatie die niet uit een tool-resultaat komt
+4. Als je geen tool hebt gebruikt, zeg je: "Even kijken..." en GEBRUIK DAN DE TOOL
 
-Stijl:
-- Compact: geen wollige zinnen, recht op de kern
-- Direct: geef het antwoord eerst, toelichting daarna
-- Kritisch: signaleer problemen en risico's proactief, draai er niet omheen
-- Formeel maar niet stijf: zakelijke toon, af en toe een droge opmerking mag
-- Gebruik opsommingen, geen lappen tekst
+Voorbeeld goede flow:
+- Gebruiker: "Wie is Eline?"
+- Jij: [ROEP zoek_medewerkers AAN met zoekterm "Eline"]
+- Tool geeft resultaat → Jij antwoordt op basis van dat resultaat
 
-Regels:
-- ALTIJD Nederlands
-- Gebruik je tools om data op te zoeken - raad nooit
-- Meerdere dingen opzoeken? Doe het gewoon, geen toestemming vragen
-- Kun je iets niet vinden? Zeg het kort en helder
-- Geen disclaimers of excuses tenzij het echt nodig is
+Voorbeeld FOUTE flow (NOOIT DOEN):
+- Gebruiker: "Wie is Eline?"
+- Jij: "Eline is Account Manager..." ← FOUT! Je hebt geen tool gebruikt!
 
-Wijzigingen:
-- Je kunt data aanpassen via de stel_wijziging_voor tool
-- Zoek ALTIJD eerst het record op met een zoek-tool om het juiste ID te krijgen
-- De gebruiker moet elke wijziging bevestigen via een knop - leg kort uit wat je wilt doen
-- Stel nooit meerdere wijzigingen tegelijk voor, doe het een voor een`;
+WIJZIGINGEN - STRIKT PROTOCOL:
+1. Gebruiker wil iets aanpassen? → ROEP EERST zoek-tool aan om ID te vinden
+2. ID gevonden? → ROEP stel_wijziging_voor tool AAN (VERPLICHT!)
+3. NOOIT tekst schrijven zoals "Bevestig de wijziging" - de tool doet dat automatisch
+4. Als je tekst schrijft over wijzigen zonder de tool aan te roepen = FOUT
+
+Voorbeeld goed:
+- Gebruiker: "Pas Editor aan naar Studio"
+- Jij: [ROEP zoek_disciplines AAN] → krijgt ID 6
+- Jij: [ROEP stel_wijziging_voor AAN met tabel="disciplines", id="6", veld="discipline_naam", nieuwe_waarde="Studio"]
+- Tool geeft bevestigknop aan gebruiker
+
+Persoonlijkheid (secundair):
+- Kort en bondig, praat als collega
+- "Jakko? Creative Director, 40 uur." (niet: "De medewerker Jakko heeft als rol...")
+- Geef alleen relevante info, niet alle velden`;
 
 // ---- OPENAI TOOL DEFINITIONS ----
 
@@ -167,17 +173,70 @@ const TOOLS = [
   {
     type: 'function',
     function: {
+      name: 'zoek_rolprofielen',
+      description: 'Zoek rolprofielen op naam of beschrijving.',
+      parameters: {
+        type: 'object',
+        properties: {
+          zoekterm: { type: 'string', description: 'Zoekterm voor rolnaam of beschrijving' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'zoek_disciplines',
+      description: 'Zoek disciplines op naam.',
+      parameters: {
+        type: 'object',
+        properties: {
+          zoekterm: { type: 'string', description: 'Zoekterm voor discipline naam' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'zoek_projecttypes',
+      description: 'Zoek projecttypes op code of naam.',
+      parameters: {
+        type: 'object',
+        properties: {
+          zoekterm: { type: 'string', description: 'Zoekterm voor code of naam' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'zoek_project_fases',
+      description: 'Zoek projectfases. Filter op project_id of fase_naam.',
+      parameters: {
+        type: 'object',
+        properties: {
+          project_id: { type: 'string', description: 'UUID van het project' },
+          fase_naam: { type: 'string', description: 'Naam van de fase' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'stel_wijziging_voor',
-      description: 'Stel een wijziging voor aan de gebruiker. De wijziging wordt PAS uitgevoerd na bevestiging. Zoek ALTIJD eerst het record op om het ID te krijgen.',
+      description: 'VERPLICHT voor elke data-wijziging. Je MOET deze tool aanroepen om een wijziging voor te stellen - schrijf NOOIT alleen tekst over wijzigingen. De tool toont automatisch een bevestigknop aan de gebruiker.',
       parameters: {
         type: 'object',
         properties: {
           tabel: {
             type: 'string',
             description: 'Welke tabel',
-            enum: ['klanten', 'projecten', 'medewerkers', 'taken']
+            enum: ['klanten', 'projecten', 'medewerkers', 'taken', 'rolprofielen', 'disciplines', 'projecttypes', 'project_fases', 'beschikbaarheid_medewerkers']
           },
-          id: { type: 'string', description: 'UUID van het record (uit zoekresultaat)' },
+          id: { type: 'string', description: 'UUID of nummer van het record (uit zoekresultaat)' },
           veld: { type: 'string', description: 'Welk veld moet worden aangepast' },
           nieuwe_waarde: { type: 'string', description: 'De nieuwe waarde' },
           beschrijving: { type: 'string', description: 'Korte uitleg voor de gebruiker wat er verandert' },
@@ -288,7 +347,7 @@ async function executeTool(
         // deno-lint-ignore no-explicit-any
         let query: any = supabase
           .from('beschikbaarheid_medewerkers')
-          .select('werknemer_naam, type, start_datum, eind_datum, reden, status');
+          .select('id, werknemer_naam, type, start_datum, eind_datum, reden, status');
         if (args.werknemer_naam) {
           query = query.ilike('werknemer_naam', `%${sanitize(args.werknemer_naam)}%`);
         }
@@ -297,6 +356,67 @@ async function executeTool(
         const { data, error } = await query.order('start_datum', { ascending: true }).limit(15);
         if (error) return `Fout: ${error.message}`;
         if (!data?.length) return 'Geen verlof gevonden.';
+        return JSON.stringify(data, null, 2);
+      }
+
+      case 'zoek_rolprofielen': {
+        // deno-lint-ignore no-explicit-any
+        let query: any = supabase
+          .from('rolprofielen')
+          .select('rol_nummer, rol_naam, beschrijving_rol, taken_rol, standaard_discipline');
+        if (args.zoekterm) {
+          const term = sanitize(args.zoekterm);
+          query = query.or(`rol_naam.ilike.%${term}%,beschrijving_rol.ilike.%${term}%`);
+        }
+        const { data, error } = await query.order('rol_naam').limit(20);
+        if (error) return `Fout: ${error.message}`;
+        if (!data?.length) return 'Geen rolprofielen gevonden.';
+        return JSON.stringify(data, null, 2);
+      }
+
+      case 'zoek_disciplines': {
+        // deno-lint-ignore no-explicit-any
+        let query: any = supabase
+          .from('disciplines')
+          .select('id, discipline_naam, beschrijving, kleur_hex');
+        if (args.zoekterm) {
+          query = query.ilike('discipline_naam', `%${sanitize(args.zoekterm)}%`);
+        }
+        const { data, error } = await query.order('discipline_naam').limit(20);
+        if (error) return `Fout: ${error.message}`;
+        if (!data?.length) return 'Geen disciplines gevonden.';
+        return JSON.stringify(data, null, 2);
+      }
+
+      case 'zoek_projecttypes': {
+        // deno-lint-ignore no-explicit-any
+        let query: any = supabase
+          .from('projecttypes')
+          .select('id, code, naam, omschrijving, is_system');
+        if (args.zoekterm) {
+          const term = sanitize(args.zoekterm);
+          query = query.or(`code.ilike.%${term}%,naam.ilike.%${term}%`);
+        }
+        const { data, error } = await query.order('naam').limit(20);
+        if (error) return `Fout: ${error.message}`;
+        if (!data?.length) return 'Geen projecttypes gevonden.';
+        return JSON.stringify(data, null, 2);
+      }
+
+      case 'zoek_project_fases': {
+        // deno-lint-ignore no-explicit-any
+        let query: any = supabase
+          .from('project_fases')
+          .select('id, project_id, fase_naam, fase_type, volgorde, start_datum, eind_datum, datum_tijd, locatie, medewerkers, inspanning_dagen, opmerkingen, is_hard_lock');
+        if (args.project_id) {
+          query = query.eq('project_id', args.project_id);
+        }
+        if (args.fase_naam) {
+          query = query.ilike('fase_naam', `%${sanitize(args.fase_naam)}%`);
+        }
+        const { data, error } = await query.order('volgorde').limit(20);
+        if (error) return `Fout: ${error.message}`;
+        if (!data?.length) return 'Geen projectfases gevonden.';
         return JSON.stringify(data, null, 2);
       }
 
@@ -323,15 +443,14 @@ async function executeTool(
 // Toegestane velden per tabel voor wijzigingen
 const WIJZIG_VELDEN: Record<string, string[]> = {
   klanten: ['naam', 'contactpersoon', 'email', 'telefoon', 'adres', 'beschikbaarheid', 'interne_notities', 'planning_instructies'],
-  projecten: ['omschrijving', 'deadline', 'status', 'opmerkingen'],
+  projecten: ['omschrijving', 'deadline', 'status', 'opmerkingen', 'projecttype'],
   medewerkers: ['naam_werknemer', 'primaire_rol', 'tweede_rol', 'discipline', 'werkuren', 'parttime_dag', 'notities', 'beschikbaar'],
   taken: ['werknemer_naam', 'week_start', 'dag_van_week', 'start_uur', 'duur_uren', 'plan_status'],
-  disciplines: ['naam', 'discipline_naam', 'beschrijving', 'kleur_hex'],
-};
-
-// Veld-aliassen: als AI een andere naam gebruikt, map naar echte kolomnaam
-const VELD_ALIAS: Record<string, Record<string, string>> = {
-  disciplines: { naam: 'discipline_naam' },
+  rolprofielen: ['rol_naam', 'beschrijving_rol', 'taken_rol', 'standaard_discipline'],
+  disciplines: ['discipline_naam', 'beschrijving', 'kleur_hex'],
+  projecttypes: ['code', 'naam', 'omschrijving'],
+  project_fases: ['fase_naam', 'fase_type', 'volgorde', 'start_datum', 'eind_datum', 'datum_tijd', 'locatie', 'medewerkers', 'inspanning_dagen', 'opmerkingen', 'is_hard_lock'],
+  beschikbaarheid_medewerkers: ['werknemer_naam', 'type', 'start_datum', 'eind_datum', 'reden', 'status'],
 };
 
 // ID-kolom per tabel
@@ -340,7 +459,11 @@ const ID_KOLOM: Record<string, string> = {
   projecten: 'id',
   medewerkers: 'werknemer_id',
   taken: 'id',
+  rolprofielen: 'rol_nummer',
   disciplines: 'id',
+  projecttypes: 'id',
+  project_fases: 'id',
+  beschikbaarheid_medewerkers: 'id',
 };
 
 async function executeWijziging(
@@ -358,10 +481,6 @@ async function executeWijziging(
   if (!WIJZIG_VELDEN[tabel].includes(veld)) {
     return { success: false, message: `Veld '${veld}' mag niet worden aangepast in ${tabel}` };
   }
-  
-  // Map alias naar echte kolomnaam
-  const echteVeld = VELD_ALIAS[tabel]?.[veld] ?? veld;
-  
   // Valideer ID formaat (UUID of nummer)
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
   const isNumber = /^\d+$/.test(id);
@@ -375,13 +494,13 @@ async function executeWijziging(
   try {
     const { error } = await supabase
       .from(tabel)
-      .update({ [echteVeld]: waarde })
+      .update({ [veld]: waarde })
       .eq(idKolom, idValue);
 
     if (error) {
       return { success: false, message: `Database fout: ${error.message}` };
     }
-    return { success: true, message: `${echteVeld} is bijgewerkt.` };
+    return { success: true, message: `${veld} is bijgewerkt.` };
   } catch (err) {
     return { success: false, message: `Fout: ${(err as Error).message}` };
   }
@@ -443,11 +562,16 @@ Deno.serve(async (req) => {
 
     // 2c. Uitvoeren-modus: voer een bevestigde wijziging uit
     if (actie === 'uitvoeren') {
+      console.log('Uitvoeren wijziging:', { tabel, id, veld, nieuwe_waarde });
       if (!tabel || !id || !veld || nieuwe_waarde === undefined) {
+        const missing: string[] = [];
+        if (!tabel) missing.push('tabel');
+        if (!id) missing.push('id');
+        if (!veld) missing.push('veld');
+        if (nieuwe_waarde === undefined) missing.push('nieuwe_waarde');
         return new Response(
-          // NB: we sturen 200 terug om te voorkomen dat supabase-js dit als runtime error logt in de browser.
-          JSON.stringify({ success: false, message: 'tabel, id, veld en nieuwe_waarde zijn verplicht' }),
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          JSON.stringify({ error: `Ontbrekende velden: ${missing.join(', ')}`, debug: { tabel, id, veld, nieuwe_waarde } }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
       const supabase = createClient(
@@ -456,6 +580,7 @@ Deno.serve(async (req) => {
         { auth: { persistSession: false } }
       );
       const result = await executeWijziging(supabase, tabel, id, veld, nieuwe_waarde);
+      console.log('Wijziging resultaat:', result);
 
       // Sla uitkomst op in chatgeschiedenis
       try {
@@ -468,8 +593,7 @@ Deno.serve(async (req) => {
 
       return new Response(
         JSON.stringify(result),
-        // NB: altijd 200 om frontend runtime errors te vermijden; gebruik result.success voor UI-handling.
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: result.success ? 200 : 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -541,10 +665,14 @@ Deno.serve(async (req) => {
     ];
 
     for (const msg of historyMessages) {
-      openaiMessages.push({
-        role: msg.rol === 'user' ? 'user' : 'assistant',
-        content: msg.inhoud,
-      });
+      // Strip [VOORSTEL:...] uit history zodat OpenAI dit patroon niet leert
+      const cleanContent = msg.inhoud.replace(/\n*\[VOORSTEL:\{.*?\}\]/gs, '').trim();
+      if (cleanContent) {
+        openaiMessages.push({
+          role: msg.rol === 'user' ? 'user' : 'assistant',
+          content: cleanContent,
+        });
+      }
     }
     openaiMessages.push({ role: 'user', content: bericht });
 
@@ -651,9 +779,10 @@ Deno.serve(async (req) => {
       console.error('Kon antwoord niet opslaan:', e);
     }
 
-    // 10. Return antwoord + voorstel apart
+    // 10. Return antwoord + voorstel apart (strip eventuele [VOORSTEL:...] uit tekst)
+    const cleanAntwoord = assistantMessage.replace(/\n*\[VOORSTEL:\{.*?\}\]/gs, '').trim();
     return new Response(
-      JSON.stringify({ antwoord: assistantMessage, voorstel: pendingVoorstel }),
+      JSON.stringify({ antwoord: cleanAntwoord, voorstel: pendingVoorstel }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 

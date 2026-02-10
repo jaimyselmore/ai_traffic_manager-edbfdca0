@@ -160,6 +160,7 @@ export default function EllenChatPage() {
     setIsLoading(true);
 
     try {
+      console.log('Bevestig voorstel:', voorstel);
       const { data, error } = await supabase.functions.invoke('ellen-chat', {
         headers: { Authorization: `Bearer ${sessionToken}` },
         body: {
@@ -172,12 +173,25 @@ export default function EllenChatPage() {
         },
       });
 
+      console.log('Resultaat:', { data, error });
+
+      // Betere error handling
+      let resultContent: string;
+      if (error) {
+        // Parse error details als beschikbaar
+        const errorDetail = data?.error || data?.message || error.message || 'Onbekende fout';
+        const debugInfo = data?.debug ? ` (debug: ${JSON.stringify(data.debug)})` : '';
+        resultContent = `✗ ${errorDetail}${debugInfo}`;
+      } else if (data?.success) {
+        resultContent = `✓ ${data.message || 'Wijziging doorgevoerd!'}`;
+      } else {
+        resultContent = `✗ ${data?.message || 'Wijziging mislukt'}`;
+      }
+
       const resultMessage: ChatMessage = {
         id: Date.now().toString(),
         role: 'ellen',
-        content: data?.success
-          ? `✓ ${data.message || 'Wijziging doorgevoerd!'}`
-          : `✗ ${data?.message || error?.message || 'Wijziging mislukt'}`,
+        content: resultContent,
       };
 
       // Verwijder voorstel uit het oorspronkelijke bericht

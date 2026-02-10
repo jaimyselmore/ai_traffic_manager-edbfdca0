@@ -3,6 +3,14 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.90.1';
 import { hash } from 'https://esm.sh/bcrypt-ts@5.0.2';
 import { verify } from 'https://deno.land/x/djwt@v3.0.2/mod.ts';
 
+// Genereer een veilig random wachtwoord
+function generateSecurePassword(length = 12): string {
+  const charset = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%';
+  const array = new Uint8Array(length);
+  crypto.getRandomValues(array);
+  return Array.from(array, (byte) => charset[byte % charset.length]).join('');
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -141,9 +149,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Hash password (use provided password or default)
-    const passwordToHash = wachtwoord || 'selmore2026';
-    const passwordHash = await hash(passwordToHash, 10); // 10 rounds zoals in custom-login
+    // Genereer een veilig tijdelijk wachtwoord als er geen is opgegeven
+    const tempPassword = wachtwoord || generateSecurePassword(12);
+    const passwordHash = await hash(tempPassword, 10);
+    const mustChangePassword = !wachtwoord; // Moet wachtwoord wijzigen als er geen was opgegeven
 
     // Insert new user
     const { data: newUser, error: insertError } = await supabase
@@ -155,6 +164,7 @@ Deno.serve(async (req) => {
         werknemer_id: werknemer_id,
         is_planner: is_planner ?? true,
         password_hash: passwordHash,
+        must_change_password: mustChangePassword,
       })
       .select('id, gebruikersnaam')
       .single();
@@ -174,6 +184,9 @@ Deno.serve(async (req) => {
           id: newUser.id,
           gebruikersnaam: newUser.gebruikersnaam,
         },
+        // Geef tijdelijk wachtwoord terug zodat admin het kan delen (alleen bij nieuwe accounts)
+        tijdelijkWachtwoord: mustChangePassword ? tempPassword : undefined,
+        mustChangePassword,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

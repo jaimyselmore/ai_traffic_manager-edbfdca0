@@ -13,15 +13,18 @@ interface AuthSession {
   user: AuthUser;
   sessionToken: string;
   expiresAt: number;
+  mustChangePassword?: boolean;
 }
 
 interface AuthContextType {
   user: AuthUser | null;
   sessionToken: string | null;
   isLoading: boolean;
+  mustChangePassword: boolean;
   signIn: (username: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   verifySession: () => Promise<boolean>;
+  clearMustChangePassword: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -32,6 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [sessionToken, setSessionToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [mustChangePassword, setMustChangePassword] = useState(false);
 
   // Verify session token with server
   const verifySession = useCallback(async (): Promise<boolean> => {
@@ -68,6 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Session is valid - update state
       setUser(data.user);
       setSessionToken(session.sessionToken);
+      setMustChangePassword(session.mustChangePassword ?? false);
       return true;
     } catch {
       localStorage.removeItem(STORAGE_KEY);
@@ -130,12 +135,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user: authUser,
         sessionToken: data.sessionToken,
         expiresAt: data.expiresAt,
+        mustChangePassword: data.mustChangePassword ?? false,
       };
 
       // Store session securely
       localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
       setUser(authUser);
       setSessionToken(data.sessionToken);
+      setMustChangePassword(data.mustChangePassword ?? false);
 
       return { error: null };
     } catch (err) {
@@ -147,10 +154,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(STORAGE_KEY);
     setUser(null);
     setSessionToken(null);
+    setMustChangePassword(false);
   };
 
+  const clearMustChangePassword = useCallback(() => {
+    setMustChangePassword(false);
+    // Update stored session
+    const storedSession = localStorage.getItem(STORAGE_KEY);
+    if (storedSession) {
+      try {
+        const session: AuthSession = JSON.parse(storedSession);
+        session.mustChangePassword = false;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+      } catch {
+        // Ignore parse errors
+      }
+    }
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, sessionToken, isLoading, signIn, signOut, verifySession }}>
+    <AuthContext.Provider value={{ user, sessionToken, isLoading, mustChangePassword, signIn, signOut, verifySession, clearMustChangePassword }}>
       {children}
     </AuthContext.Provider>
   );

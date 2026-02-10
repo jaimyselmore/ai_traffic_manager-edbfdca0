@@ -151,7 +151,7 @@ Deno.serve(async (req) => {
     // NOTE: We intentionally do NOT reference an `email` column for privacy and because it may not exist in the DB.
     const { data: user, error: userError } = await supabase
       .from('users')
-      .select('id, gebruikersnaam, naam, password_hash, is_planner, rol')
+      .select('id, gebruikersnaam, naam, password_hash, is_planner, rol, must_change_password')
       .ilike('gebruikersnaam', loginIdentifier.trim())
       .maybeSingle();
 
@@ -239,10 +239,11 @@ Deno.serve(async (req) => {
     };
 
     return new Response(
-      JSON.stringify({ 
-        user: userData, 
+      JSON.stringify({
+        user: userData,
         sessionToken,
         expiresAt: (now + expiresIn) * 1000, // Convert to milliseconds for client
+        mustChangePassword: user.must_change_password ?? false,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
