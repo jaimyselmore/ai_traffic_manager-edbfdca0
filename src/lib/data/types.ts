@@ -32,10 +32,6 @@ export interface Client {
   name: string;
   code?: string;
   klantnummer?: string;
-  contactPerson?: string;
-  email?: string;
-  phone?: string;
-  telefoon?: string;
   address?: string;
   adres?: string;
   beschikbaarheid?: string;

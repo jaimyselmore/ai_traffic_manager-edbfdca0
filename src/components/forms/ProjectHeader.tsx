@@ -35,12 +35,9 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
   const queryClient = useQueryClient();
   const [isAddingNewClient, setIsAddingNewClient] = useState(false);
   const [isSavingClient, setIsSavingClient] = useState(false);
-  const [tempNewClient, setTempNewClient] = useState({ 
-    klantnummer: '', 
-    naam: '', 
-    contactpersoon: '', 
-    email: '', 
-    telefoon: '', 
+  const [tempNewClient, setTempNewClient] = useState({
+    klantnummer: '',
+    naam: '',
     postcode: '',
     huisnummer: '',
     plaats: '',
@@ -140,9 +137,6 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
       const newClient = await createClient({
         klantnummer: tempNewClient.klantnummer,
         naam: tempNewClient.naam,
-        contactpersoon: tempNewClient.contactpersoon || undefined,
-        email: tempNewClient.email || undefined,
-        telefoon: tempNewClient.telefoon || undefined,
         adres: combineAddress(tempNewClient.postcode, tempNewClient.huisnummer, tempNewClient.plaats, tempNewClient.land) || undefined,
         interne_notities: tempNewClient.interne_notities || undefined,
         planning_instructies: tempNewClient.planning_instructies || undefined,
@@ -170,7 +164,7 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
       });
 
       setIsAddingNewClient(false);
-      setTempNewClient({ klantnummer: '', naam: '', contactpersoon: '', email: '', telefoon: '', postcode: '', huisnummer: '', plaats: '', land: '', interne_notities: '', planning_instructies: '' });
+      setTempNewClient({ klantnummer: '', naam: '', postcode: '', huisnummer: '', plaats: '', land: '', interne_notities: '', planning_instructies: '' });
     } catch (error) {
       console.error('Fout bij opslaan klant:', error);
       toast({
@@ -185,7 +179,7 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
 
   const handleCancelNewClient = () => {
     setIsAddingNewClient(false);
-    setTempNewClient({ klantnummer: '', naam: '', contactpersoon: '', email: '', telefoon: '', postcode: '', huisnummer: '', plaats: '', land: '', interne_notities: '', planning_instructies: '' });
+    setTempNewClient({ klantnummer: '', naam: '', postcode: '', huisnummer: '', plaats: '', land: '', interne_notities: '', planning_instructies: '' });
   };
 
   // Find selected client name for display
@@ -239,37 +233,6 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
                   value={tempNewClient.naam}
                   onChange={(e) => setTempNewClient({ ...tempNewClient, naam: e.target.value })}
                   placeholder="Naam van de klant"
-                  className="mt-1"
-                  disabled={isSavingClient}
-                />
-              </div>
-              <div>
-                <Label className="text-xs">Contactpersoon</Label>
-                <Input
-                  value={tempNewClient.contactpersoon}
-                  onChange={(e) => setTempNewClient({ ...tempNewClient, contactpersoon: e.target.value })}
-                  placeholder="Contactpersoon"
-                  className="mt-1"
-                  disabled={isSavingClient}
-                />
-              </div>
-              <div>
-                <Label className="text-xs">Email</Label>
-                <Input
-                  type="email"
-                  value={tempNewClient.email}
-                  onChange={(e) => setTempNewClient({ ...tempNewClient, email: e.target.value })}
-                  placeholder="email@voorbeeld.nl"
-                  className="mt-1"
-                  disabled={isSavingClient}
-                />
-              </div>
-              <div className="col-span-2">
-                <Label className="text-xs">Telefoon</Label>
-                <Input
-                  value={tempNewClient.telefoon}
-                  onChange={(e) => setTempNewClient({ ...tempNewClient, telefoon: e.target.value })}
-                  placeholder="Telefoonnummer"
                   className="mt-1"
                   disabled={isSavingClient}
                 />

@@ -52,9 +52,6 @@ interface KlantRow {
   id: string
   klantnummer: string
   naam: string
-  contactpersoon: string | null
-  email: string | null
-  telefoon: string | null
   adres: string | null
   beschikbaarheid: string | null
   interne_notities: string | null
@@ -276,9 +273,6 @@ export async function getClients(): Promise<Client[]> {
 export async function createClient(clientData: {
   klantnummer: string
   naam: string
-  contactpersoon?: string
-  email?: string
-  telefoon?: string
   adres?: string
   beschikbaarheid?: string
   interne_notities?: string
@@ -287,9 +281,6 @@ export async function createClient(clientData: {
   const insertData = {
     klantnummer: clientData.klantnummer,
     naam: clientData.naam,
-    contactpersoon: clientData.contactpersoon || null,
-    email: clientData.email || null,
-    telefoon: clientData.telefoon || null,
     adres: clientData.adres || null,
     beschikbaarheid: clientData.beschikbaarheid || null,
     interne_notities: clientData.interne_notities || null,
@@ -312,9 +303,6 @@ export async function createClient(clientData: {
     id: result.id,
     code: result.klantnummer,
     name: result.naam,
-    contactPerson: result.contactpersoon || '',
-    email: result.email || '',
-    phone: result.telefoon || '',
     address: result.adres || '',
     beschikbaarheid: result.beschikbaarheid || '',
     interne_notities: result.interne_notities || '',
