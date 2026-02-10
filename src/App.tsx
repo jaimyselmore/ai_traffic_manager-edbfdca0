@@ -34,7 +34,7 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/change-password" element={<ProtectedRoute allowPasswordChange><ChangePassword /></ProtectedRoute>} />
             <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
-            <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
+            <Route path="/admin" element={<ProtectedRoute requireAdmin><Admin /></ProtectedRoute>} />
             <Route path="/nieuw-project" element={<ProtectedRoute><NieuwProject /></ProtectedRoute>} />
             <Route path="/wijzigingsverzoek" element={<ProtectedRoute><Wijzigingsverzoek /></ProtectedRoute>} />
             <Route path="/meeting" element={<ProtectedRoute><Meeting /></ProtectedRoute>} />

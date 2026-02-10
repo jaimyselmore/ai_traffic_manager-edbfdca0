@@ -246,7 +246,7 @@ export async function createMedewerker(
       rol: medewerker.primaire_rol || 'Medewerker',
       werknemer_id: newMedewerker.werknemer_id,
       is_planner: true,
-      wachtwoord: medewerker.wachtwoord || 'selmore2026',
+      wachtwoord: medewerker.wachtwoord,
     });
 
     if (!userResult.success) {
@@ -351,7 +351,7 @@ export async function updateMedewerker(
         rol: existingMedewerker.primaire_rol || 'Medewerker',
         werknemer_id: werknemer_id,
         is_planner: true,
-        wachtwoord: updates.wachtwoord || 'selmore2026',
+        wachtwoord: updates.wachtwoord,
       });
 
       if (!userResult.success) {
@@ -578,9 +578,6 @@ export async function getKlanten() {
     id: string;
     klantnummer: string;
     naam: string;
-    contactpersoon: string | null;
-    email: string | null;
-    telefoon: string | null;
     adres: string | null;
     beschikbaarheid: string | null;
     interne_notities: string | null;
@@ -597,9 +594,6 @@ export async function createKlant(
   klant: {
     klantnummer: string;
     naam: string;
-    contactpersoon?: string;
-    email?: string;
-    telefoon?: string;
     adres?: string;
     beschikbaarheid?: string;
     interne_notities?: string;
@@ -622,9 +616,6 @@ export async function updateKlant(
   id: string,
   updates: Partial<{
     naam: string;
-    contactpersoon: string;
-    email: string;
-    telefoon: string;
     adres: string;
     beschikbaarheid: string;
     interne_notities: string;

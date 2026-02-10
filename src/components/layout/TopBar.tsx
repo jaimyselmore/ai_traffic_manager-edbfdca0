@@ -26,14 +26,16 @@ export function TopBar() {
     <>
       <header className="flex h-14 items-center justify-end border-b border-border bg-card px-6">
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => navigate('/admin')}
-            className="p-2 rounded-full hover:bg-muted transition-colors"
-            title="Instellingen"
-          >
-            <Settings className="h-5 w-5" />
-          </button>
-          
+          {user?.rol === 'admin' && (
+            <button
+              onClick={() => navigate('/admin')}
+              className="p-2 rounded-full hover:bg-muted transition-colors"
+              title="Instellingen"
+            >
+              <Settings className="h-5 w-5" />
+            </button>
+          )}
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button

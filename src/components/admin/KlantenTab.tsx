@@ -42,9 +42,6 @@ type Klant = {
   id: string;
   klantnummer: string;
   naam: string;
-  contactpersoon: string | null;
-  email: string | null;
-  telefoon: string | null;
   adres: string | null;
   beschikbaarheid: string | null;
   interne_notities: string | null;
@@ -54,9 +51,6 @@ type Klant = {
 const emptyForm = {
   klantnummer: '',
   naam: '',
-  contactpersoon: '',
-  email: '',
-  telefoon: '',
   postcode: '',
   huisnummer: '',
   plaats: '',
@@ -131,9 +125,6 @@ export function KlantenTab() {
   type KlantDbData = {
     klantnummer: string;
     naam: string;
-    contactpersoon: string;
-    email: string;
-    telefoon: string;
     adres: string;
     beschikbaarheid: string;
     interne_notities: string;
@@ -180,9 +171,7 @@ export function KlantenTab() {
 
   const filtered = klanten.filter((k: Klant) =>
     k.naam.toLowerCase().includes(search.toLowerCase()) ||
-    k.klantnummer.toLowerCase().includes(search.toLowerCase()) ||
-    k.contactpersoon?.toLowerCase().includes(search.toLowerCase()) ||
-    k.email?.toLowerCase().includes(search.toLowerCase())
+    k.klantnummer.toLowerCase().includes(search.toLowerCase())
   );
 
   const openCreate = () => {
@@ -197,9 +186,6 @@ export function KlantenTab() {
     setForm({
       klantnummer: item.klantnummer,
       naam: item.naam,
-      contactpersoon: item.contactpersoon || '',
-      email: item.email || '',
-      telefoon: item.telefoon || '',
       postcode: parsed.postcode,
       huisnummer: parsed.huisnummer,
       plaats: parsed.plaats,
@@ -231,9 +217,6 @@ export function KlantenTab() {
     const formData = {
       klantnummer: form.klantnummer,
       naam: form.naam,
-      contactpersoon: form.contactpersoon,
-      email: form.email,
-      telefoon: form.telefoon,
       adres: combineAddress(form.postcode, form.huisnummer, form.plaats, form.land),
       beschikbaarheid: form.beschikbaarheid,
       interne_notities: form.interne_notities,
@@ -276,9 +259,6 @@ export function KlantenTab() {
             <TableRow>
               <TableHead className="w-24">Klantnr</TableHead>
               <TableHead>Naam</TableHead>
-              <TableHead>Contactpersoon</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Telefoon</TableHead>
               <TableHead>Adres</TableHead>
               <TableHead>Beschikbaarheid</TableHead>
               <TableHead>Interne notities</TableHead>
@@ -289,13 +269,13 @@ export function KlantenTab() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                   Laden...
                 </TableCell>
               </TableRow>
             ) : filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                   Geen klanten gevonden
                 </TableCell>
               </TableRow>
@@ -304,9 +284,6 @@ export function KlantenTab() {
                 <TableRow key={k.id}>
                   <TableCell className="font-mono text-xs">{k.klantnummer}</TableCell>
                   <TableCell className="font-medium">{k.naam}</TableCell>
-                  <TableCell>{k.contactpersoon || '-'}</TableCell>
-                  <TableCell>{k.email || '-'}</TableCell>
-                  <TableCell>{k.telefoon || '-'}</TableCell>
                   <TableCell className="max-w-[200px] truncate" title={k.adres || ''}>{k.adres || '-'}</TableCell>
                   <TableCell className="max-w-[150px] truncate" title={k.beschikbaarheid || ''}>{k.beschikbaarheid || '-'}</TableCell>
                   <TableCell className="max-w-[200px] truncate" title={k.interne_notities || ''}>{k.interne_notities || '-'}</TableCell>
@@ -352,28 +329,6 @@ export function KlantenTab() {
                   value={form.naam}
                   onChange={(e) => setForm({ ...form, naam: e.target.value })}
                   required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Contactpersoon</Label>
-                <Input
-                  value={form.contactpersoon}
-                  onChange={(e) => setForm({ ...form, contactpersoon: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Email</Label>
-                <Input
-                  type="email"
-                  value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2 col-span-2">
-                <Label>Telefoon</Label>
-                <Input
-                  value={form.telefoon}
-                  onChange={(e) => setForm({ ...form, telefoon: e.target.value })}
                 />
               </div>
               <div className="space-y-2">
