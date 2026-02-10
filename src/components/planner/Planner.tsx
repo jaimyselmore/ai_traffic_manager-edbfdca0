@@ -255,7 +255,10 @@ export function Planner() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent className="w-[200px]">
-              <DropdownMenuItem onClick={selectAllEmployees}>
+              <DropdownMenuItem
+                onClick={selectAllEmployees}
+                onSelect={(e) => e.preventDefault()}
+              >
                 Toon iedereen
               </DropdownMenuItem>
               <DropdownMenuSeparator />
@@ -264,6 +267,7 @@ export function Planner() {
                   key={emp.id}
                   checked={visibleEmployeeIds.includes(emp.id)}
                   onCheckedChange={() => toggleEmployee(emp.id)}
+                  onSelect={(e) => e.preventDefault()}
                 >
                   {emp.name}
                 </DropdownMenuCheckboxItem>
