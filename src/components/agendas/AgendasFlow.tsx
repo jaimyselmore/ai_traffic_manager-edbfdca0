@@ -13,9 +13,18 @@ import { cn } from '@/lib/utils';
 import { mockClients, generateMockTasks, Task } from '@/lib/mockData';
 import { getWeekStart, getWeekNumber, formatDateRange } from '@/lib/helpers/dateHelpers';
 import { TaskLegend } from '@/components/planner/TaskLegend';
-import { Loader2, CheckCircle2, XCircle } from 'lucide-react';
+import { Loader2, CheckCircle2, XCircle, Link, Unlink } from 'lucide-react';
 import { useEmployees } from '@/hooks/use-employees';
 import type { Employee } from '@/lib/data/types';
+import { supabase } from '@/integrations/supabase/client';
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+
+interface MicrosoftStatus {
+  connected: boolean;
+  connectedAt?: string;
+  email?: string;
+}
 
 const dayNames = ['Ma', 'Di', 'Wo', 'Do', 'Vr'];
 const timeSlots = [9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
@@ -234,6 +243,90 @@ export function AgendasFlow() {
 
   // Medewerkers uit Supabase (zelfde bron als Planner)
   const { data: employees = [], isLoading: isLoadingEmployees } = useEmployees();
+
+  // Microsoft connection states
+  const [msStatus, setMsStatus] = useState<MicrosoftStatus | null>(null);
+  const [msLoading, setMsLoading] = useState(false);
+  const [msMessage, setMsMessage] = useState('');
+
+  // Get werknemerId for selected employee (from database)
+  const selectedEmployeeData = useMemo(() => {
+    return employees.find((emp) => emp.id === selectedEmployee);
+  }, [employees, selectedEmployee]);
+
+  // Check Microsoft connection status when employee is selected
+  const checkMicrosoftStatus = async (werknemerId: string) => {
+    setMsLoading(true);
+    setMsStatus(null);
+    try {
+      const { data, error } = await supabase.functions.invoke('microsoft-status', {
+        body: { werknemerId }
+      });
+      if (error) {
+        console.error('Failed to check Microsoft status:', error);
+      } else {
+        setMsStatus(data);
+      }
+    } catch (error) {
+      console.error('Error checking Microsoft status:', error);
+    } finally {
+      setMsLoading(false);
+    }
+  };
+
+  // Check Microsoft status when employee changes
+  useEffect(() => {
+    if (selectedEmployee && selectedEmployeeData) {
+      // Use werknemer_id from database (the numeric ID)
+      const werknemerId = selectedEmployeeData.id;
+      checkMicrosoftStatus(werknemerId);
+    } else {
+      setMsStatus(null);
+    }
+  }, [selectedEmployee, selectedEmployeeData]);
+
+  // Check for OAuth callback success/error in URL
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('microsoft_connected') === 'true') {
+      setMsMessage('Microsoft account succesvol gekoppeld!');
+      if (selectedEmployee) {
+        checkMicrosoftStatus(selectedEmployee);
+      }
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (params.get('error')) {
+      const error = params.get('error');
+      setMsMessage(`Fout bij koppelen: ${error}`);
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+
+  const handleConnectMicrosoft = () => {
+    if (!selectedEmployee) return;
+    // Redirect to Supabase Edge Function OAuth endpoint
+    window.location.href = `${SUPABASE_URL}/functions/v1/microsoft-login/${selectedEmployee}`;
+  };
+
+  const handleDisconnectMicrosoft = async () => {
+    if (!selectedEmployee) return;
+    setMsLoading(true);
+    try {
+      const { error } = await supabase.functions.invoke('microsoft-disconnect', {
+        body: { werknemerId: selectedEmployee }
+      });
+      if (error) {
+        setMsMessage('Fout bij ontkoppelen');
+      } else {
+        setMsMessage('Microsoft account ontkoppeld');
+        checkMicrosoftStatus(selectedEmployee);
+      }
+    } catch (error) {
+      console.error('Error disconnecting Microsoft:', error);
+      setMsMessage('Fout bij ontkoppelen');
+    } finally {
+      setMsLoading(false);
+    }
+  };
   
   // Selection states for Huidige agenda
   const [isSelectingCurrent, setIsSelectingCurrent] = useState(false);
@@ -274,10 +367,6 @@ export function AgendasFlow() {
     if (!selectedEmployee) return [];
     return tasks.filter((task) => task.employeeId === selectedEmployee);
   }, [tasks, selectedEmployee]);
-
-  const selectedEmployeeData = useMemo(() => {
-    return employees.find((emp) => emp.id === selectedEmployee);
-  }, [employees, selectedEmployee]);
 
   // Als de geselecteerde medewerker niet meer bestaat (bijv. verwijderd), reset selectie.
   useEffect(() => {
@@ -475,6 +564,71 @@ export function AgendasFlow() {
                 ))}
               </SelectContent>
             </Select>
+
+            {/* Microsoft connection status */}
+            {selectedEmployee && (
+              <div className="pt-2 border-t border-border mt-2">
+                {msMessage && (
+                  <div className="mb-2 p-2 rounded-lg bg-blue-50 dark:bg-blue-950/30 text-blue-900 dark:text-blue-100 text-xs">
+                    {msMessage}
+                  </div>
+                )}
+
+                {msLoading ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Status ophalen...</span>
+                  </div>
+                ) : msStatus ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      {msStatus.connected ? (
+                        <>
+                          <CheckCircle2 className="h-4 w-4 text-green-500" />
+                          <span className="text-xs font-medium text-green-700 dark:text-green-400">Microsoft gekoppeld</span>
+                        </>
+                      ) : (
+                        <>
+                          <XCircle className="h-4 w-4 text-red-500" />
+                          <span className="text-xs font-medium text-red-700 dark:text-red-400">Niet gekoppeld</span>
+                        </>
+                      )}
+                    </div>
+                    {msStatus.connected && msStatus.email && (
+                      <p className="text-xs text-muted-foreground truncate max-w-[180px]" title={msStatus.email}>
+                        {msStatus.email}
+                      </p>
+                    )}
+                    <div>
+                      {msStatus.connected ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full text-xs h-7"
+                          onClick={handleDisconnectMicrosoft}
+                          disabled={msLoading}
+                        >
+                          <Unlink className="h-3 w-3 mr-1" />
+                          Ontkoppelen
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          className="w-full text-xs h-7"
+                          onClick={handleConnectMicrosoft}
+                          disabled={msLoading}
+                        >
+                          <Link className="h-3 w-3 mr-1" />
+                          Microsoft koppelen
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">Status niet beschikbaar</p>
+                )}
+              </div>
+            )}
 
             {/* View options - only show after employee is selected */}
             {selectedEmployee && (
