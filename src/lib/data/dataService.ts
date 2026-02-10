@@ -146,77 +146,6 @@ export async function getEmployees(): Promise<Employee[]> {
 }
 
 /**
- * Haal alleen medewerkers op die IN DE PLANNING staan (in_planning = true)
- */
-export async function getPlannableEmployees(): Promise<Employee[]> {
-  const { data, error } = await secureSelect<MedewerkerRow>('medewerkers', {
-    columns: '*',
-    filters: [
-      { column: 'beschikbaar', operator: 'eq', value: true },
-      { column: 'in_planning', operator: 'eq', value: true },
-    ],
-    order: { column: 'display_order', ascending: true },
-  })
-
-  if (error) {
-    console.error('Fout bij ophalen planbare werknemers:', error)
-    throw error
-  }
-
-  const employees = ((data || []) as MedewerkerRow[]).map((werknemer) => ({
-    id: werknemer.werknemer_id.toString(),
-    name: werknemer.naam_werknemer,
-    email: werknemer.email || '',
-    primaryRole: werknemer.primaire_rol || 'Onbekend',
-    secondaryRole: werknemer.tweede_rol || undefined,
-    tertiaryRole: werknemer.derde_rol || undefined,
-    discipline: werknemer.discipline || 'Algemeen',
-    duoTeam: werknemer.duo_team || undefined,
-    isPlanner: werknemer.is_planner,
-    workHours: werknemer.werkuren,
-    partTimeDay: werknemer.parttime_dag || undefined,
-    available: werknemer.beschikbaar,
-    skills: werknemer.vaardigheden || '',
-    notes: werknemer.notities || '',
-    role: werknemer.primaire_rol || 'Onbekend',
-  }))
-
-  // Groepeer duo teams (client-side logic)
-  const processedEmployees: Employee[] = []
-  const processedDuoTeams = new Set<string>()
-
-  for (const employee of employees) {
-    if (!employee.duoTeam) {
-      processedEmployees.push(employee)
-      continue
-    }
-
-    if (processedDuoTeams.has(employee.duoTeam)) {
-      continue
-    }
-
-    const partner = employees.find(
-      (e) => e.duoTeam === employee.duoTeam && e.id !== employee.id
-    )
-
-    if (partner) {
-      processedEmployees.push({
-        ...employee,
-        id: `${employee.id},${partner.id}`,
-        name: `${employee.name} & ${partner.name}`,
-        role: 'Creative Team',
-        primaryRole: 'Creative Team',
-      })
-      processedDuoTeams.add(employee.duoTeam)
-    } else {
-      processedEmployees.push(employee)
-    }
-  }
-
-  return processedEmployees
-}
-
-/**
  * Haal disciplines op via secure edge function
  */
 export async function getWorkTypes(): Promise<WorkType[]> {
@@ -257,9 +186,6 @@ export async function getClients(): Promise<Client[]> {
     id: klant.id,
     code: klant.klantnummer,
     name: klant.naam,
-    contactPerson: klant.contactpersoon || '',
-    email: klant.email || '',
-    phone: klant.telefoon || '',
     address: klant.adres || '',
     beschikbaarheid: klant.beschikbaarheid || '',
     interne_notities: klant.interne_notities || '',

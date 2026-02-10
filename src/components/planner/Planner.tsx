@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { Maximize2, Download, ZoomIn, ZoomOut } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
+import { Maximize2, Download, ZoomIn, ZoomOut, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -13,6 +13,8 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuCheckboxItem,
+  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 
 import { TaskLegend } from './TaskLegend';
@@ -20,29 +22,44 @@ import { PlannerGrid } from './PlannerGrid';
 import { FullscreenPlanner } from './FullscreenPlanner';
 import { getWeekStart, getWeekNumber, formatDateRange } from '@/lib/helpers/dateHelpers';
 import { useEmployees } from '@/hooks/use-employees';
-import { usePlannableEmployees } from '@/hooks/use-plannable-employees';
 import { useClients } from '@/hooks/use-clients';
 import { useTasks, Task } from '@/hooks/use-tasks';
 import { toast } from '@/hooks/use-toast';
 import { exportToCSV, exportToPDF } from '@/lib/export/planningExport';
+
+const STORAGE_KEY = 'planner-visible-employees';
 
 const zoomLevels = [50, 75, 100, 125, 150];
 
 export function Planner() {
   const [currentWeekStart, setCurrentWeekStart] = useState(() => getWeekStart(new Date()));
   const currentWeekNumber = getWeekNumber(getWeekStart(new Date())); // The actual current week
-  const [selectedEmployee, setSelectedEmployee] = useState<string>('all');
   const [selectedClient, setSelectedClient] = useState<string>('all');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [plannerZoom, setPlannerZoom] = useState<number>(100);
 
+  // Visible employees - stored in localStorage
+  const [visibleEmployeeIds, setVisibleEmployeeIds] = useState<string[]>(() => {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    return stored ? JSON.parse(stored) : [];
+  });
+
   // Fetch data from Supabase
-  // employees = alle medewerkers (voor dropdown filter)
-  // plannableEmployees = alleen planbare medewerkers (voor de grid)
   const { data: employees = [], isLoading: isLoadingEmployees } = useEmployees();
-  const { data: plannableEmployees = [], isLoading: isLoadingPlannableEmployees } = usePlannableEmployees();
   const { data: clients = [], isLoading: isLoadingClients } = useClients();
   const { data: tasksFromDb = [], isLoading: isLoadingTasks } = useTasks(currentWeekStart);
+
+  // Save visible employees to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(visibleEmployeeIds));
+  }, [visibleEmployeeIds]);
+
+  // If no employees selected yet and employees loaded, show all by default
+  useEffect(() => {
+    if (employees.length > 0 && visibleEmployeeIds.length === 0) {
+      setVisibleEmployeeIds(employees.map(e => e.id));
+    }
+  }, [employees]);
 
   const weekNumber = getWeekNumber(currentWeekStart);
   const dateRange = formatDateRange(currentWeekStart);
@@ -51,22 +68,38 @@ export function Planner() {
 
   const filteredTasks = useMemo(() => {
     return tasks.filter((task) => {
-      if (selectedEmployee !== 'all' && task.employeeId !== selectedEmployee) return false;
+      // Filter by visible employees
+      if (!visibleEmployeeIds.includes(task.employeeId)) return false;
       if (selectedClient !== 'all' && task.clientName !== selectedClient) return false;
       return true;
     });
-  }, [tasks, selectedEmployee, selectedClient]);
+  }, [tasks, visibleEmployeeIds, selectedClient]);
 
-  // Voor de grid: gebruik alleen planbare employees
+  // Voor de grid: gebruik alleen geselecteerde employees
   const filteredEmployees = useMemo(() => {
-    if (selectedEmployee === 'all') return plannableEmployees;
-    // Als specifieke employee geselecteerd, filter op planbare employees
-    return plannableEmployees.filter((emp) => emp.id === selectedEmployee);
-  }, [selectedEmployee, plannableEmployees]);
+    return employees.filter((emp) => visibleEmployeeIds.includes(emp.id));
+  }, [employees, visibleEmployeeIds]);
+
+  // Toggle employee visibility
+  const toggleEmployee = (employeeId: string) => {
+    setVisibleEmployeeIds(prev => {
+      if (prev.includes(employeeId)) {
+        // Don't allow deselecting if it's the last one
+        if (prev.length === 1) return prev;
+        return prev.filter(id => id !== employeeId);
+      }
+      return [...prev, employeeId];
+    });
+  };
+
+  // Select all employees
+  const selectAllEmployees = () => {
+    setVisibleEmployeeIds(employees.map(e => e.id));
+  };
 
   const handleDownloadCSV = () => {
     try {
-      exportToCSV(tasksFromDb, plannableEmployees, currentWeekStart, weekNumber);
+      exportToCSV(filteredTasks, filteredEmployees, currentWeekStart, weekNumber);
       toast({
         title: 'Export geslaagd',
         description: 'CSV is gedownload.',
@@ -82,7 +115,7 @@ export function Planner() {
 
   const handleDownloadPDF = () => {
     try {
-      exportToPDF(tasksFromDb, plannableEmployees, currentWeekStart, weekNumber, dateRange);
+      exportToPDF(filteredTasks, filteredEmployees, currentWeekStart, weekNumber, dateRange);
       toast({
         title: 'PDF geopend',
         description: 'Print dialoog wordt geopend...',
@@ -210,19 +243,33 @@ export function Planner() {
             </SelectContent>
           </Select>
 
-          <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Selecteer medewerker" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Alle medewerkers</SelectItem>
-              {plannableEmployees.map((emp) => (
-                <SelectItem key={emp.id} value={emp.id}>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="w-[200px] justify-between">
+                <span className="flex items-center gap-2">
+                  <Users className="h-4 w-4" />
+                  {visibleEmployeeIds.length === employees.length
+                    ? 'Alle medewerkers'
+                    : `${visibleEmployeeIds.length} medewerker${visibleEmployeeIds.length !== 1 ? 's' : ''}`}
+                </span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-[200px]">
+              <DropdownMenuItem onClick={selectAllEmployees}>
+                Toon iedereen
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              {employees.map((emp) => (
+                <DropdownMenuCheckboxItem
+                  key={emp.id}
+                  checked={visibleEmployeeIds.includes(emp.id)}
+                  onCheckedChange={() => toggleEmployee(emp.id)}
+                >
                   {emp.name}
-                </SelectItem>
+                </DropdownMenuCheckboxItem>
               ))}
-            </SelectContent>
-          </Select>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           <Select value={selectedClient} onValueChange={setSelectedClient}>
             <SelectTrigger className="w-[200px]">
