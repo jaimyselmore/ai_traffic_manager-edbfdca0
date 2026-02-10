@@ -13,10 +13,8 @@ serve(async (req) => {
   }
 
   try {
-    // Get werknemerId from URL path
-    const url = new URL(req.url)
-    const pathParts = url.pathname.split('/')
-    const werknemerId = pathParts[pathParts.length - 1]
+    // Get werknemerId from request body
+    const { werknemerId } = await req.json()
 
     if (!werknemerId) {
       return new Response(

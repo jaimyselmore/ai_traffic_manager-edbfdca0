@@ -1,8 +1,9 @@
 import { Eye, Upload, CheckCircle2, XCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { supabase } from '@/integrations/supabase/client';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 interface AgendaCardProps {
   title: string;
@@ -70,12 +71,13 @@ export function Agendas({ onNavigate }: AgendasProps) {
   const checkMicrosoftStatus = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/api/auth/microsoft/status/${testEmployeeId}`);
-      if (response.ok) {
-        const data = await response.json();
-        setMsStatus(data);
+      const { data, error } = await supabase.functions.invoke('microsoft-status', {
+        body: { werknemerId: testEmployeeId }
+      });
+      if (error) {
+        console.error('Failed to check Microsoft status:', error);
       } else {
-        console.error('Failed to check Microsoft status');
+        setMsStatus(data);
       }
     } catch (error) {
       console.error('Error checking Microsoft status:', error);
@@ -85,21 +87,21 @@ export function Agendas({ onNavigate }: AgendasProps) {
   };
 
   const handleConnectMicrosoft = () => {
-    // Redirect to backend OAuth endpoint
-    window.location.href = `${API_BASE}/api/auth/microsoft/login/${testEmployeeId}`;
+    // Redirect to Supabase Edge Function OAuth endpoint
+    window.location.href = `${SUPABASE_URL}/functions/v1/microsoft-login/${testEmployeeId}`;
   };
 
   const handleDisconnectMicrosoft = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/api/auth/microsoft/disconnect/${testEmployeeId}`, {
-        method: 'POST',
+      const { error } = await supabase.functions.invoke('microsoft-disconnect', {
+        body: { werknemerId: testEmployeeId }
       });
-      if (response.ok) {
+      if (error) {
+        setMessage('Fout bij ontkoppelen');
+      } else {
         setMessage('Microsoft account ontkoppeld');
         checkMicrosoftStatus();
-      } else {
-        setMessage('Fout bij ontkoppelen');
       }
     } catch (error) {
       console.error('Error disconnecting Microsoft:', error);
