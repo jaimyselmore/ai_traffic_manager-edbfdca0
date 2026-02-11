@@ -101,18 +101,27 @@ export default function EllenVoorstel() {
           },
         });
 
+        console.log('Ellen response:', { data, error });
+
         if (error) throw new Error(error.message);
 
-        if (data?.voorstel?.type === 'planning_voorstel' && data.voorstel.taken) {
+        if (data?.voorstel?.type === 'planning_voorstel' && data.voorstel.taken?.length > 0) {
           setVoorstellen(data.voorstel.taken);
           setEllenMessage(data.antwoord || 'Hier is mijn voorstel voor de planning:');
-        } else {
+        } else if (data?.antwoord) {
+          console.warn('Geen planning_voorstel ontvangen, gebruik fallback. Antwoord:', data.antwoord);
           const defaultTaken = generateDefaultVoorstel(projectInfo);
           setVoorstellen(defaultTaken);
-          setEllenMessage(data?.antwoord || 'Op basis van je aanvraag heb ik het volgende voorstel gemaakt:');
+          setEllenMessage(data.antwoord || 'Op basis van je aanvraag heb ik het volgende voorstel gemaakt:');
+        } else {
+          console.warn('Leeg antwoord van Ellen, gebruik fallback');
+          const defaultTaken = generateDefaultVoorstel(projectInfo);
+          setVoorstellen(defaultTaken);
+          setEllenMessage('Op basis van je aanvraag heb ik het volgende voorstel gemaakt:');
         }
         setFlowState('voorstel');
-      } catch {
+      } catch (err) {
+        console.error('Ellen voorstel error:', err);
         const defaultTaken = generateDefaultVoorstel(projectInfo);
         setVoorstellen(defaultTaken);
         setEllenMessage('Ik heb een planning opgesteld op basis van je aanvraag:');

@@ -908,42 +908,177 @@ Deno.serve(async (req) => {
     }
     openaiMessages.push({ role: 'user', content: bericht });
 
-    // 7. Check OpenAI key
+    // 7. Check AI key (prefer Lovable AI gateway, fallback to OpenAI)
+    const lovableKey = Deno.env.get('LOVABLE_API_KEY');
     const openaiKey = Deno.env.get('OPENAI_API_KEY');
-    if (!openaiKey) {
+    const aiKey = lovableKey || openaiKey;
+    const aiUrl = lovableKey
+      ? 'https://ai.gateway.lovable.dev/v1/chat/completions'
+      : 'https://api.openai.com/v1/chat/completions';
+    const aiModel = lovableKey ? 'google/gemini-2.5-flash' : 'gpt-4o-mini';
+
+    if (!aiKey) {
       return new Response(
-        JSON.stringify({ error: 'OpenAI API key niet geconfigureerd. Stel OPENAI_API_KEY in als Supabase secret.' }),
+        JSON.stringify({ error: 'AI API key niet geconfigureerd.' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // 8. Call OpenAI met tool calling loop (max 5 iteraties)
+    // 7b. Pre-fetch data voor planning aanvragen
+    // Als het bericht een "PLANNING AANVRAAG" bevat, haal beschikbaarheidsdata vooraf op
+    const isPlanningRequest = bericht.includes('PLANNING AANVRAAG');
+    if (isPlanningRequest) {
+      try {
+        // Extract medewerker namen uit het bericht
+        const medewerkerMatches = bericht.match(/Medewerkers: (.+)/g) || [];
+        const alleMedewerkers = new Set<string>();
+        for (const match of medewerkerMatches) {
+          const namen = match.replace('Medewerkers: ', '').split(', ');
+          namen.forEach((n: string) => alleMedewerkers.add(n.trim()));
+        }
+
+        // Extract startdatum en deadline
+        const deadlineMatch = bericht.match(/Deadline: (\d{4}-\d{2}-\d{2})/);
+        const startMatch = bericht.match(/Gewenste startdatum: (\d{4}-\d{2}-\d{2})/);
+        const deadline = deadlineMatch?.[1] || '';
+        const startDatum = startMatch?.[1] || new Date().toISOString().split('T')[0];
+
+        // Bereken alle weken van start tot deadline
+        const start = new Date(startDatum + 'T00:00:00');
+        const dayOfWeek = start.getDay();
+        const monday = new Date(start);
+        monday.setDate(start.getDate() - ((dayOfWeek + 6) % 7)); // Ga naar maandag
+
+        const end = deadline ? new Date(deadline + 'T00:00:00') : new Date(monday);
+        if (!deadline) end.setDate(end.getDate() + 70); // 10 weken default
+
+        const weken: string[] = [];
+        const current = new Date(monday);
+        while (current <= end) {
+          weken.push(current.toISOString().split('T')[0]);
+          current.setDate(current.getDate() + 7);
+        }
+
+        // Haal beschikbaarheidsdata op voor alle medewerkers
+        let beschikbaarheidContext = '\n\n## BESCHIKBAARHEIDSDATA (vooraf opgehaald)\n';
+
+        for (const naam of alleMedewerkers) {
+          beschikbaarheidContext += `\n### ${naam}\n`;
+
+          // Medewerker info
+          const { data: mw } = await supabase
+            .from('medewerkers')
+            .select('werknemer_id, naam_werknemer, werkuren, parttime_dag, beschikbaar')
+            .ilike('naam_werknemer', `%${naam}%`)
+            .limit(1)
+            .single();
+
+          if (!mw) {
+            beschikbaarheidContext += `⚠️ Medewerker "${naam}" niet gevonden in systeem.\n`;
+            continue;
+          }
+          if (!mw.beschikbaar) {
+            beschikbaarheidContext += `⚠️ ${mw.naam_werknemer} is momenteel niet beschikbaar.\n`;
+            continue;
+          }
+
+          beschikbaarheidContext += `- Werkuren: ${mw.werkuren}u/week\n`;
+          if (mw.parttime_dag) beschikbaarheidContext += `- Parttime dag (VRIJ): ${mw.parttime_dag}\n`;
+
+          // Haal alle taken op voor de hele periode
+          const { data: taken } = await supabase
+            .from('taken')
+            .select('dag_van_week, start_uur, duur_uren, fase_naam, klant_naam, week_start')
+            .eq('werknemer_naam', mw.naam_werknemer)
+            .gte('week_start', weken[0])
+            .lte('week_start', weken[weken.length - 1]);
+
+          // Haal verlof op
+          const { data: verlof } = await supabase
+            .from('beschikbaarheid_medewerkers')
+            .select('type, start_datum, eind_datum, reden')
+            .eq('werknemer_naam', mw.naam_werknemer)
+            .eq('status', 'goedgekeurd')
+            .lte('start_datum', weken[weken.length - 1])
+            .gte('eind_datum', weken[0]);
+
+          if (verlof?.length) {
+            beschikbaarheidContext += `- Verlof:\n`;
+            for (const v of verlof) {
+              beschikbaarheidContext += `  • ${v.type}: ${v.start_datum} t/m ${v.eind_datum} (${v.reden || 'geen reden'})\n`;
+            }
+          }
+
+          // Groepeer taken per week
+          const takenPerWeek: Record<string, Array<{ dag_van_week: number; start_uur: number; duur_uren: number; fase_naam: string; klant_naam: string }>> = {};
+          for (const t of (taken || [])) {
+            if (!takenPerWeek[t.week_start]) takenPerWeek[t.week_start] = [];
+            takenPerWeek[t.week_start].push(t);
+          }
+
+          // Toon bezetting per week (alleen weken met taken)
+          const wekenMetTaken = Object.keys(takenPerWeek).sort();
+          if (wekenMetTaken.length > 0) {
+            beschikbaarheidContext += `- Bestaande bezetting:\n`;
+            for (const week of wekenMetTaken) {
+              const weekTaken = takenPerWeek[week];
+              const dagen = ['Ma', 'Di', 'Wo', 'Do', 'Vr'];
+              const dagInfo = weekTaken.map(t => `${dagen[t.dag_van_week]} ${t.start_uur}:00-${t.start_uur + t.duur_uren}:00 (${t.klant_naam}/${t.fase_naam})`);
+              beschikbaarheidContext += `  • Week ${week}: ${dagInfo.join(', ')}\n`;
+            }
+          } else {
+            beschikbaarheidContext += `- Geen bestaande taken in deze periode → volledig beschikbaar\n`;
+          }
+        }
+
+        // Voeg beschikbaarheidsdata toe aan het user bericht
+        beschikbaarheidContext += `\n## BELANGRIJK\n`;
+        beschikbaarheidContext += `Je hebt alle beschikbaarheidsdata hierboven. Je HOEFT NIET check_beschikbaarheid aan te roepen.\n`;
+        beschikbaarheidContext += `Roep DIRECT plan_project aan met het voorstel.\n`;
+        beschikbaarheidContext += `Geef ook een korte samenvatting van je voorstel in je antwoord.\n`;
+
+        // Vervang het laatste user bericht met de verrijkte versie
+        openaiMessages[openaiMessages.length - 1].content = bericht + beschikbaarheidContext;
+
+      } catch (e) {
+        console.error('Fout bij pre-fetch beschikbaarheid:', e);
+        // Ga door met origineel bericht als pre-fetch faalt
+      }
+    }
+
+    // 8. Call AI met tool calling loop (max 8 iteraties)
     let assistantMessage = '';
     // deno-lint-ignore no-explicit-any
-    let pendingVoorstel: any = null; // Bewaar voorstel apart voor frontend
+    let pendingVoorstel: any = null;
     // deno-lint-ignore no-explicit-any
     const currentMessages = [...openaiMessages];
 
-    for (let i = 0; i < 5; i++) {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    for (let i = 0; i < 8; i++) {
+      const response = await fetch(aiUrl, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${openaiKey}`,
+          'Authorization': `Bearer ${aiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-4o-mini',
+          model: aiModel,
           messages: currentMessages,
           tools: TOOLS,
           tool_choice: 'auto',
           temperature: 0.7,
-          max_tokens: 1500,
+          max_tokens: 4000,
         }),
       });
 
       if (!response.ok) {
         const errText = await response.text();
-        console.error('OpenAI API error:', errText);
+        console.error('AI API error:', response.status, errText);
+        if (response.status === 429) {
+          return new Response(
+            JSON.stringify({ error: 'Te veel verzoeken. Probeer het over een minuut opnieuw.' }),
+            { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
         return new Response(
           JSON.stringify({ error: 'Fout bij communicatie met AI' }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
