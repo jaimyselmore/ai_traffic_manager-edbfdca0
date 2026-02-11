@@ -30,21 +30,24 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
+    // Check if token exists in microsoft_tokens table (single source of truth)
     const { data, error } = await supabase
-      .from('medewerkers')
-      .select('microsoft_connected, microsoft_connected_at, microsoft_email')
+      .from('microsoft_tokens')
+      .select('created_at, token_expires_at')
       .eq('werknemer_id', parseInt(werknemerId))
-      .single()
+      .maybeSingle()
 
     if (error) {
       throw error
     }
 
+    // Connected if a token record exists
+    const connected = data !== null
+
     return new Response(
       JSON.stringify({
-        connected: data.microsoft_connected || false,
-        connectedAt: data.microsoft_connected_at,
-        email: data.microsoft_email,
+        connected,
+        connectedAt: data?.created_at || null,
       }),
       {
         status: 200,

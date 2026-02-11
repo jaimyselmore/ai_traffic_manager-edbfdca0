@@ -23,7 +23,6 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 interface MicrosoftStatus {
   connected: boolean;
   connectedAt?: string;
-  email?: string;
 }
 
 const dayNames = ['Ma', 'Di', 'Wo', 'Do', 'Vr'];
@@ -599,11 +598,6 @@ export function AgendasFlow() {
                         </>
                       )}
                     </div>
-                    {msStatus.connected && msStatus.email && (
-                      <p className="text-xs text-muted-foreground truncate max-w-[180px]" title={msStatus.email}>
-                        {msStatus.email}
-                      </p>
-                    )}
                     <div>
                       {msStatus.connected ? (
                         <Button

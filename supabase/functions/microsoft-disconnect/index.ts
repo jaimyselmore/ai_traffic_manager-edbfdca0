@@ -30,21 +30,15 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    // Delete tokens
-    await supabase
+    // Delete tokens from microsoft_tokens table (single source of truth)
+    const { error } = await supabase
       .from('microsoft_tokens')
       .delete()
       .eq('werknemer_id', parseInt(werknemerId))
 
-    // Update employee status
-    await supabase
-      .from('medewerkers')
-      .update({
-        microsoft_connected: false,
-        microsoft_connected_at: null,
-        microsoft_email: null,
-      })
-      .eq('werknemer_id', parseInt(werknemerId))
+    if (error) {
+      throw error
+    }
 
     console.log(`✅ Microsoft account disconnected for employee ${werknemerId}`)
 

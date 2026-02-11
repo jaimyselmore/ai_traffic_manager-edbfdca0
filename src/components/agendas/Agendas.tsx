@@ -34,7 +34,6 @@ function AgendaCard({ title, description, icon, onClick }: AgendaCardProps) {
 interface MicrosoftStatus {
   connected: boolean;
   connectedAt?: string;
-  email?: string;
 }
 
 interface AgendasProps {
@@ -148,12 +147,6 @@ export function Agendas({ onNavigate }: AgendasProps) {
                 </>
               )}
             </div>
-
-            {msStatus.connected && msStatus.email && (
-              <p className="text-sm text-muted-foreground">
-                Email: {msStatus.email}
-              </p>
-            )}
 
             {msStatus.connected && msStatus.connectedAt && (
               <p className="text-sm text-muted-foreground">
