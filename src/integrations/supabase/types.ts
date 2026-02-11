@@ -249,14 +249,12 @@ export type Database = {
           gebruikersnaam: string | null
           in_planning: boolean | null
           is_planner: boolean | null
-          microsoft_connected: boolean | null
-          microsoft_connected_at: string | null
-          microsoft_email: string | null
           naam_werknemer: string
           notities: string | null
           parttime_dag: string | null
           planner_volgorde: number | null
           primaire_rol: string | null
+          rol: string | null
           tweede_rol: string | null
           updated_at: string | null
           vaardigheden: string | null
@@ -275,14 +273,12 @@ export type Database = {
           gebruikersnaam?: string | null
           in_planning?: boolean | null
           is_planner?: boolean | null
-          microsoft_connected?: boolean | null
-          microsoft_connected_at?: string | null
-          microsoft_email?: string | null
           naam_werknemer: string
           notities?: string | null
           parttime_dag?: string | null
           planner_volgorde?: number | null
           primaire_rol?: string | null
+          rol?: string | null
           tweede_rol?: string | null
           updated_at?: string | null
           vaardigheden?: string | null
@@ -301,14 +297,12 @@ export type Database = {
           gebruikersnaam?: string | null
           in_planning?: boolean | null
           is_planner?: boolean | null
-          microsoft_connected?: boolean | null
-          microsoft_connected_at?: string | null
-          microsoft_email?: string | null
           naam_werknemer?: string
           notities?: string | null
           parttime_dag?: string | null
           planner_volgorde?: number | null
           primaire_rol?: string | null
+          rol?: string | null
           tweede_rol?: string | null
           updated_at?: string | null
           vaardigheden?: string | null
@@ -818,6 +812,7 @@ export type Database = {
           gebruikersnaam: string
           id: string
           is_planner: boolean | null
+          must_change_password: boolean
           naam: string
           password_hash: string
           rol: string
@@ -829,6 +824,7 @@ export type Database = {
           gebruikersnaam: string
           id?: string
           is_planner?: boolean | null
+          must_change_password?: boolean
           naam: string
           password_hash: string
           rol: string
@@ -840,6 +836,7 @@ export type Database = {
           gebruikersnaam?: string
           id?: string
           is_planner?: boolean | null
+          must_change_password?: boolean
           naam?: string
           password_hash?: string
           rol?: string
