@@ -150,6 +150,7 @@ export async function getMedewerkers() {
     is_planner: boolean | null;
     in_planning: boolean | null;
     display_order: number | null;
+    rol: string | null;
   }>('medewerkers', {
     order: { column: 'display_order', ascending: true },
   });
@@ -291,6 +292,7 @@ export async function updateMedewerker(
     is_planner: boolean;
     in_planning: boolean;
     display_order: number;
+    rol: string;
   }>,
   _userId?: string
 ) {

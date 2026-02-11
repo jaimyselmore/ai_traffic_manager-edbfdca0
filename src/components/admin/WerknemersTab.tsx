@@ -66,6 +66,7 @@ type Medewerker = {
   beschikbaar: boolean | null;
   is_planner: boolean | null;
   display_order: number | null;
+  rol: string | null;
 };
 
 const emptyForm = {
@@ -87,6 +88,7 @@ const emptyForm = {
   beschikbaar: true,
   is_planner: false,
   display_order: 0,
+  rol: '',
 };
 
 export function MedewerkersTab() {
@@ -243,6 +245,7 @@ export function MedewerkersTab() {
       beschikbaar: item.beschikbaar ?? true,
       is_planner: item.is_planner ?? false,
       display_order: item.display_order || 0,
+      rol: item.rol || '',
     });
     setIsDialogOpen(true);
   };
@@ -336,7 +339,14 @@ export function MedewerkersTab() {
                 <TableRow key={w.werknemer_id}>
                   <TableCell className="font-semibold text-primary">{w.display_order || '-'}</TableCell>
                   <TableCell className="font-mono text-xs">{w.werknemer_id}</TableCell>
-                  <TableCell className="font-medium">{w.naam_werknemer}</TableCell>
+                  <TableCell className="font-medium">
+                    {w.naam_werknemer}
+                    {w.rol === 'admin' && (
+                      <span className="ml-2 px-1.5 py-0.5 text-[10px] font-medium bg-primary/10 text-primary rounded">
+                        Admin
+                      </span>
+                    )}
+                  </TableCell>
                   <TableCell>{w.email || '-'}</TableCell>
                   <TableCell>{w.primaire_rol || '-'}</TableCell>
                   <TableCell>{w.discipline || '-'}</TableCell>
@@ -542,7 +552,7 @@ export function MedewerkersTab() {
                 onChange={(e) => setForm({ ...form, notities: e.target.value })}
               />
             </div>
-            <div className="flex gap-6">
+            <div className="flex gap-6 flex-wrap">
               <div className="flex items-center gap-2">
                 <Switch
                   checked={form.beschikbaar}
@@ -557,6 +567,15 @@ export function MedewerkersTab() {
                 />
                 <Label>Planner (toegang tot systeem)</Label>
               </div>
+              {user?.rol === 'admin' && (
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={form.rol === 'admin'}
+                    onCheckedChange={(checked) => setForm({ ...form, rol: checked ? 'admin' : '' })}
+                  />
+                  <Label>Admin (beheerrechten)</Label>
+                </div>
+              )}
             </div>
 
             {/* Gebruikersnaam en wachtwoord - alleen tonen als is_planner = true */}
