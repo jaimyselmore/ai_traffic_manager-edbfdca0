@@ -143,22 +143,75 @@ serve(async (req) => {
 
     console.log(`✅ Microsoft account connected for employee ${werknemerId}`)
 
-    // Redirect back to frontend with success
-    return new Response(null, {
-      status: 302,
+    // Return a success page that auto-closes (since we open login in new tab)
+    const successHtml = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Microsoft Gekoppeld</title>
+          <style>
+            body { font-family: system-ui, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; background: #f5f5f5; }
+            .card { background: white; padding: 40px; border-radius: 12px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+            .success { color: #22c55e; font-size: 48px; margin-bottom: 16px; }
+            h1 { color: #333; margin: 0 0 8px 0; font-size: 24px; }
+            p { color: #666; margin: 0; }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <div class="success">✓</div>
+            <h1>Microsoft account gekoppeld!</h1>
+            <p>Je kunt dit tabblad sluiten.</p>
+          </div>
+          <script>
+            // Store success in localStorage so original tab can detect it
+            localStorage.setItem('microsoft_connected_${werknemerId}', Date.now().toString());
+            // Try to close this tab after 2 seconds
+            setTimeout(() => window.close(), 2000);
+          </script>
+        </body>
+      </html>
+    `
+
+    return new Response(successHtml, {
+      status: 200,
       headers: {
         ...corsHeaders,
-        'Location': `${frontendUrl}/agendas?microsoft_connected=true`
+        'Content-Type': 'text/html; charset=utf-8'
       }
     })
   } catch (error: any) {
     console.error('Error handling Microsoft callback:', error)
-    const frontendUrl = Deno.env.get('FRONTEND_URL')!
-    return new Response(null, {
-      status: 302,
+
+    // Return an error page
+    const errorHtml = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Fout bij koppelen</title>
+          <style>
+            body { font-family: system-ui, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; background: #f5f5f5; }
+            .card { background: white; padding: 40px; border-radius: 12px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+            .error { color: #ef4444; font-size: 48px; margin-bottom: 16px; }
+            h1 { color: #333; margin: 0 0 8px 0; font-size: 24px; }
+            p { color: #666; margin: 0; }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <div class="error">✕</div>
+            <h1>Koppelen mislukt</h1>
+            <p>Sluit dit tabblad en probeer het opnieuw.</p>
+          </div>
+        </body>
+      </html>
+    `
+
+    return new Response(errorHtml, {
+      status: 200,
       headers: {
         ...corsHeaders,
-        'Location': `${frontendUrl}/agendas?error=connection_failed`
+        'Content-Type': 'text/html; charset=utf-8'
       }
     })
   }

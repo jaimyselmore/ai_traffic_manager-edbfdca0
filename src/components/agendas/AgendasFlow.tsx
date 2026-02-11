@@ -285,26 +285,31 @@ export function AgendasFlow() {
     }
   }, [selectedEmployee, selectedEmployeeData]);
 
-  // Check for OAuth callback success/error in URL
+  // Re-check Microsoft status when user returns to this tab (after OAuth in new tab)
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('microsoft_connected') === 'true') {
-      setMsMessage('Microsoft account succesvol gekoppeld!');
+    const handleFocus = () => {
       if (selectedEmployee) {
-        checkMicrosoftStatus(selectedEmployee);
+        // Check if there's a localStorage flag from the OAuth callback
+        const connectedKey = `microsoft_connected_${selectedEmployee}`;
+        const connectedTime = localStorage.getItem(connectedKey);
+        if (connectedTime) {
+          localStorage.removeItem(connectedKey);
+          setMsMessage('Microsoft account succesvol gekoppeld!');
+          checkMicrosoftStatus(selectedEmployee);
+        }
       }
-      window.history.replaceState({}, '', window.location.pathname);
-    } else if (params.get('error')) {
-      const error = params.get('error');
-      setMsMessage(`Fout bij koppelen: ${error}`);
-      window.history.replaceState({}, '', window.location.pathname);
-    }
-  }, []);
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [selectedEmployee]);
 
   const handleConnectMicrosoft = () => {
     if (!selectedEmployee) return;
-    // Redirect to Supabase Edge Function OAuth endpoint
-    window.location.href = `${SUPABASE_URL}/functions/v1/microsoft-login/${selectedEmployee}`;
+    // Open in new tab to avoid iframe restrictions (Lovable runs in iframe)
+    // Microsoft blocks login.microsoftonline.com from loading in iframes
+    const loginUrl = `${SUPABASE_URL}/functions/v1/microsoft-login/${selectedEmployee}`;
+    window.open(loginUrl, '_blank');
   };
 
   const handleDisconnectMicrosoft = async () => {
