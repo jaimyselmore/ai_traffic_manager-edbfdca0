@@ -15,6 +15,7 @@ import Meeting from "./pages/Meeting";
 import Verlof from "./pages/Verlof";
 
 import AgendaResultaat from "./pages/AgendaResultaat";
+import EllenVoorstel from "./pages/EllenVoorstel";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -36,6 +37,7 @@ const App = () => (
             <Route path="/meeting" element={<ProtectedRoute><Meeting /></ProtectedRoute>} />
             <Route path="/verlof" element={<ProtectedRoute><Verlof /></ProtectedRoute>} />
             <Route path="/agenda-resultaat" element={<ProtectedRoute><AgendaResultaat /></ProtectedRoute>} />
+            <Route path="/ellen-voorstel" element={<ProtectedRoute><EllenVoorstel /></ProtectedRoute>} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
