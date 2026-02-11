@@ -5,9 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
-import { getSessionToken } from '@/lib/data/secureDataClient';
+import { getSessionToken, secureSelect } from '@/lib/data/secureDataClient';
 import { saveAanvraag } from '@/components/dashboard/MijnAanvragen';
 import { toast } from '@/hooks/use-toast';
+import { Taak } from '@/lib/data/takenService';
 
 type FlowState = 'ellen-working' | 'voorstel' | 'color-select' | 'client-check' | 'placing' | 'done' | 'error';
 
@@ -62,6 +63,42 @@ export default function EllenVoorstel() {
   const [selectedWerktype, setSelectedWerktype] = useState<string>('concept');
   const [feedbackInput, setFeedbackInput] = useState('');
   const [isRequestingNewProposal, setIsRequestingNewProposal] = useState(false);
+  const [bestaandeTaken, setBestaandeTaken] = useState<Taak[]>([]);
+  const [isLoadingTaken, setIsLoadingTaken] = useState(false);
+
+  // Load existing tasks for relevant medewerkers and weeks
+  useEffect(() => {
+    async function loadBestaandeTaken() {
+      if (voorstellen.length === 0) return;
+
+      setIsLoadingTaken(true);
+      try {
+        // Get unique medewerkers and week_starts from voorstellen
+        const medewerkers = [...new Set(voorstellen.map(t => t.werknemer_naam))];
+        const weekStarts = [...new Set(voorstellen.map(t => t.week_start))];
+
+        // Load taken for each week (secureSelect doesn't support OR across weeks easily)
+        const allTaken: Taak[] = [];
+        for (const weekStart of weekStarts) {
+          const { data, error } = await secureSelect<Taak[]>('taken', {
+            filters: [{ column: 'week_start', operator: 'eq', value: weekStart }],
+          });
+          if (!error && data) {
+            // Filter to only include tasks for relevant medewerkers
+            const relevantTaken = data.filter(t => medewerkers.includes(t.werknemer_naam));
+            allTaken.push(...relevantTaken);
+          }
+        }
+        setBestaandeTaken(allTaken);
+      } catch (err) {
+        console.error('Error loading existing tasks:', err);
+      } finally {
+        setIsLoadingTaken(false);
+      }
+    }
+
+    loadBestaandeTaken();
+  }, [voorstellen]);
 
   // Workflow step animation
   useEffect(() => {
@@ -315,12 +352,17 @@ export default function EllenVoorstel() {
   }, [weekDates]);
 
   const medewerkers = useMemo(() => {
-    const names = [...new Set(voorstellen.map(t => t.werknemer_naam))];
+    // Include medewerkers from both proposed and existing tasks
+    const voorstelNames = voorstellen.map(t => t.werknemer_naam);
+    const bestaandeNames = bestaandeTaken
+      .filter(t => voorstelNames.some(vn => t.werknemer_naam === vn || voorstellen.length === 0))
+      .map(t => t.werknemer_naam);
+    const names = [...new Set([...voorstelNames, ...bestaandeNames])];
     return names;
-  }, [voorstellen]);
+  }, [voorstellen, bestaandeTaken]);
 
-  // Filter tasks for the currently selected week
-  const getTasksForCell = (medewerker: string, dayIndex: number, hour: number) => {
+  // Filter PROPOSED tasks for the currently selected week
+  const getVoorstelTasksForCell = (medewerker: string, dayIndex: number, hour: number) => {
     return voorstellen.filter(t =>
       t.werknemer_naam === medewerker &&
       t.week_start === currentWeekISO &&
@@ -330,9 +372,21 @@ export default function EllenVoorstel() {
     );
   };
 
-  const tasksThisWeek = voorstellen.filter(t => t.week_start === currentWeekISO);
+  // Filter EXISTING tasks for the currently selected week
+  const getBestaandeTasksForCell = (medewerker: string, dayIndex: number, hour: number) => {
+    return bestaandeTaken.filter(t =>
+      t.werknemer_naam === medewerker &&
+      t.week_start === currentWeekISO &&
+      t.dag_van_week === dayIndex &&
+      hour >= t.start_uur &&
+      hour < t.start_uur + t.duur_uren
+    );
+  };
 
-  const isTaskStart = (taak: VoorstelTaak, hour: number) => {
+  const tasksThisWeek = voorstellen.filter(t => t.week_start === currentWeekISO);
+  const bestaandeThisWeek = bestaandeTaken.filter(t => t.week_start === currentWeekISO);
+
+  const isTaskStart = (taak: VoorstelTaak | Taak, hour: number) => {
     return hour === taak.start_uur;
   };
 
@@ -463,12 +517,12 @@ export default function EllenVoorstel() {
                   </span>
                 </div>
               </div>
-              {tasksThisWeek.length === 0 && (
+              {tasksThisWeek.length === 0 && bestaandeThisWeek.length === 0 && (
                 <div className="text-center py-8 text-muted-foreground text-sm border border-border rounded-lg bg-card">
-                  Geen blokken ingepland deze week
+                  Geen blokken in deze week
                 </div>
               )}
-              {tasksThisWeek.length > 0 && (
+              {(tasksThisWeek.length > 0 || bestaandeThisWeek.length > 0) && (
               <div className="w-full rounded-lg border border-border bg-card overflow-x-auto">
                 <table className="w-full border-collapse table-fixed min-w-[700px]">
                   <thead>
@@ -518,7 +572,8 @@ export default function EllenVoorstel() {
                             {hour === 13 ? '🍽️' : `${hour.toString().padStart(2, '0')}:00`}
                           </td>
                           {weekDates.map((_, dayIndex) => {
-                            const cellTasks = getTasksForCell(medewerker, dayIndex, hour);
+                            const voorstelTasks = getVoorstelTasksForCell(medewerker, dayIndex, hour);
+                            const bestaandeTasks = getBestaandeTasksForCell(medewerker, dayIndex, hour);
                             const isLunch = hour === 13;
 
                             return (
@@ -530,16 +585,35 @@ export default function EllenVoorstel() {
                                 )}
                                 style={{ height: '28px' }}
                               >
-                                {cellTasks.map((taak, ti) => {
+                                {/* Bestaande taken (solid, met grijze kleur) */}
+                                {bestaandeTasks.map((taak, ti) => {
                                   if (!isTaskStart(taak, hour)) return null;
                                   return (
                                     <div
-                                      key={ti}
+                                      key={`bestaand-${ti}`}
+                                      className="rounded px-1.5 py-0.5 text-xs text-white overflow-hidden h-full bg-slate-400"
+                                      title={`${taak.klant_naam} • ${taak.fase_naam} • ${taak.duur_uren}u (bestaand)`}
+                                    >
+                                      <div className="truncate font-medium">
+                                        {taak.klant_naam}
+                                      </div>
+                                      <div className="truncate text-[10px] opacity-80">
+                                        {taak.fase_naam}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                                {/* Voorgestelde taken (semi-transparant, met kleur) */}
+                                {voorstelTasks.map((taak, ti) => {
+                                  if (!isTaskStart(taak, hour)) return null;
+                                  return (
+                                    <div
+                                      key={`voorstel-${ti}`}
                                       className={cn(
-                                        'rounded px-1.5 py-0.5 text-xs text-white overflow-hidden h-full opacity-60',
+                                        'rounded px-1.5 py-0.5 text-xs text-white overflow-hidden h-full opacity-60 border-2 border-dashed border-white/50',
                                         getFaseColor(taak.fase_naam)
                                       )}
-                                      title={`${taak.fase_naam} • ${taak.duur_uren}u`}
+                                      title={`${taak.fase_naam} • ${taak.duur_uren}u (voorstel)`}
                                     >
                                       <div className="truncate font-medium">
                                         {projectInfo?.klant_naam}
@@ -560,9 +634,16 @@ export default function EllenVoorstel() {
                 </table>
               </div>
               )}
-              <p className="text-xs text-muted-foreground">
-                Concept-blokken worden semi-transparant weergegeven. Na goedkeuring worden ze vastgezet.
-              </p>
+              <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-4 h-3 rounded bg-slate-400"></div>
+                  <span>Bestaande planning</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-4 h-3 rounded bg-primary/60 border border-dashed border-primary"></div>
+                  <span>Nieuw voorstel</span>
+                </div>
+              </div>
             </div>
 
             {/* Feedback section */}
