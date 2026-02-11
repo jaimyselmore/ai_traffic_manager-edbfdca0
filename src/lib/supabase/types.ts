@@ -73,8 +73,7 @@ export interface Database {
           contactpersoon: string | null
           email: string | null
           telefoon: string | null
-          adres: string | null
-          beschikbaarheid: string | null
+          reistijd_minuten: number | null
           interne_notities: string | null
           planning_instructies: string | null
           created_by: string | null
@@ -88,8 +87,7 @@ export interface Database {
           contactpersoon?: string | null
           email?: string | null
           telefoon?: string | null
-          adres?: string | null
-          beschikbaarheid?: string | null
+          reistijd_minuten?: number | null
           interne_notities?: string | null
           planning_instructies?: string | null
           created_by?: string | null
@@ -103,8 +101,7 @@ export interface Database {
           contactpersoon?: string | null
           email?: string | null
           telefoon?: string | null
-          adres?: string | null
-          beschikbaarheid?: string | null
+          reistijd_minuten?: number | null
           interne_notities?: string | null
           planning_instructies?: string | null
           created_by?: string | null

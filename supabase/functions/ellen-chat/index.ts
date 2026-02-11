@@ -88,7 +88,7 @@ const TOOLS = [
     type: 'function',
     function: {
       name: 'zoek_klanten',
-      description: 'Zoek klanten op naam of klantnummer. Geeft klantgegevens terug inclusief ID (voor wijzigingen), contactpersoon, email, telefoon, planning instructies.',
+      description: 'Zoek klanten op naam of klantnummer. Geeft klantgegevens terug inclusief ID (voor wijzigingen), contactpersoon, email, telefoon, reistijd in minuten (enkele reis vanaf kantoor), planning instructies.',
       parameters: {
         type: 'object',
         properties: {
@@ -267,7 +267,7 @@ async function executeTool(
         const term = sanitize(args.zoekterm || '');
         const { data, error } = await supabase
           .from('klanten')
-          .select('id, klantnummer, naam, contactpersoon, email, telefoon, adres, beschikbaarheid, interne_notities, planning_instructies')
+          .select('id, klantnummer, naam, contactpersoon, email, telefoon, reistijd_minuten, interne_notities, planning_instructies')
           .or(`naam.ilike.%${term}%,klantnummer.ilike.%${term}%`)
           .limit(10);
         if (error) return `Fout: ${error.message}`;
@@ -442,7 +442,7 @@ async function executeTool(
 
 // Toegestane velden per tabel voor wijzigingen
 const WIJZIG_VELDEN: Record<string, string[]> = {
-  klanten: ['naam', 'contactpersoon', 'email', 'telefoon', 'adres', 'beschikbaarheid', 'interne_notities', 'planning_instructies'],
+  klanten: ['naam', 'contactpersoon', 'email', 'telefoon', 'reistijd_minuten', 'interne_notities', 'planning_instructies'],
   projecten: ['omschrijving', 'deadline', 'status', 'opmerkingen', 'projecttype'],
   medewerkers: ['naam_werknemer', 'primaire_rol', 'tweede_rol', 'discipline', 'werkuren', 'parttime_dag', 'notities', 'beschikbaar'],
   taken: ['werknemer_naam', 'week_start', 'dag_van_week', 'start_uur', 'duur_uren', 'plan_status'],
