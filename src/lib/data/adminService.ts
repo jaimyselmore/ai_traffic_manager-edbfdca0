@@ -526,7 +526,6 @@ export async function getDisciplines() {
     id: number;
     discipline_naam: string;
     beschrijving: string | null;
-    kleur_hex: string | null;
   }>('disciplines', {
     order: { column: 'id', ascending: true },
   });
@@ -539,7 +538,6 @@ export async function createDiscipline(
   discipline: {
     discipline_naam: string;
     beschrijving?: string;
-    kleur_hex?: string;
   },
   _userId?: string
 ) {
@@ -558,7 +556,6 @@ export async function updateDiscipline(
   updates: Partial<{
     discipline_naam: string;
     beschrijving: string;
-    kleur_hex: string;
   }>,
   _userId?: string
 ) {

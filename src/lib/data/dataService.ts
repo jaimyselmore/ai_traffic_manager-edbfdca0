@@ -45,7 +45,6 @@ interface DisciplineRow {
   id: number
   discipline_naam: string
   beschrijving: string | null
-  kleur_hex: string | null
 }
 
 interface KlantRow {
@@ -164,7 +163,6 @@ export async function getWorkTypes(): Promise<WorkType[]> {
     name: discipline.discipline_naam,
     label: discipline.discipline_naam,
     description: discipline.beschrijving || '',
-    color: discipline.kleur_hex || '#3b82f6',
   }))
 }
 

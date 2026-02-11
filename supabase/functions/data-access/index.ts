@@ -82,7 +82,7 @@ const TABLE_COLUMNS: Record<string, string[]> = {
   medewerkers: ['werknemer_id', 'naam_werknemer', 'gebruikersnaam', 'primaire_rol', 'tweede_rol', 'derde_rol', 'discipline', 'discipline_2', 'discipline_3', 'werkuren', 'parttime_dag', 'duo_team', 'vaardigheden', 'notities', 'beschikbaar', 'is_planner', 'in_planning', 'planner_volgorde', 'display_order', 'microsoft_connected', 'microsoft_connected_at', 'microsoft_email', 'created_at', 'updated_at'],
   users: ['id', 'gebruikersnaam', 'naam', 'rol', 'is_planner', 'werknemer_id', 'password_hash', 'created_at', 'updated_at'],
   rolprofielen: ['rol_nummer', 'rol_naam', 'beschrijving_rol', 'taken_rol', 'standaard_discipline', 'created_at', 'updated_at'],
-  disciplines: ['id', 'discipline_naam', 'beschrijving', 'kleur_hex', 'created_at', 'updated_at'],
+  disciplines: ['id', 'discipline_naam', 'beschrijving', 'created_at', 'updated_at'],
   projecttypes: ['id', 'code', 'naam', 'omschrijving', 'is_system', 'created_at', 'updated_at'],
   projecten: ['id', 'projectnummer', 'volgnummer', 'klant_id', 'omschrijving', 'projecttype', 'datum_aanvraag', 'deadline', 'status', 'adres_klant', 'info_klant', 'opmerkingen', 'account_team', 'creatie_team', 'productie_team', 'created_by', 'created_at', 'updated_at'],
   project_fases: ['id', 'project_id', 'fase_naam', 'fase_type', 'volgorde', 'start_datum', 'eind_datum', 'datum_tijd', 'locatie', 'medewerkers', 'inspanning_dagen', 'opmerkingen', 'is_hard_lock', 'created_at', 'updated_at'],

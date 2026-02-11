@@ -36,7 +36,6 @@ async function checkRolesAndDisciplines() {
       disciplines.forEach((disc) => {
         console.log(`\n🎨 DISCIPLINE #${disc.id}: ${disc.discipline_naam}`);
         console.log(`   Beschrijving: ${disc.beschrijving || '❌ GEEN BESCHRIJVING'}`);
-        console.log(`   Kleur: ${disc.kleur_hex || '❌ GEEN KLEUR'}`);
       });
     }
   } catch (error) {

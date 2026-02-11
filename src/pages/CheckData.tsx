@@ -71,10 +71,9 @@ export default function CheckData() {
             {disciplines.map((disc) => (
               <div key={disc.id} className="border rounded-lg p-4 bg-card">
                 <div className="flex items-center gap-3">
-                  <div
-                    className="w-8 h-8 rounded border"
-                    style={{ backgroundColor: disc.kleur_hex || '#gray' }}
-                  />
+                  <h3 className="font-bold text-lg">
+                    #{disc.id}: {disc.discipline_naam}
+                  </h3>
                   <h3 className="font-bold text-lg">
                     #{disc.id}: {disc.discipline_naam}
                   </h3>
