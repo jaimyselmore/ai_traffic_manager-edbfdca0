@@ -224,11 +224,6 @@ export default function NieuwProject() {
       return;
     }
 
-    toast({
-      title: 'Project wordt aangemaakt...',
-      description: 'Blokken worden geplaatst in de planner...',
-    });
-
     // Find client name
     const selectedClient = clients.find(c => c.id === formData.projectHeader.klantId);
     const klantNaam = selectedClient?.name || 'Onbekend';
@@ -239,12 +234,10 @@ export default function NieuwProject() {
     if (formData.projectType === 'algemeen') {
       // Process team allocations
       formData.algemeen.teamAllocaties.forEach(teamAllocatie => {
-        // Find all members of this team
         const teamMembers = employees.filter(emp => emp.duoTeam === teamAllocatie.teamName);
         const memberIds = teamMembers.map(m => m.id);
 
         if (teamAllocatie.planningType === 'samen_met_team') {
-          // Create one team fase
           fases.push({
             fase_naam: `Algemeen (${teamAllocatie.teamName})`,
             medewerkers: memberIds,
@@ -254,7 +247,6 @@ export default function NieuwProject() {
             notities: teamAllocatie.toelichting || undefined
           });
         } else if (teamAllocatie.planningType === 'beide') {
-          // Create team fase (first half of days)
           const teamDagen = Math.floor(teamAllocatie.aantalDagen / 2);
           fases.push({
             fase_naam: `Algemeen (${teamAllocatie.teamName} - samen)`,
@@ -264,8 +256,6 @@ export default function NieuwProject() {
             uren_per_dag: 8,
             notities: teamAllocatie.toelichting || undefined
           });
-
-          // Create individual fases for each member (second half)
           const individueleDagen = Math.ceil(teamAllocatie.aantalDagen / 2);
           teamMembers.forEach(member => {
             fases.push({
@@ -283,55 +273,32 @@ export default function NieuwProject() {
       // Process individual medewerker allocations
       formData.algemeen.medewerkerAllocaties.forEach(allocatie => {
         const employee = employees.find(e => e.id === allocatie.medewerkerId);
+        const urenPerDag = allocatie.eenheid === 'uren' ? allocatie.aantalDagen : 8;
+        const dagenCount = allocatie.eenheid === 'uren' ? Math.ceil(allocatie.aantalDagen / 8) : allocatie.aantalDagen;
         fases.push({
           fase_naam: `Algemeen - ${employee?.name || 'Medewerker'}`,
           medewerkers: [allocatie.medewerkerId],
           start_datum: formData.algemeen.startDatum || formData.projectHeader.datumAanvraag || new Date().toISOString().split('T')[0],
-          duur_dagen: allocatie.aantalDagen,
-          uren_per_dag: 8,
+          duur_dagen: dagenCount,
+          uren_per_dag: urenPerDag,
           notities: allocatie.toelichting || undefined
         });
       });
     } else {
       // For productie: use productie fases
       const productieFases = formData.productieFases.fases;
-
-    if (productieFases.pp?.enabled) {
-      fases.push({
-        fase_naam: 'PP',
-        medewerkers: productieFases.pp.medewerkers || [],
-        start_datum: productieFases.pp.startDatum || formData.projectHeader.datumAanvraag || new Date().toISOString().split('T')[0],
-        duur_dagen: productieFases.pp.dagen || 2,
-        uren_per_dag: 8
-      });
-    }
-    if (productieFases.shoot?.enabled) {
-      fases.push({
-        fase_naam: 'Shoot',
-        medewerkers: productieFases.shoot.medewerkers || [],
-        start_datum: productieFases.shoot.startDatum || formData.projectHeader.datumAanvraag || new Date().toISOString().split('T')[0],
-        duur_dagen: productieFases.shoot.dagen || 1,
-        uren_per_dag: 8
-      });
-    }
-    if (productieFases.offlineEdit?.enabled) {
-      fases.push({
-        fase_naam: 'Offline edit',
-        medewerkers: productieFases.offlineEdit.medewerkers || [],
-        start_datum: productieFases.offlineEdit.startDatum || formData.projectHeader.datumAanvraag || new Date().toISOString().split('T')[0],
-        duur_dagen: productieFases.offlineEdit.dagen || 2,
-        uren_per_dag: 8
-      });
-    }
-    if (productieFases.onlineGrading?.enabled) {
-      fases.push({
-        fase_naam: 'Online/VFX',
-        medewerkers: productieFases.onlineGrading.medewerkers || [],
-        start_datum: productieFases.onlineGrading.startDatum || formData.projectHeader.datumAanvraag || new Date().toISOString().split('T')[0],
-        duur_dagen: productieFases.onlineGrading.dagen || 2,
-        uren_per_dag: 8
-      });
-    }
+      if (productieFases.pp?.enabled) {
+        fases.push({ fase_naam: 'PP', medewerkers: productieFases.pp.medewerkers || [], start_datum: productieFases.pp.startDatum || formData.projectHeader.datumAanvraag || new Date().toISOString().split('T')[0], duur_dagen: productieFases.pp.dagen || 2, uren_per_dag: 8 });
+      }
+      if (productieFases.shoot?.enabled) {
+        fases.push({ fase_naam: 'Shoot', medewerkers: productieFases.shoot.medewerkers || [], start_datum: productieFases.shoot.startDatum || formData.projectHeader.datumAanvraag || new Date().toISOString().split('T')[0], duur_dagen: productieFases.shoot.dagen || 1, uren_per_dag: 8 });
+      }
+      if (productieFases.offlineEdit?.enabled) {
+        fases.push({ fase_naam: 'Offline edit', medewerkers: productieFases.offlineEdit.medewerkers || [], start_datum: productieFases.offlineEdit.startDatum || formData.projectHeader.datumAanvraag || new Date().toISOString().split('T')[0], duur_dagen: productieFases.offlineEdit.dagen || 2, uren_per_dag: 8 });
+      }
+      if (productieFases.onlineGrading?.enabled) {
+        fases.push({ fase_naam: 'Online/VFX', medewerkers: productieFases.onlineGrading.medewerkers || [], start_datum: productieFases.onlineGrading.startDatum || formData.projectHeader.datumAanvraag || new Date().toISOString().split('T')[0], duur_dagen: productieFases.onlineGrading.dagen || 2, uren_per_dag: 8 });
+      }
     }
 
     // If no fases, create a default one
@@ -344,56 +311,20 @@ export default function NieuwProject() {
       return;
     }
 
-    // Call automation service
-    const result = await createProjectAndSchedule(
-      {
-        klant_id: formData.projectHeader.klantId,
-        klant_naam: klantNaam,
-        projectnaam: formData.projectHeader.projectomschrijving,
-        projectTitel: formData.projectHeader.projectTitel,
-        projecttype: formData.projectType,
-        deadline: formData.projectHeader.deadline,
-        fases
-      },
-      user.id
-    );
+    // Navigate to Ellen voorstel page instead of creating directly
+    const projectInfo = {
+      klant_id: formData.projectHeader.klantId,
+      klant_naam: klantNaam,
+      projectnaam: formData.projectHeader.projectomschrijving,
+      projectTitel: formData.projectHeader.projectTitel,
+      projecttype: formData.projectType,
+      deadline: formData.projectHeader.deadline,
+      fases,
+    };
 
-    if (result.success) {
-      localStorage.removeItem(STORAGE_KEY);
-      const selectedClientForSave = clients.find(c => c.id === formData.projectHeader.klantId);
-      saveAanvraag({
-        id: `ingediend-nieuw-${Date.now()}`,
-        type: 'nieuw-project',
-        status: 'ingediend',
-        titel: formData.projectHeader.projectTitel || formData.projectHeader.projectomschrijving || 'Nieuw project',
-        klant: selectedClientForSave?.name,
-        datum: new Date().toISOString(),
-        projectType: formData.projectType,
-      });
-
-      toast({
-        title: 'Project aangemaakt!',
-        description: `${result.blokkenAantal} blokken zijn geplaatst in de planner`,
-      });
-
-      if (result.warnings && result.warnings.length > 0) {
-        setTimeout(() => {
-          toast({
-            title: 'Let op',
-            description: result.warnings!.join('\n'),
-            variant: 'default',
-          });
-        }, 1000);
-      }
-
-      navigate('/planner');
-    } else {
-      toast({
-        title: 'Fout bij aanmaken project',
-        description: result.errors?.join('\n') || 'Er ging iets mis',
-        variant: 'destructive',
-      });
-    }
+    navigate('/ellen-voorstel', {
+      state: { formData, projectInfo },
+    });
   };
 
   // Check all required fields for enabling submit button
