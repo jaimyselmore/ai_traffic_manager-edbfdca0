@@ -140,8 +140,9 @@ export default function NieuwProject() {
     });
     toast({
       title: 'Concept opgeslagen',
-      description: 'Je kunt later verder werken aan dit project.',
+      description: 'Je kunt het terugvinden bij "Mijn aanvragen" op het dashboard.',
     });
+    navigate('/');
   };
 
   const validateForm = (): boolean => {
