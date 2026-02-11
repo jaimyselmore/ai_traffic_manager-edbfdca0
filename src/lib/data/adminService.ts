@@ -374,6 +374,13 @@ export async function updateMedewerker(
     ]);
   }
 
+  // Sync rol to users table when changed (e.g. admin toggle)
+  if (updates.rol !== undefined) {
+    await secureUpdate('users', { rol: updates.rol || 'medewerker' }, [
+      { column: 'werknemer_id', operator: 'eq', value: werknemer_id },
+    ]);
+  }
+
   return data?.[0];
 }
 
