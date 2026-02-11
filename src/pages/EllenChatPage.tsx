@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { EllenChat, ChatMessage, WijzigingsVoorstel } from '@/components/chat/EllenChat';
+import { EllenChat, ChatMessage, WijzigingsVoorstel, PlanningVoorstel } from '@/components/chat/EllenChat';
 import { supabase } from '@/integrations/supabase/client';
 import { getSessionToken } from '@/lib/data/secureDataClient';
 import { Button } from '@/components/ui/button';
@@ -134,7 +134,7 @@ export default function EllenChatPage() {
 
       const antwoord = data?.antwoord || 'Sorry, ik kon geen antwoord genereren. Probeer het opnieuw.';
       // Voorstel komt nu direct mee van de backend
-      const voorstel: WijzigingsVoorstel | undefined = data?.voorstel ? {
+      const voorstel: WijzigingsVoorstel | undefined = data?.voorstel?.type === 'voorstel' ? {
         tabel: data.voorstel.tabel,
         id: data.voorstel.id,
         veld: data.voorstel.veld,
@@ -142,11 +142,14 @@ export default function EllenChatPage() {
         beschrijving: data.voorstel.beschrijving,
       } : undefined;
 
+      const planningVoorstel: PlanningVoorstel | undefined = data?.voorstel?.type === 'planning_voorstel' ? data.voorstel : undefined;
+
       setMessages(prev => [...prev, {
         id: (Date.now() + 1).toString(),
         role: 'ellen',
         content: antwoord,
         voorstel,
+        planningVoorstel,
       }]);
     } catch (err) {
       setMessages(prev => [...prev, {
@@ -233,6 +236,62 @@ export default function EllenChatPage() {
     }]);
   }, []);
 
+  const handleConfirmPlanning = useCallback(async (planning: PlanningVoorstel) => {
+    const sessionToken = getSessionToken();
+    if (!sessionToken) return;
+
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('ellen-chat', {
+        headers: { Authorization: `Bearer ${sessionToken}` },
+        body: {
+          sessie_id: sessieId,
+          actie: 'plannen',
+          planning,
+        },
+      });
+
+      const resultContent = error
+        ? `✗ ${data?.message || error.message || 'Onbekende fout'}`
+        : data?.success
+          ? `✓ ${data.message}`
+          : `✗ ${data?.message || 'Planning mislukt'}`;
+
+      // Verwijder planningVoorstel uit bericht
+      setMessages(prev => prev.map(msg =>
+        msg.planningVoorstel?.project_nummer === planning.project_nummer
+          ? { ...msg, planningVoorstel: undefined }
+          : msg
+      ));
+      setMessages(prev => [...prev, {
+        id: Date.now().toString(),
+        role: 'ellen',
+        content: resultContent,
+      }]);
+    } catch (err) {
+      setMessages(prev => [...prev, {
+        id: Date.now().toString(),
+        role: 'ellen',
+        content: `✗ Fout: ${err instanceof Error ? err.message : 'Onbekende fout'}`,
+      }]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [sessieId]);
+
+  const handleRejectPlanning = useCallback((planning: PlanningVoorstel) => {
+    setMessages(prev => prev.map(msg =>
+      msg.planningVoorstel?.project_nummer === planning.project_nummer
+        ? { ...msg, planningVoorstel: undefined }
+        : msg
+    ));
+    setMessages(prev => [...prev, {
+      id: Date.now().toString(),
+      role: 'ellen',
+      content: 'Oké, planning geannuleerd.',
+    }]);
+  }, []);
+
   return (
     <div className="h-full flex flex-col space-y-8">
       <div className="px-6 pt-0 flex items-center justify-between">
@@ -259,6 +318,8 @@ export default function EllenChatPage() {
             onSendMessage={handleSendMessage}
             onConfirmProposal={handleConfirmProposal}
             onRejectProposal={handleRejectProposal}
+            onConfirmPlanning={handleConfirmPlanning}
+            onRejectPlanning={handleRejectPlanning}
           />
         )}
       </div>

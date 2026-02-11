@@ -47,7 +47,7 @@ async function verifySessionToken(token: string): Promise<SessionPayload | null>
 
 // ---- SYSTEM PROMPT ----
 
-const SYSTEM_PROMPT = `Je bent Ellen, planningsassistent van Selmore.
+const SYSTEM_PROMPT = `Je bent Ellen, planningsassistent van Selmore (creatief productiebedrijf gespecialiseerd in video content).
 
 KRITIEKE REGELS - NOOIT BREKEN:
 1. Je hebt GEEN eigen kennis over Selmore medewerkers, projecten, klanten, etc.
@@ -64,17 +64,36 @@ Voorbeeld FOUTE flow (NOOIT DOEN):
 - Gebruiker: "Wie is Eline?"
 - Jij: "Eline is Account Manager..." ← FOUT! Je hebt geen tool gebruikt!
 
-WIJZIGINGEN - STRIKT PROTOCOL:
-1. Gebruiker wil iets aanpassen? → ROEP EERST zoek-tool aan om ID te vinden
-2. ID gevonden? → ROEP stel_wijziging_voor tool AAN (VERPLICHT!)
-3. NOOIT tekst schrijven zoals "Bevestig de wijziging" - de tool doet dat automatisch
-4. Als je tekst schrijft over wijzigen zonder de tool aan te roepen = FOUT
+## WIJZIGINGEN PROTOCOL
 
-Voorbeeld goed:
-- Gebruiker: "Pas Editor aan naar Studio"
-- Jij: [ROEP zoek_disciplines AAN] → krijgt ID 6
-- Jij: [ROEP stel_wijziging_voor AAN met tabel="disciplines", id="6", veld="discipline_naam", nieuwe_waarde="Studio"]
-- Tool geeft bevestigknop aan gebruiker
+1. Gebruiker wil iets aanpassen? → EERST zoek-tool voor ID
+2. ID gevonden? → ROEP stel_wijziging_voor AAN (VERPLICHT!)
+3. De tool toont automatisch een bevestigknop - jij hoeft dat niet te zeggen
+
+## PLANNING PROTOCOL
+
+Je kunt projecten inplannen! Volg dit stappenplan:
+
+1. **Verzamel info** - Wat is de klant? Welke medewerkers? Welke fases? Wanneer?
+2. **Check beschikbaarheid** - Gebruik check_beschikbaarheid om te zien of medewerkers vrij zijn
+3. **Maak voorstel** - Gebruik plan_project om een planning-voorstel te genereren
+4. **Bevestig** - De gebruiker moet het voorstel goedkeuren voordat het wordt aangemaakt
+
+Voorbeeld conversatie:
+- User: "Plan een shoot voor Nike volgende week met Jakko"
+- Ellen: Zoekt klant "Nike", zoekt medewerker "Jakko", checkt beschikbaarheid
+- Ellen: "Jakko is vrij dinsdag t/m donderdag. Zal ik een shoot van 3 dagen inplannen?"
+- User: "Ja, doe maar"
+- Ellen: Roept plan_project aan met de details
+
+**Fases die vaak voorkomen:**
+- Concept/Strategie (meestal 1-2 dagen)
+- Pre-productie (1-3 dagen)
+- Shoot/Productie (1-5 dagen)
+- Edit/Post-productie (2-10 dagen)
+- Review/Afronding (1-2 dagen)
+
+**Standaard uren:** 8 uur per dag, tenzij anders gevraagd
 
 Persoonlijkheid (secundair):
 - Kort en bondig, praat als collega
@@ -242,6 +261,55 @@ const TOOLS = [
           beschrijving: { type: 'string', description: 'Korte uitleg voor de gebruiker wat er verandert' },
         },
         required: ['tabel', 'id', 'veld', 'nieuwe_waarde', 'beschrijving'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'check_beschikbaarheid',
+      description: 'Check of een medewerker beschikbaar is in een bepaalde week. Geeft bestaande taken, verlof en meetings terug zodat je kunt zien wanneer er vrije blokken zijn.',
+      parameters: {
+        type: 'object',
+        properties: {
+          werknemer_naam: { type: 'string', description: 'Naam van de medewerker' },
+          week_start: { type: 'string', description: 'Maandag van de week (YYYY-MM-DD)' },
+        },
+        required: ['werknemer_naam', 'week_start'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'plan_project',
+      description: 'Maak een planningsvoorstel aan. Dit genereert taken in de planning met status "concept". De gebruiker moet bevestigen voordat het definitief wordt. Gebruik dit nadat je beschikbaarheid hebt gecheckt.',
+      parameters: {
+        type: 'object',
+        properties: {
+          klant_naam: { type: 'string', description: 'Naam van de klant' },
+          project_nummer: { type: 'string', description: 'Projectnummer (bijv. "SEL-2026-001")' },
+          project_omschrijving: { type: 'string', description: 'Korte omschrijving van het project' },
+          taken: {
+            type: 'array',
+            description: 'Array van taken om in te plannen',
+            items: {
+              type: 'object',
+              properties: {
+                werknemer_naam: { type: 'string', description: 'Naam van de medewerker' },
+                fase_naam: { type: 'string', description: 'Naam van de fase (bijv. Shoot, Edit, Concept)' },
+                discipline: { type: 'string', description: 'Discipline (bijv. Productie, Creatie)' },
+                werktype: { type: 'string', description: 'Type werk (bijv. Productie, Post-productie)' },
+                week_start: { type: 'string', description: 'Maandag van de week (YYYY-MM-DD)' },
+                dag_van_week: { type: 'number', description: 'Dag (0=ma, 1=di, 2=wo, 3=do, 4=vr)' },
+                start_uur: { type: 'number', description: 'Startuur (9-17)' },
+                duur_uren: { type: 'number', description: 'Duur in uren (1-8)' },
+              },
+              required: ['werknemer_naam', 'fase_naam', 'discipline', 'werktype', 'week_start', 'dag_van_week', 'start_uur', 'duur_uren'],
+            },
+          },
+        },
+        required: ['klant_naam', 'project_nummer', 'taken'],
       },
     },
   },
@@ -432,6 +500,108 @@ async function executeTool(
         });
       }
 
+      case 'check_beschikbaarheid': {
+        const naam = sanitize(args.werknemer_naam || '');
+        const weekStart = args.week_start || '';
+
+        // Haal medewerker info op
+        const { data: medewerker } = await supabase
+          .from('medewerkers')
+          .select('werknemer_id, naam_werknemer, werkuren, parttime_dag, beschikbaar')
+          .ilike('naam_werknemer', `%${naam}%`)
+          .limit(1)
+          .single();
+
+        if (!medewerker) return `Medewerker "${naam}" niet gevonden.`;
+        if (!medewerker.beschikbaar) return `${medewerker.naam_werknemer} is momenteel niet beschikbaar.`;
+
+        // Haal bestaande taken op voor die week
+        const { data: taken } = await supabase
+          .from('taken')
+          .select('dag_van_week, start_uur, duur_uren, fase_naam, klant_naam')
+          .eq('werknemer_naam', medewerker.naam_werknemer)
+          .eq('week_start', weekStart);
+
+        // Haal verlof op dat overlapt met die week
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekEnd.getDate() + 4);
+        const weekEndStr = weekEnd.toISOString().split('T')[0];
+
+        const { data: verlof } = await supabase
+          .from('beschikbaarheid_medewerkers')
+          .select('type, start_datum, eind_datum, reden')
+          .eq('werknemer_naam', medewerker.naam_werknemer)
+          .eq('status', 'goedgekeurd')
+          .lte('start_datum', weekEndStr)
+          .gte('eind_datum', weekStart);
+
+        // Bereken vrije uren per dag
+        const dagen = ['Maandag', 'Dinsdag', 'Woensdag', 'Donderdag', 'Vrijdag'];
+        const bezetting: Record<string, string[]> = {};
+
+        for (let d = 0; d < 5; d++) {
+          const dagNaam = dagen[d];
+          // Check parttime
+          if (medewerker.parttime_dag?.toLowerCase() === dagNaam.toLowerCase()) {
+            bezetting[dagNaam] = ['Parttime-dag (vrij)'];
+            continue;
+          }
+          const dagTaken = (taken || []).filter((t: { dag_van_week: number }) => t.dag_van_week === d);
+          if (dagTaken.length > 0) {
+            bezetting[dagNaam] = dagTaken.map((t: { start_uur: number; duur_uren: number; fase_naam: string; klant_naam: string }) =>
+              `${t.start_uur}:00-${t.start_uur + t.duur_uren}:00 ${t.fase_naam} (${t.klant_naam})`
+            );
+          } else {
+            bezetting[dagNaam] = ['Vrij (9:00-18:00)'];
+          }
+        }
+
+        return JSON.stringify({
+          medewerker: medewerker.naam_werknemer,
+          werkuren: medewerker.werkuren,
+          parttime_dag: medewerker.parttime_dag,
+          week: weekStart,
+          bezetting,
+          verlof: verlof || [],
+        }, null, 2);
+      }
+
+      case 'plan_project': {
+        // Parse taken array
+        let takenArray: Array<{
+          werknemer_naam: string;
+          fase_naam: string;
+          discipline: string;
+          werktype: string;
+          week_start: string;
+          dag_van_week: number;
+          start_uur: number;
+          duur_uren: number;
+        }>;
+        try {
+          takenArray = typeof args.taken === 'string' ? JSON.parse(args.taken) : (args as unknown as { taken: typeof takenArray }).taken;
+        } catch {
+          return 'Fout: ongeldige taken array';
+        }
+
+        if (!takenArray?.length) return 'Geen taken opgegeven.';
+
+        // Genereer een samenvatting als voorstel
+        const samenvatting = takenArray.map((t, i) =>
+          `${i + 1}. ${t.werknemer_naam}: ${t.fase_naam} (${t.werktype}) - dag ${t.dag_van_week} ${t.start_uur}:00-${t.start_uur + t.duur_uren}:00`
+        ).join('\n');
+
+        return JSON.stringify({
+          type: 'planning_voorstel',
+          klant_naam: args.klant_naam,
+          project_nummer: args.project_nummer,
+          project_omschrijving: args.project_omschrijving || '',
+          aantal_taken: takenArray.length,
+          taken: takenArray,
+          samenvatting,
+        });
+      }
+
       default:
         return `Onbekende tool: ${toolName}`;
     }
@@ -597,6 +767,68 @@ Deno.serve(async (req) => {
       );
     }
 
+    // 2d. Plannen-modus: voer een bevestigd planningsvoorstel uit (maak taken aan)
+    if (actie === 'plannen') {
+      const { planning } = body;
+      if (!planning?.taken?.length) {
+        return new Response(
+          JSON.stringify({ success: false, message: 'Geen taken in het planningsvoorstel' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+        { auth: { persistSession: false } }
+      );
+
+      const results: Array<{ success: boolean; taak: string; error?: string }> = [];
+
+      for (const taak of planning.taken) {
+        const { error } = await supabase.from('taken').insert({
+          werknemer_naam: taak.werknemer_naam,
+          klant_naam: planning.klant_naam,
+          project_nummer: planning.project_nummer,
+          fase_naam: taak.fase_naam,
+          discipline: taak.discipline,
+          werktype: taak.werktype,
+          week_start: taak.week_start,
+          dag_van_week: taak.dag_van_week,
+          start_uur: taak.start_uur,
+          duur_uren: taak.duur_uren,
+          plan_status: 'concept',
+          created_by: session.sub,
+        });
+
+        results.push({
+          success: !error,
+          taak: `${taak.werknemer_naam} - ${taak.fase_naam}`,
+          error: error?.message,
+        });
+      }
+
+      const succeeded = results.filter(r => r.success).length;
+      const failed = results.filter(r => !r.success).length;
+      const message = failed === 0
+        ? `✓ ${succeeded} taken ingepland als concept.`
+        : `${succeeded} taken ingepland, ${failed} mislukt.`;
+
+      // Sla resultaat op
+      try {
+        await supabase.from('chat_gesprekken').insert({
+          sessie_id,
+          rol: 'assistant',
+          inhoud: message,
+        });
+      } catch { /* ignore */ }
+
+      return new Response(
+        JSON.stringify({ success: failed === 0, message, details: results }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     if (!bericht) {
       return new Response(
         JSON.stringify({ error: 'bericht is verplicht' }),
@@ -747,11 +979,11 @@ Deno.serve(async (req) => {
 
         const result = await executeTool(supabase, toolCall.function.name, toolArgs);
 
-        // Als dit een wijzigingsvoorstel is, bewaar het apart
-        if (toolCall.function.name === 'stel_wijziging_voor') {
+        // Als dit een wijzigingsvoorstel of planningsvoorstel is, bewaar het apart
+        if (toolCall.function.name === 'stel_wijziging_voor' || toolCall.function.name === 'plan_project') {
           try {
             const parsed = JSON.parse(result);
-            if (parsed.type === 'voorstel') {
+            if (parsed.type === 'voorstel' || parsed.type === 'planning_voorstel') {
               pendingVoorstel = parsed;
             }
           } catch { /* ignore */ }
