@@ -42,13 +42,11 @@ type Discipline = {
   id: number;
   discipline_naam: string;
   beschrijving: string | null;
-  kleur_hex: string | null;
 };
 
 const emptyForm = {
   discipline_naam: '',
   beschrijving: '',
-  kleur_hex: '#3b82f6',
 };
 
 export function DisciplinesTab() {
@@ -115,7 +113,6 @@ export function DisciplinesTab() {
     setForm({
       discipline_naam: item.discipline_naam,
       beschrijving: item.beschrijving || '',
-      kleur_hex: item.kleur_hex || '#3b82f6',
     });
     setIsDialogOpen(true);
   };
@@ -169,20 +166,19 @@ export function DisciplinesTab() {
               <TableHead className="w-20">ID</TableHead>
               <TableHead>Discipline naam</TableHead>
               <TableHead>Beschrijving</TableHead>
-              <TableHead className="w-24">Kleur</TableHead>
-              <TableHead className="w-24">Acties</TableHead>
+              <TableHead className="w-24"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
                   Laden...
                 </TableCell>
               </TableRow>
             ) : filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
                   Geen disciplines gevonden
                 </TableCell>
               </TableRow>
@@ -192,15 +188,6 @@ export function DisciplinesTab() {
                   <TableCell className="font-mono text-xs">{d.id}</TableCell>
                   <TableCell className="font-medium">{d.discipline_naam}</TableCell>
                   <TableCell className="max-w-md truncate">{d.beschrijving || '-'}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="h-5 w-5 rounded border"
-                        style={{ backgroundColor: d.kleur_hex || '#3b82f6' }}
-                      />
-                      <span className="text-xs font-mono">{d.kleur_hex}</span>
-                    </div>
-                  </TableCell>
                   <TableCell>
                     <div className="flex gap-1">
                       <Button variant="ghost" size="icon" onClick={() => openEdit(d)}>
@@ -241,23 +228,6 @@ export function DisciplinesTab() {
                 onChange={(e) => setForm({ ...form, beschrijving: e.target.value })}
                 rows={3}
               />
-            </div>
-            <div className="space-y-2">
-              <Label>Kleur</Label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="color"
-                  value={form.kleur_hex}
-                  onChange={(e) => setForm({ ...form, kleur_hex: e.target.value })}
-                  className="h-10 w-16 cursor-pointer rounded border"
-                />
-                <Input
-                  value={form.kleur_hex}
-                  onChange={(e) => setForm({ ...form, kleur_hex: e.target.value })}
-                  className="flex-1 font-mono"
-                  placeholder="#3b82f6"
-                />
-              </div>
             </div>
             <div className="flex justify-end gap-2 pt-4">
               <Button type="button" variant="outline" onClick={closeDialog}>

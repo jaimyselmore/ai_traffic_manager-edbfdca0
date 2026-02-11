@@ -53,7 +53,7 @@ export interface WorkType {
   name: string;
   label?: string;
   description?: string;
-  color: string;
+  color?: string;
 }
 
 // ---- VERLOF TYPES (Sheet: "Verlof Types") ----

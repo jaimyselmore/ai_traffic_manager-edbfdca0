@@ -135,7 +135,6 @@ export type Database = {
           created_at: string | null
           discipline_naam: string
           id: number
-          kleur_hex: string | null
           updated_at: string | null
         }
         Insert: {
@@ -143,7 +142,6 @@ export type Database = {
           created_at?: string | null
           discipline_naam: string
           id?: number
-          kleur_hex?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -151,7 +149,6 @@ export type Database = {
           created_at?: string | null
           discipline_naam?: string
           id?: number
-          kleur_hex?: string | null
           updated_at?: string | null
         }
         Relationships: []
