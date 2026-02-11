@@ -60,6 +60,8 @@ export default function EllenVoorstel() {
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
   const [selectedWeekIndex, setSelectedWeekIndex] = useState(0);
   const [selectedWerktype, setSelectedWerktype] = useState<string>('concept');
+  const [feedbackInput, setFeedbackInput] = useState('');
+  const [isRequestingNewProposal, setIsRequestingNewProposal] = useState(false);
 
   // Workflow step animation
   useEffect(() => {
@@ -220,6 +222,44 @@ export default function EllenVoorstel() {
 
   const handleReject = () => {
     navigate('/nieuw-project');
+  };
+
+  const handleRequestNewProposal = async () => {
+    if (!feedbackInput.trim()) return;
+
+    setIsRequestingNewProposal(true);
+    setEllenMessage('Even kijken, ik pas het voorstel aan...');
+
+    try {
+      const sessionToken = getSessionToken();
+      if (!sessionToken) throw new Error('Niet ingelogd');
+
+      const { data, error } = await supabase.functions.invoke('ellen-chat', {
+        headers: { Authorization: `Bearer ${sessionToken}` },
+        body: {
+          sessie_id: `project-${Date.now()}`,
+          bericht: buildEllenPrompt(projectInfo, feedbackInput),
+        },
+      });
+
+      if (error) throw new Error(error.message);
+
+      if (data?.voorstel?.type === 'planning_voorstel' && data.voorstel.taken?.length > 0) {
+        setVoorstellen(data.voorstel.taken);
+        setEllenMessage(data.antwoord || 'Hier is het aangepaste voorstel:');
+      } else if (data?.antwoord) {
+        // Fallback - Ellen heeft geen tool gebruikt
+        const defaultTaken = generateDefaultVoorstel(projectInfo);
+        setVoorstellen(defaultTaken);
+        setEllenMessage('Ik heb een aangepast voorstel gemaakt op basis van je feedback:');
+      }
+
+      setFeedbackInput('');
+    } catch (err) {
+      setEllenMessage(`Sorry, er ging iets mis: ${err instanceof Error ? err.message : 'Onbekende fout'}`);
+    } finally {
+      setIsRequestingNewProposal(false);
+    }
   };
 
   // Calculate all weeks from first task week to deadline
@@ -524,6 +564,39 @@ export default function EllenVoorstel() {
               </p>
             </div>
 
+            {/* Feedback section */}
+            <div className="space-y-3 pt-4 border-t border-border">
+              <p className="text-sm text-muted-foreground">
+                Niet helemaal goed? Geef feedback en laat Ellen een nieuw voorstel maken.
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Bijv. 'Verschuif alles naar volgende week' of 'Ik wil Jakko erbij'"
+                  className="flex-1 px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  value={feedbackInput}
+                  onChange={(e) => setFeedbackInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !isRequestingNewProposal && feedbackInput.trim()) {
+                      handleRequestNewProposal();
+                    }
+                  }}
+                  disabled={isRequestingNewProposal}
+                />
+                <Button
+                  variant="outline"
+                  onClick={handleRequestNewProposal}
+                  disabled={isRequestingNewProposal || !feedbackInput.trim()}
+                >
+                  {isRequestingNewProposal ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
+
             {/* Action buttons */}
             <div className="flex gap-3 pt-4">
               <Button onClick={handleApprove} className="flex-1">
@@ -531,7 +604,7 @@ export default function EllenVoorstel() {
                 Voorstel goedkeuren
               </Button>
               <Button variant="outline" onClick={handleReject} className="flex-1">
-                Aanpassen
+                Terug naar formulier
               </Button>
             </div>
           </div>
@@ -673,12 +746,16 @@ export default function EllenVoorstel() {
   );
 }
 
-function buildEllenPrompt(info: any): string {
+function buildEllenPrompt(info: any, feedback?: string): string {
   const parts: string[] = [];
 
+  // KRITIEKE INSTRUCTIE BOVENAAN
+  parts.push(`⚠️ KRITIEKE INSTRUCTIE: Je MOET de plan_project tool aanroepen aan het einde van dit verzoek!`);
+  parts.push(`Beschrijf de planning NIET in tekst - gebruik ALLEEN de tool om het voorstel te genereren.`);
+  parts.push(`\n---\n`);
+
   // Basisinfo
-  parts.push(`PLANNING AANVRAAG — Maak een planningsvoorstel op basis van onderstaande gegevens.`);
-  parts.push(`\n## Project`);
+  parts.push(`## Planning Aanvraag`);
   parts.push(`- Klant: "${info.klant_naam}"`);
   parts.push(`- Projectnaam: "${info.projectnaam}"`);
   parts.push(`- Projecttype: ${info.projecttype || 'algemeen'}`);
@@ -686,38 +763,35 @@ function buildEllenPrompt(info: any): string {
 
   // Fases met medewerkerdetails
   if (info.fases?.length) {
-    parts.push(`\n## Fases en medewerkers`);
+    parts.push(`\n## Fases`);
     info.fases.forEach((f: any, i: number) => {
-      parts.push(`\n### Fase ${i + 1}: ${f.fase_naam}`);
-      parts.push(`- Totale duur: ${f.duur_dagen} dagen`);
-      if (f.uren_per_dag && f.uren_per_dag !== 8) parts.push(`- Uren per dag: ${f.uren_per_dag}`);
-      if (f.start_datum) parts.push(`- Gewenste startdatum: ${f.start_datum}`);
-      if (f.notities) parts.push(`- Toelichting: "${f.notities}"`);
-
+      parts.push(`\n### ${f.fase_naam}`);
+      parts.push(`- Duur: ${f.duur_dagen} dagen`);
+      parts.push(`- Start: ${f.start_datum}`);
+      if (f.uren_per_dag && f.uren_per_dag !== 8) parts.push(`- Uren/dag: ${f.uren_per_dag}`);
       if (f.medewerkers?.length) {
         parts.push(`- Medewerkers: ${f.medewerkers.join(', ')}`);
       }
-
-      // Medewerker-specifieke details (uit het formulier)
-      if (f.medewerkerDetails?.length) {
-        f.medewerkerDetails.forEach((md: any) => {
-          const eenheid = md.eenheid || 'dagen';
-          parts.push(`  → ${md.naam}: ${md.inspanning} ${eenheid}${md.toelichting ? ` (Toelichting: "${md.toelichting}")` : ''}`);
-        });
-      }
+      if (f.notities) parts.push(`- Notities: "${f.notities}"`);
     });
   }
 
-  // Instructies voor Ellen
-  parts.push(`\n## Instructies`);
-  parts.push(`1. Check de beschikbaarheid van ELKE genoemde medewerker voor de relevante weken (gebruik check_beschikbaarheid).`);
-  parts.push(`2. Houd rekening met parttime dagen, verlof en bestaande taken.`);
-  parts.push(`3. Verdeel de inspanning per medewerker over beschikbare dagen, rekening houdend met de opgegeven toelichting.`);
-  parts.push(`4. Genereer een planningsvoorstel met plan_project.`);
-  parts.push(`5. Alle taken krijgen status "concept".`);
-  parts.push(`6. Respecteer de deadline: plan alles VOOR de deadline in.`);
-  parts.push(`7. Gebruik standaard 8 uur per dag tenzij anders aangegeven.`);
-  parts.push(`8. Als een medewerker niet beschikbaar is op een gevraagde dag, zoek dan het eerstvolgende vrije moment.`);
+  // Feedback van gebruiker (indien aanwezig)
+  if (feedback) {
+    parts.push(`\n## Feedback op vorig voorstel`);
+    parts.push(`De gebruiker wil aanpassingen: "${feedback}"`);
+    parts.push(`Pas het voorstel hierop aan.`);
+  }
+
+  // Strikte instructies
+  parts.push(`\n## Wat je moet doen`);
+  parts.push(`1. Roep plan_project aan met de volgende parameters:`);
+  parts.push(`   - klant_naam: "${info.klant_naam}"`);
+  parts.push(`   - project_naam: "${info.projectnaam}"`);
+  parts.push(`   - fases: array met de bovenstaande fases`);
+  if (info.deadline) parts.push(`   - deadline: "${info.deadline}"`);
+  parts.push(`\n2. Geef een KORTE samenvatting (1-2 zinnen) van wat je hebt gepland.`);
+  parts.push(`\nBELANGRIJK: Geen lange uitleg! Roep gewoon de tool aan.`);
 
   return parts.join('\n');
 }

@@ -1444,7 +1444,15 @@ Deno.serve(async (req) => {
     // deno-lint-ignore no-explicit-any
     const currentMessages = [...openaiMessages];
 
+    // Detecteer of dit een planning request is (bevat KRITIEKE INSTRUCTIE + plan_project)
+    const isPlanningRequest = bericht.includes('KRITIEKE INSTRUCTIE') && bericht.includes('plan_project');
+
     for (let i = 0; i < 5; i++) {
+      // Voor planning requests: forceer plan_project tool in eerste iteratie
+      const toolChoice = (isPlanningRequest && i === 0)
+        ? { type: 'function', function: { name: 'plan_project' } }
+        : 'auto';
+
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -1455,7 +1463,7 @@ Deno.serve(async (req) => {
           model: 'gpt-4o-mini',
           messages: currentMessages,
           tools: TOOLS,
-          tool_choice: 'auto',
+          tool_choice: toolChoice,
           temperature: 0.7,
           max_tokens: 1500,
         }),
@@ -1499,11 +1507,11 @@ Deno.serve(async (req) => {
 
         const result = await executeTool(supabase, toolCall.function.name, toolArgs);
 
-        // Als dit een wijzigingsvoorstel is, bewaar het apart
-        if (toolCall.function.name === 'stel_wijziging_voor') {
+        // Als dit een voorstel is (wijziging of planning), bewaar het apart
+        if (toolCall.function.name === 'stel_wijziging_voor' || toolCall.function.name === 'plan_project') {
           try {
             const parsed = JSON.parse(result);
-            if (parsed.type === 'voorstel') {
+            if (parsed.type === 'voorstel' || parsed.type === 'planning_voorstel') {
               pendingVoorstel = parsed;
             }
           } catch { /* ignore */ }
