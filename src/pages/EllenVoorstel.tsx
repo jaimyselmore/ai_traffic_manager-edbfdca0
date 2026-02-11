@@ -7,11 +7,18 @@ import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { getSessionToken } from '@/lib/data/secureDataClient';
 import { saveAanvraag } from '@/components/dashboard/MijnAanvragen';
-import { createProjectAndSchedule } from '@/lib/services/planningAutomation';
-import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
 
-type FlowState = 'ellen-working' | 'voorstel' | 'client-check' | 'placing' | 'done' | 'error';
+type FlowState = 'ellen-working' | 'voorstel' | 'color-select' | 'client-check' | 'placing' | 'done' | 'error';
+
+// Werktype bepaalt de kleur in de planner
+const WERKTYPE_OPTIONS = [
+  { id: 'concept', label: 'Conceptontwikkeling', color: 'bg-task-concept', description: 'Brainstorm, ideeën, eerste concepten' },
+  { id: 'uitwerking', label: 'Conceptuitwerking', color: 'bg-task-uitwerking', description: 'Uitwerken van goedgekeurd concept' },
+  { id: 'productie', label: 'Productie', color: 'bg-task-productie', description: 'Shoot, opnames, productiedagen' },
+  { id: 'extern', label: 'Meeting met klant', color: 'bg-task-extern', description: 'Presentatie, call of meeting met klant' },
+  { id: 'review', label: 'Interne review', color: 'bg-task-review', description: 'Team-update, interne meeting of review' },
+];
 
 interface VoorstelTaak {
   werknemer_naam: string;
@@ -42,7 +49,6 @@ const FASE_COLORS: Record<string, string> = {
 export default function EllenVoorstel() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user } = useAuth();
   const formData = location.state?.formData;
   const projectInfo = location.state?.projectInfo;
 
@@ -53,6 +59,7 @@ export default function EllenVoorstel() {
   const [activeStep, setActiveStep] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
   const [selectedWeekIndex, setSelectedWeekIndex] = useState(0);
+  const [selectedWerktype, setSelectedWerktype] = useState<string>('concept');
 
   // Workflow step animation
   useEffect(() => {
@@ -136,6 +143,10 @@ export default function EllenVoorstel() {
   }, [projectInfo]);
 
   const handleApprove = () => {
+    setFlowState('color-select');
+  };
+
+  const handleColorSelected = () => {
     setFlowState('client-check');
   };
 
@@ -149,6 +160,7 @@ export default function EllenVoorstel() {
         klant: projectInfo?.klant_naam,
         datum: new Date().toISOString(),
         projectType: projectInfo?.projecttype,
+        werktype: selectedWerktype,
       });
       toast({
         title: 'Voorstel opgeslagen',
@@ -160,22 +172,33 @@ export default function EllenVoorstel() {
 
     setFlowState('placing');
     try {
-      if (!user) throw new Error('Niet ingelogd');
+      const sessionToken = getSessionToken();
+      if (!sessionToken) throw new Error('Niet ingelogd');
 
-      const result = await createProjectAndSchedule(
-        {
-          klant_id: projectInfo.klant_id,
-          klant_naam: projectInfo.klant_naam,
-          projectnaam: projectInfo.projectnaam,
-          projectTitel: projectInfo.projectTitel,
-          projecttype: projectInfo.projecttype,
-          deadline: projectInfo.deadline,
-          fases: projectInfo.fases,
+      // Gebruik de Edge Function met het geselecteerde werktype
+      const { data, error } = await supabase.functions.invoke('ellen-chat', {
+        headers: { Authorization: `Bearer ${sessionToken}` },
+        body: {
+          sessie_id: `project-${Date.now()}`,
+          actie: 'plannen',
+          werktype: selectedWerktype,
+          planning: {
+            klant_naam: projectInfo.klant_naam,
+            project_nummer: `P-${Date.now().toString().slice(-6)}`,
+            project_omschrijving: projectInfo.projectnaam,
+            projecttype: projectInfo.projecttype,
+            deadline: projectInfo.deadline,
+            taken: voorstellen.map(t => ({
+              ...t,
+              werktype: selectedWerktype,
+            })),
+          },
         },
-        user.id
-      );
+      });
 
-      if (result.success) {
+      if (error) throw new Error(error.message);
+
+      if (data?.success) {
         saveAanvraag({
           id: `ingediend-${Date.now()}`,
           type: 'nieuw-project',
@@ -187,7 +210,7 @@ export default function EllenVoorstel() {
         });
         setFlowState('done');
       } else {
-        throw new Error(result.errors?.join('\n') || 'Onbekende fout');
+        throw new Error(data?.message || 'Onbekende fout');
       }
     } catch (err) {
       setFlowState('error');
@@ -509,6 +532,51 @@ export default function EllenVoorstel() {
               </Button>
               <Button variant="outline" onClick={handleReject} className="flex-1">
                 Aanpassen
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Color/Werktype Selection */}
+        {flowState === 'color-select' && (
+          <div className="space-y-6 py-8">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                <span className="text-lg">🤖</span>
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-foreground">Ellen</p>
+                <p className="text-sm text-muted-foreground">
+                  In welke fase zitten we? Dit bepaalt de kleur van de blokken in de planner.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl mx-auto">
+              {WERKTYPE_OPTIONS.map((option) => (
+                <button
+                  key={option.id}
+                  onClick={() => setSelectedWerktype(option.id)}
+                  className={cn(
+                    'flex items-start gap-3 p-4 rounded-xl border-2 transition-all text-left',
+                    selectedWerktype === option.id
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border hover:border-muted-foreground/50'
+                  )}
+                >
+                  <div className={cn('w-5 h-5 rounded mt-0.5 flex-shrink-0', option.color)} />
+                  <div>
+                    <p className="font-medium text-foreground text-sm">{option.label}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{option.description}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            <div className="flex justify-center pt-4">
+              <Button onClick={handleColorSelected} className="min-w-[200px]">
+                <CheckCircle2 className="h-4 w-4 mr-2" />
+                Doorgaan
               </Button>
             </div>
           </div>

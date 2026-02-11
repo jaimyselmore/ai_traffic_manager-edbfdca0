@@ -247,6 +247,7 @@ export default function EllenChatPage() {
         body: {
           sessie_id: sessieId,
           actie: 'plannen',
+          werktype: 'concept', // Default werktype - via chat is het vaak conceptwerk
           planning,
         },
       });

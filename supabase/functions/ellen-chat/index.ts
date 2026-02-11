@@ -47,31 +47,53 @@ async function verifySessionToken(token: string): Promise<SessionPayload | null>
 
 // ---- SYSTEM PROMPT ----
 
-const SYSTEM_PROMPT = `Je bent Ellen, planningsassistent van Selmore (creatief productiebedrijf gespecialiseerd in video content).
+const SYSTEM_PROMPT = `Je bent Ellen, de planningsassistent van Selmore - een creatief productiebedrijf.
 
-KRITIEKE REGELS - NOOIT BREKEN:
-1. Je hebt GEEN eigen kennis over Selmore medewerkers, projecten, klanten, etc.
-2. Bij ELKE vraag over data: EERST een zoek-tool gebruiken, DAN pas antwoorden
-3. NOOIT antwoorden met informatie die niet uit een tool-resultaat komt
-4. Als je geen tool hebt gebruikt, zeg je: "Even kijken..." en GEBRUIK DAN DE TOOL
+## WIE JE BENT
+Je bent een enthousiaste, behulpzame collega die het team ondersteunt met planning en administratie. Je bent:
+- **Direct en efficient** - geen omhaal, recht op je doel af
+- **Warm maar professioneel** - je bent een collega, geen robot
+- **Slim en proactief** - je denkt mee en biedt oplossingen
+- **Een tikje eigenwijs** - je hebt een mening en deelt die (vriendelijk)
 
-Voorbeeld goede flow:
-- Gebruiker: "Wie is Eline?"
-- Jij: [ROEP zoek_medewerkers AAN met zoekterm "Eline"]
-- Tool geeft resultaat → Jij antwoordt op basis van dat resultaat
+## TONE OF VOICE
+- Praat als een collega, niet als een assistent
+- Kort en krachtig, geen wollige taal
+- Informeel Nederlands ("Even kijken...", "Top!", "Momentje...")
+- Bij goed nieuws: enthousiast. Bij problemen: oplossingsgericht
+- Humor mag, maar subtiel - droge opmerkingen werken beter dan geforceerde grappen
 
-Voorbeeld FOUTE flow (NOOIT DOEN):
-- Gebruiker: "Wie is Eline?"
-- Jij: "Eline is Account Manager..." ← FOUT! Je hebt geen tool gebruikt!
+## EMOJI'S - BELANGRIJK
+- Gebruik emoji's SPAARZAAM - NIET in elk bericht!
+- Alleen bij: droge humor, sarcasme, of wanneer het echt iets toevoegt
+- WEL: "Ah ja, die deadline van gisteren 💀" of na groot succes "Gelukt! 🎉"
+- NIET: bij gewone vragen, zoekresultaten, zakelijke info
+- Default = geen emoji. Twijfel je? Laat weg.
+
+Voorbeelden:
+✓ "Jakko? Die is Creative Director, werkt 40 uur. Zit in het duo-team met Mick."
+✓ "Hmm, Eline heeft die week al behoorlijk vol staan. Zal ik alternatieven zoeken?"
+✓ "Done! Project staat in concept, blokken zijn geplaatst."
+✗ "De medewerker genaamd Jakko heeft als primaire rol Creative Director toegewezen gekregen..."
+
+## KRITIEKE REGELS (NOOIT BREKEN!)
+1. Je hebt GEEN eigen kennis over Selmore data - ALTIJD tools gebruiken
+2. Bij vragen over data: EERST zoek-tool gebruiken, DAN pas antwoorden
+3. NOOIT antwoorden met info die niet uit een tool-resultaat komt
+4. Als je twijfelt, zoek dan op. Beter een keer te veel zoeken dan verkeerde info geven.
+
+## FUZZY MATCHING
+Als je iemand niet vindt, probeer variaties:
+- "Jaiko" → zoek ook op "Jakko"
+- "Elin" → zoek ook op "Eline"
+- Typfouten zijn menselijk, jij begrijpt wat ze bedoelen
 
 ## WIJZIGINGEN PROTOCOL
-
 1. Gebruiker wil iets aanpassen? → EERST zoek-tool voor ID
 2. ID gevonden? → ROEP stel_wijziging_voor AAN (VERPLICHT!)
 3. De tool toont automatisch een bevestigknop - jij hoeft dat niet te zeggen
 
 ## PLANNING PROTOCOL
-
 Je kunt projecten inplannen! Volg dit stappenplan:
 
 1. **Verzamel info** - Wat is de klant? Welke medewerkers? Welke fases? Wanneer?
@@ -95,10 +117,11 @@ Voorbeeld conversatie:
 
 **Standaard uren:** 8 uur per dag, tenzij anders gevraagd
 
-Persoonlijkheid (secundair):
-- Kort en bondig, praat als collega
-- "Jakko? Creative Director, 40 uur." (niet: "De medewerker Jakko heeft als rol...")
-- Geef alleen relevante info, niet alle velden`;
+## WAT JE WEET OVER SELMORE
+- Creatief productiebedrijf gespecialiseerd in video content
+- Team van creatives, producers, editors, strategen
+- Projecten hebben fases: concept, productie, post-productie
+- Planning is per week, met blokken van uren per medewerker`;
 
 // ---- OPENAI TOOL DEFINITIONS ----
 
@@ -107,7 +130,7 @@ const TOOLS = [
     type: 'function',
     function: {
       name: 'zoek_klanten',
-      description: 'Zoek klanten op naam of klantnummer. Geeft klantgegevens terug inclusief ID (voor wijzigingen), contactpersoon, email, telefoon, reistijd in minuten (enkele reis vanaf kantoor), planning instructies.',
+      description: 'Zoek klanten op naam of klantnummer. Geeft klantgegevens terug inclusief ID (voor wijzigingen), contactpersoon, email, telefoon, planning instructies.',
       parameters: {
         type: 'object',
         properties: {
@@ -264,18 +287,24 @@ const TOOLS = [
       },
     },
   },
+  // ---- PLANNING TOOLS ----
   {
     type: 'function',
     function: {
       name: 'check_beschikbaarheid',
-      description: 'Check of een medewerker beschikbaar is in een bepaalde week. Geeft bestaande taken, verlof en meetings terug zodat je kunt zien wanneer er vrije blokken zijn.',
+      description: 'Check de beschikbaarheid van medewerkers voor een periode. Geeft terug hoeveel uur ze vrij hebben per dag. Gebruik dit VOORDAT je een planning maakt om conflicten te voorkomen.',
       parameters: {
         type: 'object',
         properties: {
-          werknemer_naam: { type: 'string', description: 'Naam van de medewerker' },
-          week_start: { type: 'string', description: 'Maandag van de week (YYYY-MM-DD)' },
+          medewerkers: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Namen van de medewerkers om te checken'
+          },
+          start_datum: { type: 'string', description: 'Startdatum (YYYY-MM-DD)' },
+          eind_datum: { type: 'string', description: 'Einddatum (YYYY-MM-DD)' },
         },
-        required: ['werknemer_naam', 'week_start'],
+        required: ['medewerkers', 'start_datum', 'eind_datum'],
       },
     },
   },
@@ -283,37 +312,276 @@ const TOOLS = [
     type: 'function',
     function: {
       name: 'plan_project',
-      description: 'Maak een planningsvoorstel aan. Dit genereert taken in de planning met status "concept". De gebruiker moet bevestigen voordat het definitief wordt. Gebruik dit nadat je beschikbaarheid hebt gecheckt.',
+      description: 'Maak een nieuw project aan en plan blokken in voor medewerkers. Retourneert een voorstel dat de gebruiker moet bevestigen. Gebruik check_beschikbaarheid EERST om te kijken of medewerkers vrij zijn.',
       parameters: {
         type: 'object',
         properties: {
           klant_naam: { type: 'string', description: 'Naam van de klant' },
-          project_nummer: { type: 'string', description: 'Projectnummer (bijv. "SEL-2026-001")' },
-          project_omschrijving: { type: 'string', description: 'Korte omschrijving van het project' },
-          taken: {
+          project_naam: { type: 'string', description: 'Naam/omschrijving van het project' },
+          projecttype: { type: 'string', description: 'Type project (bijv. commercial, corporate, social)', enum: ['commercial', 'corporate', 'social', 'branded', 'internal', 'algemeen'] },
+          fases: {
             type: 'array',
-            description: 'Array van taken om in te plannen',
+            description: 'Lijst van fases met medewerkers en planning',
             items: {
               type: 'object',
               properties: {
-                werknemer_naam: { type: 'string', description: 'Naam van de medewerker' },
-                fase_naam: { type: 'string', description: 'Naam van de fase (bijv. Shoot, Edit, Concept)' },
-                discipline: { type: 'string', description: 'Discipline (bijv. Productie, Creatie)' },
-                werktype: { type: 'string', description: 'Type werk (bijv. Productie, Post-productie)' },
-                week_start: { type: 'string', description: 'Maandag van de week (YYYY-MM-DD)' },
-                dag_van_week: { type: 'number', description: 'Dag (0=ma, 1=di, 2=wo, 3=do, 4=vr)' },
-                start_uur: { type: 'number', description: 'Startuur (9-17)' },
-                duur_uren: { type: 'number', description: 'Duur in uren (1-8)' },
+                fase_naam: { type: 'string', description: 'Naam van de fase (bijv. Concept, Shoot, Edit)' },
+                medewerkers: {
+                  type: 'array',
+                  items: { type: 'string' },
+                  description: 'Namen van medewerkers voor deze fase'
+                },
+                start_datum: { type: 'string', description: 'Startdatum van de fase (YYYY-MM-DD)' },
+                duur_dagen: { type: 'number', description: 'Aantal werkdagen voor deze fase' },
+                uren_per_dag: { type: 'number', description: 'Aantal uren per dag (default 8)' },
               },
-              required: ['werknemer_naam', 'fase_naam', 'discipline', 'werktype', 'week_start', 'dag_van_week', 'start_uur', 'duur_uren'],
+              required: ['fase_naam', 'medewerkers', 'start_datum', 'duur_dagen'],
             },
           },
+          deadline: { type: 'string', description: 'Deadline van het project (YYYY-MM-DD)' },
         },
-        required: ['klant_naam', 'project_nummer', 'taken'],
+        required: ['klant_naam', 'project_naam', 'fases'],
       },
     },
   },
 ];
+
+// ---- DATE HELPERS ----
+
+/**
+ * Get Monday of the week for a given date (YYYY-MM-DD format)
+ */
+function getMonday(date: Date): string {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  d.setDate(diff);
+  return d.toISOString().split('T')[0];
+}
+
+/**
+ * Get day of week number (0=Monday, 4=Friday)
+ */
+function getDayOfWeekNumber(date: Date): number {
+  const day = date.getDay();
+  return day === 0 ? 6 : day - 1; // Convert Sunday=0 to Monday=0
+}
+
+/**
+ * Check if date is weekend
+ */
+function isWeekend(date: Date): boolean {
+  const day = date.getDay();
+  return day === 0 || day === 6;
+}
+
+/**
+ * Determine discipline/color based on fase name
+ */
+function bepaalDiscipline(faseNaam: string): string {
+  const lowerNaam = faseNaam.toLowerCase();
+  if (lowerNaam.includes('concept')) return 'Conceptontwikkeling';
+  if (lowerNaam.includes('strateg')) return 'Strategy';
+  if (lowerNaam.includes('creati')) return 'Creative team';
+  if (lowerNaam.includes('product') || lowerNaam.includes('shoot')) return 'Productie';
+  if (lowerNaam.includes('edit') || lowerNaam.includes('montage')) return 'Studio';
+  if (lowerNaam.includes('vfx') || lowerNaam.includes('online')) return 'Studio';
+  if (lowerNaam.includes('review') || lowerNaam.includes('meeting')) return 'Intern/Review';
+  return 'Algemeen';
+}
+
+// ---- SLOT FINDER ----
+
+interface TimeSlot {
+  startUur: number;
+  duurUren: number;
+}
+
+/**
+ * Find first available time slot for an employee on a given date
+ */
+async function vindEersteVrijeSlot(
+  supabase: SupabaseClient,
+  medewerkernaam: string,
+  datum: Date,
+  benodigdeUren: number
+): Promise<TimeSlot | null> {
+  const weekStart = getMonday(datum);
+  const dagVanWeek = getDayOfWeekNumber(datum);
+
+  // Get existing blocks for this employee on this day
+  const { data: bestaandeBlokken, error } = await supabase
+    .from('taken')
+    .select('start_uur, duur_uren')
+    .eq('werknemer_naam', medewerkernaam)
+    .eq('week_start', weekStart)
+    .eq('dag_van_week', dagVanWeek);
+
+  if (error) {
+    console.error('Error fetching existing blocks:', error);
+    return null;
+  }
+
+  // Sort blocks by start hour
+  const bezet = (bestaandeBlokken || [])
+    .sort((a, b) => a.start_uur - b.start_uur);
+
+  // Find free gap between 09:00 and 18:00
+  for (let uur = 9; uur <= 18 - benodigdeUren; uur++) {
+    // Skip lunch hour (13:00)
+    if (uur === 13) continue;
+
+    const isVrij = !bezet.some((blok) => {
+      const blokEind = blok.start_uur + blok.duur_uren;
+      const nieuweEind = uur + benodigdeUren;
+      return uur < blokEind && nieuweEind > blok.start_uur;
+    });
+
+    if (isVrij) {
+      return { startUur: uur, duurUren: benodigdeUren };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Check if employee has verlof on a specific date
+ */
+async function heeftVerlof(
+  supabase: SupabaseClient,
+  medewerkernaam: string,
+  datum: Date
+): Promise<boolean> {
+  const dateStr = datum.toISOString().split('T')[0];
+
+  const { data: verlof, error } = await supabase
+    .from('beschikbaarheid_medewerkers')
+    .select('start_datum, eind_datum')
+    .eq('werknemer_naam', medewerkernaam)
+    .eq('status', 'goedgekeurd')
+    .lte('start_datum', dateStr)
+    .gte('eind_datum', dateStr);
+
+  if (error) {
+    console.error('Error checking verlof:', error);
+    return false;
+  }
+
+  return (verlof?.length || 0) > 0;
+}
+
+/**
+ * Check if employee has parttime on this day
+ */
+async function isParttimeDag(
+  supabase: SupabaseClient,
+  medewerkernaam: string,
+  datum: Date
+): Promise<boolean> {
+  const dagNamen = ['zondag', 'maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag'];
+  const dagNaam = dagNamen[datum.getDay()];
+
+  const { data: medewerker, error } = await supabase
+    .from('medewerkers')
+    .select('parttime_dag')
+    .ilike('naam_werknemer', `%${medewerkernaam}%`)
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !medewerker) return false;
+
+  // Check if this day is the parttime day
+  const parttimeDag = medewerker.parttime_dag?.toLowerCase();
+  if (parttimeDag && parttimeDag === dagNaam) {
+    return true;
+  }
+
+  return false;
+}
+
+// ---- FUZZY MATCHING ----
+
+/**
+ * Levenshtein distance - berekent hoe "ver" twee strings van elkaar zijn
+ * Hoe lager het getal, hoe meer ze op elkaar lijken
+ */
+function levenshteinDistance(a: string, b: string): number {
+  const aLower = a.toLowerCase();
+  const bLower = b.toLowerCase();
+
+  if (aLower === bLower) return 0;
+  if (aLower.length === 0) return bLower.length;
+  if (bLower.length === 0) return aLower.length;
+
+  const matrix: number[][] = [];
+
+  for (let i = 0; i <= bLower.length; i++) {
+    matrix[i] = [i];
+  }
+  for (let j = 0; j <= aLower.length; j++) {
+    matrix[0][j] = j;
+  }
+
+  for (let i = 1; i <= bLower.length; i++) {
+    for (let j = 1; j <= aLower.length; j++) {
+      if (bLower.charAt(i - 1) === aLower.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1, // substitution
+          matrix[i][j - 1] + 1,     // insertion
+          matrix[i - 1][j] + 1      // deletion
+        );
+      }
+    }
+  }
+
+  return matrix[bLower.length][aLower.length];
+}
+
+/**
+ * Berekent similarity score (0-1) op basis van Levenshtein distance
+ */
+function similarityScore(a: string, b: string): number {
+  const distance = levenshteinDistance(a, b);
+  const maxLength = Math.max(a.length, b.length);
+  if (maxLength === 0) return 1;
+  return 1 - (distance / maxLength);
+}
+
+/**
+ * Vindt beste match voor een naam in een lijst van medewerkers
+ * Returns de medewerker als similarity > threshold
+ */
+function findBestNameMatch(
+  searchTerm: string,
+  // deno-lint-ignore no-explicit-any
+  medewerkers: any[],
+  threshold = 0.6
+  // deno-lint-ignore no-explicit-any
+): any | null {
+  let bestMatch = null;
+  let bestScore = 0;
+
+  for (const m of medewerkers) {
+    const naam = m.naam_werknemer || '';
+    // Check voornaam (eerste woord)
+    const voornaam = naam.split(' ')[0];
+
+    // Bereken scores voor volledige naam en voornaam
+    const scoreVolledig = similarityScore(searchTerm, naam);
+    const scoreVoornaam = similarityScore(searchTerm, voornaam);
+    const score = Math.max(scoreVolledig, scoreVoornaam);
+
+    if (score > bestScore && score >= threshold) {
+      bestScore = score;
+      bestMatch = m;
+    }
+  }
+
+  return bestMatch;
+}
 
 // ---- TOOL EXECUTION ----
 
@@ -335,10 +603,45 @@ async function executeTool(
         const term = sanitize(args.zoekterm || '');
         const { data, error } = await supabase
           .from('klanten')
-          .select('id, klantnummer, naam, contactpersoon, email, telefoon, reistijd_minuten, interne_notities, planning_instructies')
+          .select('id, klantnummer, naam, contactpersoon, email, telefoon, adres, beschikbaarheid, interne_notities, planning_instructies')
           .or(`naam.ilike.%${term}%,klantnummer.ilike.%${term}%`)
           .limit(10);
         if (error) return `Fout: ${error.message}`;
+
+        // Als geen exacte match, probeer fuzzy matching
+        if ((!data || data.length === 0) && term) {
+          const { data: alleKlanten, error: allError } = await supabase
+            .from('klanten')
+            .select('id, klantnummer, naam, contactpersoon, email, telefoon, adres, beschikbaarheid, interne_notities, planning_instructies')
+            .order('naam');
+
+          if (allError || !alleKlanten?.length) {
+            return 'Geen klanten gevonden.';
+          }
+
+          // Zoek beste fuzzy match op naam
+          let bestMatch = null;
+          let bestScore = 0;
+          for (const k of alleKlanten) {
+            const score = similarityScore(term, k.naam || '');
+            if (score > bestScore && score >= 0.5) {
+              bestScore = score;
+              bestMatch = k;
+            }
+          }
+
+          if (bestMatch) {
+            return JSON.stringify({
+              fuzzy_match: true,
+              gezocht: term,
+              bedoelde_je: bestMatch.naam,
+              resultaat: [bestMatch]
+            }, null, 2);
+          }
+
+          return `Geen klant gevonden met naam "${term}".`;
+        }
+
         if (!data?.length) return 'Geen klanten gevonden.';
         return JSON.stringify(data, null, 2);
       }
@@ -366,14 +669,61 @@ async function executeTool(
         let query: any = supabase
           .from('medewerkers')
           .select('werknemer_id, naam_werknemer, primaire_rol, tweede_rol, discipline, werkuren, parttime_dag, duo_team, beschikbaar, notities');
-        if (args.zoekterm) {
-          query = query.ilike('naam_werknemer', `%${sanitize(args.zoekterm)}%`);
+
+        const zoekterm = args.zoekterm ? sanitize(args.zoekterm) : '';
+
+        if (zoekterm) {
+          query = query.ilike('naam_werknemer', `%${zoekterm}%`);
         }
         if (args.discipline) {
           query = query.ilike('discipline', `%${sanitize(args.discipline)}%`);
         }
+
         const { data, error } = await query.order('naam_werknemer').limit(20);
         if (error) return `Fout: ${error.message}`;
+
+        // Als geen exacte match gevonden EN we hadden een zoekterm, probeer fuzzy matching
+        if ((!data || data.length === 0) && zoekterm) {
+          // Haal ALLE medewerkers op voor fuzzy matching
+          const { data: alleMedewerkers, error: allError } = await supabase
+            .from('medewerkers')
+            .select('werknemer_id, naam_werknemer, primaire_rol, tweede_rol, discipline, werkuren, parttime_dag, duo_team, beschikbaar, notities')
+            .order('naam_werknemer');
+
+          if (allError || !alleMedewerkers?.length) {
+            return 'Geen medewerkers gevonden.';
+          }
+
+          // Zoek beste fuzzy match
+          const fuzzyMatch = findBestNameMatch(zoekterm, alleMedewerkers, 0.5);
+
+          if (fuzzyMatch) {
+            return JSON.stringify({
+              fuzzy_match: true,
+              gezocht: zoekterm,
+              bedoelde_je: fuzzyMatch.naam_werknemer,
+              resultaat: [fuzzyMatch]
+            }, null, 2);
+          }
+
+          // Geen fuzzy match gevonden, geef suggesties
+          const suggesties = alleMedewerkers
+            .map(m => ({
+              naam: m.naam_werknemer,
+              score: similarityScore(zoekterm, m.naam_werknemer.split(' ')[0])
+            }))
+            .filter(s => s.score > 0.3)
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 3)
+            .map(s => s.naam);
+
+          if (suggesties.length > 0) {
+            return `Geen medewerker "${zoekterm}" gevonden. Bedoelde je misschien: ${suggesties.join(', ')}?`;
+          }
+
+          return `Geen medewerker gevonden met naam "${zoekterm}".`;
+        }
+
         if (!data?.length) return 'Geen medewerkers gevonden.';
         return JSON.stringify(data, null, 2);
       }
@@ -500,75 +850,100 @@ async function executeTool(
         });
       }
 
+      // ---- PLANNING TOOLS ----
+
       case 'check_beschikbaarheid': {
-        const naam = sanitize(args.werknemer_naam || '');
-        const weekStart = args.week_start || '';
+        const medewerkers = args.medewerkers as unknown as string[];
+        const startDatum = args.start_datum;
+        const eindDatum = args.eind_datum;
 
-        // Haal medewerker info op
-        const { data: medewerker } = await supabase
-          .from('medewerkers')
-          .select('werknemer_id, naam_werknemer, werkuren, parttime_dag, beschikbaar')
-          .ilike('naam_werknemer', `%${naam}%`)
-          .limit(1)
-          .single();
+        if (!medewerkers?.length || !startDatum || !eindDatum) {
+          return 'Ongeldige parameters: medewerkers, start_datum en eind_datum zijn verplicht.';
+        }
 
-        if (!medewerker) return `Medewerker "${naam}" niet gevonden.`;
-        if (!medewerker.beschikbaar) return `${medewerker.naam_werknemer} is momenteel niet beschikbaar.`;
+        const resultaten: Record<string, unknown> = {};
 
-        // Haal bestaande taken op voor die week
-        const { data: taken } = await supabase
-          .from('taken')
-          .select('dag_van_week, start_uur, duur_uren, fase_naam, klant_naam')
-          .eq('werknemer_naam', medewerker.naam_werknemer)
-          .eq('week_start', weekStart);
+        for (const medewerker of medewerkers) {
+          // Haal bestaande blokken op
+          const { data: blokken, error: blokErr } = await supabase
+            .from('taken')
+            .select('week_start, dag_van_week, start_uur, duur_uren')
+            .eq('werknemer_naam', medewerker)
+            .gte('week_start', startDatum)
+            .lte('week_start', eindDatum);
 
-        // Haal verlof op dat overlapt met die week
-        const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekEnd.getDate() + 4);
-        const weekEndStr = weekEnd.toISOString().split('T')[0];
+          // Haal verlof op
+          const { data: verlof, error: verlofErr } = await supabase
+            .from('beschikbaarheid_medewerkers')
+            .select('start_datum, eind_datum, type, reden')
+            .eq('werknemer_naam', medewerker)
+            .eq('status', 'goedgekeurd')
+            .or(`start_datum.lte.${eindDatum},eind_datum.gte.${startDatum}`);
 
-        const { data: verlof } = await supabase
-          .from('beschikbaarheid_medewerkers')
-          .select('type, start_datum, eind_datum, reden')
-          .eq('werknemer_naam', medewerker.naam_werknemer)
-          .eq('status', 'goedgekeurd')
-          .lte('start_datum', weekEndStr)
-          .gte('eind_datum', weekStart);
-
-        // Bereken vrije uren per dag
-        const dagen = ['Maandag', 'Dinsdag', 'Woensdag', 'Donderdag', 'Vrijdag'];
-        const bezetting: Record<string, string[]> = {};
-
-        for (let d = 0; d < 5; d++) {
-          const dagNaam = dagen[d];
-          // Check parttime
-          if (medewerker.parttime_dag?.toLowerCase() === dagNaam.toLowerCase()) {
-            bezetting[dagNaam] = ['Parttime-dag (vrij)'];
+          if (blokErr || verlofErr) {
+            resultaten[medewerker] = { error: 'Kon beschikbaarheid niet ophalen' };
             continue;
           }
-          const dagTaken = (taken || []).filter((t: { dag_van_week: number }) => t.dag_van_week === d);
-          if (dagTaken.length > 0) {
-            bezetting[dagNaam] = dagTaken.map((t: { start_uur: number; duur_uren: number; fase_naam: string; klant_naam: string }) =>
-              `${t.start_uur}:00-${t.start_uur + t.duur_uren}:00 ${t.fase_naam} (${t.klant_naam})`
-            );
-          } else {
-            bezetting[dagNaam] = ['Vrij (9:00-18:00)'];
+
+          // Bereken bezetting per dag
+          const bezettingPerDag: Record<string, number> = {};
+          for (const blok of blokken || []) {
+            // week_start + dag_van_week = exacte datum
+            const key = `${blok.week_start}_dag${blok.dag_van_week}`;
+            bezettingPerDag[key] = (bezettingPerDag[key] || 0) + blok.duur_uren;
           }
+
+          // Tel totale ingeplande uren
+          const totaalIngepland = (blokken || []).reduce((sum, b) => sum + b.duur_uren, 0);
+
+          resultaten[medewerker] = {
+            ingeplande_uren: totaalIngepland,
+            verlof_periodes: verlof || [],
+            bezetting_per_dag: bezettingPerDag,
+            beschikbaar: verlof?.length === 0 ? 'Ja, geen verlof' : `Let op: ${verlof?.length} verlofperiode(s)`,
+          };
         }
 
         return JSON.stringify({
-          medewerker: medewerker.naam_werknemer,
-          werkuren: medewerker.werkuren,
-          parttime_dag: medewerker.parttime_dag,
-          week: weekStart,
-          bezetting,
-          verlof: verlof || [],
+          periode: `${startDatum} t/m ${eindDatum}`,
+          medewerkers: resultaten,
         }, null, 2);
       }
 
       case 'plan_project': {
-        // Parse taken array
-        let takenArray: Array<{
+        const klantNaam = args.klant_naam;
+        const projectNaam = args.project_naam;
+        const projecttype = args.projecttype || 'algemeen';
+        const fases = args.fases as unknown as Array<{
+          fase_naam: string;
+          medewerkers: string[];
+          start_datum: string;
+          duur_dagen: number;
+          uren_per_dag?: number;
+        }>;
+        const deadline = args.deadline;
+
+        if (!klantNaam || !projectNaam || !fases?.length) {
+          return 'Ongeldige parameters: klant_naam, project_naam en minstens één fase zijn verplicht.';
+        }
+
+        // Zoek klant_id
+        const { data: klant, error: klantErr } = await supabase
+          .from('klanten')
+          .select('id, naam, planning_instructies')
+          .ilike('naam', `%${klantNaam}%`)
+          .limit(1)
+          .maybeSingle();
+
+        if (klantErr || !klant) {
+          return `Kon klant "${klantNaam}" niet vinden. Zoek eerst de klant op of maak een nieuwe aan.`;
+        }
+
+        // Generate project number
+        const projectNummer = `P-${Date.now().toString().slice(-6)}`;
+
+        // CALCULATE ACTUAL BLOCKS for each fase
+        const taken: Array<{
           werknemer_naam: string;
           fase_naam: string;
           discipline: string;
@@ -577,28 +952,97 @@ async function executeTool(
           dag_van_week: number;
           start_uur: number;
           duur_uren: number;
-        }>;
-        try {
-          takenArray = typeof args.taken === 'string' ? JSON.parse(args.taken) : (args as unknown as { taken: typeof takenArray }).taken;
-        } catch {
-          return 'Fout: ongeldige taken array';
+        }> = [];
+
+        const samenvattingParts: string[] = [];
+        const warnings: string[] = [];
+
+        for (const fase of fases) {
+          const urenPerDag = fase.uren_per_dag || 8;
+          const discipline = bepaalDiscipline(fase.fase_naam);
+          let huidigeDatum = new Date(fase.start_datum + 'T00:00:00');
+
+          samenvattingParts.push(`\n${fase.fase_naam}:`);
+
+          // For each day in the fase
+          for (let dag = 0; dag < fase.duur_dagen; dag++) {
+            // Skip weekends
+            while (isWeekend(huidigeDatum)) {
+              huidigeDatum.setDate(huidigeDatum.getDate() + 1);
+            }
+
+            // For each medewerker
+            for (const medewerker of fase.medewerkers) {
+              // Check verlof
+              const hasVerlof = await heeftVerlof(supabase, medewerker, huidigeDatum);
+              if (hasVerlof) {
+                warnings.push(`${medewerker} heeft verlof op ${huidigeDatum.toISOString().split('T')[0]}`);
+                continue;
+              }
+
+              // Check parttime
+              const isParttime = await isParttimeDag(supabase, medewerker, huidigeDatum);
+              if (isParttime) {
+                warnings.push(`${medewerker} werkt niet op ${huidigeDatum.toISOString().split('T')[0]} (parttime)`);
+                continue;
+              }
+
+              // Find available slot
+              const slot = await vindEersteVrijeSlot(supabase, medewerker, huidigeDatum, urenPerDag);
+
+              if (slot) {
+                const weekStart = getMonday(huidigeDatum);
+                const dagVanWeek = getDayOfWeekNumber(huidigeDatum);
+                const dagNamen = ['ma', 'di', 'wo', 'do', 'vr'];
+
+                taken.push({
+                  werknemer_naam: medewerker,
+                  fase_naam: fase.fase_naam,
+                  discipline: discipline,
+                  werktype: fase.fase_naam,
+                  week_start: weekStart,
+                  dag_van_week: dagVanWeek,
+                  start_uur: slot.startUur,
+                  duur_uren: slot.duurUren,
+                });
+
+                samenvattingParts.push(`  ${medewerker}: ${dagNamen[dagVanWeek]} ${slot.startUur}:00-${slot.startUur + slot.duurUren}:00`);
+              } else {
+                warnings.push(`Geen vrije slot voor ${medewerker} op ${huidigeDatum.toISOString().split('T')[0]}`);
+              }
+            }
+
+            // Move to next day
+            huidigeDatum.setDate(huidigeDatum.getDate() + 1);
+          }
         }
 
-        if (!takenArray?.length) return 'Geen taken opgegeven.';
+        // Build summary text
+        let samenvatting = samenvattingParts.join('\n');
+        if (warnings.length > 0) {
+          samenvatting += '\n\n⚠️ Let op:\n' + warnings.map(w => `  - ${w}`).join('\n');
+        }
 
-        // Genereer een samenvatting als voorstel
-        const samenvatting = takenArray.map((t, i) =>
-          `${i + 1}. ${t.werknemer_naam}: ${t.fase_naam} (${t.werktype}) - dag ${t.dag_van_week} ${t.start_uur}:00-${t.start_uur + t.duur_uren}:00`
-        ).join('\n');
-
+        // Retourneer als planning-voorstel met ECHTE TAKEN
         return JSON.stringify({
           type: 'planning_voorstel',
-          klant_naam: args.klant_naam,
-          project_nummer: args.project_nummer,
-          project_omschrijving: args.project_omschrijving || '',
-          aantal_taken: takenArray.length,
-          taken: takenArray,
-          samenvatting,
+          klant_naam: klant.naam,
+          klant_id: klant.id,
+          project_nummer: projectNummer,
+          project_omschrijving: projectNaam,
+          projecttype: projecttype,
+          deadline: deadline || null,
+          aantal_taken: taken.length,
+          taken: taken,
+          samenvatting: samenvatting,
+          planning_instructies: klant.planning_instructies || null,
+          fases: fases.map(f => ({
+            fase_naam: f.fase_naam,
+            medewerkers: f.medewerkers,
+            start_datum: f.start_datum,
+            duur_dagen: f.duur_dagen,
+            uren_per_dag: f.uren_per_dag || 8,
+          })),
         });
       }
 
@@ -612,7 +1056,7 @@ async function executeTool(
 
 // Toegestane velden per tabel voor wijzigingen
 const WIJZIG_VELDEN: Record<string, string[]> = {
-  klanten: ['naam', 'contactpersoon', 'email', 'telefoon', 'reistijd_minuten', 'interne_notities', 'planning_instructies'],
+  klanten: ['naam', 'contactpersoon', 'email', 'telefoon', 'adres', 'beschikbaarheid', 'interne_notities', 'planning_instructies'],
   projecten: ['omschrijving', 'deadline', 'status', 'opmerkingen', 'projecttype'],
   medewerkers: ['naam_werknemer', 'primaire_rol', 'tweede_rol', 'discipline', 'werkuren', 'parttime_dag', 'notities', 'beschikbaar'],
   taken: ['werknemer_naam', 'week_start', 'dag_van_week', 'start_uur', 'duur_uren', 'plan_status'],
@@ -767,12 +1211,14 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 2d. Plannen-modus: voer een bevestigd planningsvoorstel uit (maak taken aan)
+    // 2d. Plannen-modus: maak project en blokken aan op basis van planning voorstel
     if (actie === 'plannen') {
-      const { planning } = body;
-      if (!planning?.taken?.length) {
+      const planning = body.planning;
+      const gekozenWerktype = body.werktype; // Gekozen door planner na goedkeuring (bepaalt kleur)
+
+      if (!planning || !planning.taken?.length) {
         return new Response(
-          JSON.stringify({ success: false, message: 'Geen taken in het planningsvoorstel' }),
+          JSON.stringify({ success: false, message: 'Geen planning data ontvangen' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -783,50 +1229,124 @@ Deno.serve(async (req) => {
         { auth: { persistSession: false } }
       );
 
-      const results: Array<{ success: boolean; taak: string; error?: string }> = [];
-
-      for (const taak of planning.taken) {
-        const { error } = await supabase.from('taken').insert({
-          werknemer_naam: taak.werknemer_naam,
-          klant_naam: planning.klant_naam,
-          project_nummer: planning.project_nummer,
-          fase_naam: taak.fase_naam,
-          discipline: taak.discipline,
-          werktype: taak.werktype,
-          week_start: taak.week_start,
-          dag_van_week: taak.dag_van_week,
-          start_uur: taak.start_uur,
-          duur_uren: taak.duur_uren,
-          plan_status: 'concept',
-          created_by: session.sub,
-        });
-
-        results.push({
-          success: !error,
-          taak: `${taak.werknemer_naam} - ${taak.fase_naam}`,
-          error: error?.message,
-        });
-      }
-
-      const succeeded = results.filter(r => r.success).length;
-      const failed = results.filter(r => !r.success).length;
-      const message = failed === 0
-        ? `✓ ${succeeded} taken ingepland als concept.`
-        : `${succeeded} taken ingepland, ${failed} mislukt.`;
-
-      // Sla resultaat op
       try {
-        await supabase.from('chat_gesprekken').insert({
-          sessie_id,
-          rol: 'assistant',
-          inhoud: message,
-        });
-      } catch { /* ignore */ }
+        // 1. Zoek klant_id op basis van naam
+        const { data: klant, error: klantErr } = await supabase
+          .from('klanten')
+          .select('id')
+          .ilike('naam', `%${planning.klant_naam}%`)
+          .limit(1)
+          .maybeSingle();
 
-      return new Response(
-        JSON.stringify({ success: failed === 0, message, details: results }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+        if (klantErr || !klant) {
+          return new Response(
+            JSON.stringify({ success: false, message: `Klant "${planning.klant_naam}" niet gevonden` }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // 2. Maak project aan
+        const projectNummer = planning.project_nummer || `P-${Date.now().toString().slice(-6)}`;
+        const { data: project, error: projectErr } = await supabase
+          .from('projecten')
+          .insert({
+            klant_id: klant.id,
+            projectnummer: projectNummer,
+            omschrijving: planning.project_omschrijving || planning.klant_naam,
+            projecttype: planning.projecttype || 'algemeen',
+            deadline: planning.deadline,
+            status: 'concept',
+            datum_aanvraag: new Date().toISOString().split('T')[0],
+            volgnummer: Date.now() % 10000,
+          })
+          .select('id, projectnummer')
+          .single();
+
+        if (projectErr || !project) {
+          console.error('Project creation error:', projectErr);
+          return new Response(
+            JSON.stringify({ success: false, message: `Kon project niet aanmaken: ${projectErr?.message || 'Onbekende fout'}` }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // 3. Maak taken (blokken) aan - zonder project_fases
+        let aantalGeplaatst = 0;
+        const errors: string[] = [];
+
+        // Gebruik gekozen werktype of val terug op taak werktype (werktype bepaalt de kleur!)
+        const werktype = gekozenWerktype || planning.taken[0]?.werktype || 'concept';
+
+        // Map werktype naar display label
+        const werktypeLabels: Record<string, string> = {
+          concept: 'Conceptontwikkeling',
+          uitwerking: 'Conceptuitwerking',
+          productie: 'Productie',
+          extern: 'Meeting met klant',
+          review: 'Interne review',
+          optie: 'Optie',
+        };
+        const faseLabel = werktypeLabels[werktype] || werktype;
+
+        for (const taak of planning.taken) {
+          const { error: taakErr } = await supabase
+            .from('taken')
+            .insert({
+              project_id: project.id,
+              werknemer_naam: taak.werknemer_naam,
+              klant_naam: planning.klant_naam,
+              project_nummer: project.projectnummer,
+              fase_naam: faseLabel,
+              werktype: werktype, // Dit bepaalt de kleur in de planner!
+              discipline: taak.discipline || 'Algemeen', // Dit is de functiegroep
+              week_start: taak.week_start,
+              dag_van_week: taak.dag_van_week,
+              start_uur: taak.start_uur,
+              duur_uren: taak.duur_uren,
+              plan_status: 'concept',
+              is_hard_lock: false,
+            });
+
+          if (taakErr) {
+            console.error('Taak creation error:', taakErr);
+            errors.push(`Kon blok voor ${taak.werknemer_naam} niet plaatsen`);
+          } else {
+            aantalGeplaatst++;
+          }
+        }
+
+        // 4. Sla resultaat op in chatgeschiedenis
+        const resultMsg = errors.length > 0
+          ? `Planning geplaatst met ${aantalGeplaatst} blokken. ${errors.length} blokken konden niet worden geplaatst.`
+          : `Planning "${project.projectnummer}" aangemaakt met ${aantalGeplaatst} blokken als concept.`;
+
+        try {
+          await supabase.from('chat_gesprekken').insert({
+            sessie_id,
+            rol: 'assistant',
+            inhoud: errors.length > 0 ? `⚠️ ${resultMsg}` : `✓ ${resultMsg}`,
+          });
+        } catch { /* ignore */ }
+
+        return new Response(
+          JSON.stringify({
+            success: errors.length === 0,
+            message: resultMsg,
+            project_id: project.id,
+            project_nummer: project.projectnummer,
+            aantal_blokken: aantalGeplaatst,
+            errors: errors.length > 0 ? errors : undefined,
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+
+      } catch (err) {
+        console.error('Planning error:', err);
+        return new Response(
+          JSON.stringify({ success: false, message: `Er ging iets mis: ${(err as Error).message}` }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
     if (!bericht) {
@@ -908,177 +1428,42 @@ Deno.serve(async (req) => {
     }
     openaiMessages.push({ role: 'user', content: bericht });
 
-    // 7. Check AI key (prefer Lovable AI gateway, fallback to OpenAI)
-    const lovableKey = Deno.env.get('LOVABLE_API_KEY');
+    // 7. Check OpenAI key
     const openaiKey = Deno.env.get('OPENAI_API_KEY');
-    const aiKey = lovableKey || openaiKey;
-    const aiUrl = lovableKey
-      ? 'https://ai.gateway.lovable.dev/v1/chat/completions'
-      : 'https://api.openai.com/v1/chat/completions';
-    const aiModel = lovableKey ? 'google/gemini-2.5-flash' : 'gpt-4o-mini';
-
-    if (!aiKey) {
+    if (!openaiKey) {
       return new Response(
-        JSON.stringify({ error: 'AI API key niet geconfigureerd.' }),
+        JSON.stringify({ error: 'OpenAI API key niet geconfigureerd. Stel OPENAI_API_KEY in als Supabase secret.' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // 7b. Pre-fetch data voor planning aanvragen
-    // Als het bericht een "PLANNING AANVRAAG" bevat, haal beschikbaarheidsdata vooraf op
-    const isPlanningRequest = bericht.includes('PLANNING AANVRAAG');
-    if (isPlanningRequest) {
-      try {
-        // Extract medewerker namen uit het bericht
-        const medewerkerMatches = bericht.match(/Medewerkers: (.+)/g) || [];
-        const alleMedewerkers = new Set<string>();
-        for (const match of medewerkerMatches) {
-          const namen = match.replace('Medewerkers: ', '').split(', ');
-          namen.forEach((n: string) => alleMedewerkers.add(n.trim()));
-        }
-
-        // Extract startdatum en deadline
-        const deadlineMatch = bericht.match(/Deadline: (\d{4}-\d{2}-\d{2})/);
-        const startMatch = bericht.match(/Gewenste startdatum: (\d{4}-\d{2}-\d{2})/);
-        const deadline = deadlineMatch?.[1] || '';
-        const startDatum = startMatch?.[1] || new Date().toISOString().split('T')[0];
-
-        // Bereken alle weken van start tot deadline
-        const start = new Date(startDatum + 'T00:00:00');
-        const dayOfWeek = start.getDay();
-        const monday = new Date(start);
-        monday.setDate(start.getDate() - ((dayOfWeek + 6) % 7)); // Ga naar maandag
-
-        const end = deadline ? new Date(deadline + 'T00:00:00') : new Date(monday);
-        if (!deadline) end.setDate(end.getDate() + 70); // 10 weken default
-
-        const weken: string[] = [];
-        const current = new Date(monday);
-        while (current <= end) {
-          weken.push(current.toISOString().split('T')[0]);
-          current.setDate(current.getDate() + 7);
-        }
-
-        // Haal beschikbaarheidsdata op voor alle medewerkers
-        let beschikbaarheidContext = '\n\n## BESCHIKBAARHEIDSDATA (vooraf opgehaald)\n';
-
-        for (const naam of alleMedewerkers) {
-          beschikbaarheidContext += `\n### ${naam}\n`;
-
-          // Medewerker info
-          const { data: mw } = await supabase
-            .from('medewerkers')
-            .select('werknemer_id, naam_werknemer, werkuren, parttime_dag, beschikbaar')
-            .ilike('naam_werknemer', `%${naam}%`)
-            .limit(1)
-            .single();
-
-          if (!mw) {
-            beschikbaarheidContext += `⚠️ Medewerker "${naam}" niet gevonden in systeem.\n`;
-            continue;
-          }
-          if (!mw.beschikbaar) {
-            beschikbaarheidContext += `⚠️ ${mw.naam_werknemer} is momenteel niet beschikbaar.\n`;
-            continue;
-          }
-
-          beschikbaarheidContext += `- Werkuren: ${mw.werkuren}u/week\n`;
-          if (mw.parttime_dag) beschikbaarheidContext += `- Parttime dag (VRIJ): ${mw.parttime_dag}\n`;
-
-          // Haal alle taken op voor de hele periode
-          const { data: taken } = await supabase
-            .from('taken')
-            .select('dag_van_week, start_uur, duur_uren, fase_naam, klant_naam, week_start')
-            .eq('werknemer_naam', mw.naam_werknemer)
-            .gte('week_start', weken[0])
-            .lte('week_start', weken[weken.length - 1]);
-
-          // Haal verlof op
-          const { data: verlof } = await supabase
-            .from('beschikbaarheid_medewerkers')
-            .select('type, start_datum, eind_datum, reden')
-            .eq('werknemer_naam', mw.naam_werknemer)
-            .eq('status', 'goedgekeurd')
-            .lte('start_datum', weken[weken.length - 1])
-            .gte('eind_datum', weken[0]);
-
-          if (verlof?.length) {
-            beschikbaarheidContext += `- Verlof:\n`;
-            for (const v of verlof) {
-              beschikbaarheidContext += `  • ${v.type}: ${v.start_datum} t/m ${v.eind_datum} (${v.reden || 'geen reden'})\n`;
-            }
-          }
-
-          // Groepeer taken per week
-          const takenPerWeek: Record<string, Array<{ dag_van_week: number; start_uur: number; duur_uren: number; fase_naam: string; klant_naam: string }>> = {};
-          for (const t of (taken || [])) {
-            if (!takenPerWeek[t.week_start]) takenPerWeek[t.week_start] = [];
-            takenPerWeek[t.week_start].push(t);
-          }
-
-          // Toon bezetting per week (alleen weken met taken)
-          const wekenMetTaken = Object.keys(takenPerWeek).sort();
-          if (wekenMetTaken.length > 0) {
-            beschikbaarheidContext += `- Bestaande bezetting:\n`;
-            for (const week of wekenMetTaken) {
-              const weekTaken = takenPerWeek[week];
-              const dagen = ['Ma', 'Di', 'Wo', 'Do', 'Vr'];
-              const dagInfo = weekTaken.map(t => `${dagen[t.dag_van_week]} ${t.start_uur}:00-${t.start_uur + t.duur_uren}:00 (${t.klant_naam}/${t.fase_naam})`);
-              beschikbaarheidContext += `  • Week ${week}: ${dagInfo.join(', ')}\n`;
-            }
-          } else {
-            beschikbaarheidContext += `- Geen bestaande taken in deze periode → volledig beschikbaar\n`;
-          }
-        }
-
-        // Voeg beschikbaarheidsdata toe aan het user bericht
-        beschikbaarheidContext += `\n## BELANGRIJK\n`;
-        beschikbaarheidContext += `Je hebt alle beschikbaarheidsdata hierboven. Je HOEFT NIET check_beschikbaarheid aan te roepen.\n`;
-        beschikbaarheidContext += `Roep DIRECT plan_project aan met het voorstel.\n`;
-        beschikbaarheidContext += `Geef ook een korte samenvatting van je voorstel in je antwoord.\n`;
-
-        // Vervang het laatste user bericht met de verrijkte versie
-        openaiMessages[openaiMessages.length - 1].content = bericht + beschikbaarheidContext;
-
-      } catch (e) {
-        console.error('Fout bij pre-fetch beschikbaarheid:', e);
-        // Ga door met origineel bericht als pre-fetch faalt
-      }
-    }
-
-    // 8. Call AI met tool calling loop (max 8 iteraties)
+    // 8. Call OpenAI met tool calling loop (max 5 iteraties)
     let assistantMessage = '';
     // deno-lint-ignore no-explicit-any
-    let pendingVoorstel: any = null;
+    let pendingVoorstel: any = null; // Bewaar voorstel apart voor frontend
     // deno-lint-ignore no-explicit-any
     const currentMessages = [...openaiMessages];
 
-    for (let i = 0; i < 8; i++) {
-      const response = await fetch(aiUrl, {
+    for (let i = 0; i < 5; i++) {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${aiKey}`,
+          'Authorization': `Bearer ${openaiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: aiModel,
+          model: 'gpt-4o-mini',
           messages: currentMessages,
           tools: TOOLS,
           tool_choice: 'auto',
           temperature: 0.7,
-          max_tokens: 4000,
+          max_tokens: 1500,
         }),
       });
 
       if (!response.ok) {
         const errText = await response.text();
-        console.error('AI API error:', response.status, errText);
-        if (response.status === 429) {
-          return new Response(
-            JSON.stringify({ error: 'Te veel verzoeken. Probeer het over een minuut opnieuw.' }),
-            { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
+        console.error('OpenAI API error:', errText);
         return new Response(
           JSON.stringify({ error: 'Fout bij communicatie met AI' }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -1114,11 +1499,11 @@ Deno.serve(async (req) => {
 
         const result = await executeTool(supabase, toolCall.function.name, toolArgs);
 
-        // Als dit een wijzigingsvoorstel of planningsvoorstel is, bewaar het apart
-        if (toolCall.function.name === 'stel_wijziging_voor' || toolCall.function.name === 'plan_project') {
+        // Als dit een wijzigingsvoorstel is, bewaar het apart
+        if (toolCall.function.name === 'stel_wijziging_voor') {
           try {
             const parsed = JSON.parse(result);
-            if (parsed.type === 'voorstel' || parsed.type === 'planning_voorstel') {
+            if (parsed.type === 'voorstel') {
               pendingVoorstel = parsed;
             }
           } catch { /* ignore */ }
