@@ -50,7 +50,6 @@ import { deriveDisciplinesFromRoles } from '@/lib/helpers/roleDisciplineMapping'
 type Medewerker = {
   werknemer_id: number;
   naam_werknemer: string;
-  email: string | null;
   gebruikersnaam?: string | null;
   primaire_rol: string | null;
   tweede_rol: string | null;
@@ -71,7 +70,6 @@ type Medewerker = {
 
 const emptyForm = {
   naam_werknemer: '',
-  email: '',
   gebruikersnaam: '',
   wachtwoord: 'selmore2026',
   primaire_rol: '',
@@ -214,7 +212,6 @@ export function MedewerkersTab() {
 
   const filtered = medewerkers.filter((w: Medewerker) =>
     w.naam_werknemer.toLowerCase().includes(search.toLowerCase()) ||
-    w.email?.toLowerCase().includes(search.toLowerCase()) ||
     w.discipline?.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -228,7 +225,6 @@ export function MedewerkersTab() {
     setEditingItem(item);
     setForm({
       naam_werknemer: item.naam_werknemer,
-      email: item.email || '',
       gebruikersnaam: item.gebruikersnaam || '',
       wachtwoord: 'selmore2026',
       primaire_rol: item.primaire_rol || '',
@@ -313,24 +309,23 @@ export function MedewerkersTab() {
               <TableHead className="w-20">Volgorde</TableHead>
               <TableHead>ID</TableHead>
               <TableHead>Naam</TableHead>
-              <TableHead>Email</TableHead>
               <TableHead>Primaire rol</TableHead>
               <TableHead>Discipline</TableHead>
               <TableHead>Uren</TableHead>
               <TableHead>Beschikbaar</TableHead>
-              <TableHead className="w-24">Acties</TableHead>
+              <TableHead className="w-24"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                   Laden...
                 </TableCell>
               </TableRow>
             ) : filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                   Geen medewerkers gevonden
                 </TableCell>
               </TableRow>
@@ -347,7 +342,6 @@ export function MedewerkersTab() {
                       </span>
                     )}
                   </TableCell>
-                  <TableCell>{w.email || '-'}</TableCell>
                   <TableCell>{w.primaire_rol || '-'}</TableCell>
                   <TableCell>{w.discipline || '-'}</TableCell>
                   <TableCell>{w.werkuren || 40}</TableCell>
@@ -397,14 +391,6 @@ export function MedewerkersTab() {
                 <p className="text-xs text-muted-foreground">
                   Laat leeg voor automatische volgorde bij dezelfde rol
                 </p>
-              </div>
-              <div className="space-y-2">
-                <Label>Email</Label>
-                <Input
-                  type="email"
-                  value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                />
               </div>
               <div className="space-y-2">
                 <Label>Primaire rol *</Label>
