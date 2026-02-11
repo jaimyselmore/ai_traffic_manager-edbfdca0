@@ -10,11 +10,31 @@ export interface WijzigingsVoorstel {
   beschrijving: string;
 }
 
+export interface PlanningVoorstel {
+  type: 'planning_voorstel';
+  klant_naam: string;
+  project_nummer: string;
+  project_omschrijving?: string;
+  aantal_taken: number;
+  taken: Array<{
+    werknemer_naam: string;
+    fase_naam: string;
+    discipline: string;
+    werktype: string;
+    week_start: string;
+    dag_van_week: number;
+    start_uur: number;
+    duur_uren: number;
+  }>;
+  samenvatting: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: 'ellen' | 'user';
   content: string;
   voorstel?: WijzigingsVoorstel;
+  planningVoorstel?: PlanningVoorstel;
   timestamp?: Date;
 }
 
@@ -26,6 +46,8 @@ interface EllenChatProps {
   onSendMessage?: (message: string) => void;
   onConfirmProposal?: (voorstel: WijzigingsVoorstel) => void;
   onRejectProposal?: (voorstel: WijzigingsVoorstel) => void;
+  onConfirmPlanning?: (planning: PlanningVoorstel) => void;
+  onRejectPlanning?: (planning: PlanningVoorstel) => void;
   showInput?: boolean;
 }
 
@@ -37,6 +59,8 @@ export function EllenChat({
   onSendMessage,
   onConfirmProposal,
   onRejectProposal,
+  onConfirmPlanning,
+  onRejectPlanning,
   showInput = true
 }: EllenChatProps) {
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -121,6 +145,42 @@ export function EllenChat({
                       size="sm"
                       variant="outline"
                       onClick={() => onRejectProposal?.(message.voorstel!)}
+                    >
+                      Annuleren
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Planningsvoorstel met bevestig-knoppen */}
+              {message.planningVoorstel && (
+                <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-xl p-3 text-sm">
+                  <div className="font-medium text-blue-800 dark:text-blue-200 mb-2">
+                    📅 Planningsvoorstel — {message.planningVoorstel.klant_naam}
+                  </div>
+                  <div className="text-blue-700 dark:text-blue-300 mb-2 text-xs">
+                    Project: {message.planningVoorstel.project_nummer}
+                    {message.planningVoorstel.project_omschrijving && ` — ${message.planningVoorstel.project_omschrijving}`}
+                  </div>
+                  <div className="text-xs text-blue-600 dark:text-blue-400 mb-3 whitespace-pre-wrap font-mono">
+                    {message.planningVoorstel.samenvatting}
+                  </div>
+                  <div className="text-xs text-blue-500 dark:text-blue-400 mb-3">
+                    {message.planningVoorstel.aantal_taken} taken als concept
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="default"
+                      className="bg-green-600 hover:bg-green-700 text-white"
+                      onClick={() => onConfirmPlanning?.(message.planningVoorstel!)}
+                    >
+                      Inplannen
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onRejectPlanning?.(message.planningVoorstel!)}
                     >
                       Annuleren
                     </Button>
