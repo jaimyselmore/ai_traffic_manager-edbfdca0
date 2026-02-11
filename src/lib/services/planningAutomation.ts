@@ -1,11 +1,12 @@
 /**
  * Planning Automation Service
  * Automatically place blocks in the planner based on template input
+ * All database operations go through the secure data-access edge function
  */
 
-import { supabase } from '@/integrations/supabase/client';
+import { secureInsert } from '@/lib/data/secureDataClient';
 import { vindEersteVrijeSlot, heeftVerlof, vindVolgendeVrijeDag } from '@/lib/helpers/slotFinder';
-import { getMonday, getDayOfWeekNumber, isWeekend, getWorkingDaysBetween } from '@/lib/helpers/dateHelpers';
+import { getMonday, getDayOfWeekNumber, isWeekend } from '@/lib/helpers/dateHelpers';
 
 interface ProjectFaseInput {
   fase_naam: string;
@@ -44,24 +45,21 @@ export async function createProjectAndSchedule(
   const warnings: string[] = [];
 
   try {
-    // 1. Create project record
+    // 1. Create project record via secure edge function
     const insertPayload = {
       klant_id: projectData.klant_id,
       omschrijving: projectData.projectnaam,
       projecttype: projectData.projecttype || 'algemeen',
       deadline: projectData.deadline,
       status: 'concept',
-      created_by: createdBy,
       datum_aanvraag: new Date().toISOString().split('T')[0],
-      volgnummer: Date.now() % 10000, // temporary unique number
-      projectnummer: `P-${Date.now().toString().slice(-6)}` // temporary project number
+      volgnummer: Date.now() % 10000,
+      projectnummer: `P-${Date.now().toString().slice(-6)}`
     };
 
-    const { data: project, error: projectError } = await supabase
-      .from('projecten')
-      .insert(insertPayload)
-      .select()
-      .single();
+    const { data: projectArr, error: projectError } = await secureInsert<Record<string, unknown>>('projecten', insertPayload);
+
+    const project = Array.isArray(projectArr) ? projectArr[0] : null;
 
     if (projectError || !project) {
       console.error('Error creating project:', projectError);
@@ -75,20 +73,18 @@ export async function createProjectAndSchedule(
 
     // 2. For each fase, create fase and schedule blocks
     for (const fase of projectData.fases) {
-      // Create project fase
-      const { data: projectFase, error: faseError } = await supabase
-        .from('project_fases')
-        .insert({
-          project_id: project.id,
-          fase_naam: fase.fase_naam,
-          fase_type: 'fase',
-          medewerkers: fase.medewerkers,
-          inspanning_dagen: fase.duur_dagen,
-          start_datum: fase.start_datum,
-          volgorde: projectData.fases.indexOf(fase) + 1
-        })
-        .select()
-        .single();
+      // Create project fase via secure edge function
+      const { data: faseArr, error: faseError } = await secureInsert<Record<string, unknown>>('project_fases', {
+        project_id: project.id,
+        fase_naam: fase.fase_naam,
+        fase_type: 'fase',
+        medewerkers: fase.medewerkers,
+        inspanning_dagen: fase.duur_dagen,
+        start_datum: fase.start_datum,
+        volgorde: projectData.fases.indexOf(fase) + 1
+      });
+
+      const projectFase = Array.isArray(faseArr) ? faseArr[0] : null;
 
       if (faseError || !projectFase) {
         console.error('Error creating fase:', faseError);
@@ -98,17 +94,15 @@ export async function createProjectAndSchedule(
 
       // Schedule blocks for this fase
       const blokken = await scheduleFaseBlocks({
-        projectId: project.id,
-        faseId: projectFase.id,
+        projectId: project.id as string,
+        faseId: projectFase.id as string,
         klantNaam: projectData.klant_naam,
-        projectNummer: project.projectnummer,
-        projectTitel: projectData.projectTitel,
+        projectNummer: project.projectnummer as string,
         faseNaam: fase.fase_naam,
         medewerkers: fase.medewerkers,
         startDatum: fase.start_datum,
         duurDagen: fase.duur_dagen,
         urenPerDag: fase.uren_per_dag,
-        createdBy
       });
 
       totaalBlokken += blokken.length;
@@ -121,7 +115,7 @@ export async function createProjectAndSchedule(
 
     return {
       success: true,
-      projectId: project.id,
+      projectId: project.id as string,
       blokkenAantal: totaalBlokken,
       warnings: warnings.length > 0 ? warnings : undefined
     };
@@ -140,20 +134,18 @@ interface ScheduleFaseBlocksConfig {
   faseId: string;
   klantNaam: string;
   projectNummer: string;
-  projectTitel?: string;
   faseNaam: string;
   medewerkers: string[];
   startDatum: string;
   duurDagen: number;
   urenPerDag: number;
-  createdBy: string;
 }
 
 /**
  * Schedule all blocks for a single fase
  */
-async function scheduleFaseBlocks(config: ScheduleFaseBlocksConfig): Promise<any[]> {
-  const geplaatsteBlokken: any[] = [];
+async function scheduleFaseBlocks(config: ScheduleFaseBlocksConfig): Promise<Record<string, unknown>[]> {
+  const geplaatsteBlokken: Record<string, unknown>[] = [];
   let huidigeDatum = new Date(config.startDatum);
 
   // Determine discipline/color based on fase name
@@ -197,34 +189,29 @@ async function scheduleFaseBlocks(config: ScheduleFaseBlocksConfig): Promise<any
       const slot = vrijeSlot || (await vindEersteVrijeSlot(medewerker, huidigeDatum, config.urenPerDag));
 
       if (slot) {
-        // Place block in database
-        const { data: blok, error } = await supabase
-          .from('taken')
-          .insert({
-            project_id: config.projectId,
-            fase_id: config.faseId,
-            werknemer_naam: medewerker,
-            klant_naam: config.klantNaam,
-            project_nummer: config.projectNummer,
-            project_titel: config.projectTitel,
-            fase_naam: config.faseNaam,
-            werktype: config.faseNaam,
-            discipline: discipline,
-            week_start: getMonday(huidigeDatum),
-            dag_van_week: getDayOfWeekNumber(huidigeDatum),
-            start_uur: slot.startUur,
-            duur_uren: slot.duurUren,
-            plan_status: 'concept',
-            is_hard_lock: false,
-            created_by: config.createdBy
-          })
-          .select()
-          .single();
+        // Place block via secure edge function
+        const { data: blokArr, error } = await secureInsert<Record<string, unknown>>('taken', {
+          project_id: config.projectId,
+          fase_id: config.faseId,
+          werknemer_naam: medewerker,
+          klant_naam: config.klantNaam,
+          project_nummer: config.projectNummer,
+          fase_naam: config.faseNaam,
+          werktype: config.faseNaam,
+          discipline: discipline,
+          week_start: getMonday(huidigeDatum),
+          dag_van_week: getDayOfWeekNumber(huidigeDatum),
+          start_uur: slot.startUur,
+          duur_uren: slot.duurUren,
+          plan_status: 'concept',
+          is_hard_lock: false,
+        });
 
         if (error) {
           console.error('Error placing block:', error);
         } else {
-          geplaatsteBlokken.push(blok);
+          const blok = Array.isArray(blokArr) ? blokArr[0] : null;
+          if (blok) geplaatsteBlokken.push(blok);
         }
       }
     }
@@ -267,7 +254,6 @@ export async function scheduleMeeting(
     medewerkers: string[];
     klant?: string;
   },
-  createdBy: string
 ): Promise<AutomationResult> {
   try {
     // Parse times
@@ -279,23 +265,20 @@ export async function scheduleMeeting(
     const weekStart = getMonday(meetingDate);
     const dayOfWeek = getDayOfWeekNumber(meetingDate);
 
-    // Create meeting record
-    const { data: meeting, error: meetingError } = await supabase
-      .from('meetings & presentaties')
-      .insert({
-        onderwerp: meetingData.onderwerp,
-        type: meetingData.type,
-        datum: meetingData.datum,
-        start_tijd: meetingData.starttijd,
-        eind_tijd: meetingData.eindtijd,
-        locatie: meetingData.locatie,
-        deelnemers: meetingData.medewerkers,
-        is_hard_lock: true,
-        status: 'concept',
-        created_by: createdBy
-      })
-      .select()
-      .single();
+    // Create meeting record via secure edge function
+    const { data: meetingArr, error: meetingError } = await secureInsert<Record<string, unknown>>('meetings & presentaties', {
+      onderwerp: meetingData.onderwerp,
+      type: meetingData.type,
+      datum: meetingData.datum,
+      start_tijd: meetingData.starttijd,
+      eind_tijd: meetingData.eindtijd,
+      locatie: meetingData.locatie,
+      deelnemers: meetingData.medewerkers,
+      is_hard_lock: true,
+      status: 'concept',
+    });
+
+    const meeting = Array.isArray(meetingArr) ? meetingArr[0] : null;
 
     if (meetingError || !meeting) {
       return {
@@ -305,8 +288,9 @@ export async function scheduleMeeting(
     }
 
     // Place blocks for each participant
-    const blokkenPromises = meetingData.medewerkers.map((medewerker) =>
-      supabase.from('taken').insert({
+    const blockErrors: string[] = [];
+    for (const medewerker of meetingData.medewerkers) {
+      const { error } = await secureInsert('taken', {
         werknemer_naam: medewerker,
         klant_naam: meetingData.klant || 'Intern',
         project_nummer: 'MEETING',
@@ -317,20 +301,16 @@ export async function scheduleMeeting(
         dag_van_week: dayOfWeek,
         start_uur: startHour,
         duur_uren: durationHours,
-        plan_status: 'vast', // Meetings are always fixed
+        plan_status: 'vast',
         is_hard_lock: true,
-        created_by: createdBy,
-        locked_by: createdBy
-      }).select().single()
-    );
+      });
+      if (error) blockErrors.push(error.message);
+    }
 
-    const results = await Promise.all(blokkenPromises);
-    const errors = results.filter(r => r.error).map(r => r.error!.message);
-
-    if (errors.length > 0) {
+    if (blockErrors.length > 0) {
       return {
         success: false,
-        errors: ['Sommige deelnemers konden niet worden geblokkeerd: ' + errors.join(', ')]
+        errors: ['Sommige deelnemers konden niet worden geblokkeerd: ' + blockErrors.join(', ')]
       };
     }
 
