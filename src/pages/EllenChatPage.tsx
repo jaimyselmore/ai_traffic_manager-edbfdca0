@@ -9,7 +9,7 @@ const STORAGE_KEY = 'ellen_sessie_id';
 const WELCOME_MESSAGE: ChatMessage = {
   id: '1',
   role: 'ellen',
-  content: 'Hoi! Ik ben Ellen, je AI-assistent voor planning. Stel gerust een vraag over projecten, medewerkers, capaciteit, deadlines of teamverdeling. Ik zoek het voor je op!'
+  content: 'Hey! Wat kan ik voor je opzoeken? Projecten, wie er beschikbaar is, deadlines... vraag maar.'
 };
 
 function getOrCreateSessieId(): string {
