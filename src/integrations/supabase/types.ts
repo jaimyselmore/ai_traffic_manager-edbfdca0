@@ -155,8 +155,6 @@ export type Database = {
       }
       klanten: {
         Row: {
-          adres: string | null
-          beschikbaarheid: string | null
           contactpersoon: string | null
           created_at: string | null
           created_by: string | null
@@ -166,12 +164,11 @@ export type Database = {
           klantnummer: string
           naam: string
           planning_instructies: string | null
+          reistijd_minuten: number | null
           telefoon: string | null
           updated_at: string | null
         }
         Insert: {
-          adres?: string | null
-          beschikbaarheid?: string | null
           contactpersoon?: string | null
           created_at?: string | null
           created_by?: string | null
@@ -181,12 +178,11 @@ export type Database = {
           klantnummer: string
           naam: string
           planning_instructies?: string | null
+          reistijd_minuten?: number | null
           telefoon?: string | null
           updated_at?: string | null
         }
         Update: {
-          adres?: string | null
-          beschikbaarheid?: string | null
           contactpersoon?: string | null
           created_at?: string | null
           created_by?: string | null
@@ -196,6 +192,7 @@ export type Database = {
           klantnummer?: string
           naam?: string
           planning_instructies?: string | null
+          reistijd_minuten?: number | null
           telefoon?: string | null
           updated_at?: string | null
         }

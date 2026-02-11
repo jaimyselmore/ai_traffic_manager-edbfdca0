@@ -32,9 +32,7 @@ export interface Client {
   name: string;
   code?: string;
   klantnummer?: string;
-  address?: string;
-  adres?: string;
-  beschikbaarheid?: string;
+  reistijd_minuten?: number | null;
   interne_notities?: string;
   planning_instructies?: string;
 }

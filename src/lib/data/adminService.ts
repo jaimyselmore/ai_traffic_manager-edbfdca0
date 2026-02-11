@@ -584,8 +584,7 @@ export async function getKlanten() {
     id: string;
     klantnummer: string;
     naam: string;
-    adres: string | null;
-    beschikbaarheid: string | null;
+    reistijd_minuten: number | null;
     interne_notities: string | null;
     planning_instructies: string | null;
   }>('klanten', {
@@ -600,8 +599,7 @@ export async function createKlant(
   klant: {
     klantnummer: string;
     naam: string;
-    adres?: string;
-    beschikbaarheid?: string;
+    reistijd_minuten?: number | null;
     interne_notities?: string;
     planning_instructies?: string;
   },
@@ -622,8 +620,7 @@ export async function updateKlant(
   id: string,
   updates: Partial<{
     naam: string;
-    adres: string;
-    beschikbaarheid: string;
+    reistijd_minuten: number | null;
     interne_notities: string;
     planning_instructies: string;
   }>,

@@ -51,8 +51,7 @@ interface KlantRow {
   id: string
   klantnummer: string
   naam: string
-  adres: string | null
-  beschikbaarheid: string | null
+  reistijd_minuten: number | null
   interne_notities: string | null
   planning_instructies: string | null
 }
@@ -184,8 +183,7 @@ export async function getClients(): Promise<Client[]> {
     id: klant.id,
     code: klant.klantnummer,
     name: klant.naam,
-    address: klant.adres || '',
-    beschikbaarheid: klant.beschikbaarheid || '',
+    reistijd_minuten: klant.reistijd_minuten,
     interne_notities: klant.interne_notities || '',
     planning_instructies: klant.planning_instructies || '',
   }))
@@ -197,16 +195,14 @@ export async function getClients(): Promise<Client[]> {
 export async function createClient(clientData: {
   klantnummer: string
   naam: string
-  adres?: string
-  beschikbaarheid?: string
+  reistijd_minuten?: number | null
   interne_notities?: string
   planning_instructies?: string
 }): Promise<Client> {
   const insertData = {
     klantnummer: clientData.klantnummer,
     naam: clientData.naam,
-    adres: clientData.adres || null,
-    beschikbaarheid: clientData.beschikbaarheid || null,
+    reistijd_minuten: clientData.reistijd_minuten ?? null,
     interne_notities: clientData.interne_notities || null,
     planning_instructies: clientData.planning_instructies || null,
   }
@@ -227,8 +223,7 @@ export async function createClient(clientData: {
     id: result.id,
     code: result.klantnummer,
     name: result.naam,
-    address: result.adres || '',
-    beschikbaarheid: result.beschikbaarheid || '',
+    reistijd_minuten: result.reistijd_minuten,
     interne_notities: result.interne_notities || '',
     planning_instructies: result.planning_instructies || '',
   }

@@ -42,8 +42,7 @@ type Klant = {
   id: string;
   klantnummer: string;
   naam: string;
-  adres: string | null;
-  beschikbaarheid: string | null;
+  reistijd_minuten: number | null;
   interne_notities: string | null;
   planning_instructies: string | null;
 };
@@ -51,58 +50,9 @@ type Klant = {
 const emptyForm = {
   klantnummer: '',
   naam: '',
-  postcode: '',
-  huisnummer: '',
-  plaats: '',
-  land: '',
-  beschikbaarheid: '',
+  reistijd_minuten: '',
   interne_notities: '',
   planning_instructies: '',
-};
-
-// Helper to combine address fields into single string
-const combineAddress = (postcode: string, huisnummer: string, plaats: string, land: string): string => {
-  const parts: string[] = [];
-  if (postcode || huisnummer) {
-    parts.push([postcode, huisnummer].filter(Boolean).join(' '));
-  }
-  if (plaats) parts.push(plaats);
-  if (land) parts.push(land);
-  return parts.join(', ');
-};
-
-// Helper to parse address string back into components
-const parseAddress = (adres: string | null): { postcode: string; huisnummer: string; plaats: string; land: string } => {
-  if (!adres) return { postcode: '', huisnummer: '', plaats: '', land: '' };
-  
-  const parts = adres.split(', ').map(p => p.trim());
-  if (parts.length === 0) return { postcode: '', huisnummer: '', plaats: '', land: '' };
-  
-  // Try to extract postcode and huisnummer from first part
-  const firstPart = parts[0] || '';
-  const postcodeMatch = firstPart.match(/^(\d{4}\s?[A-Z]{2})\s*(.*)$/i);
-  
-  let postcode = '';
-  let huisnummer = '';
-  
-  if (postcodeMatch) {
-    postcode = postcodeMatch[1] || '';
-    huisnummer = postcodeMatch[2] || '';
-  } else {
-    // If no Dutch postcode pattern, just use the first part as-is
-    const spaceParts = firstPart.split(' ');
-    if (spaceParts.length >= 2) {
-      postcode = spaceParts[0] || '';
-      huisnummer = spaceParts.slice(1).join(' ');
-    } else {
-      postcode = firstPart;
-    }
-  }
-  
-  const plaats = parts[1] || '';
-  const land = parts[2] || '';
-  
-  return { postcode, huisnummer, plaats, land };
 };
 
 export function KlantenTab() {
@@ -121,12 +71,10 @@ export function KlantenTab() {
     queryFn: getKlanten,
   });
 
-  // Type for database operations (with combined adres field)
   type KlantDbData = {
     klantnummer: string;
     naam: string;
-    adres: string;
-    beschikbaarheid: string;
+    reistijd_minuten: number | null;
     interne_notities: string;
     planning_instructies: string;
   };
@@ -134,7 +82,6 @@ export function KlantenTab() {
   const createMutation = useMutation({
     mutationFn: (data: KlantDbData) => createKlant(data, user?.id),
     onSuccess: () => {
-      // Invalidate both query keys to sync all dropdowns
       queryClient.invalidateQueries({ queryKey: ['klanten'] });
       queryClient.invalidateQueries({ queryKey: ['clients'] });
       toast.success('Klant toegevoegd');
@@ -147,7 +94,6 @@ export function KlantenTab() {
     mutationFn: ({ id, data }: { id: string; data: KlantDbData }) =>
       updateKlant(id, data, user?.id),
     onSuccess: () => {
-      // Invalidate both query keys to sync all dropdowns
       queryClient.invalidateQueries({ queryKey: ['klanten'] });
       queryClient.invalidateQueries({ queryKey: ['clients'] });
       toast.success('Klant bijgewerkt');
@@ -159,7 +105,6 @@ export function KlantenTab() {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteKlant(id, user?.id),
     onSuccess: () => {
-      // Invalidate both query keys to sync all dropdowns
       queryClient.invalidateQueries({ queryKey: ['klanten'] });
       queryClient.invalidateQueries({ queryKey: ['clients'] });
       toast.success('Klant verwijderd');
@@ -182,15 +127,10 @@ export function KlantenTab() {
 
   const openEdit = (item: Klant) => {
     setEditingItem(item);
-    const parsed = parseAddress(item.adres);
     setForm({
       klantnummer: item.klantnummer,
       naam: item.naam,
-      postcode: parsed.postcode,
-      huisnummer: parsed.huisnummer,
-      plaats: parsed.plaats,
-      land: parsed.land,
-      beschikbaarheid: item.beschikbaarheid || '',
+      reistijd_minuten: item.reistijd_minuten?.toString() || '',
       interne_notities: item.interne_notities || '',
       planning_instructies: item.planning_instructies || '',
     });
@@ -213,16 +153,14 @@ export function KlantenTab() {
       toast.error('Naam is verplicht');
       return;
     }
-    // Combine address fields into single adres string for database
-    const formData = {
+    const formData: KlantDbData = {
       klantnummer: form.klantnummer,
       naam: form.naam,
-      adres: combineAddress(form.postcode, form.huisnummer, form.plaats, form.land),
-      beschikbaarheid: form.beschikbaarheid,
+      reistijd_minuten: form.reistijd_minuten ? parseInt(form.reistijd_minuten, 10) : null,
       interne_notities: form.interne_notities,
       planning_instructies: form.planning_instructies,
     };
-    
+
     if (editingItem) {
       updateMutation.mutate({ id: editingItem.id, data: formData });
     } else {
@@ -259,8 +197,7 @@ export function KlantenTab() {
             <TableRow>
               <TableHead className="w-24">Klantnr</TableHead>
               <TableHead>Naam</TableHead>
-              <TableHead>Adres</TableHead>
-              <TableHead>Beschikbaarheid</TableHead>
+              <TableHead>Reistijd</TableHead>
               <TableHead>Interne notities</TableHead>
               <TableHead>Planning instructies</TableHead>
               <TableHead className="w-24"></TableHead>
@@ -269,13 +206,13 @@ export function KlantenTab() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                   Laden...
                 </TableCell>
               </TableRow>
             ) : filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                   Geen klanten gevonden
                 </TableCell>
               </TableRow>
@@ -284,8 +221,7 @@ export function KlantenTab() {
                 <TableRow key={k.id}>
                   <TableCell className="font-mono text-xs">{k.klantnummer}</TableCell>
                   <TableCell className="font-medium">{k.naam}</TableCell>
-                  <TableCell className="max-w-[200px] truncate" title={k.adres || ''}>{k.adres || '-'}</TableCell>
-                  <TableCell className="max-w-[150px] truncate" title={k.beschikbaarheid || ''}>{k.beschikbaarheid || '-'}</TableCell>
+                  <TableCell>{k.reistijd_minuten ? `${k.reistijd_minuten} min` : '-'}</TableCell>
                   <TableCell className="max-w-[200px] truncate" title={k.interne_notities || ''}>{k.interne_notities || '-'}</TableCell>
                   <TableCell className="max-w-[200px] truncate" title={k.planning_instructies || ''}>{k.planning_instructies || '-'}</TableCell>
                   <TableCell>
@@ -331,58 +267,19 @@ export function KlantenTab() {
                   required
                 />
               </div>
-              <div className="space-y-2">
-                <Label>Postcode</Label>
-                <Input
-                  value={form.postcode}
-                  onChange={(e) => setForm({ ...form, postcode: e.target.value })}
-                  placeholder="1234 AB"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Huisnummer</Label>
-                <Input
-                  value={form.huisnummer}
-                  onChange={(e) => setForm({ ...form, huisnummer: e.target.value })}
-                  placeholder="123a"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Plaats</Label>
-                <Input
-                  value={form.plaats}
-                  onChange={(e) => setForm({ ...form, plaats: e.target.value })}
-                  placeholder="Amsterdam"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Land</Label>
-                <Input
-                  value={form.land}
-                  onChange={(e) => setForm({ ...form, land: e.target.value })}
-                  placeholder="Nederland"
-                />
-              </div>
             </div>
             <div className="space-y-2">
-              <Label>Beschikbaarheid</Label>
+              <Label>Reistijd (minuten)</Label>
               <Input
-                value={form.beschikbaarheid}
-                onChange={(e) => setForm({ ...form, beschikbaarheid: e.target.value })}
-                placeholder="bijv. Ma-Vr 09:00-17:00"
+                type="number"
+                min="0"
+                value={form.reistijd_minuten}
+                onChange={(e) => setForm({ ...form, reistijd_minuten: e.target.value })}
+                placeholder="bijv. 45"
               />
               <p className="text-xs text-muted-foreground">
-                Wanneer is de klant beschikbaar voor meetings/communicatie?
+                Enkele reis vanaf kantoor. Ellen houdt hier rekening mee bij het plannen.
               </p>
-            </div>
-            <div className="space-y-2">
-              <Label>Interne notities</Label>
-              <Textarea
-                value={form.interne_notities}
-                onChange={(e) => setForm({ ...form, interne_notities: e.target.value })}
-                rows={2}
-                placeholder="Algemene opmerkingen over de klant"
-              />
             </div>
             <div className="space-y-2">
               <Label>Planning instructies</Label>
@@ -393,8 +290,17 @@ export function KlantenTab() {
                 placeholder="bijv. 'Klant wil alleen ochtend vergaderen', 'Altijd Jan erbij betrekken'"
               />
               <p className="text-xs text-muted-foreground">
-                Specifieke instructies die Ellen gebruikt bij het plannen.
+                Instructies die Ellen gebruikt bij het plannen, inclusief beschikbaarheid.
               </p>
+            </div>
+            <div className="space-y-2">
+              <Label>Interne notities</Label>
+              <Textarea
+                value={form.interne_notities}
+                onChange={(e) => setForm({ ...form, interne_notities: e.target.value })}
+                rows={2}
+                placeholder="Algemene opmerkingen over de klant"
+              />
             </div>
             <div className="flex justify-end gap-2 pt-4">
               <Button type="button" variant="outline" onClick={closeDialog}>
