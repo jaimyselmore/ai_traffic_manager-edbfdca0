@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Loader2, CheckCircle2, XCircle, ArrowLeft, Send, Check } from 'lucide-react';
+import { Loader2, CheckCircle2, XCircle, ArrowLeft, Send, Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
@@ -52,6 +52,7 @@ export default function EllenVoorstel() {
   const [errorMessage, setErrorMessage] = useState('');
   const [activeStep, setActiveStep] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
+  const [selectedWeekIndex, setSelectedWeekIndex] = useState(0);
 
   // Workflow step animation
   useEffect(() => {
@@ -189,34 +190,74 @@ export default function EllenVoorstel() {
     navigate('/nieuw-project');
   };
 
-  // Calculate the week start date and unique medewerkers for the mini planner
-  const weekStart = useMemo(() => {
-    if (voorstellen.length === 0) return new Date();
-    const ws = voorstellen[0].week_start;
-    return new Date(ws + 'T00:00:00');
-  }, [voorstellen]);
+  // Calculate all weeks from first task week to deadline
+  const allWeeks = useMemo(() => {
+    if (voorstellen.length === 0) return [new Date()];
+
+    // Get all unique week_start values
+    const weekStarts = [...new Set(voorstellen.map(t => t.week_start))].sort();
+    const firstWeek = new Date(weekStarts[0] + 'T00:00:00');
+    
+    // Determine end date: deadline or last task week
+    let endDate: Date;
+    if (projectInfo?.deadline) {
+      endDate = new Date(projectInfo.deadline + 'T00:00:00');
+    } else {
+      const lastWeek = new Date(weekStarts[weekStarts.length - 1] + 'T00:00:00');
+      lastWeek.setDate(lastWeek.getDate() + 4); // Friday of last week
+      endDate = lastWeek;
+    }
+
+    // Generate all Monday dates from first to end
+    const weeks: Date[] = [];
+    const current = new Date(firstWeek);
+    while (current <= endDate) {
+      weeks.push(new Date(current));
+      current.setDate(current.getDate() + 7);
+    }
+    // Ensure at least the weeks with tasks are included
+    if (weeks.length === 0) weeks.push(firstWeek);
+    return weeks;
+  }, [voorstellen, projectInfo?.deadline]);
+
+  const currentWeekStart = allWeeks[selectedWeekIndex] || allWeeks[0];
+  const currentWeekISO = currentWeekStart.toISOString().split('T')[0];
 
   const weekDates = useMemo(() => {
     return DAG_NAMEN.map((_, index) => {
-      const date = new Date(weekStart);
+      const date = new Date(currentWeekStart);
       date.setDate(date.getDate() + index);
       return date;
     });
-  }, [weekStart]);
+  }, [currentWeekStart]);
+
+  // Format week label like "Week 12 – 17 t/m 21 maart 2026"
+  const weekLabel = useMemo(() => {
+    const monday = weekDates[0];
+    const friday = weekDates[4];
+    const weekNum = getWeekNumber(monday);
+    const months = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'];
+    const monthName = months[friday.getMonth()];
+    return `Week ${weekNum} – ${monday.getDate()} t/m ${friday.getDate()} ${monthName} ${friday.getFullYear()}`;
+  }, [weekDates]);
 
   const medewerkers = useMemo(() => {
     const names = [...new Set(voorstellen.map(t => t.werknemer_naam))];
     return names;
   }, [voorstellen]);
 
+  // Filter tasks for the currently selected week
   const getTasksForCell = (medewerker: string, dayIndex: number, hour: number) => {
     return voorstellen.filter(t =>
       t.werknemer_naam === medewerker &&
+      t.week_start === currentWeekISO &&
       t.dag_van_week === dayIndex &&
       hour >= t.start_uur &&
       hour < t.start_uur + t.duur_uren
     );
   };
+
+  const tasksThisWeek = voorstellen.filter(t => t.week_start === currentWeekISO);
 
   const isTaskStart = (taak: VoorstelTaak, hour: number) => {
     return hour === taak.start_uur;
@@ -320,9 +361,41 @@ export default function EllenVoorstel() {
               </div>
             </Card>
 
-            {/* Mini Planner Grid */}
-            <div className="space-y-2">
-              <h3 className="text-sm font-semibold text-foreground">Voorgestelde planning</h3>
+            {/* Mini Planner Grid with week navigation */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-foreground">Voorgestelde planning</h3>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={selectedWeekIndex === 0}
+                    onClick={() => setSelectedWeekIndex(i => i - 1)}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span className="text-sm font-medium text-foreground min-w-[260px] text-center">
+                    {weekLabel}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={selectedWeekIndex >= allWeeks.length - 1}
+                    onClick={() => setSelectedWeekIndex(i => i + 1)}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                  <span className="text-xs text-muted-foreground ml-2">
+                    {selectedWeekIndex + 1} / {allWeeks.length}
+                  </span>
+                </div>
+              </div>
+              {tasksThisWeek.length === 0 && (
+                <div className="text-center py-8 text-muted-foreground text-sm border border-border rounded-lg bg-card">
+                  Geen blokken ingepland deze week
+                </div>
+              )}
+              {tasksThisWeek.length > 0 && (
               <div className="w-full rounded-lg border border-border bg-card overflow-x-auto">
                 <table className="w-full border-collapse table-fixed min-w-[700px]">
                   <thead>
@@ -413,6 +486,7 @@ export default function EllenVoorstel() {
                   </tbody>
                 </table>
               </div>
+              )}
               <p className="text-xs text-muted-foreground">
                 Concept-blokken worden semi-transparant weergegeven. Na goedkeuring worden ze vastgezet.
               </p>
@@ -585,4 +659,12 @@ function generateDefaultVoorstel(info: any): VoorstelTaak[] {
   }
 
   return taken;
+}
+
+function getWeekNumber(date: Date): number {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
 }
