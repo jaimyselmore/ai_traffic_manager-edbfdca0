@@ -1,16 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { EllenChat, ChatMessage, WijzigingsVoorstel } from '@/components/chat/EllenChat';
 import { supabase } from '@/integrations/supabase/client';
 import { getSessionToken } from '@/lib/data/secureDataClient';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/contexts/AuthContext';
 
 const STORAGE_KEY = 'ellen_sessie_id';
-
-const WELCOME_MESSAGE: ChatMessage = {
-  id: '1',
-  role: 'ellen',
-  content: 'Hey! Wat kan ik voor je opzoeken? Projecten, wie er beschikbaar is, deadlines... vraag maar.'
-};
 
 function getOrCreateSessieId(): string {
   let id = localStorage.getItem(STORAGE_KEY);
@@ -50,8 +45,19 @@ function cleanContent(content: string): string {
 }
 
 export default function EllenChatPage() {
+  const { user } = useAuth();
+  const voornaam = user?.naam?.split(' ')[0] || '';
+
+  const welcomeMessage = useMemo<ChatMessage>(() => ({
+    id: '1',
+    role: 'ellen',
+    content: voornaam
+      ? `Hi ${voornaam}, leuk dat je er bent! Wat kan ik vandaag voor je doen?`
+      : 'Hey! Wat kan ik vandaag voor je doen?'
+  }), [voornaam]);
+
   const [sessieId, setSessieId] = useState(getOrCreateSessieId);
-  const [messages, setMessages] = useState<ChatMessage[]>([WELCOME_MESSAGE]);
+  const [messages, setMessages] = useState<ChatMessage[]>([welcomeMessage]);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
 
@@ -84,7 +90,7 @@ export default function EllenChatPage() {
               };
             }
           );
-          setMessages([WELCOME_MESSAGE, ...loadedMessages]);
+          setMessages([welcomeMessage, ...loadedMessages]);
         }
       } catch {
         // Geen geschiedenis gevonden
@@ -94,14 +100,14 @@ export default function EllenChatPage() {
     }
 
     loadHistory();
-  }, [sessieId]);
+  }, [sessieId, welcomeMessage]);
 
   const handleNewConversation = useCallback(() => {
     const newId = crypto.randomUUID();
     localStorage.setItem(STORAGE_KEY, newId);
     setSessieId(newId);
-    setMessages([WELCOME_MESSAGE]);
-  }, []);
+    setMessages([welcomeMessage]);
+  }, [welcomeMessage]);
 
   const handleSendMessage = useCallback(async (message: string) => {
     const sessionToken = getSessionToken();
