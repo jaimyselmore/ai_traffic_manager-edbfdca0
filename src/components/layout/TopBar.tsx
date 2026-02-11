@@ -26,7 +26,7 @@ export function TopBar() {
     <>
       <header className="flex h-14 items-center justify-end border-b border-border bg-card px-6">
         <div className="flex items-center gap-2">
-          {user?.isPlanner && (
+          {user?.rol === 'admin' && (
             <button
               onClick={() => navigate('/admin')}
               className="p-2 rounded-full hover:bg-muted transition-colors"
