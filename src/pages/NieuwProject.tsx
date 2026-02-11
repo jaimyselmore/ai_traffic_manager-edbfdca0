@@ -650,19 +650,16 @@ export default function NieuwProject() {
                                 <div className="pl-7 space-y-3">
                                   <div className="flex items-center gap-3">
                                     <Label className="text-sm whitespace-nowrap">Inspanning:</Label>
-                                    <Select
-                                      value={String(teamAllocatie.aantalDagen)}
-                                      onValueChange={(v) => handleTeamDagenChange(teamName, parseFloat(v))}
-                                    >
-                                      <SelectTrigger className="w-32">
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {DAGEN_OPTIES.map(o => (
-                                          <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      step="0.5"
+                                      className="w-28"
+                                      value={teamAllocatie.aantalDagen || ''}
+                                      onChange={(e) => handleTeamDagenChange(teamName, parseFloat(e.target.value) || 0)}
+                                      placeholder="Aantal"
+                                    />
+                                    <span className="text-sm text-muted-foreground">dagen</span>
                                   </div>
 
                                   <div className="space-y-2">
@@ -741,19 +738,15 @@ export default function NieuwProject() {
                                                 <SelectItem value="uren">Uren</SelectItem>
                                               </SelectContent>
                                             </Select>
-                                            <Select
-                                              value={String(allocatie.aantalDagen)}
-                                              onValueChange={(v) => handleMedewerkerDagenChange(emp.id, parseFloat(v))}
-                                            >
-                                              <SelectTrigger className="w-36">
-                                                <SelectValue />
-                                              </SelectTrigger>
-                                              <SelectContent>
-                                                {((allocatie.eenheid || 'dagen') === 'dagen' ? DAGEN_OPTIES : UREN_OPTIES).map(o => (
-                                                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                                                ))}
-                                              </SelectContent>
-                                            </Select>
+                                            <Input
+                                              type="number"
+                                              min="0"
+                                              step={allocatie.eenheid === 'uren' ? '1' : '0.5'}
+                                              className="w-28"
+                                              value={allocatie.aantalDagen || ''}
+                                              onChange={(e) => handleMedewerkerDagenChange(emp.id, parseFloat(e.target.value) || 0)}
+                                              placeholder="Aantal"
+                                            />
                                           </div>
 
                                           <div className="space-y-2">
@@ -815,19 +808,15 @@ export default function NieuwProject() {
                                       <SelectItem value="uren">Uren</SelectItem>
                                     </SelectContent>
                                   </Select>
-                                  <Select
-                                    value={String(allocatie.aantalDagen)}
-                                    onValueChange={(v) => handleMedewerkerDagenChange(emp.id, parseFloat(v))}
-                                  >
-                                    <SelectTrigger className="w-36">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {((allocatie.eenheid || 'dagen') === 'dagen' ? DAGEN_OPTIES : UREN_OPTIES).map(o => (
-                                        <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    step={allocatie.eenheid === 'uren' ? '1' : '0.5'}
+                                    className="w-28"
+                                    value={allocatie.aantalDagen || ''}
+                                    onChange={(e) => handleMedewerkerDagenChange(emp.id, parseFloat(e.target.value) || 0)}
+                                    placeholder="Aantal"
+                                  />
                                 </div>
 
                                 <div className="space-y-2">
