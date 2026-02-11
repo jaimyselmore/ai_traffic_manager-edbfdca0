@@ -127,16 +127,21 @@ export default function NieuwProject() {
   }, [formData]);
 
   const handleSaveConcept = () => {
+    // Save main key (for autosave/reload)
     localStorage.setItem(STORAGE_KEY, JSON.stringify(formData));
+    // Also save a unique concept copy so it persists even if the main key gets overwritten
+    const conceptKey = `concept_data_${Date.now()}`;
+    localStorage.setItem(conceptKey, JSON.stringify(formData));
     const selectedClient = clients.find(c => c.id === formData.projectHeader.klantId);
     saveAanvraag({
-      id: `concept-nieuw-${Date.now()}`,
+      id: conceptKey,
       type: 'nieuw-project',
       status: 'concept',
       titel: formData.projectHeader.projectTitel || formData.projectHeader.projectomschrijving || 'Nieuw project',
       klant: selectedClient?.name,
       datum: new Date().toISOString(),
       projectType: formData.projectType,
+      storageKey: conceptKey,
     });
     toast({
       title: 'Concept opgeslagen',

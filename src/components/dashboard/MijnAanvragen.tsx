@@ -13,6 +13,7 @@ interface SavedAanvraag {
   klant?: string;
   datum: string;
   projectType?: string;
+  storageKey?: string; // localStorage key where form data is stored
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -27,6 +28,13 @@ const TYPE_ROUTES: Record<string, string> = {
   'wijziging': '/wijzigingsverzoek',
   'meeting': '/meeting',
   'verlof': '/verlof',
+};
+
+const TYPE_STORAGE_KEYS: Record<string, string> = {
+  'nieuw-project': 'concept_nieuw_project',
+  'wijziging': 'concept_wijziging',
+  'meeting': 'concept_meeting',
+  'verlof': 'concept_verlof',
 };
 
 const STORAGE_KEY = 'aanvragen_lijst';
@@ -52,8 +60,14 @@ export function saveAanvraag(aanvraag: SavedAanvraag) {
 }
 
 export function removeAanvraag(id: string) {
-  const lijst = getAanvragenLijst().filter(a => a.id !== id);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(lijst));
+  const lijst = getAanvragenLijst();
+  const aanvraag = lijst.find(a => a.id === id);
+  // Clean up linked form data
+  if (aanvraag?.storageKey) {
+    localStorage.removeItem(aanvraag.storageKey);
+  }
+  const filtered = lijst.filter(a => a.id !== id);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
 }
 
 export function MijnAanvragen() {
@@ -76,7 +90,20 @@ export function MijnAanvragen() {
     <div
       key={aanvraag.id}
       className="flex items-center justify-between p-4 border border-border rounded-xl bg-card hover:bg-accent/50 transition-colors cursor-pointer"
-      onClick={() => navigate(TYPE_ROUTES[aanvraag.type] || '/')}
+      onClick={() => {
+        // For concepts, restore the form data from the linked storage key
+        if (aanvraag.status === 'concept' && aanvraag.storageKey) {
+          const conceptData = localStorage.getItem(aanvraag.storageKey);
+          if (conceptData) {
+            // Set the main storage key so the form loads this data
+            const mainKey = TYPE_STORAGE_KEYS[aanvraag.type];
+            if (mainKey) {
+              localStorage.setItem(mainKey, conceptData);
+            }
+          }
+        }
+        navigate(TYPE_ROUTES[aanvraag.type] || '/');
+      }}
     >
       <div className="flex items-center gap-3 min-w-0">
         <div className="flex-shrink-0">
