@@ -13,6 +13,8 @@ export interface MedewerkerEffort {
   medewerkerId: string;
   medewerkerNaam: string;
   effort: string;
+  eenheid: 'dagen' | 'uren';
+  toelichting?: string;
   periodeStart?: string;
   periodeEind?: string;
 }
@@ -47,13 +49,9 @@ interface PlanningModeFormProps {
   onChange: (data: PlanningModeData) => void;
 }
 
-const DUUR_OPTIONS = [
-  { value: '0.5', label: '0,5 dag' },
-  { value: '1', label: '1 dag' },
-  { value: '2', label: '2 dagen' },
-  { value: '3', label: '3 dagen' },
-  { value: '4', label: '4 dagen' },
-  { value: '5+', label: '5+ dagen' },
+const EENHEID_OPTIONS = [
+  { value: 'dagen', label: 'dagen' },
+  { value: 'uren', label: 'uren' },
 ];
 
 const MEETING_TYPES = [
@@ -95,7 +93,8 @@ export function PlanningModeForm({ data, onChange }: PlanningModeFormProps) {
         medewerkers: [...current, { 
           medewerkerId: empId, 
           medewerkerNaam: empName, 
-          effort: '' 
+          effort: '',
+          eenheid: 'dagen',
         }] 
       });
     }
@@ -233,21 +232,32 @@ export function PlanningModeForm({ data, onChange }: PlanningModeFormProps) {
                         <tr key={m.medewerkerId} className="border-t border-border">
                           <td className="p-3">{m.medewerkerNaam}</td>
                           <td className="p-3">
-                            <Select
-                              value={m.effort}
-                              onValueChange={(value) => updateMedewerkerEffort(fase, m.medewerkerId, { effort: value })}
-                            >
-                              <SelectTrigger className="w-32">
-                                <SelectValue placeholder="Selecteer" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {DUUR_OPTIONS.map((opt) => (
-                                  <SelectItem key={opt.value} value={opt.value}>
-                                    {opt.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <div className="flex items-center gap-2">
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.5"
+                                className="w-20"
+                                value={m.effort}
+                                onChange={(e) => updateMedewerkerEffort(fase, m.medewerkerId, { effort: e.target.value })}
+                                placeholder="0"
+                              />
+                              <Select
+                                value={m.eenheid || 'dagen'}
+                                onValueChange={(value) => updateMedewerkerEffort(fase, m.medewerkerId, { eenheid: value as 'dagen' | 'uren' })}
+                              >
+                                <SelectTrigger className="w-24">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {EENHEID_OPTIONS.map((opt) => (
+                                    <SelectItem key={opt.value} value={opt.value}>
+                                      {opt.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
                           </td>
                           {isHandmatig && (
                             <td className="p-3">
