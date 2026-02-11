@@ -4,6 +4,7 @@ import { AlertTriangle, Clock, Eye, Bell, FolderOpen, Plus, FileEdit, Users, Cal
 import { StatCard } from './StatCard';
 import { RequestBlock } from './RequestBlock';
 import { NotificationPanel, type Notification as PanelNotification, type NotificationType } from './NotificationPanel';
+import { MijnAanvragen } from './MijnAanvragen';
 import { getWeekNumber, getWeekStart, formatDateRange } from '@/lib/helpers/dateHelpers';
 import { useNotifications } from '@/lib/data';
 import { useAuth } from '@/contexts/AuthContext';
@@ -143,6 +144,12 @@ export function Dashboard({ selectedEmployeeId }: DashboardProps) {
             onClick={() => navigate('/verlof')}
           />
         </div>
+      </div>
+
+      {/* Mijn Aanvragen */}
+      <div>
+        <h2 className="mb-6 text-xl font-semibold text-foreground">Mijn aanvragen</h2>
+        <MijnAanvragen />
       </div>
 
       {/* Notification Panel */}

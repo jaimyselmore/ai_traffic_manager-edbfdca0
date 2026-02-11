@@ -12,6 +12,7 @@ import { ProjectHeader, ProjectHeaderData, emptyProjectHeaderData } from '@/comp
 import { BetrokkenTeam, BetrokkenTeamData, emptyBetrokkenTeamData } from '@/components/forms/BetrokkenTeam';
 import { ProductieFases, ProductieFasesData, emptyProductieFasesData } from '@/components/forms/ProductieFases';
 import { toast } from '@/hooks/use-toast';
+import { saveAanvraag } from '@/components/dashboard/MijnAanvragen';
 import { useAuth } from '@/contexts/AuthContext';
 import { createProjectAndSchedule } from '@/lib/services/planningAutomation';
 import { useClients } from '@/hooks/use-clients';
@@ -24,7 +25,8 @@ type ProjectType = 'algemeen' | 'productie' | '';
 interface MedewerkerAllocatie {
   medewerkerId: string;
   aantalDagen: number;
-  toelichting: string; // Waarom deze medewerker nodig is en hoe
+  eenheid: 'dagen' | 'uren';
+  toelichting: string;
 }
 
 interface TeamAllocatie {
@@ -126,6 +128,16 @@ export default function NieuwProject() {
 
   const handleSaveConcept = () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(formData));
+    const selectedClient = clients.find(c => c.id === formData.projectHeader.klantId);
+    saveAanvraag({
+      id: `concept-nieuw-${Date.now()}`,
+      type: 'nieuw-project',
+      status: 'concept',
+      titel: formData.projectHeader.projectTitel || formData.projectHeader.projectomschrijving || 'Nieuw project',
+      klant: selectedClient?.name,
+      datum: new Date().toISOString(),
+      projectType: formData.projectType,
+    });
     toast({
       title: 'Concept opgeslagen',
       description: 'Je kunt later verder werken aan dit project.',
@@ -347,6 +359,16 @@ export default function NieuwProject() {
 
     if (result.success) {
       localStorage.removeItem(STORAGE_KEY);
+      const selectedClientForSave = clients.find(c => c.id === formData.projectHeader.klantId);
+      saveAanvraag({
+        id: `ingediend-nieuw-${Date.now()}`,
+        type: 'nieuw-project',
+        status: 'ingediend',
+        titel: formData.projectHeader.projectTitel || formData.projectHeader.projectomschrijving || 'Nieuw project',
+        klant: selectedClientForSave?.name,
+        datum: new Date().toISOString(),
+        projectType: formData.projectType,
+      });
 
       toast({
         title: 'Project aangemaakt!',
@@ -413,6 +435,7 @@ export default function NieuwProject() {
               {
                 medewerkerId: id,
                 aantalDagen: 5,
+                eenheid: 'dagen',
                 toelichting: ''
               }
             ]
@@ -445,6 +468,45 @@ export default function NieuwProject() {
       }
     }));
   };
+
+  const handleMedewerkerEenheidChange = (id: string, eenheid: 'dagen' | 'uren') => {
+    setFormData(prev => ({
+      ...prev,
+      algemeen: {
+        ...prev.algemeen,
+        medewerkerAllocaties: prev.algemeen.medewerkerAllocaties.map(a =>
+          a.medewerkerId === id ? { ...a, eenheid, aantalDagen: eenheid === 'uren' ? 8 : 1 } : a
+        )
+      }
+    }));
+  };
+
+  const DAGEN_OPTIES = [
+    { value: '0.5', label: '0.5 dag' },
+    { value: '1', label: '1 dag' },
+    { value: '2', label: '2 dagen' },
+    { value: '3', label: '3 dagen' },
+    { value: '4', label: '4 dagen' },
+    { value: '5', label: '5 dagen' },
+    { value: '6', label: '6 dagen' },
+    { value: '7', label: '7 dagen' },
+    { value: '8', label: '8 dagen' },
+    { value: '9', label: '9 dagen' },
+    { value: '10', label: '10 dagen' },
+  ];
+
+  const UREN_OPTIES = [
+    { value: '4', label: '4 uur' },
+    { value: '8', label: '8 uur (1 dag)' },
+    { value: '16', label: '16 uur (2 dagen)' },
+    { value: '24', label: '24 uur (3 dagen)' },
+    { value: '32', label: '32 uur (4 dagen)' },
+    { value: '40', label: '40 uur (5 dagen)' },
+    { value: '48', label: '48 uur (6 dagen)' },
+    { value: '56', label: '56 uur (7 dagen)' },
+    { value: '60', label: '60 uur' },
+    { value: '80', label: '80 uur (10 dagen)' },
+  ];
 
   // Team selection handlers
   const handleTeamToggle = (teamName: string, memberIds: string[]) => {
@@ -650,15 +712,20 @@ export default function NieuwProject() {
                               {isTeamSelected && teamAllocatie && (
                                 <div className="pl-7 space-y-3">
                                   <div className="flex items-center gap-3">
-                                    <Label className="text-sm w-24">Aantal dagen:</Label>
-                                    <Input
-                                      type="number"
-                                      min="1"
-                                      value={teamAllocatie.aantalDagen}
-                                      onChange={(e) => handleTeamDagenChange(teamName, parseInt(e.target.value) || 1)}
-                                      className="w-20"
-                                    />
-                                    <span className="text-sm text-muted-foreground">dagen</span>
+                                    <Label className="text-sm whitespace-nowrap">Inspanning:</Label>
+                                    <Select
+                                      value={String(teamAllocatie.aantalDagen)}
+                                      onValueChange={(v) => handleTeamDagenChange(teamName, parseFloat(v))}
+                                    >
+                                      <SelectTrigger className="w-32">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {DAGEN_OPTIES.map(o => (
+                                          <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
                                   </div>
 
                                   <div className="space-y-2">
@@ -723,16 +790,33 @@ export default function NieuwProject() {
                                       {/* Individual details - alleen tonen als geselecteerd */}
                                       {isSelected && !isTeamSelected && allocatie && (
                                         <div className="pl-7 space-y-2">
-                                          <div className="flex items-center gap-3">
-                                            <Label className="text-sm w-24">Aantal dagen:</Label>
-                                            <Input
-                                              type="number"
-                                              min="1"
-                                              value={allocatie.aantalDagen}
-                                              onChange={(e) => handleMedewerkerDagenChange(emp.id, parseInt(e.target.value) || 1)}
-                                              className="w-20"
-                                            />
-                                            <span className="text-sm text-muted-foreground">dagen</span>
+                                          <div className="flex items-center gap-2 flex-wrap">
+                                            <Label className="text-sm whitespace-nowrap">Inspanning:</Label>
+                                            <Select
+                                              value={allocatie.eenheid || 'dagen'}
+                                              onValueChange={(v: 'dagen' | 'uren') => handleMedewerkerEenheidChange(emp.id, v)}
+                                            >
+                                              <SelectTrigger className="w-24">
+                                                <SelectValue />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                <SelectItem value="dagen">Dagen</SelectItem>
+                                                <SelectItem value="uren">Uren</SelectItem>
+                                              </SelectContent>
+                                            </Select>
+                                            <Select
+                                              value={String(allocatie.aantalDagen)}
+                                              onValueChange={(v) => handleMedewerkerDagenChange(emp.id, parseFloat(v))}
+                                            >
+                                              <SelectTrigger className="w-36">
+                                                <SelectValue />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                {((allocatie.eenheid || 'dagen') === 'dagen' ? DAGEN_OPTIES : UREN_OPTIES).map(o => (
+                                                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                                                ))}
+                                              </SelectContent>
+                                            </Select>
                                           </div>
 
                                           <div className="space-y-2">
@@ -740,7 +824,7 @@ export default function NieuwProject() {
                                             <Textarea
                                               value={allocatie.toelichting}
                                               onChange={(e) => handleMedewerkerToelichtingChange(emp.id, e.target.value)}
-                                              placeholder="Waarom nodig? Wat gaat diegene doen?"
+                                              placeholder="Bijv. '4 uur per dag, 2 dagen' of 'Waarom nodig?'"
                                               rows={2}
                                               className="text-sm"
                                             />
@@ -780,16 +864,33 @@ export default function NieuwProject() {
                             {/* Details - alleen tonen als geselecteerd */}
                             {isSelected && allocatie && (
                               <div className="pl-7 space-y-3">
-                                <div className="flex items-center gap-3">
-                                  <Label className="text-sm w-24">Aantal dagen:</Label>
-                                  <Input
-                                    type="number"
-                                    min="1"
-                                    value={allocatie.aantalDagen}
-                                    onChange={(e) => handleMedewerkerDagenChange(emp.id, parseInt(e.target.value) || 1)}
-                                    className="w-20"
-                                  />
-                                  <span className="text-sm text-muted-foreground">dagen</span>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <Label className="text-sm whitespace-nowrap">Inspanning:</Label>
+                                  <Select
+                                    value={allocatie.eenheid || 'dagen'}
+                                    onValueChange={(v: 'dagen' | 'uren') => handleMedewerkerEenheidChange(emp.id, v)}
+                                  >
+                                    <SelectTrigger className="w-24">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="dagen">Dagen</SelectItem>
+                                      <SelectItem value="uren">Uren</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                  <Select
+                                    value={String(allocatie.aantalDagen)}
+                                    onValueChange={(v) => handleMedewerkerDagenChange(emp.id, parseFloat(v))}
+                                  >
+                                    <SelectTrigger className="w-36">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {((allocatie.eenheid || 'dagen') === 'dagen' ? DAGEN_OPTIES : UREN_OPTIES).map(o => (
+                                        <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
                                 </div>
 
                                 <div className="space-y-2">
@@ -797,7 +898,7 @@ export default function NieuwProject() {
                                   <Textarea
                                     value={allocatie.toelichting}
                                     onChange={(e) => handleMedewerkerToelichtingChange(emp.id, e.target.value)}
-                                    placeholder="Waarom is deze medewerker nodig? Wat gaat diegene doen?"
+                                    placeholder="Bijv. '4 uur per dag, 2 dagen' of 'Waarom nodig?'"
                                     rows={2}
                                     className="text-sm"
                                   />
