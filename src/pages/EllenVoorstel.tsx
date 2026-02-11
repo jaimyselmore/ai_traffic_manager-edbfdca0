@@ -293,7 +293,8 @@ export default function EllenVoorstel() {
   }, [voorstellen, projectInfo?.deadline]);
 
   const currentWeekStart = allWeeks[selectedWeekIndex] || allWeeks[0];
-  const currentWeekISO = currentWeekStart.toISOString().split('T')[0];
+  // Format as YYYY-MM-DD without timezone conversion (toISOString converts to UTC which shifts dates)
+  const currentWeekISO = `${currentWeekStart.getFullYear()}-${String(currentWeekStart.getMonth() + 1).padStart(2, '0')}-${String(currentWeekStart.getDate()).padStart(2, '0')}`;
 
   const weekDates = useMemo(() => {
     return DAG_NAMEN.map((_, index) => {
@@ -759,7 +760,16 @@ function buildEllenPrompt(info: any, feedback?: string): string {
   parts.push(`- Klant: "${info.klant_naam}"`);
   parts.push(`- Projectnaam: "${info.projectnaam}"`);
   parts.push(`- Projecttype: ${info.projecttype || 'algemeen'}`);
+  parts.push(`- Intern project: ${info.isInternProject ? 'JA' : 'NEE'}`);
   if (info.deadline) parts.push(`- Deadline: ${info.deadline}`);
+
+  // Presentatie instructies voor externe projecten
+  if (!info.isInternProject) {
+    parts.push(`\n## Klantpresentaties`);
+    parts.push(`Dit is een EXTERN project. Voeg ook klantpresentaties toe aan de fases!`);
+    parts.push(`Plan minimaal 1-2 presentatiemomenten (tussentijds + eindpresentatie) met dezelfde medewerkers.`);
+    parts.push(`Presentaties zijn meestal 2-4 uur per sessie.`);
+  }
 
   // Fases met medewerkerdetails
   if (info.fases?.length) {

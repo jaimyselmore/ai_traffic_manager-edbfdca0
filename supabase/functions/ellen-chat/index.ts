@@ -350,13 +350,15 @@ const TOOLS = [
 
 /**
  * Get Monday of the week for a given date (YYYY-MM-DD format)
+ * Uses local date formatting to avoid UTC timezone shifts
  */
 function getMonday(date: Date): string {
   const d = new Date(date);
   const day = d.getDay();
   const diff = d.getDate() - day + (day === 0 ? -6 : 1);
   d.setDate(diff);
-  return d.toISOString().split('T')[0];
+  // Format as YYYY-MM-DD without timezone conversion
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 /**

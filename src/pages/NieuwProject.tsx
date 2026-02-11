@@ -51,6 +51,7 @@ const emptyAlgemeenData: AlgemeenProjectData = {
 interface NieuwProjectFormData {
   projectHeader: ProjectHeaderData;
   projectType: ProjectType;
+  isInternProject: boolean;
   algemeen: AlgemeenProjectData;
   betrokkenTeam: BetrokkenTeamData;
   productieFases: ProductieFasesData;
@@ -59,6 +60,7 @@ interface NieuwProjectFormData {
 const emptyFormData: NieuwProjectFormData = {
   projectHeader: emptyProjectHeaderData,
   projectType: '',
+  isInternProject: false,
   algemeen: emptyAlgemeenData,
   betrokkenTeam: emptyBetrokkenTeamData,
   productieFases: emptyProductieFasesData,
@@ -83,6 +85,7 @@ export default function NieuwProject() {
     return {
       ...emptyFormData,
       ...parsed,
+      isInternProject: parsed.isInternProject ?? false,
       projectHeader: {
         ...emptyProjectHeaderData,
         ...(parsed.projectHeader ?? {}),
@@ -349,6 +352,7 @@ export default function NieuwProject() {
       projectnaam: formData.projectHeader.projectomschrijving,
       projectTitel: formData.projectHeader.projectTitel,
       projecttype: formData.projectType,
+      isInternProject: formData.isInternProject,
       deadline: formData.projectHeader.deadline,
       fases,
     };
@@ -602,6 +606,24 @@ export default function NieuwProject() {
             {errors.projectType && (
               <p className="text-xs text-destructive mt-1">{errors.projectType}</p>
             )}
+          </div>
+
+          <div className="flex items-start gap-3 pt-2">
+            <Checkbox
+              id="intern-project"
+              checked={formData.isInternProject}
+              onCheckedChange={(checked) =>
+                setFormData({ ...formData, isInternProject: checked === true })
+              }
+            />
+            <div>
+              <Label htmlFor="intern-project" className="text-sm font-normal cursor-pointer">
+                Dit is een intern project
+              </Label>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Bij interne projecten worden geen klantpresentaties voorgesteld
+              </p>
+            </div>
           </div>
         </div>
 
