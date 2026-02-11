@@ -241,35 +241,54 @@ export default function NieuwProject() {
       formData.algemeen.teamAllocaties.forEach(teamAllocatie => {
         const teamMembers = employees.filter(emp => emp.duoTeam === teamAllocatie.teamName);
         const memberIds = teamMembers.map(m => m.id);
+        const memberNames = teamMembers.map(m => m.name);
 
         if (teamAllocatie.planningType === 'samen_met_team') {
           fases.push({
             fase_naam: `Algemeen (${teamAllocatie.teamName})`,
-            medewerkers: memberIds,
+            medewerkers: memberNames,
             start_datum: formData.algemeen.startDatum || formData.projectHeader.datumAanvraag || new Date().toISOString().split('T')[0],
             duur_dagen: teamAllocatie.aantalDagen,
             uren_per_dag: 8,
-            notities: teamAllocatie.toelichting || undefined
+            notities: teamAllocatie.toelichting || undefined,
+            medewerkerDetails: teamMembers.map(m => ({
+              naam: m.name,
+              inspanning: teamAllocatie.aantalDagen,
+              eenheid: 'dagen',
+              toelichting: teamAllocatie.toelichting || '',
+            })),
           });
         } else if (teamAllocatie.planningType === 'beide') {
           const teamDagen = Math.floor(teamAllocatie.aantalDagen / 2);
           fases.push({
             fase_naam: `Algemeen (${teamAllocatie.teamName} - samen)`,
-            medewerkers: memberIds,
+            medewerkers: memberNames,
             start_datum: formData.algemeen.startDatum || formData.projectHeader.datumAanvraag || new Date().toISOString().split('T')[0],
             duur_dagen: teamDagen,
             uren_per_dag: 8,
-            notities: teamAllocatie.toelichting || undefined
+            notities: teamAllocatie.toelichting || undefined,
+            medewerkerDetails: teamMembers.map(m => ({
+              naam: m.name,
+              inspanning: teamDagen,
+              eenheid: 'dagen',
+              toelichting: teamAllocatie.toelichting || '',
+            })),
           });
           const individueleDagen = Math.ceil(teamAllocatie.aantalDagen / 2);
           teamMembers.forEach(member => {
             fases.push({
               fase_naam: `Algemeen - ${member.name} (apart)`,
-              medewerkers: [member.id],
+              medewerkers: [member.name],
               start_datum: formData.algemeen.startDatum || formData.projectHeader.datumAanvraag || new Date().toISOString().split('T')[0],
               duur_dagen: individueleDagen,
               uren_per_dag: 8,
-              notities: teamAllocatie.toelichting || undefined
+              notities: teamAllocatie.toelichting || undefined,
+              medewerkerDetails: [{
+                naam: member.name,
+                inspanning: individueleDagen,
+                eenheid: 'dagen',
+                toelichting: teamAllocatie.toelichting || '',
+              }],
             });
           });
         }
@@ -278,15 +297,22 @@ export default function NieuwProject() {
       // Process individual medewerker allocations
       formData.algemeen.medewerkerAllocaties.forEach(allocatie => {
         const employee = employees.find(e => e.id === allocatie.medewerkerId);
+        const employeeName = employee?.name || 'Medewerker';
         const urenPerDag = allocatie.eenheid === 'uren' ? allocatie.aantalDagen : 8;
         const dagenCount = allocatie.eenheid === 'uren' ? Math.ceil(allocatie.aantalDagen / 8) : allocatie.aantalDagen;
         fases.push({
-          fase_naam: `Algemeen - ${employee?.name || 'Medewerker'}`,
-          medewerkers: [allocatie.medewerkerId],
+          fase_naam: `Algemeen - ${employeeName}`,
+          medewerkers: [employeeName],
           start_datum: formData.algemeen.startDatum || formData.projectHeader.datumAanvraag || new Date().toISOString().split('T')[0],
           duur_dagen: dagenCount,
           uren_per_dag: urenPerDag,
-          notities: allocatie.toelichting || undefined
+          notities: allocatie.toelichting || undefined,
+          medewerkerDetails: [{
+            naam: employeeName,
+            inspanning: allocatie.aantalDagen,
+            eenheid: allocatie.eenheid || 'dagen',
+            toelichting: allocatie.toelichting || '',
+          }],
         });
       });
     } else {

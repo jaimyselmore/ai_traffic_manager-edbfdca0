@@ -597,15 +597,52 @@ export default function EllenVoorstel() {
 }
 
 function buildEllenPrompt(info: any): string {
-  const parts = [
-    `Plan een ${info.projecttype || 'algemeen'} project voor klant "${info.klant_naam}".`,
-    `Projectnaam: "${info.projectnaam}".`,
-  ];
-  if (info.deadline) parts.push(`Deadline: ${info.deadline}.`);
+  const parts: string[] = [];
+
+  // Basisinfo
+  parts.push(`PLANNING AANVRAAG — Maak een planningsvoorstel op basis van onderstaande gegevens.`);
+  parts.push(`\n## Project`);
+  parts.push(`- Klant: "${info.klant_naam}"`);
+  parts.push(`- Projectnaam: "${info.projectnaam}"`);
+  parts.push(`- Projecttype: ${info.projecttype || 'algemeen'}`);
+  if (info.deadline) parts.push(`- Deadline: ${info.deadline}`);
+
+  // Fases met medewerkerdetails
   if (info.fases?.length) {
-    parts.push(`Fases: ${info.fases.map((f: any) => `${f.fase_naam} (${f.duur_dagen} dagen, medewerkers: ${f.medewerkers?.length || 0})`).join(', ')}.`);
+    parts.push(`\n## Fases en medewerkers`);
+    info.fases.forEach((f: any, i: number) => {
+      parts.push(`\n### Fase ${i + 1}: ${f.fase_naam}`);
+      parts.push(`- Totale duur: ${f.duur_dagen} dagen`);
+      if (f.uren_per_dag && f.uren_per_dag !== 8) parts.push(`- Uren per dag: ${f.uren_per_dag}`);
+      if (f.start_datum) parts.push(`- Gewenste startdatum: ${f.start_datum}`);
+      if (f.notities) parts.push(`- Toelichting: "${f.notities}"`);
+
+      if (f.medewerkers?.length) {
+        parts.push(`- Medewerkers: ${f.medewerkers.join(', ')}`);
+      }
+
+      // Medewerker-specifieke details (uit het formulier)
+      if (f.medewerkerDetails?.length) {
+        f.medewerkerDetails.forEach((md: any) => {
+          const eenheid = md.eenheid || 'dagen';
+          parts.push(`  → ${md.naam}: ${md.inspanning} ${eenheid}${md.toelichting ? ` (Toelichting: "${md.toelichting}")` : ''}`);
+        });
+      }
+    });
   }
-  return parts.join(' ');
+
+  // Instructies voor Ellen
+  parts.push(`\n## Instructies`);
+  parts.push(`1. Check de beschikbaarheid van ELKE genoemde medewerker voor de relevante weken (gebruik check_beschikbaarheid).`);
+  parts.push(`2. Houd rekening met parttime dagen, verlof en bestaande taken.`);
+  parts.push(`3. Verdeel de inspanning per medewerker over beschikbare dagen, rekening houdend met de opgegeven toelichting.`);
+  parts.push(`4. Genereer een planningsvoorstel met plan_project.`);
+  parts.push(`5. Alle taken krijgen status "concept".`);
+  parts.push(`6. Respecteer de deadline: plan alles VOOR de deadline in.`);
+  parts.push(`7. Gebruik standaard 8 uur per dag tenzij anders aangegeven.`);
+  parts.push(`8. Als een medewerker niet beschikbaar is op een gevraagde dag, zoek dan het eerstvolgende vrije moment.`);
+
+  return parts.join('\n');
 }
 
 function generateDefaultVoorstel(info: any): VoorstelTaak[] {
