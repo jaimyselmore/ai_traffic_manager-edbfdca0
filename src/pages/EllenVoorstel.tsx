@@ -32,6 +32,7 @@ interface VoorstelTaak {
 
 const DAG_NAMEN = ['Ma', 'Di', 'Wo', 'Do', 'Vr'];
 const TIME_SLOTS = [9, 10, 11, 12, 13, 14, 15, 16, 17];
+const CELL_HEIGHT = 28; // px per hour cell
 
 const WORKFLOW_STEPS = [
   { label: 'Aanvraag analyseren', duration: 1200 },
@@ -580,18 +581,26 @@ export default function EllenVoorstel() {
                               <td
                                 key={dayIndex}
                                 className={cn(
-                                  "border-b border-r border-border p-0.5",
+                                  "border-b border-r border-border p-0 relative",
                                   isLunch && 'bg-muted/30'
                                 )}
-                                style={{ height: '28px' }}
+                                style={{ height: `${CELL_HEIGHT}px` }}
                               >
                                 {/* Bestaande taken (solid, met grijze kleur) */}
                                 {bestaandeTasks.map((taak, ti) => {
                                   if (!isTaskStart(taak, hour)) return null;
+                                  // Calculate block height based on duration
+                                  const maxHours = 18 - hour;
+                                  const displayHours = Math.min(taak.duur_uren, maxHours);
+                                  const blockHeight = displayHours * CELL_HEIGHT;
                                   return (
                                     <div
                                       key={`bestaand-${ti}`}
-                                      className="rounded px-1.5 py-0.5 text-xs text-white overflow-hidden h-full bg-slate-400"
+                                      className="absolute left-0.5 right-0.5 rounded px-1.5 py-0.5 text-xs text-white overflow-hidden bg-slate-400 z-10"
+                                      style={{
+                                        height: `${blockHeight - 2}px`,
+                                        top: '1px'
+                                      }}
                                       title={`${taak.klant_naam} • ${taak.fase_naam} • ${taak.duur_uren}u (bestaand)`}
                                     >
                                       <div className="truncate font-medium">
@@ -600,19 +609,32 @@ export default function EllenVoorstel() {
                                       <div className="truncate text-[10px] opacity-80">
                                         {taak.fase_naam}
                                       </div>
+                                      {taak.duur_uren > 2 && (
+                                        <div className="text-[10px] opacity-70 mt-0.5">
+                                          {taak.duur_uren}u
+                                        </div>
+                                      )}
                                     </div>
                                   );
                                 })}
                                 {/* Voorgestelde taken (semi-transparant, met kleur) */}
                                 {voorstelTasks.map((taak, ti) => {
                                   if (!isTaskStart(taak, hour)) return null;
+                                  // Calculate block height based on duration
+                                  const maxHours = 18 - hour;
+                                  const displayHours = Math.min(taak.duur_uren, maxHours);
+                                  const blockHeight = displayHours * CELL_HEIGHT;
                                   return (
                                     <div
                                       key={`voorstel-${ti}`}
                                       className={cn(
-                                        'rounded px-1.5 py-0.5 text-xs text-white overflow-hidden h-full opacity-60 border-2 border-dashed border-white/50',
+                                        'absolute left-0.5 right-0.5 rounded px-1.5 py-0.5 text-xs text-white overflow-hidden opacity-80 border-2 border-dashed border-white/50 z-20',
                                         getFaseColor(taak.fase_naam)
                                       )}
+                                      style={{
+                                        height: `${blockHeight - 2}px`,
+                                        top: '1px'
+                                      }}
                                       title={`${taak.fase_naam} • ${taak.duur_uren}u (voorstel)`}
                                     >
                                       <div className="truncate font-medium">
@@ -621,6 +643,11 @@ export default function EllenVoorstel() {
                                       <div className="truncate text-[10px] opacity-80">
                                         {taak.fase_naam}
                                       </div>
+                                      {taak.duur_uren > 2 && (
+                                        <div className="text-[10px] opacity-70 mt-0.5">
+                                          {taak.duur_uren}u
+                                        </div>
+                                      )}
                                     </div>
                                   );
                                 })}
@@ -873,6 +900,14 @@ function buildEllenPrompt(info: any, feedback?: string): string {
     parts.push(`De gebruiker wil aanpassingen: "${feedback}"`);
     parts.push(`Pas het voorstel hierop aan.`);
   }
+
+  // Planning regels
+  parts.push(`\n## Planning Regels (BELANGRIJK!)`);
+  parts.push(`- Verspreid fases over MEERDERE WEKEN - niet alles in week 1!`);
+  parts.push(`- Plan buffer tijd (1-2 dagen) tussen fases voor feedback loops`);
+  parts.push(`- Respecteer de deadline: ${info.deadline || 'niet opgegeven'}`);
+  parts.push(`- Lees de notities bij elke fase - die bevatten belangrijke instructies`);
+  parts.push(`- Blokken zijn standaard 8 uur per dag (hele werkdag)`);
 
   // Strikte instructies
   parts.push(`\n## Wat je moet doen`);

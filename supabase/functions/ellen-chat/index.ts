@@ -959,12 +959,48 @@ async function executeTool(
         const samenvattingParts: string[] = [];
         const warnings: string[] = [];
 
-        for (const fase of fases) {
+        // ======= SMART SPREADING LOGIC =======
+        // Calculate optimal spacing between phases
+        const totalFaseDays = fases.reduce((sum, f) => sum + f.duur_dagen, 0);
+        const firstStartDate = new Date(fases[0].start_datum + 'T00:00:00');
+
+        // Calculate available working days until deadline
+        let availableDays = totalFaseDays; // default: no extra buffer
+        if (deadline) {
+          const deadlineDate = new Date(deadline + 'T00:00:00');
+          let workingDays = 0;
+          const checkDate = new Date(firstStartDate);
+          while (checkDate < deadlineDate) {
+            if (!isWeekend(checkDate)) workingDays++;
+            checkDate.setDate(checkDate.getDate() + 1);
+          }
+          availableDays = workingDays;
+        }
+
+        // Calculate buffer days between phases (spread evenly)
+        const bufferDaysTotal = Math.max(0, availableDays - totalFaseDays);
+        const numberOfGaps = fases.length - 1;
+        const bufferPerGap = numberOfGaps > 0 ? Math.floor(bufferDaysTotal / numberOfGaps) : 0;
+        // Cap buffer at 5 days to avoid excessive gaps
+        const actualBufferPerGap = Math.min(bufferPerGap, 5);
+        // But ensure at least 1 buffer day between phases for review time
+        const minBuffer = fases.length > 1 ? Math.max(1, actualBufferPerGap) : 0;
+
+        // Track running date across all phases
+        let runningDate = new Date(firstStartDate);
+
+        for (let faseIndex = 0; faseIndex < fases.length; faseIndex++) {
+          const fase = fases[faseIndex];
           const urenPerDag = fase.uren_per_dag || 8;
           const discipline = bepaalDiscipline(fase.fase_naam);
-          let huidigeDatum = new Date(fase.start_datum + 'T00:00:00');
 
-          samenvattingParts.push(`\n${fase.fase_naam}:`);
+          // Use running date (which may have been pushed forward from previous fase + buffer)
+          // But respect explicit start_datum if it's later than running date
+          const explicitStart = new Date(fase.start_datum + 'T00:00:00');
+          let huidigeDatum = explicitStart > runningDate ? explicitStart : new Date(runningDate);
+
+          const faseStartFormatted = `${huidigeDatum.getDate()}/${huidigeDatum.getMonth() + 1}`;
+          samenvattingParts.push(`\n${fase.fase_naam} (start: ${faseStartFormatted}):`);
 
           // For each day in the fase
           for (let dag = 0; dag < fase.duur_dagen; dag++) {
@@ -996,6 +1032,7 @@ async function executeTool(
                 const weekStart = getMonday(huidigeDatum);
                 const dagVanWeek = getDayOfWeekNumber(huidigeDatum);
                 const dagNamen = ['ma', 'di', 'wo', 'do', 'vr'];
+                const weekNum = Math.ceil((huidigeDatum.getTime() - firstStartDate.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
 
                 taken.push({
                   werknemer_naam: medewerker,
@@ -1008,7 +1045,7 @@ async function executeTool(
                   duur_uren: slot.duurUren,
                 });
 
-                samenvattingParts.push(`  ${medewerker}: ${dagNamen[dagVanWeek]} ${slot.startUur}:00-${slot.startUur + slot.duurUren}:00`);
+                samenvattingParts.push(`  ${medewerker}: wk${weekNum} ${dagNamen[dagVanWeek]} ${slot.startUur}:00-${slot.startUur + slot.duurUren}:00`);
               } else {
                 warnings.push(`Geen vrije slot voor ${medewerker} op ${huidigeDatum.toISOString().split('T')[0]}`);
               }
@@ -1016,6 +1053,19 @@ async function executeTool(
 
             // Move to next day
             huidigeDatum.setDate(huidigeDatum.getDate() + 1);
+          }
+
+          // Update running date for next fase (add buffer between phases)
+          runningDate = new Date(huidigeDatum);
+          if (faseIndex < fases.length - 1 && minBuffer > 0) {
+            // Add buffer days between phases
+            for (let b = 0; b < minBuffer; b++) {
+              runningDate.setDate(runningDate.getDate() + 1);
+              // Skip weekends in buffer
+              while (isWeekend(runningDate)) {
+                runningDate.setDate(runningDate.getDate() + 1);
+              }
+            }
           }
         }
 
