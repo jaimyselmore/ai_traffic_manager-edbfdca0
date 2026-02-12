@@ -277,6 +277,7 @@ export default function EllenVoorstel() {
         await supabase.functions.invoke('ellen-chat', {
           headers: { Authorization: `Bearer ${sessionToken}` },
           body: {
+            sessie_id: `feedback-${Date.now()}`,
             actie: 'feedback_opslaan',
             feedback: feedbackInput,
             context: {
@@ -653,10 +654,10 @@ export default function EllenVoorstel() {
                                         height: `${blockHeight - 2}px`,
                                         top: '1px'
                                       }}
-                                      title={`${taak.fase_naam} • ${taak.duur_uren}u (voorstel)`}
+                                      title={`${projectInfo?.projectTitel || projectInfo?.klant_naam} • ${taak.fase_naam} • ${taak.duur_uren}u (voorstel)`}
                                     >
                                       <div className="truncate font-medium">
-                                        {projectInfo?.klant_naam}
+                                        {projectInfo?.projectTitel || projectInfo?.klant_naam}
                                       </div>
                                       <div className="truncate text-[10px] opacity-80">
                                         {taak.fase_naam}
@@ -691,53 +692,38 @@ export default function EllenVoorstel() {
               </div>
             </div>
 
-            {/* Feedback section */}
+            {/* Feedback section - connected input en knop */}
             <div className="space-y-3 pt-4 border-t border-border">
               <p className="text-sm text-muted-foreground">
-                Niet helemaal goed? Geef feedback of genereer een nieuw voorstel.
+                Niet helemaal goed? Geef feedback en genereer een nieuw voorstel.
               </p>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Bijv. 'Verschuif alles naar volgende week' of 'Ik wil Jakko erbij'"
-                  className="flex-1 px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+              <div className="rounded-lg border border-border bg-secondary/20 p-3 space-y-3">
+                <textarea
+                  placeholder="Wat moet er anders? Bijv. 'Verschuif alles naar volgende week', 'Plan tot 18:00', of 'Ik wil Jakko erbij'"
+                  className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
+                  rows={2}
                   value={feedbackInput}
                   onChange={(e) => setFeedbackInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !isRequestingNewProposal && feedbackInput.trim()) {
-                      handleRequestNewProposal();
-                    }
-                  }}
                   disabled={isRequestingNewProposal}
                 />
                 <Button
-                  variant="outline"
                   onClick={handleRequestNewProposal}
                   disabled={isRequestingNewProposal || !feedbackInput.trim()}
-                  title="Feedback versturen"
+                  className="w-full"
                 >
                   {isRequestingNewProposal ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
                   ) : (
-                    <Send className="h-4 w-4" />
+                    <Send className="h-4 w-4 mr-2" />
                   )}
+                  Nieuw voorstel genereren
                 </Button>
+                {!feedbackInput.trim() && (
+                  <p className="text-xs text-muted-foreground text-center">
+                    Vul hierboven in wat je wilt veranderen
+                  </p>
+                )}
               </div>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => {
-                  setFeedbackInput('Genereer een compleet nieuw voorstel met dezelfde input');
-                  setTimeout(() => handleRequestNewProposal(), 100);
-                }}
-                disabled={isRequestingNewProposal}
-                className="w-full"
-              >
-                {isRequestingNewProposal ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                ) : null}
-                Genereer nieuw voorstel
-              </Button>
             </div>
 
             {/* Action buttons */}
