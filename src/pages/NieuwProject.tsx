@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Save } from 'lucide-react';
+import { Save, Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -36,16 +36,27 @@ interface TeamAllocatie {
   toelichting: string;
 }
 
+interface MeetingData {
+  id: string;
+  type: 'tussentijds' | 'eindpresentatie' | 'kick-off' | 'anders';
+  aantalUren: number;
+  notitie: string;
+}
+
 interface AlgemeenProjectData {
   medewerkerAllocaties: MedewerkerAllocatie[]; // individuele selections
   teamAllocaties: TeamAllocatie[]; // team selections als geheel
   startDatum: string;
+  betrokkenPersonen: string[]; // medewerker IDs die betrokken zijn maar niet ingepland (voor meetings)
+  meetings: MeetingData[]; // geplande meetings/presentaties
 }
 
 const emptyAlgemeenData: AlgemeenProjectData = {
   medewerkerAllocaties: [],
   teamAllocaties: [],
   startDatum: '',
+  betrokkenPersonen: [],
+  meetings: [],
 };
 
 interface NieuwProjectFormData {
@@ -94,6 +105,9 @@ export default function NieuwProject() {
         ...emptyAlgemeenData,
         ...(parsed.algemeen ?? {}),
         medewerkerAllocaties: (parsed.algemeen?.medewerkerAllocaties ?? []) as MedewerkerAllocatie[],
+        teamAllocaties: (parsed.algemeen?.teamAllocaties ?? []) as TeamAllocatie[],
+        betrokkenPersonen: (parsed.algemeen?.betrokkenPersonen ?? []) as string[],
+        meetings: (parsed.algemeen?.meetings ?? []) as MeetingData[],
       },
       betrokkenTeam: {
         ...emptyBetrokkenTeamData,
@@ -345,6 +359,11 @@ export default function NieuwProject() {
       return;
     }
 
+    // Resolve betrokkenPersonen IDs to names
+    const betrokkenPersonenNamen = (formData.algemeen.betrokkenPersonen || [])
+      .map(id => employees.find(e => e.id === id)?.name)
+      .filter(Boolean) as string[];
+
     // Navigate to Ellen voorstel page instead of creating directly
     const projectInfo = {
       klant_id: formData.projectHeader.klantId,
@@ -355,6 +374,9 @@ export default function NieuwProject() {
       isInternProject: formData.isInternProject,
       deadline: formData.projectHeader.deadline,
       fases,
+      // Nieuwe velden voor meetings
+      betrokkenPersonen: betrokkenPersonenNamen,
+      meetings: formData.algemeen.meetings || [],
     };
 
     navigate('/ellen-voorstel', {
@@ -579,6 +601,8 @@ export default function NieuwProject() {
           data={formData.projectHeader}
           onChange={(data) => setFormData({ ...formData, projectHeader: data })}
           errors={errors}
+          isInternProject={formData.isInternProject}
+          onInternProjectChange={(value) => setFormData({ ...formData, isInternProject: value })}
         />
 
         {/* Project Type Selection */}
@@ -608,23 +632,6 @@ export default function NieuwProject() {
             )}
           </div>
 
-          <div className="flex items-start gap-3 pt-2">
-            <Checkbox
-              id="intern-project"
-              checked={formData.isInternProject}
-              onCheckedChange={(checked) =>
-                setFormData({ ...formData, isInternProject: checked === true })
-              }
-            />
-            <div>
-              <Label htmlFor="intern-project" className="text-sm font-normal cursor-pointer">
-                Dit is een intern project
-              </Label>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Bij interne projecten worden geen klantpresentaties voorgesteld
-              </p>
-            </div>
-          </div>
         </div>
 
         {/* Algemeen Project Form */}
@@ -894,6 +901,184 @@ export default function NieuwProject() {
               )}
               {errors.planningType && (
                 <p className="text-xs text-destructive mt-1">{errors.planningType}</p>
+              )}
+            </div>
+
+            {/* Betrokken personen (alleen voor meetings) */}
+            <div className="space-y-2 pt-4 border-t border-border">
+              <Label className="text-sm">Overige betrokkenen (voor meetings)</Label>
+              <p className="text-xs text-muted-foreground">
+                Medewerkers die niet actief werken maar wel bij presentaties/meetings moeten zijn
+              </p>
+              <div className="flex flex-wrap gap-2 mt-2">
+                {employees
+                  .filter(emp => {
+                    // Filter out employees already in medewerkerAllocaties or teamAllocaties
+                    const isInMedewerker = formData.algemeen.medewerkerAllocaties.some(a => a.medewerkerId === emp.id);
+                    const isInTeam = formData.algemeen.teamAllocaties.some(t => {
+                      const teamMembers = employees.filter(e => e.duoTeam === t.teamName);
+                      return teamMembers.some(tm => tm.id === emp.id);
+                    });
+                    return !isInMedewerker && !isInTeam;
+                  })
+                  .map(emp => {
+                    const isSelected = formData.algemeen.betrokkenPersonen?.includes(emp.id);
+                    return (
+                      <button
+                        key={emp.id}
+                        type="button"
+                        onClick={() => {
+                          const current = formData.algemeen.betrokkenPersonen || [];
+                          const updated = isSelected
+                            ? current.filter(id => id !== emp.id)
+                            : [...current, emp.id];
+                          setFormData({
+                            ...formData,
+                            algemeen: { ...formData.algemeen, betrokkenPersonen: updated }
+                          });
+                        }}
+                        className={`px-3 py-1.5 text-sm rounded-full border transition-colors ${
+                          isSelected
+                            ? 'bg-primary text-primary-foreground border-primary'
+                            : 'bg-card border-border hover:border-primary/50'
+                        }`}
+                      >
+                        {emp.name}
+                      </button>
+                    );
+                  })}
+              </div>
+              {formData.algemeen.betrokkenPersonen?.length > 0 && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  {formData.algemeen.betrokkenPersonen.length} persoon/personen worden uitgenodigd voor meetings
+                </p>
+              )}
+            </div>
+
+            {/* Meetings/Presentaties */}
+            <div className="space-y-3 pt-4 border-t border-border">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-sm">Meetings & Presentaties</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Voeg geplande meetings of presentaties toe (optioneel)
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const newMeeting: MeetingData = {
+                      id: crypto.randomUUID(),
+                      type: 'tussentijds',
+                      aantalUren: 2,
+                      notitie: '',
+                    };
+                    setFormData({
+                      ...formData,
+                      algemeen: {
+                        ...formData.algemeen,
+                        meetings: [...(formData.algemeen.meetings || []), newMeeting]
+                      }
+                    });
+                  }}
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Meeting toevoegen
+                </Button>
+              </div>
+
+              {(formData.algemeen.meetings || []).map((meeting, index) => (
+                <div key={meeting.id} className="border border-border rounded-lg p-3 space-y-3 bg-secondary/20">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Meeting {index + 1}</span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        const updated = formData.algemeen.meetings.filter(m => m.id !== meeting.id);
+                        setFormData({
+                          ...formData,
+                          algemeen: { ...formData.algemeen, meetings: updated }
+                        });
+                      }}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs">Type</Label>
+                      <Select
+                        value={meeting.type}
+                        onValueChange={(value: 'tussentijds' | 'eindpresentatie' | 'kick-off' | 'anders') => {
+                          const updated = formData.algemeen.meetings.map(m =>
+                            m.id === meeting.id ? { ...m, type: value } : m
+                          );
+                          setFormData({
+                            ...formData,
+                            algemeen: { ...formData.algemeen, meetings: updated }
+                          });
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="kick-off">Kick-off</SelectItem>
+                          <SelectItem value="tussentijds">Tussentijdse presentatie</SelectItem>
+                          <SelectItem value="eindpresentatie">Eindpresentatie</SelectItem>
+                          <SelectItem value="anders">Anders</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-xs">Duur (uren)</Label>
+                      <Input
+                        type="number"
+                        min="0.5"
+                        step="0.5"
+                        value={meeting.aantalUren}
+                        onChange={(e) => {
+                          const updated = formData.algemeen.meetings.map(m =>
+                            m.id === meeting.id ? { ...m, aantalUren: parseFloat(e.target.value) || 2 } : m
+                          );
+                          setFormData({
+                            ...formData,
+                            algemeen: { ...formData.algemeen, meetings: updated }
+                          });
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label className="text-xs">Notitie</Label>
+                    <Input
+                      value={meeting.notitie}
+                      onChange={(e) => {
+                        const updated = formData.algemeen.meetings.map(m =>
+                          m.id === meeting.id ? { ...m, notitie: e.target.value } : m
+                        );
+                        setFormData({
+                          ...formData,
+                          algemeen: { ...formData.algemeen, meetings: updated }
+                        });
+                      }}
+                      placeholder="Bijv. 'Met klant op locatie'"
+                    />
+                  </div>
+                </div>
+              ))}
+
+              {!formData.isInternProject && (formData.algemeen.meetings || []).length === 0 && (
+                <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 p-2 rounded">
+                  💡 Tip: Bij externe projecten is het handig om presentatiemomenten toe te voegen.
+                  Ellen kan deze ook automatisch voorstellen als je er geen toevoegt.
+                </p>
               )}
             </div>
           </div>

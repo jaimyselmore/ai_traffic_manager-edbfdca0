@@ -339,6 +339,11 @@ const TOOLS = [
             },
           },
           deadline: { type: 'string', description: 'Deadline van het project (YYYY-MM-DD)' },
+          betrokken_personen: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Namen van personen die bij meetings/presentaties aanwezig moeten zijn maar niet aan het project werken (bijv. management, stakeholders)'
+          },
         },
         required: ['klant_naam', 'project_naam', 'fases'],
       },
@@ -392,7 +397,30 @@ function bepaalDiscipline(faseNaam: string): string {
   return 'Algemeen';
 }
 
+/**
+ * Check if a fase is a meeting/presentation type
+ * Meetings have special scheduling rules (10:00-17:00, not early/late)
+ */
+function isMeetingFase(faseNaam: string): boolean {
+  const lowerNaam = faseNaam.toLowerCase();
+  return lowerNaam.includes('presentatie') ||
+         lowerNaam.includes('meeting') ||
+         lowerNaam.includes('kick-off') ||
+         lowerNaam.includes('kick off') ||
+         lowerNaam.includes('klantmeeting') ||
+         lowerNaam.includes('review') ||
+         lowerNaam.includes('tussentijds') ||
+         lowerNaam.includes('eindpresentatie');
+}
+
 // ---- SLOT FINDER ----
+
+// Werkdag constanten
+const WERKDAG_START = 9;  // 09:00
+const WERKDAG_EIND = 18;  // 18:00
+const LUNCH_UUR = 13;     // 13:00-14:00 is lunch
+const MEETING_START = 10; // Meetings niet voor 10:00
+const MEETING_EIND = 17;  // Meetings niet na 17:00
 
 interface TimeSlot {
   startUur: number;
@@ -400,19 +428,17 @@ interface TimeSlot {
 }
 
 /**
- * Find first available time slot for an employee on a given date
+ * Get existing blocks for employee on a date
  */
-async function vindEersteVrijeSlot(
+async function getBestaandeBlokken(
   supabase: SupabaseClient,
   medewerkernaam: string,
-  datum: Date,
-  benodigdeUren: number
-): Promise<TimeSlot | null> {
+  datum: Date
+): Promise<Array<{ start_uur: number; duur_uren: number }>> {
   const weekStart = getMonday(datum);
   const dagVanWeek = getDayOfWeekNumber(datum);
 
-  // Get existing blocks for this employee on this day
-  const { data: bestaandeBlokken, error } = await supabase
+  const { data, error } = await supabase
     .from('taken')
     .select('start_uur, duur_uren')
     .eq('werknemer_naam', medewerkernaam)
@@ -421,25 +447,95 @@ async function vindEersteVrijeSlot(
 
   if (error) {
     console.error('Error fetching existing blocks:', error);
-    return null;
+    return [];
   }
 
-  // Sort blocks by start hour
-  const bezet = (bestaandeBlokken || [])
-    .sort((a, b) => a.start_uur - b.start_uur);
+  return (data || []).sort((a, b) => a.start_uur - b.start_uur);
+}
 
-  // Find free gap between 09:00 and 18:00
-  for (let uur = 9; uur <= 18 - benodigdeUren; uur++) {
-    // Skip lunch hour (13:00)
-    if (uur === 13) continue;
+/**
+ * Check if a time slot conflicts with existing blocks
+ */
+function heeftConflict(
+  bezet: Array<{ start_uur: number; duur_uren: number }>,
+  startUur: number,
+  duur: number
+): boolean {
+  const eindUur = startUur + duur;
+  return bezet.some((blok) => {
+    const blokEind = blok.start_uur + blok.duur_uren;
+    return startUur < blokEind && eindUur > blok.start_uur;
+  });
+}
 
-    const isVrij = !bezet.some((blok) => {
-      const blokEind = blok.start_uur + blok.duur_uren;
-      const nieuweEind = uur + benodigdeUren;
-      return uur < blokEind && nieuweEind > blok.start_uur;
-    });
+/**
+ * Find first available time slot for an employee on a given date
+ * Werkdag: 09:00 - 18:00, lunch skip at 13:00
+ */
+async function vindEersteVrijeSlot(
+  supabase: SupabaseClient,
+  medewerkernaam: string,
+  datum: Date,
+  benodigdeUren: number
+): Promise<TimeSlot | null> {
+  const bezet = await getBestaandeBlokken(supabase, medewerkernaam, datum);
 
-    if (isVrij) {
+  // For full day blocks (8 hours), try to place at 09:00
+  // The block goes 09:00-13:00 (4u) + 14:00-18:00 (4u) = 8u effectively
+  if (benodigdeUren >= 8) {
+    // Check if morning (9-13) and afternoon (14-18) are both free
+    const ochtendVrij = !heeftConflict(bezet, WERKDAG_START, 4);
+    const middagVrij = !heeftConflict(bezet, 14, 4);
+    if (ochtendVrij && middagVrij) {
+      return { startUur: WERKDAG_START, duurUren: benodigdeUren };
+    }
+    return null; // No space for full day
+  }
+
+  // For smaller blocks, find first free slot
+  for (let uur = WERKDAG_START; uur <= WERKDAG_EIND - benodigdeUren; uur++) {
+    // Skip lunch hour - can't start a block at 13:00
+    if (uur === LUNCH_UUR) continue;
+
+    // Check if block would span lunch hour
+    const eindUur = uur + benodigdeUren;
+    if (uur < LUNCH_UUR && eindUur > LUNCH_UUR) {
+      // Block spans lunch - skip to after lunch
+      continue;
+    }
+
+    if (!heeftConflict(bezet, uur, benodigdeUren)) {
+      return { startUur: uur, duurUren: benodigdeUren };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Find available slot for meetings/presentations
+ * Meetings should be scheduled between 10:00-17:00 (not early morning or late afternoon)
+ */
+async function vindMeetingSlot(
+  supabase: SupabaseClient,
+  medewerkernaam: string,
+  datum: Date,
+  benodigdeUren: number
+): Promise<TimeSlot | null> {
+  const bezet = await getBestaandeBlokken(supabase, medewerkernaam, datum);
+
+  // Meetings between 10:00 and 17:00
+  for (let uur = MEETING_START; uur <= MEETING_EIND - benodigdeUren; uur++) {
+    // Skip lunch hour
+    if (uur === LUNCH_UUR) continue;
+
+    // Check if block would span lunch hour
+    const eindUur = uur + benodigdeUren;
+    if (uur < LUNCH_UUR && eindUur > LUNCH_UUR) {
+      continue;
+    }
+
+    if (!heeftConflict(bezet, uur, benodigdeUren)) {
       return { startUur: uur, duurUren: benodigdeUren };
     }
   }
@@ -924,6 +1020,7 @@ async function executeTool(
           uren_per_dag?: number;
         }>;
         const deadline = args.deadline;
+        const betrokkenPersonen = args.betrokken_personen as unknown as string[] || [];
 
         if (!klantNaam || !projectNaam || !fases?.length) {
           return 'Ongeldige parameters: klant_naam, project_naam en minstens één fase zijn verplicht.';
@@ -1025,8 +1122,11 @@ async function executeTool(
                 continue;
               }
 
-              // Find available slot
-              const slot = await vindEersteVrijeSlot(supabase, medewerker, huidigeDatum, urenPerDag);
+              // Find available slot - use meeting rules for presentations/meetings
+              const isMeeting = isMeetingFase(fase.fase_naam);
+              const slot = isMeeting
+                ? await vindMeetingSlot(supabase, medewerker, huidigeDatum, urenPerDag)
+                : await vindEersteVrijeSlot(supabase, medewerker, huidigeDatum, urenPerDag);
 
               if (slot) {
                 const weekStart = getMonday(huidigeDatum);
@@ -1045,9 +1145,59 @@ async function executeTool(
                   duur_uren: slot.duurUren,
                 });
 
-                samenvattingParts.push(`  ${medewerker}: wk${weekNum} ${dagNamen[dagVanWeek]} ${slot.startUur}:00-${slot.startUur + slot.duurUren}:00`);
+                const meetingIndicator = isMeeting ? ' (meeting)' : '';
+                samenvattingParts.push(`  ${medewerker}: wk${weekNum} ${dagNamen[dagVanWeek]} ${slot.startUur}:00-${slot.startUur + slot.duurUren}:00${meetingIndicator}`);
               } else {
-                warnings.push(`Geen vrije slot voor ${medewerker} op ${huidigeDatum.toISOString().split('T')[0]}`);
+                const slotType = isMeeting ? 'meeting slot (10:00-17:00)' : 'vrije slot';
+                warnings.push(`Geen ${slotType} voor ${medewerker} op ${huidigeDatum.toISOString().split('T')[0]}`);
+              }
+            }
+
+            // For meetings: also create blocks for betrokkenPersonen (people attending but not working on project)
+            const isMeetingFaseCheck = isMeetingFase(fase.fase_naam);
+            if (isMeetingFaseCheck && betrokkenPersonen.length > 0) {
+              for (const persoon of betrokkenPersonen) {
+                // Skip if already in medewerkers list
+                if (fase.medewerkers.includes(persoon)) continue;
+
+                // Check verlof
+                const hasVerlof = await heeftVerlof(supabase, persoon, huidigeDatum);
+                if (hasVerlof) {
+                  warnings.push(`${persoon} (betrokken) heeft verlof op ${huidigeDatum.toISOString().split('T')[0]}`);
+                  continue;
+                }
+
+                // Check parttime
+                const isParttime = await isParttimeDag(supabase, persoon, huidigeDatum);
+                if (isParttime) {
+                  warnings.push(`${persoon} (betrokken) werkt niet op ${huidigeDatum.toISOString().split('T')[0]} (parttime)`);
+                  continue;
+                }
+
+                // Find meeting slot for betrokken persoon
+                const slot = await vindMeetingSlot(supabase, persoon, huidigeDatum, urenPerDag);
+
+                if (slot) {
+                  const weekStart = getMonday(huidigeDatum);
+                  const dagVanWeek = getDayOfWeekNumber(huidigeDatum);
+                  const dagNamen = ['ma', 'di', 'wo', 'do', 'vr'];
+                  const weekNum = Math.ceil((huidigeDatum.getTime() - firstStartDate.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
+
+                  taken.push({
+                    werknemer_naam: persoon,
+                    fase_naam: fase.fase_naam,
+                    discipline: 'Meeting', // Mark as meeting attendee
+                    werktype: fase.fase_naam,
+                    week_start: weekStart,
+                    dag_van_week: dagVanWeek,
+                    start_uur: slot.startUur,
+                    duur_uren: slot.duurUren,
+                  });
+
+                  samenvattingParts.push(`  ${persoon} (betrokken): wk${weekNum} ${dagNamen[dagVanWeek]} ${slot.startUur}:00-${slot.startUur + slot.duurUren}:00 (meeting)`);
+                } else {
+                  warnings.push(`Geen meeting slot voor ${persoon} (betrokken) op ${huidigeDatum.toISOString().split('T')[0]}`);
+                }
               }
             }
 
@@ -1095,6 +1245,7 @@ async function executeTool(
             duur_dagen: f.duur_dagen,
             uren_per_dag: f.uren_per_dag || 8,
           })),
+          betrokken_personen: betrokkenPersonen.length > 0 ? betrokkenPersonen : undefined,
         });
       }
 

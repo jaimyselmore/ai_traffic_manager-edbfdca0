@@ -871,12 +871,31 @@ function buildEllenPrompt(info: any, feedback?: string): string {
   parts.push(`- Intern project: ${info.isInternProject ? 'JA' : 'NEE'}`);
   if (info.deadline) parts.push(`- Deadline: ${info.deadline}`);
 
-  // Presentatie instructies voor externe projecten
-  if (!info.isInternProject) {
-    parts.push(`\n## Klantpresentaties`);
-    parts.push(`Dit is een EXTERN project. Voeg ook klantpresentaties toe aan de fases!`);
-    parts.push(`Plan minimaal 1-2 presentatiemomenten (tussentijds + eindpresentatie) met dezelfde medewerkers.`);
-    parts.push(`Presentaties zijn meestal 2-4 uur per sessie.`);
+  // Betrokken personen (voor meetings)
+  if (info.betrokkenPersonen?.length > 0) {
+    parts.push(`\n## Overige betrokkenen`);
+    parts.push(`Deze mensen moeten bij meetings/presentaties zijn: ${info.betrokkenPersonen.join(', ')}`);
+  }
+
+  // Meetings/Presentaties die de gebruiker wil
+  if (info.meetings?.length > 0) {
+    parts.push(`\n## Gewenste Meetings/Presentaties`);
+    info.meetings.forEach((m: any, i: number) => {
+      const typeLabels: Record<string, string> = {
+        'kick-off': 'Kick-off meeting',
+        'tussentijds': 'Tussentijdse presentatie',
+        'eindpresentatie': 'Eindpresentatie',
+        'anders': 'Meeting',
+      };
+      parts.push(`${i + 1}. ${typeLabels[m.type] || m.type} (${m.aantalUren} uur)${m.notitie ? ` - "${m.notitie}"` : ''}`);
+    });
+    parts.push(`\nPlan deze meetings IN als aparte fases! Alle betrokken medewerkers + overige betrokkenen moeten erbij.`);
+  } else if (!info.isInternProject) {
+    // Alleen automatisch voorstellen als gebruiker geen meetings heeft toegevoegd
+    parts.push(`\n## Klantpresentaties (automatisch)`);
+    parts.push(`Dit is een EXTERN project en er zijn geen meetings opgegeven.`);
+    parts.push(`Voeg ZELF presentatiemomenten toe: minimaal 1 tussentijdse + 1 eindpresentatie.`);
+    parts.push(`Presentaties zijn 2-4 uur en moeten tussen 10:00-17:00 (niet vroeg/laat).`);
   }
 
   // Fases met medewerkerdetails

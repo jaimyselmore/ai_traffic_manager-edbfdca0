@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { useClients } from '@/hooks/use-clients';
@@ -28,9 +29,11 @@ interface ProjectHeaderProps {
   data: ProjectHeaderData;
   onChange: (data: ProjectHeaderData) => void;
   errors?: Record<string, string>;
+  isInternProject?: boolean;
+  onInternProjectChange?: (value: boolean) => void;
 }
 
-export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
+export function ProjectHeader({ data, onChange, errors, isInternProject, onInternProjectChange }: ProjectHeaderProps) {
   const { data: clients = [] } = useClients();
   const queryClient = useQueryClient();
   const [isAddingNewClient, setIsAddingNewClient] = useState(false);
@@ -287,6 +290,25 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
           <p className="text-sm text-muted-foreground">
             Klantnummer: <span className="font-medium text-foreground">{data.klantIdBasis}</span>
           </p>
+        </div>
+      )}
+
+      {/* Intern project checkbox - alleen tonen als klant geselecteerd */}
+      {data.klantId && onInternProjectChange && (
+        <div className="flex items-start gap-3 p-3 rounded-lg bg-secondary/30 border border-border">
+          <Checkbox
+            id="intern-project-header"
+            checked={isInternProject ?? false}
+            onCheckedChange={(checked) => onInternProjectChange(checked === true)}
+          />
+          <div>
+            <Label htmlFor="intern-project-header" className="text-sm font-medium cursor-pointer">
+              Dit is een intern project
+            </Label>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Bij interne projecten worden geen klantpresentaties voorgesteld door Ellen
+            </p>
+          </div>
         </div>
       )}
 
