@@ -866,7 +866,8 @@ function buildEllenPrompt(info: any, feedback?: string): string {
   // Basisinfo
   parts.push(`## Planning Aanvraag`);
   parts.push(`- Klant: "${info.klant_naam}"`);
-  parts.push(`- Projectnaam: "${info.projectnaam}"`);
+  parts.push(`- Project titel: "${info.projectTitel || info.projectnaam}"`);
+  parts.push(`- Projectomschrijving: "${info.projectnaam}"`);
   parts.push(`- Projecttype: ${info.projecttype || 'algemeen'}`);
   parts.push(`- Intern project: ${info.isInternProject ? 'JA' : 'NEE'}`);
   if (info.deadline) parts.push(`- Deadline: ${info.deadline}`);
@@ -932,9 +933,12 @@ function buildEllenPrompt(info: any, feedback?: string): string {
   parts.push(`\n## Wat je moet doen`);
   parts.push(`1. Roep plan_project aan met de volgende parameters:`);
   parts.push(`   - klant_naam: "${info.klant_naam}"`);
-  parts.push(`   - project_naam: "${info.projectnaam}"`);
+  parts.push(`   - project_naam: "${info.projectTitel || info.projectnaam}"`);
   parts.push(`   - fases: array met de bovenstaande fases`);
   if (info.deadline) parts.push(`   - deadline: "${info.deadline}"`);
+  if (info.betrokkenPersonen?.length > 0) {
+    parts.push(`   - betrokken_personen: ${JSON.stringify(info.betrokkenPersonen)}`);
+  }
   parts.push(`\n2. Geef een KORTE samenvatting (1-2 zinnen) van wat je hebt gepland.`);
   parts.push(`\nBELANGRIJK: Geen lange uitleg! Roep gewoon de tool aan.`);
 

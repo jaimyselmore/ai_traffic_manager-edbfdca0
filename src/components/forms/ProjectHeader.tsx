@@ -46,11 +46,10 @@ export function ProjectHeader({ data, onChange, errors, isInternProject, onInter
     planning_instructies: '',
   });
 
-  // Compute volledig project-ID
+  // Compute volledig project-ID (geen voorloop-nul)
   const computeVolledigProjectId = (klantIdBasis: string, volgnummer: string): string => {
     if (!klantIdBasis || !volgnummer) return '';
-    const paddedVolgnummer = volgnummer.padStart(2, '0');
-    return `${klantIdBasis}${paddedVolgnummer}`;
+    return `${klantIdBasis}${volgnummer}`;
   };
 
   // Compute project titel
@@ -293,25 +292,6 @@ export function ProjectHeader({ data, onChange, errors, isInternProject, onInter
         </div>
       )}
 
-      {/* Intern project checkbox - alleen tonen als klant geselecteerd */}
-      {data.klantId && onInternProjectChange && (
-        <div className="flex items-start gap-3 p-3 rounded-lg bg-secondary/30 border border-border">
-          <Checkbox
-            id="intern-project-header"
-            checked={isInternProject ?? false}
-            onCheckedChange={(checked) => onInternProjectChange(checked === true)}
-          />
-          <div>
-            <Label htmlFor="intern-project-header" className="text-sm font-medium cursor-pointer">
-              Dit is een intern project
-            </Label>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Bij interne projecten worden geen klantpresentaties voorgesteld door Ellen
-            </p>
-          </div>
-        </div>
-      )}
-
       {/* Project volgnummer */}
       <div>
         <Label className="text-sm">Project volgnummer *</Label>
@@ -321,11 +301,11 @@ export function ProjectHeader({ data, onChange, errors, isInternProject, onInter
           maxLength={2}
           value={data.projectVolgnummer}
           onChange={(e) => handleVolgnummerChange(e.target.value)}
-          placeholder="01"
+          placeholder="1"
           className={`w-20 ${errors?.projectVolgnummer ? 'border-destructive' : ''}`}
         />
         <p className="text-xs text-muted-foreground mt-1">
-          Volgnummer van dit project bij deze klant (01–99).
+          Volgnummer van dit project bij deze klant (1–99).
         </p>
         {errors?.projectVolgnummer && (
           <p className="text-xs text-destructive">{errors.projectVolgnummer}</p>
@@ -350,6 +330,25 @@ export function ProjectHeader({ data, onChange, errors, isInternProject, onInter
           <p className="text-xs text-muted-foreground mt-1">
             Deze titel wordt gebruikt in de planner en planning communicatie.
           </p>
+        </div>
+      )}
+
+      {/* Intern project checkbox - alleen tonen als project titel er is */}
+      {data.projectTitel && onInternProjectChange && (
+        <div className="flex items-start gap-3 p-3 rounded-lg bg-secondary/30 border border-border">
+          <Checkbox
+            id="intern-project-header"
+            checked={isInternProject ?? false}
+            onCheckedChange={(checked) => onInternProjectChange(checked === true)}
+          />
+          <div>
+            <Label htmlFor="intern-project-header" className="text-sm font-medium cursor-pointer">
+              Dit is een intern project
+            </Label>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Bij interne projecten worden geen klantpresentaties voorgesteld door Ellen
+            </p>
+          </div>
         </div>
       )}
 

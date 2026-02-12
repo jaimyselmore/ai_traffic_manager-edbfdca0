@@ -1491,6 +1491,9 @@ Deno.serve(async (req) => {
         };
         const faseLabel = werktypeLabels[werktype] || werktype;
 
+        // Gebruik project_omschrijving als project_titel (dit is de volledige projecttitel)
+        const projectTitel = planning.project_omschrijving || planning.klant_naam;
+
         for (const taak of planning.taken) {
           const { error: taakErr } = await supabase
             .from('taken')
@@ -1499,6 +1502,7 @@ Deno.serve(async (req) => {
               werknemer_naam: taak.werknemer_naam,
               klant_naam: planning.klant_naam,
               project_nummer: project.projectnummer,
+              project_titel: projectTitel, // Volledige projecttitel voor display in planner
               fase_naam: faseLabel,
               werktype: werktype, // Dit bepaalt de kleur in de planner!
               discipline: taak.discipline || 'Algemeen', // Dit is de functiegroep
