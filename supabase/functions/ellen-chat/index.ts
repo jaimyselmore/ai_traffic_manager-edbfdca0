@@ -1377,6 +1377,46 @@ Deno.serve(async (req) => {
       );
     }
 
+    // 2b2. Feedback opslaan - Ellen leert van feedback
+    if (actie === 'feedback_opslaan') {
+      const { feedback, context } = body;
+      if (!feedback) {
+        return new Response(
+          JSON.stringify({ success: false, message: 'Geen feedback ontvangen' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+        { auth: { persistSession: false } }
+      );
+
+      try {
+        // Sla feedback op in ellen_feedback tabel
+        await supabase.from('ellen_feedback').insert({
+          gebruiker_naam: session.naam,
+          feedback_tekst: feedback,
+          context_data: context ? JSON.stringify(context) : null,
+          project_info: context?.project_info ? JSON.stringify(context.project_info) : null,
+          vorig_voorstel: context?.vorig_voorstel ? JSON.stringify(context.vorig_voorstel) : null,
+        });
+
+        return new Response(
+          JSON.stringify({ success: true, message: 'Feedback opgeslagen' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } catch (err) {
+        console.error('Feedback opslaan error:', err);
+        // Niet kritisch - return success anyway
+        return new Response(
+          JSON.stringify({ success: true, message: 'Feedback verwerkt' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
     // 2c. Uitvoeren-modus: voer een bevestigde wijziging uit
     if (actie === 'uitvoeren') {
       console.log('Uitvoeren wijziging:', { tabel, id, veld, nieuwe_waarde });

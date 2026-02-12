@@ -31,7 +31,7 @@ interface VoorstelTaak {
 }
 
 const DAG_NAMEN = ['Ma', 'Di', 'Wo', 'Do', 'Vr'];
-const TIME_SLOTS = [9, 10, 11, 12, 13, 14, 15, 16, 17];
+const TIME_SLOTS = [9, 10, 11, 12, 13, 14, 15, 16, 17, 18]; // Werkdag 09:00-18:00
 const CELL_HEIGHT = 28; // px per hour cell
 
 const WORKFLOW_STEPS = [
@@ -271,6 +271,24 @@ export default function EllenVoorstel() {
     try {
       const sessionToken = getSessionToken();
       if (!sessionToken) throw new Error('Niet ingelogd');
+
+      // Sla feedback op voor Ellen om van te leren
+      try {
+        await supabase.functions.invoke('ellen-chat', {
+          headers: { Authorization: `Bearer ${sessionToken}` },
+          body: {
+            actie: 'feedback_opslaan',
+            feedback: feedbackInput,
+            context: {
+              project_info: projectInfo,
+              vorig_voorstel: voorstellen,
+            },
+          },
+        });
+      } catch {
+        // Feedback opslaan mag niet falen - ga gewoon door
+        console.warn('Feedback opslaan mislukt, ga door met nieuw voorstel');
+      }
 
       const { data, error } = await supabase.functions.invoke('ellen-chat', {
         headers: { Authorization: `Bearer ${sessionToken}` },
@@ -676,7 +694,7 @@ export default function EllenVoorstel() {
             {/* Feedback section */}
             <div className="space-y-3 pt-4 border-t border-border">
               <p className="text-sm text-muted-foreground">
-                Niet helemaal goed? Geef feedback en laat Ellen een nieuw voorstel maken.
+                Niet helemaal goed? Geef feedback of genereer een nieuw voorstel.
               </p>
               <div className="flex gap-2">
                 <input
@@ -696,6 +714,7 @@ export default function EllenVoorstel() {
                   variant="outline"
                   onClick={handleRequestNewProposal}
                   disabled={isRequestingNewProposal || !feedbackInput.trim()}
+                  title="Feedback versturen"
                 >
                   {isRequestingNewProposal ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -704,6 +723,21 @@ export default function EllenVoorstel() {
                   )}
                 </Button>
               </div>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  setFeedbackInput('Genereer een compleet nieuw voorstel met dezelfde input');
+                  setTimeout(() => handleRequestNewProposal(), 100);
+                }}
+                disabled={isRequestingNewProposal}
+                className="w-full"
+              >
+                {isRequestingNewProposal ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : null}
+                Genereer nieuw voorstel
+              </Button>
             </div>
 
             {/* Action buttons */}
