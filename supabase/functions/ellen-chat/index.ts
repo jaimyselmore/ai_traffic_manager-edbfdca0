@@ -47,81 +47,211 @@ async function verifySessionToken(token: string): Promise<SessionPayload | null>
 
 // ---- SYSTEM PROMPT ----
 
-const SYSTEM_PROMPT = `Je bent Ellen, de planningsassistent van Selmore - een creatief productiebedrijf.
+// Core prompt - persoonlijkheid en gedrag (NIET aanpasbaar via database)
+const CORE_PROMPT = `Je bent Ellen, een traffic/planning-assistent voor Selmore - een creatief productiebedrijf.
 
 ## WIE JE BENT
-Je bent een enthousiaste, behulpzame collega die het team ondersteunt met planning en administratie. Je bent:
+Je bent een slimme, proactieve planningsassistent die MEEDENKT met het team. Je bent:
+- **Slim en interpreterend** - je begrijpt de bedoeling, niet alleen de letterlijke vraag
+- **Proactief** - je signaleert problemen en conflicten voordat ze ontstaan
 - **Direct en efficient** - geen omhaal, recht op je doel af
-- **Warm maar professioneel** - je bent een collega, geen robot
-- **Slim en proactief** - je denkt mee en biedt oplossingen
 - **Een tikje eigenwijs** - je hebt een mening en deelt die (vriendelijk)
 
 ## TONE OF VOICE
 - Praat als een collega, niet als een assistent
 - Kort en krachtig, geen wollige taal
 - Informeel Nederlands ("Even kijken...", "Top!", "Momentje...")
-- Bij goed nieuws: enthousiast. Bij problemen: oplossingsgericht
-- Humor mag, maar subtiel - droge opmerkingen werken beter dan geforceerde grappen
+- Bij problemen: oplossingsgericht, niet alleen melden maar ook alternatieven bieden
 
-## EMOJI'S - BELANGRIJK
-- Gebruik emoji's SPAARZAAM - NIET in elk bericht!
-- Alleen bij: droge humor, sarcasme, of wanneer het echt iets toevoegt
-- WEL: "Ah ja, die deadline van gisteren 💀" of na groot succes "Gelukt! 🎉"
-- NIET: bij gewone vragen, zoekresultaten, zakelijke info
-- Default = geen emoji. Twijfel je? Laat weg.
+## EMOJI'S - SPAARZAAM
+- Alleen bij droge humor of groot succes
+- Default = geen emoji
 
-Voorbeelden:
-✓ "Jakko? Die is Creative Director, werkt 40 uur. Zit in het duo-team met Mick."
-✓ "Hmm, Eline heeft die week al behoorlijk vol staan. Zal ik alternatieven zoeken?"
-✓ "Done! Project staat in concept, blokken zijn geplaatst."
-✗ "De medewerker genaamd Jakko heeft als primaire rol Creative Director toegewezen gekregen..."
+## WAT JE PLANT
+Je maakt planningsvoorstellen voor **Creatie** en **Studio** - alleen deze twee plan je in uren/blokken.
+- **Account** = projectlead (plan je NIET in blokken)
+- **Strategie, Producer, etc.** = kunnen verplicht aanwezig zijn bij meetings/presentaties
+  → Je boekt hen NIET, maar je neemt hun aanwezigheid mee als constraint
+  → Meld conflicten als Creatie/Studio botst met hun verplichte aanwezigheid
+
+## HOE JE WERKT BIJ NIEUWE PROJECT TEMPLATES
+De planner vult templates volledig in. Jij stelt GEEN intake-vragen maar geeft DIRECT een voorstel.
+
+### Stap 1: Lees en analyseer
+- Lees de template (klant, medewerkers, fases, deadline, opmerkingen)
+- Check de ROLLEN van de gekozen medewerkers → bepaalt wie Creatie is en wie Studio
+- Check klant.planning_instructies voor specifieke wensen
+- Check medewerker beschikbaarheid (verlof, parttime, bestaande blokken)
+
+### Stap 2: Bepaal de werkwijze
+**Default:** Creatie stuurt Studio
+- Creatie maakt/briefed eerst
+- Studio produceert daarna
+- Studio-output vraagt Creatie-akkoord VÓÓR klantpresentaties
+- Studio-output vraagt Creatie-akkoord VÓÓR finale oplevering
+
+**Afwijkingen:** Als template aangeeft "Studio eerst" of "Gedeeld" → pas werkwijze aan
+
+### Stap 3: Plan rondom ankers
+**Ankers** = deadlines, presentaties, meetings met klant
+- Deze staan VAST - plan hier omheen
+- Adviseer 30-60 min buffer VÓÓR elke klantpresentatie (voor laatste check)
+- Als buffer niet past → meld dit als risico
+
+### Stap 4: Maak voorstel
+**Bij externe projecten:** stel voor hoeveel presentaties er moeten zijn met de klant
+- Kick-off / briefing
+- Tussentijdse presentatie(s) indien nodig
+- Eindpresentatie / oplevering
+
+**Je output bevat:**
+- Concrete blokken voor Creatie en Studio (wie, wanneer, hoeveel uur)
+- Voorgestelde presentatiemomenten
+- Buffer-advies vóór presentaties
+- Conflicten/risico's als die er zijn
+- Wat je NIET hebt kunnen checken (bijv. MS Agenda)
+
+### Stap 5: Wacht op feedback
+- Na elk voorstel wacht je op feedback van de planner
+- Bij "nee" of aanpassingen → maak een alternatief voorstel
+- **NOOIT automatisch de echte planning aanpassen** - de mens keurt ALTIJD goed
+
+## VERPLICHTE BRONNEN BIJ PLANNEN
+Bij ELKE planning MOET je checken:
+
+1. **Planning Regels** (uit planning_configuratie)
+   - Werktijden, lunchtijd, meeting-tijden, fase richtlijnen
+   - Als niet beschikbaar: gebruik defaults
+
+2. **Klant Instructies** (uit klanten.planning_instructies)
+   - Als leeg: vermeld dit
+
+3. **Medewerker Info**
+   - Rollen (bepaalt Creatie vs Studio)
+   - Beschikbaarheid (verlof, parttime, bestaande blokken)
+   - Notities/voorkeuren
+
+4. **Microsoft Agenda** (indien gekoppeld)
+   - Als niet gekoppeld: vermeld dit
+
+**BELANGRIJK:** Vermeld ALTIJD wat je niet hebt kunnen checken!
 
 ## KRITIEKE REGELS (NOOIT BREKEN!)
 1. Je hebt GEEN eigen kennis over Selmore data - ALTIJD tools gebruiken
 2. Bij vragen over data: EERST zoek-tool gebruiken, DAN pas antwoorden
 3. NOOIT antwoorden met info die niet uit een tool-resultaat komt
-4. Als je twijfelt, zoek dan op. Beter een keer te veel zoeken dan verkeerde info geven.
-
-## FUZZY MATCHING
-Als je iemand niet vindt, probeer variaties:
-- "Jaiko" → zoek ook op "Jakko"
-- "Elin" → zoek ook op "Eline"
-- Typfouten zijn menselijk, jij begrijpt wat ze bedoelen
+4. NOOIT automatisch de planning aanpassen zonder goedkeuring
 
 ## WIJZIGINGEN PROTOCOL
 1. Gebruiker wil iets aanpassen? → EERST zoek-tool voor ID
 2. ID gevonden? → ROEP stel_wijziging_voor AAN (VERPLICHT!)
-3. De tool toont automatisch een bevestigknop - jij hoeft dat niet te zeggen
-
-## PLANNING PROTOCOL
-Je kunt projecten inplannen! Volg dit stappenplan:
-
-1. **Verzamel info** - Wat is de klant? Welke medewerkers? Welke fases? Wanneer?
-2. **Check beschikbaarheid** - Gebruik check_beschikbaarheid om te zien of medewerkers vrij zijn
-3. **Maak voorstel** - Gebruik plan_project om een planning-voorstel te genereren
-4. **Bevestig** - De gebruiker moet het voorstel goedkeuren voordat het wordt aangemaakt
-
-Voorbeeld conversatie:
-- User: "Plan een shoot voor Nike volgende week met Jakko"
-- Ellen: Zoekt klant "Nike", zoekt medewerker "Jakko", checkt beschikbaarheid
-- Ellen: "Jakko is vrij dinsdag t/m donderdag. Zal ik een shoot van 3 dagen inplannen?"
-- User: "Ja, doe maar"
-- Ellen: Roept plan_project aan met de details
-
-**Fases die vaak voorkomen:**
-- Concept/Strategie (meestal 1-2 dagen)
-- Pre-productie (1-3 dagen)
-- Shoot/Productie (1-5 dagen)
-- Edit/Post-productie (2-10 dagen)
-- Review/Afronding (1-2 dagen)
-
-**Standaard uren:** 8 uur per dag, tenzij anders gevraagd
 
 ## WAT JE WEET OVER SELMORE
 - Creatief productiebedrijf gespecialiseerd in video content
-- Team van creatives, producers, editors, strategen
+- Team: Creatie (creatives, designers) en Studio (editors, motion designers)
 - Projecten hebben fases: concept, productie, post-productie
 - Planning is per week, met blokken van uren per medewerker`;
+
+// ---- PLANNING CONFIGURATIE ----
+
+interface PlanningConfig {
+  werkdag_start: number;
+  werkdag_eind: number;
+  lunch_start: number;
+  lunch_eind: number;
+  meeting_start: number;
+  meeting_eind: number;
+  standaard_uren_per_dag: number;
+  min_buffer_tussen_fases: number;
+  fase_templates: Array<{ naam: string; min_dagen: number; max_dagen: number; omschrijving?: string }>;
+  extra_instructies?: string;
+}
+
+// Default configuratie (als database nog niet geconfigureerd is)
+const DEFAULT_CONFIG: PlanningConfig = {
+  werkdag_start: 9,
+  werkdag_eind: 18,
+  lunch_start: 12.5,  // 12:30
+  lunch_eind: 13.5,   // 13:30
+  meeting_start: 10,
+  meeting_eind: 17,
+  standaard_uren_per_dag: 8,
+  min_buffer_tussen_fases: 1,
+  fase_templates: [
+    { naam: 'Concept/Strategie', min_dagen: 1, max_dagen: 2 },
+    { naam: 'Pre-productie', min_dagen: 1, max_dagen: 3 },
+    { naam: 'Shoot/Productie', min_dagen: 1, max_dagen: 5 },
+    { naam: 'Edit/Post-productie', min_dagen: 2, max_dagen: 10 },
+    { naam: 'Review/Afronding', min_dagen: 1, max_dagen: 2 },
+  ],
+};
+
+// deno-lint-ignore no-explicit-any
+async function loadPlanningConfig(supabase: any): Promise<PlanningConfig> {
+  try {
+    const { data, error } = await supabase
+      .from('planning_configuratie')
+      .select('*')
+      .limit(1)
+      .maybeSingle();
+
+    if (error || !data) {
+      console.log('Planning configuratie niet gevonden, gebruik defaults');
+      return DEFAULT_CONFIG;
+    }
+
+    return {
+      werkdag_start: data.werkdag_start ?? DEFAULT_CONFIG.werkdag_start,
+      werkdag_eind: data.werkdag_eind ?? DEFAULT_CONFIG.werkdag_eind,
+      lunch_start: data.lunch_start ?? DEFAULT_CONFIG.lunch_start,
+      lunch_eind: data.lunch_eind ?? DEFAULT_CONFIG.lunch_eind,
+      meeting_start: data.meeting_start ?? DEFAULT_CONFIG.meeting_start,
+      meeting_eind: data.meeting_eind ?? DEFAULT_CONFIG.meeting_eind,
+      standaard_uren_per_dag: data.standaard_uren_per_dag ?? DEFAULT_CONFIG.standaard_uren_per_dag,
+      min_buffer_tussen_fases: data.min_buffer_tussen_fases ?? DEFAULT_CONFIG.min_buffer_tussen_fases,
+      fase_templates: data.fase_templates ?? DEFAULT_CONFIG.fase_templates,
+      extra_instructies: data.extra_instructies,
+    };
+  } catch (e) {
+    console.error('Fout bij laden planning configuratie:', e);
+    return DEFAULT_CONFIG;
+  }
+}
+
+function formatTime(decimal: number): string {
+  const hours = Math.floor(decimal);
+  const minutes = Math.round((decimal - hours) * 60);
+  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+}
+
+function buildPlanningContext(config: PlanningConfig): string {
+  const faseList = config.fase_templates
+    .map(f => `- ${f.naam}: ${f.min_dagen}-${f.max_dagen} dagen${f.omschrijving ? ` (${f.omschrijving})` : ''}`)
+    .join('\n');
+
+  let context = `
+
+## HUIDIGE PLANNING REGELS
+- Werkdag: ${formatTime(config.werkdag_start)} - ${formatTime(config.werkdag_eind)}
+- Lunch: ${formatTime(config.lunch_start)} - ${formatTime(config.lunch_eind)}
+  * Normaal werk: NIET tijdens lunch inplannen
+  * Meetings met klant: MAG tijdens lunch (klant eet mee) - vraag dit na als relevant
+- Meetings: bij voorkeur tussen ${formatTime(config.meeting_start)} en ${formatTime(config.meeting_eind)}
+- Standaard uren per dag: ${config.standaard_uren_per_dag}
+- Buffer tussen fases: minimaal ${config.min_buffer_tussen_fases} dag(en)
+
+## FASE RICHTLIJNEN
+${faseList}`;
+
+  if (config.extra_instructies) {
+    context += `
+
+## EXTRA INSTRUCTIES
+${config.extra_instructies}`;
+  }
+
+  return context;
+}
 
 // ---- OPENAI TOOL DEFINITIONS ----
 
@@ -415,12 +545,14 @@ function isMeetingFase(faseNaam: string): boolean {
 
 // ---- SLOT FINDER ----
 
-// Werkdag constanten
-const WERKDAG_START = 9;  // 09:00
-const WERKDAG_EIND = 18;  // 18:00
-const LUNCH_UUR = 13;     // 13:00-14:00 is lunch
-const MEETING_START = 10; // Meetings niet voor 10:00
-const MEETING_EIND = 17;  // Meetings niet na 17:00
+// Werkdag constanten (in decimalen: 12.5 = 12:30)
+// Dit zijn defaults - Ellen leest de echte waarden uit planning_configuratie
+const WERKDAG_START = 9;      // 09:00
+const WERKDAG_EIND = 18;      // 18:00
+const LUNCH_START = 12.5;     // 12:30 - echte lunchtijd
+const LUNCH_EIND = 13.5;      // 13:30 - echte lunchtijd
+const MEETING_START = 10;     // Default: meetings niet voor 10:00 (komt uit planning_configuratie)
+const MEETING_EIND = 17;      // Default: meetings niet na 17:00 (komt uit planning_configuratie)
 
 interface TimeSlot {
   startUur: number;
@@ -469,8 +601,16 @@ function heeftConflict(
 }
 
 /**
+ * Check of een tijdslot overlapt met de lunch (12:30-13:30)
+ */
+function overlapLunch(startUur: number, eindUur: number): boolean {
+  // Overlap als: start < lunch_eind EN eind > lunch_start
+  return startUur < LUNCH_EIND && eindUur > LUNCH_START;
+}
+
+/**
  * Find first available time slot for an employee on a given date
- * Werkdag: 09:00 - 18:00, lunch skip at 13:00
+ * Werkdag: 09:00 - 18:00, lunch: 12:30-13:30
  */
 async function vindEersteVrijeSlot(
   supabase: SupabaseClient,
@@ -481,26 +621,25 @@ async function vindEersteVrijeSlot(
   const bezet = await getBestaandeBlokken(supabase, medewerkernaam, datum);
 
   // For full day blocks (8 hours), try to place at 09:00
-  // The block goes 09:00-13:00 (4u) + 14:00-18:00 (4u) = 8u effectively
+  // Ochtend: 09:00-12:30 (3.5u) + Middag: 13:30-18:00 (4.5u) = 8u werk
+  // Blok loopt visueel van 09:00-18:00 (9 uur inclusief lunch)
   if (benodigdeUren >= 8) {
-    // Check if morning (9-13) and afternoon (14-18) are both free
-    const ochtendVrij = !heeftConflict(bezet, WERKDAG_START, 4);
-    const middagVrij = !heeftConflict(bezet, 14, 4);
+    // Check if morning (9-12:30) and afternoon (13:30-18) are both free
+    const ochtendVrij = !heeftConflict(bezet, WERKDAG_START, 3.5); // 9:00-12:30
+    const middagVrij = !heeftConflict(bezet, 14, 4);               // 14:00-18:00 (we checken vanaf 14 voor hele uren)
     if (ochtendVrij && middagVrij) {
-      return { startUur: WERKDAG_START, duurUren: benodigdeUren };
+      // Return duurUren=9 zodat het blok visueel tot 18:00 loopt (9+9=18)
+      return { startUur: WERKDAG_START, duurUren: 9 };
     }
     return null; // No space for full day
   }
 
-  // For smaller blocks, find first free slot
+  // For smaller blocks, find first free slot (we werken met hele uren voor start)
   for (let uur = WERKDAG_START; uur <= WERKDAG_EIND - benodigdeUren; uur++) {
-    // Skip lunch hour - can't start a block at 13:00
-    if (uur === LUNCH_UUR) continue;
-
-    // Check if block would span lunch hour
     const eindUur = uur + benodigdeUren;
-    if (uur < LUNCH_UUR && eindUur > LUNCH_UUR) {
-      // Block spans lunch - skip to after lunch
+
+    // Skip als blok overlapt met lunch (12:30-13:30)
+    if (overlapLunch(uur, eindUur)) {
       continue;
     }
 
@@ -514,24 +653,25 @@ async function vindEersteVrijeSlot(
 
 /**
  * Find available slot for meetings/presentations
- * Meetings should be scheduled between 10:00-17:00 (not early morning or late afternoon)
+ * Meeting tijden komen uit planning_configuratie (default: 10:00-17:00)
+ * Lunch: 12:30-13:30 - meetings kunnen soms WEL tijdens lunch (klant eet mee)
+ * @param negeerLunch - als true, mag meeting ook tijdens lunch gepland worden
  */
 async function vindMeetingSlot(
   supabase: SupabaseClient,
   medewerkernaam: string,
   datum: Date,
-  benodigdeUren: number
+  benodigdeUren: number,
+  negeerLunch = false
 ): Promise<TimeSlot | null> {
   const bezet = await getBestaandeBlokken(supabase, medewerkernaam, datum);
 
-  // Meetings between 10:00 and 17:00
+  // Meeting tijden (defaults, Ellen leest echte tijden uit planning_configuratie)
   for (let uur = MEETING_START; uur <= MEETING_EIND - benodigdeUren; uur++) {
-    // Skip lunch hour
-    if (uur === LUNCH_UUR) continue;
-
-    // Check if block would span lunch hour
     const eindUur = uur + benodigdeUren;
-    if (uur < LUNCH_UUR && eindUur > LUNCH_UUR) {
+
+    // Skip lunch (12:30-13:30) tenzij negeerLunch=true (klant eet mee)
+    if (!negeerLunch && overlapLunch(uur, eindUur)) {
       continue;
     }
 
@@ -1610,27 +1750,33 @@ Deno.serve(async (req) => {
       { auth: { persistSession: false } }
     );
 
-    // 4. Haal extra info over de ingelogde planner op
-    let plannerContext = `\n\nJe praat nu met ${session.naam} (${session.rol}).`;
-    try {
-      const { data: medewerker } = await supabase
+    // 4. Laad planning configuratie en planner info parallel
+    const [planningConfig, plannerInfo] = await Promise.all([
+      loadPlanningConfig(supabase),
+      supabase
         .from('medewerkers')
         .select('naam_werknemer, primaire_rol, tweede_rol, discipline, werkuren, parttime_dag, duo_team')
         .ilike('naam_werknemer', `%${session.naam}%`)
         .limit(1)
-        .single();
-      if (medewerker) {
-        const parts = [`Rol: ${medewerker.primaire_rol}`];
-        if (medewerker.tweede_rol) parts.push(`Tweede rol: ${medewerker.tweede_rol}`);
-        if (medewerker.discipline) parts.push(`Discipline: ${medewerker.discipline}`);
-        if (medewerker.werkuren) parts.push(`Werkuren: ${medewerker.werkuren}u/week`);
-        if (medewerker.parttime_dag) parts.push(`Parttime dag: ${medewerker.parttime_dag}`);
-        if (medewerker.duo_team) parts.push(`Duo team: ${medewerker.duo_team}`);
-        plannerContext = `\n\nJe praat met ${medewerker.naam_werknemer}. ${parts.join('. ')}.`;
-      }
-    } catch {
-      // Geen match gevonden, gebruik basis sessie-info
+        .maybeSingle(),
+    ]);
+
+    // Bouw planner context
+    let plannerContext = `\n\nJe praat nu met ${session.naam} (${session.rol}).`;
+    const medewerker = plannerInfo.data;
+    if (medewerker) {
+      const parts = [`Rol: ${medewerker.primaire_rol}`];
+      if (medewerker.tweede_rol) parts.push(`Tweede rol: ${medewerker.tweede_rol}`);
+      if (medewerker.discipline) parts.push(`Discipline: ${medewerker.discipline}`);
+      if (medewerker.werkuren) parts.push(`Werkuren: ${medewerker.werkuren}u/week`);
+      if (medewerker.parttime_dag) parts.push(`Parttime dag: ${medewerker.parttime_dag}`);
+      if (medewerker.duo_team) parts.push(`Duo team: ${medewerker.duo_team}`);
+      plannerContext = `\n\nJe praat met ${medewerker.naam_werknemer}. ${parts.join('. ')}.`;
     }
+
+    // Bouw volledige system prompt met dynamische planning regels
+    const planningContext = buildPlanningContext(planningConfig);
+    const fullSystemPrompt = CORE_PROMPT + planningContext + plannerContext;
 
     // 5. Load chat history (laatste 30 berichten voor context)
     let historyMessages: Array<{ rol: string; inhoud: string }> = [];
@@ -1660,7 +1806,7 @@ Deno.serve(async (req) => {
     // 7. Bouw OpenAI messages array
     // deno-lint-ignore no-explicit-any
     const openaiMessages: any[] = [
-      { role: 'system', content: SYSTEM_PROMPT + plannerContext },
+      { role: 'system', content: fullSystemPrompt },
     ];
 
     for (const msg of historyMessages) {
