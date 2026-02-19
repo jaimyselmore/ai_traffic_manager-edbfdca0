@@ -931,88 +931,97 @@ function buildEllenPrompt(info: any, feedback?: string): string {
   const parts: string[] = [];
 
   // KRITIEKE INSTRUCTIE BOVENAAN
-  parts.push(`⚠️ KRITIEKE INSTRUCTIE: Je MOET de plan_project tool aanroepen aan het einde van dit verzoek!`);
-  parts.push(`Beschrijf de planning NIET in tekst - gebruik ALLEEN de tool om het voorstel te genereren.`);
+  parts.push(`⚠️ KRITIEKE INSTRUCTIE: Je MOET de plan_project tool aanroepen!`);
+  parts.push(`Beschrijf de planning NIET in tekst - gebruik ALLEEN de tool.`);
   parts.push(`\n---\n`);
 
   // Basisinfo
   parts.push(`## Planning Aanvraag`);
   parts.push(`- Klant: "${info.klant_naam}"`);
-  parts.push(`- Project titel: "${info.projectTitel || info.projectnaam}"`);
-  parts.push(`- Projectomschrijving: "${info.projectnaam}"`);
-  parts.push(`- Projecttype: ${info.projecttype || 'algemeen'}`);
-  parts.push(`- Intern project: ${info.isInternProject ? 'JA' : 'NEE'}`);
+  parts.push(`- Project: "${info.projectTitel || info.projectnaam}"`);
+  parts.push(`- Type: ${info.projecttype || 'algemeen'}`);
+  parts.push(`- Intern: ${info.isInternProject ? 'JA' : 'NEE'}`);
   if (info.deadline) parts.push(`- Deadline: ${info.deadline}`);
 
-  // Betrokken personen (voor meetings)
+  // VERDELING INSTRUCTIES - KRITIEK!
+  parts.push(`\n## ⚠️ VERDELING PARAMETER - LEES DIT GOED!`);
+  parts.push(`Elke fase heeft een "verdeling" parameter die bepaalt HOE dagen worden gepland:`);
+  parts.push(`- "aaneengesloten" = alle dagen achter elkaar (default)`);
+  parts.push(`- "per_week" = X dagen per week verspreid over meerdere weken`);
+  parts.push(`- "laatste_week" = alleen in de laatste week voor deadline`);
+  parts.push(``);
+  parts.push(`ANALYSEER DE NOTITIES en kies de juiste verdeling:`);
+  parts.push(`- "1 dag per week" of "wekelijks" → verdeling: "per_week", dagen_per_week: 1`);
+  parts.push(`- "elke dag" of "dagelijks" → verdeling: "aaneengesloten"`);
+  parts.push(`- "laatste week" of "aan het eind" → verdeling: "laatste_week"`);
+  parts.push(`- "X uur per week" → verdeling: "per_week", uren_per_dag aangepast`);
+
+  // Betrokken personen
   if (info.betrokkenPersonen?.length > 0) {
-    parts.push(`\n## Overige betrokkenen`);
-    parts.push(`Deze mensen moeten bij meetings/presentaties zijn: ${info.betrokkenPersonen.join(', ')}`);
+    parts.push(`\n## Overige betrokkenen (voor meetings)`);
+    parts.push(`${info.betrokkenPersonen.join(', ')}`);
   }
 
-  // Meetings/Presentaties die de gebruiker wil
+  // Meetings
   if (info.meetings?.length > 0) {
-    parts.push(`\n## Gewenste Meetings/Presentaties`);
+    parts.push(`\n## Meetings/Presentaties`);
     info.meetings.forEach((m: any, i: number) => {
       const typeLabels: Record<string, string> = {
-        'kick-off': 'Kick-off meeting',
+        'kick-off': 'Kick-off',
         'tussentijds': 'Tussentijdse presentatie',
         'eindpresentatie': 'Eindpresentatie',
         'anders': 'Meeting',
       };
-      parts.push(`${i + 1}. ${typeLabels[m.type] || m.type} (${m.aantalUren} uur)${m.notitie ? ` - "${m.notitie}"` : ''}`);
+      parts.push(`${i + 1}. ${typeLabels[m.type] || m.type} (${m.aantalUren}u)${m.notitie ? ` - "${m.notitie}"` : ''}`);
     });
-    parts.push(`\nPlan deze meetings IN als aparte fases! Alle betrokken medewerkers + overige betrokkenen moeten erbij.`);
-  } else if (!info.isInternProject) {
-    // Alleen automatisch voorstellen als gebruiker geen meetings heeft toegevoegd
-    parts.push(`\n## Klantpresentaties (automatisch)`);
-    parts.push(`Dit is een EXTERN project en er zijn geen meetings opgegeven.`);
-    parts.push(`Voeg ZELF presentatiemomenten toe: minimaal 1 tussentijdse + 1 eindpresentatie.`);
-    parts.push(`Presentaties zijn 2-4 uur en moeten tussen 10:00-17:00 (niet vroeg/laat).`);
   }
 
-  // Fases met medewerkerdetails
+  // Fases met DUIDELIJKE instructies over notities
   if (info.fases?.length) {
-    parts.push(`\n## Fases`);
+    parts.push(`\n## Medewerkers en hun inspanning`);
+    parts.push(`LET OP: Lees de NOTITIES zorgvuldig - ze bevatten CRUCIALE planning instructies!`);
     info.fases.forEach((f: any) => {
       parts.push(`\n### ${f.fase_naam}`);
-      parts.push(`- Duur: ${f.duur_dagen} dagen`);
+      parts.push(`- Totaal dagen: ${f.duur_dagen}`);
       parts.push(`- Start: ${f.start_datum}`);
       if (f.uren_per_dag && f.uren_per_dag !== 8) parts.push(`- Uren/dag: ${f.uren_per_dag}`);
       if (f.medewerkers?.length) {
-        parts.push(`- Medewerkers: ${f.medewerkers.join(', ')}`);
+        parts.push(`- Medewerker: ${f.medewerkers.join(', ')}`);
       }
-      if (f.notities) parts.push(`- Notities: "${f.notities}"`);
+      if (f.notities) {
+        parts.push(`- **NOTITIES (BELANGRIJK!):** "${f.notities}"`);
+        // Help Ellen de notities te interpreteren
+        const notitieLower = f.notities.toLowerCase();
+        if (notitieLower.includes('per week') || notitieLower.includes('1 dag per week') || notitieLower.includes('wekelijks') || notitieLower.includes('elke week')) {
+          parts.push(`  → Dit betekent: verdeling="per_week", dagen_per_week=1`);
+        }
+        if (notitieLower.includes('laatste week') || notitieLower.includes('aan het eind') || notitieLower.includes('einde van')) {
+          parts.push(`  → Dit betekent: verdeling="laatste_week"`);
+        }
+        if (notitieLower.includes('elke dag') || notitieLower.includes('dagelijks') || notitieLower.includes('volle dagen')) {
+          parts.push(`  → Dit betekent: verdeling="aaneengesloten"`);
+        }
+      }
     });
   }
 
-  // Feedback van gebruiker (indien aanwezig)
+  // Feedback
   if (feedback) {
     parts.push(`\n## Feedback op vorig voorstel`);
-    parts.push(`De gebruiker wil aanpassingen: "${feedback}"`);
-    parts.push(`Pas het voorstel hierop aan.`);
+    parts.push(`"${feedback}"`);
   }
 
-  // Planning regels
-  parts.push(`\n## Planning Regels (BELANGRIJK!)`);
-  parts.push(`- Verspreid fases over MEERDERE WEKEN - niet alles in week 1!`);
-  parts.push(`- Plan buffer tijd (1-2 dagen) tussen fases voor feedback loops`);
-  parts.push(`- Respecteer de deadline: ${info.deadline || 'niet opgegeven'}`);
-  parts.push(`- Lees de notities bij elke fase - die bevatten belangrijke instructies`);
-  parts.push(`- Blokken zijn standaard 8 uur per dag (hele werkdag)`);
-
-  // Strikte instructies
-  parts.push(`\n## Wat je moet doen`);
-  parts.push(`1. Roep plan_project aan met de volgende parameters:`);
-  parts.push(`   - klant_naam: "${info.klant_naam}"`);
-  parts.push(`   - project_naam: "${info.projectTitel || info.projectnaam}"`);
-  parts.push(`   - fases: array met de bovenstaande fases`);
-  if (info.deadline) parts.push(`   - deadline: "${info.deadline}"`);
+  // Actie
+  parts.push(`\n## ACTIE`);
+  parts.push(`Roep plan_project aan met:`);
+  parts.push(`- klant_naam: "${info.klant_naam}"`);
+  parts.push(`- project_naam: "${info.projectTitel || info.projectnaam}"`);
+  parts.push(`- fases: array met CORRECTE verdeling per fase op basis van notities`);
+  if (info.deadline) parts.push(`- deadline: "${info.deadline}"`);
   if (info.betrokkenPersonen?.length > 0) {
-    parts.push(`   - betrokken_personen: ${JSON.stringify(info.betrokkenPersonen)}`);
+    parts.push(`- betrokken_personen: ${JSON.stringify(info.betrokkenPersonen)}`);
   }
-  parts.push(`\n2. Geef een KORTE samenvatting (1-2 zinnen) van wat je hebt gepland.`);
-  parts.push(`\nBELANGRIJK: Geen lange uitleg! Roep gewoon de tool aan.`);
+  parts.push(`\nGeef daarna een KORTE samenvatting (1-2 zinnen).`);
 
   return parts.join('\n');
 }

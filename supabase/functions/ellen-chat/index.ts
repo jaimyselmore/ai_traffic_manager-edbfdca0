@@ -462,8 +462,14 @@ const TOOLS = [
                   description: 'Namen van medewerkers voor deze fase'
                 },
                 start_datum: { type: 'string', description: 'Startdatum van de fase (YYYY-MM-DD)' },
-                duur_dagen: { type: 'number', description: 'Aantal werkdagen voor deze fase' },
+                duur_dagen: { type: 'number', description: 'Totaal aantal werkdagen voor deze fase' },
                 uren_per_dag: { type: 'number', description: 'Aantal uren per dag (default 8)' },
+                verdeling: {
+                  type: 'string',
+                  description: 'Hoe de dagen verdeeld worden: aaneengesloten (default), per_week (X dagen per week verspreid), of laatste_week (alleen laatste week voor deadline)',
+                  enum: ['aaneengesloten', 'per_week', 'laatste_week']
+                },
+                dagen_per_week: { type: 'number', description: 'Bij verdeling=per_week: hoeveel dagen per week (default 1)' },
               },
               required: ['fase_naam', 'medewerkers', 'start_datum', 'duur_dagen'],
             },
@@ -1158,6 +1164,8 @@ async function executeTool(
           start_datum: string;
           duur_dagen: number;
           uren_per_dag?: number;
+          verdeling?: 'aaneengesloten' | 'per_week' | 'laatste_week';
+          dagen_per_week?: number;
         }>;
         const deadline = args.deadline;
         const betrokkenPersonen = args.betrokken_personen as unknown as string[] || [];
@@ -1223,138 +1231,176 @@ async function executeTool(
         // But ensure at least 1 buffer day between phases for review time
         const minBuffer = fases.length > 1 ? Math.max(1, actualBufferPerGap) : 0;
 
-        // Track running date across all phases
-        let runningDate = new Date(firstStartDate);
-
-        for (let faseIndex = 0; faseIndex < fases.length; faseIndex++) {
-          const fase = fases[faseIndex];
+        // ======= HELPER: Plan een blok voor een medewerker op een specifieke datum =======
+        async function planBlok(
+          medewerker: string,
+          datum: Date,
+          fase: typeof fases[0],
+          isMeeting: boolean
+        ): Promise<boolean> {
           const urenPerDag = fase.uren_per_dag || 8;
           const discipline = bepaalDiscipline(fase.fase_naam);
 
-          // Use running date (which may have been pushed forward from previous fase + buffer)
-          // But respect explicit start_datum if it's later than running date
-          const explicitStart = new Date(fase.start_datum + 'T00:00:00');
-          let huidigeDatum = explicitStart > runningDate ? explicitStart : new Date(runningDate);
+          // Check verlof
+          const hasVerlof = await heeftVerlof(supabase, medewerker, datum);
+          if (hasVerlof) {
+            warnings.push(`${medewerker} heeft verlof op ${datum.toISOString().split('T')[0]}`);
+            return false;
+          }
 
-          const faseStartFormatted = `${huidigeDatum.getDate()}/${huidigeDatum.getMonth() + 1}`;
-          samenvattingParts.push(`\n${fase.fase_naam} (start: ${faseStartFormatted}):`);
+          // Check parttime
+          const isParttime = await isParttimeDag(supabase, medewerker, datum);
+          if (isParttime) {
+            warnings.push(`${medewerker} werkt niet op ${datum.toISOString().split('T')[0]} (parttime)`);
+            return false;
+          }
 
-          // For each day in the fase
-          for (let dag = 0; dag < fase.duur_dagen; dag++) {
-            // Skip weekends
-            while (isWeekend(huidigeDatum)) {
+          // Find available slot
+          const slot = isMeeting
+            ? await vindMeetingSlot(supabase, medewerker, datum, urenPerDag)
+            : await vindEersteVrijeSlot(supabase, medewerker, datum, urenPerDag);
+
+          if (slot) {
+            const weekStart = getMonday(datum);
+            const dagVanWeek = getDayOfWeekNumber(datum);
+            const dagNamen = ['ma', 'di', 'wo', 'do', 'vr'];
+            const weekNum = Math.ceil((datum.getTime() - firstStartDate.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
+
+            taken.push({
+              werknemer_naam: medewerker,
+              fase_naam: fase.fase_naam,
+              discipline: discipline,
+              werktype: fase.fase_naam,
+              week_start: weekStart,
+              dag_van_week: dagVanWeek,
+              start_uur: slot.startUur,
+              duur_uren: slot.duurUren,
+            });
+
+            const meetingIndicator = isMeeting ? ' (meeting)' : '';
+            samenvattingParts.push(`  ${medewerker}: wk${weekNum} ${dagNamen[dagVanWeek]} ${slot.startUur}:00-${slot.startUur + slot.duurUren}:00${meetingIndicator}`);
+            return true;
+          } else {
+            const slotType = isMeeting ? 'meeting slot (10:00-17:00)' : 'vrije slot';
+            warnings.push(`Geen ${slotType} voor ${medewerker} op ${datum.toISOString().split('T')[0]}`);
+            return false;
+          }
+        }
+
+        // ======= PROCESS EACH FASE WITH VERDELING LOGIC =======
+        for (const fase of fases) {
+          const verdeling = fase.verdeling || 'aaneengesloten';
+          const dagenPerWeek = fase.dagen_per_week || 1;
+          const isMeeting = isMeetingFase(fase.fase_naam);
+
+          const faseStart = new Date(fase.start_datum + 'T00:00:00');
+          samenvattingParts.push(`\n${fase.fase_naam} (verdeling: ${verdeling}):`);
+
+          if (verdeling === 'laatste_week' && deadline) {
+            // ======= LAATSTE_WEEK: Plan alleen in de laatste week voor deadline =======
+            const deadlineDate = new Date(deadline + 'T00:00:00');
+            // Start 5 werkdagen voor deadline (1 week)
+            let startDate = new Date(deadlineDate);
+            startDate.setDate(startDate.getDate() - 7);
+            // Skip weekends backwards to find Monday
+            while (isWeekend(startDate) || getDayOfWeekNumber(startDate) !== 0) {
+              startDate.setDate(startDate.getDate() + 1);
+            }
+
+            let dagenGepland = 0;
+            let huidigeDatum = new Date(startDate);
+
+            while (dagenGepland < fase.duur_dagen && huidigeDatum < deadlineDate) {
+              // Skip weekends
+              while (isWeekend(huidigeDatum)) {
+                huidigeDatum.setDate(huidigeDatum.getDate() + 1);
+              }
+              if (huidigeDatum >= deadlineDate) break;
+
+              for (const medewerker of fase.medewerkers) {
+                await planBlok(medewerker, huidigeDatum, fase, isMeeting);
+              }
+              dagenGepland++;
               huidigeDatum.setDate(huidigeDatum.getDate() + 1);
             }
 
-            // For each medewerker
-            for (const medewerker of fase.medewerkers) {
-              // Check verlof
-              const hasVerlof = await heeftVerlof(supabase, medewerker, huidigeDatum);
-              if (hasVerlof) {
-                warnings.push(`${medewerker} heeft verlof op ${huidigeDatum.toISOString().split('T')[0]}`);
-                continue;
+          } else if (verdeling === 'per_week') {
+            // ======= PER_WEEK: Verspreid X dagen per week over meerdere weken =======
+            // Bijv. 10 dagen met 1 dag per week = 10 weken
+            const totaalWeken = Math.ceil(fase.duur_dagen / dagenPerWeek);
+            let huidigeDatum = new Date(faseStart);
+            let dagenGepland = 0;
+
+            for (let week = 0; week < totaalWeken && dagenGepland < fase.duur_dagen; week++) {
+              // Plan X dagen in deze week
+              let dagenDezeWeek = 0;
+              const weekStart = new Date(huidigeDatum);
+
+              while (dagenDezeWeek < dagenPerWeek && dagenGepland < fase.duur_dagen) {
+                // Skip weekends
+                while (isWeekend(huidigeDatum)) {
+                  huidigeDatum.setDate(huidigeDatum.getDate() + 1);
+                }
+
+                // Check deadline
+                if (deadline) {
+                  const deadlineDate = new Date(deadline + 'T00:00:00');
+                  if (huidigeDatum >= deadlineDate) break;
+                }
+
+                for (const medewerker of fase.medewerkers) {
+                  await planBlok(medewerker, huidigeDatum, fase, isMeeting);
+                }
+
+                dagenGepland++;
+                dagenDezeWeek++;
+                huidigeDatum.setDate(huidigeDatum.getDate() + 1);
               }
 
-              // Check parttime
-              const isParttime = await isParttimeDag(supabase, medewerker, huidigeDatum);
-              if (isParttime) {
-                warnings.push(`${medewerker} werkt niet op ${huidigeDatum.toISOString().split('T')[0]} (parttime)`);
-                continue;
-              }
-
-              // Find available slot - use meeting rules for presentations/meetings
-              const isMeeting = isMeetingFase(fase.fase_naam);
-              const slot = isMeeting
-                ? await vindMeetingSlot(supabase, medewerker, huidigeDatum, urenPerDag)
-                : await vindEersteVrijeSlot(supabase, medewerker, huidigeDatum, urenPerDag);
-
-              if (slot) {
-                const weekStart = getMonday(huidigeDatum);
-                const dagVanWeek = getDayOfWeekNumber(huidigeDatum);
-                const dagNamen = ['ma', 'di', 'wo', 'do', 'vr'];
-                const weekNum = Math.ceil((huidigeDatum.getTime() - firstStartDate.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
-
-                taken.push({
-                  werknemer_naam: medewerker,
-                  fase_naam: fase.fase_naam,
-                  discipline: discipline,
-                  werktype: fase.fase_naam,
-                  week_start: weekStart,
-                  dag_van_week: dagVanWeek,
-                  start_uur: slot.startUur,
-                  duur_uren: slot.duurUren,
-                });
-
-                const meetingIndicator = isMeeting ? ' (meeting)' : '';
-                samenvattingParts.push(`  ${medewerker}: wk${weekNum} ${dagNamen[dagVanWeek]} ${slot.startUur}:00-${slot.startUur + slot.duurUren}:00${meetingIndicator}`);
-              } else {
-                const slotType = isMeeting ? 'meeting slot (10:00-17:00)' : 'vrije slot';
-                warnings.push(`Geen ${slotType} voor ${medewerker} op ${huidigeDatum.toISOString().split('T')[0]}`);
+              // Spring naar volgende week (maandag)
+              huidigeDatum = new Date(weekStart);
+              huidigeDatum.setDate(huidigeDatum.getDate() + 7);
+              // Zorg dat we op maandag beginnen
+              while (isWeekend(huidigeDatum) || getDayOfWeekNumber(huidigeDatum) !== 0) {
+                huidigeDatum.setDate(huidigeDatum.getDate() + 1);
               }
             }
 
-            // For meetings: also create blocks for betrokkenPersonen (people attending but not working on project)
-            const isMeetingFaseCheck = isMeetingFase(fase.fase_naam);
-            if (isMeetingFaseCheck && betrokkenPersonen.length > 0) {
-              for (const persoon of betrokkenPersonen) {
-                // Skip if already in medewerkers list
-                if (fase.medewerkers.includes(persoon)) continue;
+          } else {
+            // ======= AANEENGESLOTEN (default): Opeenvolgende dagen =======
+            let huidigeDatum = new Date(faseStart);
+            let dagenGepland = 0;
 
-                // Check verlof
-                const hasVerlof = await heeftVerlof(supabase, persoon, huidigeDatum);
-                if (hasVerlof) {
-                  warnings.push(`${persoon} (betrokken) heeft verlof op ${huidigeDatum.toISOString().split('T')[0]}`);
-                  continue;
-                }
+            while (dagenGepland < fase.duur_dagen) {
+              // Skip weekends
+              while (isWeekend(huidigeDatum)) {
+                huidigeDatum.setDate(huidigeDatum.getDate() + 1);
+              }
 
-                // Check parttime
-                const isParttime = await isParttimeDag(supabase, persoon, huidigeDatum);
-                if (isParttime) {
-                  warnings.push(`${persoon} (betrokken) werkt niet op ${huidigeDatum.toISOString().split('T')[0]} (parttime)`);
-                  continue;
-                }
-
-                // Find meeting slot for betrokken persoon
-                const slot = await vindMeetingSlot(supabase, persoon, huidigeDatum, urenPerDag);
-
-                if (slot) {
-                  const weekStart = getMonday(huidigeDatum);
-                  const dagVanWeek = getDayOfWeekNumber(huidigeDatum);
-                  const dagNamen = ['ma', 'di', 'wo', 'do', 'vr'];
-                  const weekNum = Math.ceil((huidigeDatum.getTime() - firstStartDate.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
-
-                  taken.push({
-                    werknemer_naam: persoon,
-                    fase_naam: fase.fase_naam,
-                    discipline: 'Meeting', // Mark as meeting attendee
-                    werktype: fase.fase_naam,
-                    week_start: weekStart,
-                    dag_van_week: dagVanWeek,
-                    start_uur: slot.startUur,
-                    duur_uren: slot.duurUren,
-                  });
-
-                  samenvattingParts.push(`  ${persoon} (betrokken): wk${weekNum} ${dagNamen[dagVanWeek]} ${slot.startUur}:00-${slot.startUur + slot.duurUren}:00 (meeting)`);
-                } else {
-                  warnings.push(`Geen meeting slot voor ${persoon} (betrokken) op ${huidigeDatum.toISOString().split('T')[0]}`);
+              // Check deadline
+              if (deadline) {
+                const deadlineDate = new Date(deadline + 'T00:00:00');
+                if (huidigeDatum >= deadlineDate) {
+                  warnings.push(`${fase.fase_naam}: Niet alle dagen konden worden gepland voor deadline`);
+                  break;
                 }
               }
-            }
 
-            // Move to next day
-            huidigeDatum.setDate(huidigeDatum.getDate() + 1);
-          }
-
-          // Update running date for next fase (add buffer between phases)
-          runningDate = new Date(huidigeDatum);
-          if (faseIndex < fases.length - 1 && minBuffer > 0) {
-            // Add buffer days between phases
-            for (let b = 0; b < minBuffer; b++) {
-              runningDate.setDate(runningDate.getDate() + 1);
-              // Skip weekends in buffer
-              while (isWeekend(runningDate)) {
-                runningDate.setDate(runningDate.getDate() + 1);
+              for (const medewerker of fase.medewerkers) {
+                await planBlok(medewerker, huidigeDatum, fase, isMeeting);
               }
+
+              // For meetings: also create blocks for betrokkenPersonen
+              if (isMeeting && betrokkenPersonen.length > 0) {
+                for (const persoon of betrokkenPersonen) {
+                  if (!fase.medewerkers.includes(persoon)) {
+                    await planBlok(persoon, huidigeDatum, { ...fase, fase_naam: fase.fase_naam }, true);
+                  }
+                }
+              }
+
+              dagenGepland++;
+              huidigeDatum.setDate(huidigeDatum.getDate() + 1);
             }
           }
         }
