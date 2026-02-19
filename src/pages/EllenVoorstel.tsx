@@ -51,12 +51,11 @@ const FASE_COLORS: Record<string, string> = {
 export default function EllenVoorstel() {
   const navigate = useNavigate();
   const location = useLocation();
-  const formData = location.state?.formData;
   const projectInfo = location.state?.projectInfo;
 
   const [flowState, setFlowState] = useState<FlowState>('ellen-working');
   const [voorstellen, setVoorstellen] = useState<VoorstelTaak[]>([]);
-  const [ellenMessage, setEllenMessage] = useState('');
+  const [, setEllenMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [activeStep, setActiveStep] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
@@ -65,7 +64,7 @@ export default function EllenVoorstel() {
   const [feedbackInput, setFeedbackInput] = useState('');
   const [isRequestingNewProposal, setIsRequestingNewProposal] = useState(false);
   const [bestaandeTaken, setBestaandeTaken] = useState<Taak[]>([]);
-  const [isLoadingTaken, setIsLoadingTaken] = useState(false);
+  const [, setIsLoadingTaken] = useState(false);
 
   // Load existing tasks for relevant medewerkers and weeks
   useEffect(() => {
@@ -81,10 +80,10 @@ export default function EllenVoorstel() {
         // Load taken for each week (secureSelect doesn't support OR across weeks easily)
         const allTaken: Taak[] = [];
         for (const weekStart of weekStarts) {
-          const { data, error } = await secureSelect<Taak[]>('taken', {
+          const { data, error } = await secureSelect<Taak>('taken', {
             filters: [{ column: 'week_start', operator: 'eq', value: weekStart }],
           });
-          if (!error && data) {
+          if (!error && data && Array.isArray(data)) {
             // Filter to only include tasks for relevant medewerkers
             const relevantTaken = data.filter(t => medewerkers.includes(t.werknemer_naam));
             allTaken.push(...relevantTaken);
@@ -105,7 +104,6 @@ export default function EllenVoorstel() {
   useEffect(() => {
     if (flowState !== 'ellen-working') return;
 
-    let stepIndex = 0;
     let totalDelay = 0;
     const timers: ReturnType<typeof setTimeout>[] = [];
 
@@ -154,24 +152,25 @@ export default function EllenVoorstel() {
 
         if (data?.voorstel?.type === 'planning_voorstel' && data.voorstel.taken?.length > 0) {
           setVoorstellen(data.voorstel.taken);
-          setEllenMessage(data.antwoord || 'Hier is mijn voorstel voor de planning:');
+          // Samenvatting wordt nu automatisch gegenereerd op basis van taken
+          setEllenMessage('');
         } else if (data?.antwoord) {
           console.warn('Geen planning_voorstel ontvangen, gebruik fallback. Antwoord:', data.antwoord);
           const defaultTaken = generateDefaultVoorstel(projectInfo);
           setVoorstellen(defaultTaken);
-          setEllenMessage(data.antwoord || 'Op basis van je aanvraag heb ik het volgende voorstel gemaakt:');
+          setEllenMessage('');
         } else {
           console.warn('Leeg antwoord van Ellen, gebruik fallback');
           const defaultTaken = generateDefaultVoorstel(projectInfo);
           setVoorstellen(defaultTaken);
-          setEllenMessage('Op basis van je aanvraag heb ik het volgende voorstel gemaakt:');
+          setEllenMessage('');
         }
         setFlowState('voorstel');
       } catch (err) {
         console.error('Ellen voorstel error:', err);
         const defaultTaken = generateDefaultVoorstel(projectInfo);
         setVoorstellen(defaultTaken);
-        setEllenMessage('Ik heb een planning opgesteld op basis van je aanvraag:');
+        setEllenMessage('');
         setFlowState('voorstel');
       }
     };
@@ -294,12 +293,13 @@ export default function EllenVoorstel() {
 
       if (data?.voorstel?.type === 'planning_voorstel' && data.voorstel.taken?.length > 0) {
         setVoorstellen(data.voorstel.taken);
-        setEllenMessage(data.antwoord || 'Hier is het aangepaste voorstel:');
+        // Niet Ellen's tekst gebruiken - samenvatting wordt automatisch gegenereerd
+        setEllenMessage('');
       } else if (data?.antwoord) {
         // Fallback - Ellen heeft geen tool gebruikt
         const defaultTaken = generateDefaultVoorstel(projectInfo);
         setVoorstellen(defaultTaken);
-        setEllenMessage('Ik heb een aangepast voorstel gemaakt op basis van je feedback:');
+        setEllenMessage('');
       }
 
       setFeedbackInput('');
@@ -317,7 +317,7 @@ export default function EllenVoorstel() {
     // Get all unique week_start values
     const weekStarts = [...new Set(voorstellen.map(t => t.week_start))].sort();
     const firstWeek = new Date(weekStarts[0] + 'T00:00:00');
-    
+
     // Determine end date: deadline or last task week
     let endDate: Date;
     if (projectInfo?.deadline) {
@@ -339,6 +339,55 @@ export default function EllenVoorstel() {
     if (weeks.length === 0) weeks.push(firstWeek);
     return weeks;
   }, [voorstellen, projectInfo?.deadline]);
+
+  // Generate planning summary from actual tasks (not Ellen's text)
+  const planningSamenvatting = useMemo(() => {
+    if (voorstellen.length === 0) return '';
+
+    // Group tasks by medewerker
+    const perMedewerker: Record<string, VoorstelTaak[]> = {};
+    voorstellen.forEach(t => {
+      if (!perMedewerker[t.werknemer_naam]) {
+        perMedewerker[t.werknemer_naam] = [];
+      }
+      perMedewerker[t.werknemer_naam].push(t);
+    });
+
+    const lines: string[] = [];
+    const dagNamen = ['maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag'];
+    const maandNamen = ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
+
+    Object.entries(perMedewerker).forEach(([naam, taken]) => {
+      // Calculate total hours for this medewerker
+      const totaalUren = taken.reduce((sum, t) => sum + t.duur_uren, 0);
+      const aantalDagen = taken.length;
+
+      // Get date range
+      const sortedTaken = [...taken].sort((a, b) => {
+        if (a.week_start !== b.week_start) return a.week_start.localeCompare(b.week_start);
+        return a.dag_van_week - b.dag_van_week;
+      });
+
+      const eersteWeek = new Date(sortedTaken[0].week_start + 'T00:00:00');
+      eersteWeek.setDate(eersteWeek.getDate() + sortedTaken[0].dag_van_week);
+      const laatsteWeek = new Date(sortedTaken[sortedTaken.length - 1].week_start + 'T00:00:00');
+      laatsteWeek.setDate(laatsteWeek.getDate() + sortedTaken[sortedTaken.length - 1].dag_van_week);
+
+      // Format: "Jaimy: 3 dagen (24u) van ma 24 feb t/m wo 26 feb"
+      const startDag = dagNamen[sortedTaken[0].dag_van_week];
+      const eindDag = dagNamen[sortedTaken[sortedTaken.length - 1].dag_van_week];
+      const startDatum = `${eersteWeek.getDate()} ${maandNamen[eersteWeek.getMonth()]}`;
+      const eindDatum = `${laatsteWeek.getDate()} ${maandNamen[laatsteWeek.getMonth()]}`;
+
+      if (aantalDagen === 1) {
+        lines.push(`• ${naam}: ${aantalDagen} dag (${totaalUren}u) op ${startDag} ${startDatum}`);
+      } else {
+        lines.push(`• ${naam}: ${aantalDagen} dagen (${totaalUren}u) van ${startDag} ${startDatum} t/m ${eindDag} ${eindDatum}`);
+      }
+    });
+
+    return lines.join('\n');
+  }, [voorstellen]);
 
   const currentWeekStart = allWeeks[selectedWeekIndex] || allWeeks[0];
   // Format as YYYY-MM-DD without timezone conversion (toISOString converts to UTC which shifts dates)
@@ -482,20 +531,32 @@ export default function EllenVoorstel() {
               </div>
               <div className="space-y-1">
                 <p className="text-sm font-medium text-foreground">Ellen</p>
-                <p className="text-sm text-muted-foreground">{ellenMessage}</p>
+                <p className="text-sm text-muted-foreground">
+                  Hier is mijn voorstel voor de planning:
+                </p>
               </div>
             </div>
 
-            {/* Project summary */}
+            {/* Project summary with generated planning details */}
             <Card className="p-4 bg-accent/30 border-primary/20">
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-foreground">
-                  {projectInfo?.klant_naam} — {projectInfo?.projectnaam}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {projectInfo?.projecttype} • {voorstellen.length} blokken
-                  {projectInfo?.deadline && ` • Deadline: ${projectInfo.deadline}`}
-                </p>
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-foreground">
+                    {projectInfo?.klant_naam} — {projectInfo?.projectnaam}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {projectInfo?.projecttype} • {voorstellen.length} blokken
+                    {projectInfo?.deadline && ` • Deadline: ${projectInfo.deadline}`}
+                  </p>
+                </div>
+                {planningSamenvatting && (
+                  <div className="pt-2 border-t border-border/50">
+                    <p className="text-xs font-medium text-foreground mb-1">Planning overzicht:</p>
+                    <p className="text-xs text-muted-foreground whitespace-pre-line">
+                      {planningSamenvatting}
+                    </p>
+                  </div>
+                )}
               </div>
             </Card>
 
@@ -913,7 +974,7 @@ function buildEllenPrompt(info: any, feedback?: string): string {
   // Fases met medewerkerdetails
   if (info.fases?.length) {
     parts.push(`\n## Fases`);
-    info.fases.forEach((f: any, i: number) => {
+    info.fases.forEach((f: any) => {
       parts.push(`\n### ${f.fase_naam}`);
       parts.push(`- Duur: ${f.duur_dagen} dagen`);
       parts.push(`- Start: ${f.start_datum}`);
