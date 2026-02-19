@@ -250,6 +250,20 @@ export default function NieuwProject() {
     const selectedClient = clients.find(c => c.id === formData.projectHeader.klantId);
     const klantNaam = selectedClient?.name || 'Onbekend';
 
+    // Sla template op voor later bewerken (ook na indienen)
+    const templateKey = `template_${Date.now()}`;
+    localStorage.setItem(templateKey, JSON.stringify(formData));
+    saveAanvraag({
+      id: templateKey,
+      type: 'nieuw-project',
+      status: 'ingediend',
+      titel: formData.projectHeader.projectTitel || formData.projectHeader.projectomschrijving || 'Nieuw project',
+      klant: klantNaam,
+      datum: new Date().toISOString(),
+      projectType: formData.projectType,
+      storageKey: templateKey,
+    });
+
     // Build fases array based on project type
     const fases: any[] = [];
 

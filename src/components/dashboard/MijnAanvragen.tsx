@@ -91,14 +91,14 @@ export function MijnAanvragen() {
       key={aanvraag.id}
       className="flex items-center justify-between p-4 border border-border rounded-xl bg-card hover:bg-accent/50 transition-colors cursor-pointer"
       onClick={() => {
-        // For concepts, restore the form data from the linked storage key
-        if (aanvraag.status === 'concept' && aanvraag.storageKey) {
-          const conceptData = localStorage.getItem(aanvraag.storageKey);
-          if (conceptData) {
+        // Restore the form data from the linked storage key (for both concept and ingediend)
+        if (aanvraag.storageKey) {
+          const savedData = localStorage.getItem(aanvraag.storageKey);
+          if (savedData) {
             // Set the main storage key so the form loads this data
             const mainKey = TYPE_STORAGE_KEYS[aanvraag.type];
             if (mainKey) {
-              localStorage.setItem(mainKey, conceptData);
+              localStorage.setItem(mainKey, savedData);
             }
           }
         }
@@ -166,7 +166,7 @@ export function MijnAanvragen() {
             Concepten ({concepten.length})
           </TabsTrigger>
           <TabsTrigger value="ingediend">
-            Ingediend ({ingediend.length})
+            Ingevulde templates ({ingediend.length})
           </TabsTrigger>
         </TabsList>
         <TabsContent value="alle" className="space-y-2">
@@ -179,7 +179,7 @@ export function MijnAanvragen() {
         </TabsContent>
         <TabsContent value="ingediend" className="space-y-2">
           {ingediend.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-4 text-center">Geen ingediende aanvragen</p>
+            <p className="text-sm text-muted-foreground py-4 text-center">Geen ingevulde templates</p>
           ) : ingediend.map(renderAanvraag)}
         </TabsContent>
       </Tabs>

@@ -200,7 +200,6 @@ export default function EllenVoorstel() {
         klant: projectInfo?.klant_naam,
         datum: new Date().toISOString(),
         projectType: projectInfo?.projecttype,
-        werktype: selectedWerktype,
       });
       toast({
         title: 'Voorstel opgeslagen',
@@ -239,15 +238,7 @@ export default function EllenVoorstel() {
       if (error) throw new Error(error.message);
 
       if (data?.success) {
-        saveAanvraag({
-          id: `ingediend-${Date.now()}`,
-          type: 'nieuw-project',
-          status: 'ingediend',
-          titel: projectInfo.projectnaam || 'Project',
-          klant: projectInfo.klant_naam,
-          datum: new Date().toISOString(),
-          projectType: projectInfo.projecttype,
-        });
+        // Template is al opgeslagen in NieuwProject.tsx - geen nieuwe entry nodig
         setFlowState('done');
       } else {
         throw new Error(data?.message || 'Onbekende fout');
