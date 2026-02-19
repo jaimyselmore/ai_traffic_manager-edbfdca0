@@ -1204,32 +1204,9 @@ async function executeTool(
         const samenvattingParts: string[] = [];
         const warnings: string[] = [];
 
-        // ======= SMART SPREADING LOGIC =======
-        // Calculate optimal spacing between phases
-        const totalFaseDays = fases.reduce((sum, f) => sum + f.duur_dagen, 0);
+        // PARALLEL PLANNING: Alle fases starten op hun eigen start_datum
+        // Er is GEEN buffer tussen fases - medewerkers werken tegelijkertijd
         const firstStartDate = new Date(fases[0].start_datum + 'T00:00:00');
-
-        // Calculate available working days until deadline
-        let availableDays = totalFaseDays; // default: no extra buffer
-        if (deadline) {
-          const deadlineDate = new Date(deadline + 'T00:00:00');
-          let workingDays = 0;
-          const checkDate = new Date(firstStartDate);
-          while (checkDate < deadlineDate) {
-            if (!isWeekend(checkDate)) workingDays++;
-            checkDate.setDate(checkDate.getDate() + 1);
-          }
-          availableDays = workingDays;
-        }
-
-        // Calculate buffer days between phases (spread evenly)
-        const bufferDaysTotal = Math.max(0, availableDays - totalFaseDays);
-        const numberOfGaps = fases.length - 1;
-        const bufferPerGap = numberOfGaps > 0 ? Math.floor(bufferDaysTotal / numberOfGaps) : 0;
-        // Cap buffer at 5 days to avoid excessive gaps
-        const actualBufferPerGap = Math.min(bufferPerGap, 5);
-        // But ensure at least 1 buffer day between phases for review time
-        const minBuffer = fases.length > 1 ? Math.max(1, actualBufferPerGap) : 0;
 
         // ======= HELPER: Plan een blok voor een medewerker op een specifieke datum =======
         async function planBlok(
