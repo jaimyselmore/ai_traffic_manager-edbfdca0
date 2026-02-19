@@ -1304,14 +1304,28 @@ async function executeTool(
           } else if (verdeling === 'per_week') {
             // ======= PER_WEEK: Verspreid X dagen per week over meerdere weken =======
             // Bijv. 10 dagen met 1 dag per week = 10 weken
+            // SLIM: Feedback/review blokken worden op DONDERDAG of VRIJDAG gepland (niet maandag!)
             const totaalWeken = Math.ceil(fase.duur_dagen / dagenPerWeek);
             let huidigeDatum = new Date(faseStart);
             let dagenGepland = 0;
+
+            // Bepaal of dit een feedback/review fase is
+            const isFeedbackFase = fase.fase_naam.toLowerCase().includes('feedback') ||
+                                   fase.fase_naam.toLowerCase().includes('review') ||
+                                   (fase.uren_per_dag && fase.uren_per_dag <= 2);
 
             for (let week = 0; week < totaalWeken && dagenGepland < fase.duur_dagen; week++) {
               // Plan X dagen in deze week
               let dagenDezeWeek = 0;
               const weekStart = new Date(huidigeDatum);
+
+              // Voor feedback: spring naar donderdag (dag 3) of vrijdag (dag 4)
+              if (isFeedbackFase && getDayOfWeekNumber(huidigeDatum) < 3) {
+                // Spring naar donderdag
+                while (getDayOfWeekNumber(huidigeDatum) !== 3) {
+                  huidigeDatum.setDate(huidigeDatum.getDate() + 1);
+                }
+              }
 
               while (dagenDezeWeek < dagenPerWeek && dagenGepland < fase.duur_dagen) {
                 // Skip weekends
@@ -1334,12 +1348,20 @@ async function executeTool(
                 huidigeDatum.setDate(huidigeDatum.getDate() + 1);
               }
 
-              // Spring naar volgende week (maandag)
+              // Spring naar volgende week
               huidigeDatum = new Date(weekStart);
               huidigeDatum.setDate(huidigeDatum.getDate() + 7);
-              // Zorg dat we op maandag beginnen
-              while (isWeekend(huidigeDatum) || getDayOfWeekNumber(huidigeDatum) !== 0) {
-                huidigeDatum.setDate(huidigeDatum.getDate() + 1);
+              // Zorg dat we op maandag beginnen (voor niet-feedback fases)
+              // Of op donderdag (voor feedback fases)
+              if (isFeedbackFase) {
+                // Spring naar donderdag van volgende week
+                while (isWeekend(huidigeDatum) || getDayOfWeekNumber(huidigeDatum) !== 3) {
+                  huidigeDatum.setDate(huidigeDatum.getDate() + 1);
+                }
+              } else {
+                while (isWeekend(huidigeDatum) || getDayOfWeekNumber(huidigeDatum) !== 0) {
+                  huidigeDatum.setDate(huidigeDatum.getDate() + 1);
+                }
               }
             }
 

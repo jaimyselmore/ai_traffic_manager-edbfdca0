@@ -972,6 +972,15 @@ function analyseNotities(notities: string | undefined): {
     if (lower.includes('elke week') || lower.includes('wekelijks')) {
       return { verdeling: 'per_week', dagen_per_week: 1, uren_per_dag: 1 };
     }
+    // Feedback zonder "elke week" - nog steeds verspreiden als er meerdere dagen zijn
+    // Dit voorkomt dat 2 dagen feedback als 2 achtereenvolgende dagen wordt gepland
+    return { verdeling: 'per_week', dagen_per_week: 1, uren_per_dag: 2 };
+  }
+
+  // Check voor "finishing touches" of "afronding" - plan in laatste week
+  if (lower.includes('finishing') || lower.includes('afronding') ||
+      lower.includes('final') || lower.includes('laatste check')) {
+    return { verdeling: 'laatste_week' };
   }
 
   // Default: aaneengesloten
