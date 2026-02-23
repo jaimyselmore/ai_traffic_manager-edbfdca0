@@ -295,7 +295,7 @@ export function Planner() {
       </div>
 
       {/* Week navigation arrows + Grid */}
-      <div className="flex items-center justify-end gap-2 mb-2">
+      <div className="flex items-center justify-end gap-1">
         <Button
           variant="outline"
           size="icon"
@@ -308,9 +308,6 @@ export function Planner() {
         >
           <ChevronLeft className="h-4 w-4" />
         </Button>
-        <span className="text-sm font-medium text-foreground">
-          Week {weekNumber}
-        </span>
         <Button
           variant="outline"
           size="icon"
