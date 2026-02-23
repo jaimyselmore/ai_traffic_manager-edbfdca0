@@ -165,7 +165,18 @@ export default function EllenVoorstel() {
 
         console.log('Ellen response:', { data, error });
 
-        if (error) throw new Error(error.message);
+        if (error) {
+          // Check for rate limit
+          const errorMsg = error.message || '';
+          if (errorMsg.includes('429') || data?.code === 'RATE_LIMITED') {
+            toast({
+              title: 'Even geduld',
+              description: 'AI is tijdelijk overbelast. Probeer het over 30 seconden opnieuw.',
+              variant: 'destructive',
+            });
+          }
+          throw new Error(errorMsg);
+        }
 
         if (data?.voorstel?.type === 'planning_voorstel' && data.voorstel.taken?.length > 0) {
           setVoorstellen(data.voorstel.taken);

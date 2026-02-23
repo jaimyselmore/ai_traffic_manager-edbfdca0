@@ -1897,6 +1897,18 @@ Deno.serve(async (req) => {
       if (!response.ok) {
         const errText = await response.text();
         console.error('Claude API error:', errText);
+        
+        // Check for rate limit error
+        if (response.status === 429 || errText.includes('rate_limit')) {
+          return new Response(
+            JSON.stringify({ 
+              error: 'Even geduld - AI is tijdelijk overbelast. Probeer het over 30 seconden opnieuw.',
+              code: 'RATE_LIMITED'
+            }),
+            { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
         return new Response(
           JSON.stringify({ error: 'Fout bij communicatie met AI' }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
