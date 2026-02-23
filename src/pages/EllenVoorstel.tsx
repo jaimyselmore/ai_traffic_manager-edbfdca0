@@ -990,10 +990,26 @@ function buildEllenPrompt(info: any, feedback?: string): string {
     parts.push(`Feedback op vorig voorstel: "${feedback}"`);
   }
 
-  // Instructie voor Ellen
+  // Expliciete instructies voor Ellen - VOLGORDE IS CRUCIAAL
   parts.push(``);
-  parts.push(`Analyseer de toelichtingen zorgvuldig en bepaal zelf de juiste verdeling per fase.`);
-  parts.push(`Gebruik de plan_project tool om een voorstel te maken.`);
+  parts.push(`=== INSTRUCTIES ===`);
+  parts.push(`Volg deze stappen IN VOLGORDE:`);
+  parts.push(``);
+  parts.push(`1. EERST: Gebruik check_beschikbaarheid voor ALLE genoemde medewerkers`);
+  parts.push(`   - Periode: van startdatum tot deadline`);
+  parts.push(`   - Check verlof, parttime dagen, bestaande taken`);
+  parts.push(``);
+  parts.push(`2. DAARNA: Gebruik zoek_klanten om planning_instructies op te halen voor "${info.klant_naam}"`);
+  parts.push(``);
+  parts.push(`3. ANALYSEER de toelichtingen per fase:`);
+  parts.push(`   - "1 dag per week" → verdeling: per_week, dagen_per_week: 1`);
+  parts.push(`   - "laatste week" of "finishing" → verdeling: laatste_week`);
+  parts.push(`   - Anders → verdeling: aaneengesloten`);
+  parts.push(``);
+  parts.push(`4. TENSLOTTE: Gebruik plan_project met alle verzamelde info`);
+  parts.push(`   - Neem beschikbaarheid mee`);
+  parts.push(`   - Respecteer klant instructies`);
+  parts.push(`   - Leg in 'reasoning' uit WAAROM je zo plant`);
 
   return parts.join('\n');
 }
