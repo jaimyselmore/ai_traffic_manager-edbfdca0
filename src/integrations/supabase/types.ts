@@ -153,6 +153,66 @@ export type Database = {
         }
         Relationships: []
       }
+      ellen_feedback: {
+        Row: {
+          context_data: Json | null
+          created_at: string | null
+          feedback_tekst: string
+          gebruiker_naam: string
+          id: string
+          project_info: Json | null
+          vorig_voorstel: Json | null
+        }
+        Insert: {
+          context_data?: Json | null
+          created_at?: string | null
+          feedback_tekst: string
+          gebruiker_naam: string
+          id?: string
+          project_info?: Json | null
+          vorig_voorstel?: Json | null
+        }
+        Update: {
+          context_data?: Json | null
+          created_at?: string | null
+          feedback_tekst?: string
+          gebruiker_naam?: string
+          id?: string
+          project_info?: Json | null
+          vorig_voorstel?: Json | null
+        }
+        Relationships: []
+      }
+      ellen_regels: {
+        Row: {
+          actief: boolean | null
+          categorie: string
+          created_at: string | null
+          id: string
+          prioriteit: number | null
+          rationale: string | null
+          regel: string
+        }
+        Insert: {
+          actief?: boolean | null
+          categorie: string
+          created_at?: string | null
+          id?: string
+          prioriteit?: number | null
+          rationale?: string | null
+          regel: string
+        }
+        Update: {
+          actief?: boolean | null
+          categorie?: string
+          created_at?: string | null
+          id?: string
+          prioriteit?: number | null
+          rationale?: string | null
+          regel?: string
+        }
+        Relationships: []
+      }
       klanten: {
         Row: {
           contactpersoon: string | null
@@ -454,6 +514,54 @@ export type Database = {
           type?: string
           updated_at?: string | null
           voor_werknemer?: string | null
+        }
+        Relationships: []
+      }
+      planning_configuratie: {
+        Row: {
+          extra_instructies: string | null
+          fase_templates: Json | null
+          id: string
+          lunch_eind: number | null
+          lunch_start: number | null
+          meeting_eind: number | null
+          meeting_start: number | null
+          min_buffer_tussen_fases: number | null
+          standaard_uren_per_dag: number | null
+          updated_at: string | null
+          updated_by: string | null
+          werkdag_eind: number | null
+          werkdag_start: number | null
+        }
+        Insert: {
+          extra_instructies?: string | null
+          fase_templates?: Json | null
+          id?: string
+          lunch_eind?: number | null
+          lunch_start?: number | null
+          meeting_eind?: number | null
+          meeting_start?: number | null
+          min_buffer_tussen_fases?: number | null
+          standaard_uren_per_dag?: number | null
+          updated_at?: string | null
+          updated_by?: string | null
+          werkdag_eind?: number | null
+          werkdag_start?: number | null
+        }
+        Update: {
+          extra_instructies?: string | null
+          fase_templates?: Json | null
+          id?: string
+          lunch_eind?: number | null
+          lunch_start?: number | null
+          meeting_eind?: number | null
+          meeting_start?: number | null
+          min_buffer_tussen_fases?: number | null
+          standaard_uren_per_dag?: number | null
+          updated_at?: string | null
+          updated_by?: string | null
+          werkdag_eind?: number | null
+          werkdag_start?: number | null
         }
         Relationships: []
       }
