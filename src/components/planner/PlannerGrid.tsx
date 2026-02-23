@@ -2,7 +2,6 @@ import { useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import type { Task } from '@/hooks/use-tasks';
 import type { Employee } from '@/lib/data/types';
-import { mockClients } from '@/lib/mockData';
 
 interface PlannerGridProps {
   weekStart: Date;
@@ -32,10 +31,10 @@ export function PlannerGrid({ weekStart, employees, tasks, compact = false }: Pl
     });
   }, [weekStart]);
 
-  const getTasksForCell = (employeeId: string, date: Date, hour: number) => {
-    const dateStr = date.toISOString().split('T')[0];
+  const getTasksForCell = (employeeName: string, date: Date, hour: number) => {
+    const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
     return tasks.filter((task) => {
-      if (task.employeeId !== employeeId || task.date !== dateStr) return false;
+      if (task.werknemer_naam !== employeeName || task.date !== dateStr) return false;
       const startHour = parseInt(task.startTime.split(':')[0]);
       const endHour = parseInt(task.endTime.split(':')[0]);
       return hour >= startHour && hour < endHour;
@@ -47,8 +46,8 @@ export function PlannerGrid({ weekStart, employees, tasks, compact = false }: Pl
     return hour === startHour;
   };
 
-  const getClientName = (clientId: string) => {
-    return mockClients.find(c => c.id === clientId)?.name || '';
+  const getClientName = (task: Task) => {
+    return task.klant_naam || task.clientName || '';
   };
 
   const getTaskLabel = (type: string) => {
@@ -116,7 +115,7 @@ export function PlannerGrid({ weekStart, employees, tasks, compact = false }: Pl
                   {hour === 13 ? 'Lunch' : `${hour.toString().padStart(2, '0')}:00`}
                 </td>
                 {weekDates.map((date, dayIndex) => {
-                  const cellTasks = getTasksForCell(employee.id, date, hour);
+                  const cellTasks = getTasksForCell(employee.name, date, hour);
                   const isLunchHour = hour === 13;
                   
                   return (
@@ -144,13 +143,13 @@ export function PlannerGrid({ weekStart, employees, tasks, compact = false }: Pl
                               isDoorzichtig && 'opacity-50',
                               isWachtKlant && 'border-2 border-dashed border-white/50'
                             )}
-                            title={`${task.projectTitel || getClientName(task.clientId)} - ${getTaskLabel(task.type)}${isConcept ? ' (concept)' : ''}${isWachtKlant ? ' (wacht op klant)' : ''}\n${task.startTime} - ${task.endTime}${task.faseNaam ? `\nFase: ${task.faseNaam}` : ''}`}
+                            title={`${task.projectTitel || getClientName(task)} - ${getTaskLabel(task.type)}${isConcept ? ' (concept)' : ''}${isWachtKlant ? ' (wacht op klant)' : ''}\n${task.startTime} - ${task.endTime}${task.faseNaam ? `\nFase: ${task.faseNaam}` : ''}`}
                           >
                             <div className="truncate font-medium">
                               {task.projectTitel ? (
                                 compact ? task.projectTitel.substring(0, 8) : task.projectTitel
                               ) : (
-                                compact ? getClientName(task.clientId).substring(0, 4) : getClientName(task.clientId)
+                                compact ? getClientName(task).substring(0, 4) : getClientName(task)
                               )}
                             </div>
                             {!compact && (

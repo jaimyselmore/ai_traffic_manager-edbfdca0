@@ -63,12 +63,16 @@ export function Planner() {
   const tasks = useMemo(() => tasksFromDb, [tasksFromDb]);
 
   const filteredTasks = useMemo(() => {
+    // Build a set of visible employee names for matching with tasks
+    const visibleNames = new Set(
+      employees.filter(e => visibleEmployeeIds.includes(e.id)).map(e => e.name)
+    );
     return tasks.filter((task) => {
-      if (!visibleEmployeeIds.includes(task.employeeId)) return false;
-      if (selectedClient !== 'all' && task.clientName !== selectedClient) return false;
+      if (!visibleNames.has(task.werknemer_naam)) return false;
+      if (selectedClient !== 'all' && task.klant_naam !== selectedClient) return false;
       return true;
     });
-  }, [tasks, visibleEmployeeIds, selectedClient]);
+  }, [tasks, visibleEmployeeIds, selectedClient, employees]);
 
   const filteredEmployees = useMemo(() => {
     return employees.filter((emp) => visibleEmployeeIds.includes(emp.id));
@@ -251,7 +255,7 @@ export function Planner() {
               <SelectContent>
                 <SelectItem value="all">Alle klanten</SelectItem>
                 {clients.map((client) => (
-                  <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>
+                  <SelectItem key={client.id} value={client.name}>{client.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
