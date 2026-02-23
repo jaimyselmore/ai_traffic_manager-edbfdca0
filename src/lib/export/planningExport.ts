@@ -12,7 +12,7 @@ interface TaskData {
   dag_van_week: number;
   start_uur: number;
   duur_uren: number;
-  plan_status: 'concept' | 'vast';
+  plan_status: 'concept' | 'vast' | 'wacht_klant';
   is_hard_lock: boolean;
 }
 
