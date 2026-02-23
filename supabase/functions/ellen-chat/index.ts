@@ -1655,12 +1655,11 @@ Deno.serve(async (req) => {
       const projectTitel = planning.project_omschrijving || planning.klant_naam;
 
       for (const taak of planning.taken) {
-        const { error } = await supabase.from('taken').insert({
+        const { error: taakErr } = await supabase.from('taken').insert({
           project_id: project.id,
           werknemer_naam: taak.werknemer_naam,
           klant_naam: planning.klant_naam,
           project_nummer: project.projectnummer,
-          project_titel: projectTitel,
           fase_naam: faseLabel,
           werktype,
           discipline: taak.discipline || 'Algemeen',
@@ -1671,7 +1670,11 @@ Deno.serve(async (req) => {
           plan_status: gekozenPlanStatus, // 'concept' of 'wacht_klant'
           is_hard_lock: false,
         });
-        if (!error) aantalGeplaatst++;
+        if (taakErr) {
+          console.error('Taak insert error:', taakErr.message);
+        } else {
+          aantalGeplaatst++;
+        }
       }
 
       return new Response(
