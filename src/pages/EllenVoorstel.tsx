@@ -31,6 +31,35 @@ interface VoorstelTaak {
 }
 
 const DAG_NAMEN = ['Ma', 'Di', 'Wo', 'Do', 'Vr'];
+
+/**
+ * Strip markdown formatting en maak tekst menselijk leesbaar
+ */
+function cleanEllenText(text: string): string {
+  if (!text) return '';
+  let cleaned = text
+    // Remove markdown bold/italic
+    .replace(/\*\*\*(.*?)\*\*\*/g, '$1')
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/\*(.*?)\*/g, '$1')
+    // Remove markdown headers
+    .replace(/^#{1,6}\s+/gm, '')
+    // Remove bullet points and numbered lists
+    .replace(/^[-•]\s+/gm, '')
+    .replace(/^\d+\.\s+/gm, '')
+    // Remove excessive newlines
+    .replace(/\n{3,}/g, '\n\n')
+    // Remove ALLCAPS words (more than 3 chars all caps) and replace with normal case
+    .replace(/\b([A-Z]{4,})\b/g, (match) => match.charAt(0) + match.slice(1).toLowerCase())
+    // Clean up whitespace
+    .trim();
+  // Take only first ~300 chars to keep it short
+  if (cleaned.length > 300) {
+    const cutoff = cleaned.lastIndexOf('.', 300);
+    cleaned = cleaned.substring(0, cutoff > 150 ? cutoff + 1 : 300).trim();
+  }
+  return cleaned;
+}
 const TIME_SLOTS = [9, 10, 11, 12, 13, 14, 15, 16, 17, 18]; // Werkdag 09:00-18:00
 const CELL_HEIGHT = 28; // px per hour cell
 
@@ -180,12 +209,13 @@ export default function EllenVoorstel() {
 
         if (data?.voorstel?.type === 'planning_voorstel' && data.voorstel.taken?.length > 0) {
           setVoorstellen(data.voorstel.taken);
-          // Samenvatting wordt nu automatisch gegenereerd op basis van taken
+          setEllenUitleg(cleanEllenText(data?.antwoord || ''));
           setEllenMessage('');
         } else if (data?.antwoord) {
           console.warn('Geen planning_voorstel ontvangen, gebruik fallback. Antwoord:', data.antwoord);
           const defaultTaken = generateDefaultVoorstel(projectInfo);
           setVoorstellen(defaultTaken);
+          setEllenUitleg(cleanEllenText(data.antwoord));
           setEllenMessage('');
         } else {
           console.warn('Leeg antwoord van Ellen, gebruik fallback');
@@ -336,14 +366,13 @@ export default function EllenVoorstel() {
       if (data?.voorstel?.type === 'planning_voorstel' && data.voorstel.taken?.length > 0) {
         setVoorstellen(data.voorstel.taken);
         setLaatsteFeedback(gegevenFeedback);
-        // Gebruik Ellen's antwoord als uitleg over wat er is aangepast
-        setEllenUitleg(data?.antwoord || '');
+        setEllenUitleg(cleanEllenText(data?.antwoord || ''));
         setEllenMessage('');
       } else if (data?.antwoord) {
         // Fallback - Ellen heeft geen tool gebruikt, maar probeer haar antwoord te tonen
         console.warn('Geen planning_voorstel ontvangen bij feedback, gebruik vorig voorstel als basis');
         setLaatsteFeedback(gegevenFeedback);
-        setEllenUitleg(data.antwoord);
+        setEllenUitleg(cleanEllenText(data.antwoord));
         // Behoud het huidige voorstel zodat de gebruiker het opnieuw kan proberen
         setEllenMessage('Ellen kon geen nieuw voorstel genereren. Probeer het opnieuw met andere feedback.');
       }
@@ -583,13 +612,15 @@ export default function EllenVoorstel() {
               </div>
             </div>
 
-            {/* Feedback banner - toon welke feedback is verwerkt */}
-            {laatsteFeedback && (
+            {/* Ellen toelichting - altijd tonen als beschikbaar */}
+            {(ellenUitleg || laatsteFeedback) && (
               <Card className="p-4 bg-muted/50 border-border">
                 <div className="space-y-2">
-                  <p className="text-xs font-medium text-muted-foreground">
-                    Jouw feedback: <span className="italic text-foreground">"{laatsteFeedback}"</span>
-                  </p>
+                  {laatsteFeedback && (
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Jouw feedback: <span className="italic text-foreground">"{laatsteFeedback}"</span>
+                    </p>
+                  )}
                   {ellenUitleg && (
                     <p className="text-sm text-foreground">
                       {ellenUitleg}
