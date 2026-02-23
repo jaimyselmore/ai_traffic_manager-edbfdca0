@@ -210,8 +210,8 @@ export default function EllenVoorstel() {
       const sessionToken = getSessionToken();
       if (!sessionToken) throw new Error('Niet ingelogd');
 
-      // Bepaal de plan_status: wacht_klant of concept
-      const planStatus = needsClientApproval ? 'wacht_klant' : 'concept';
+      // Bepaal de plan_status: wacht_klant (doorzichtig) of vast (vol kleur)
+      const planStatus = needsClientApproval ? 'wacht_klant' : 'vast';
 
       // Gebruik de Edge Function met het geselecteerde werktype
       const { data, error } = await supabase.functions.invoke('ellen-chat', {
