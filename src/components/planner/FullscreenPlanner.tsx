@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, ZoomIn, ZoomOut } from 'lucide-react';
+import { X, ZoomIn, ZoomOut, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -11,7 +11,7 @@ import {
 import { PlannerGrid } from './PlannerGrid';
 import type { Employee } from '@/lib/data/types';
 import type { Task } from '@/hooks/use-tasks';
-import { getWeekNumber, formatDateRange } from '@/lib/helpers/dateHelpers';
+import { getWeekNumber, getWeekStart, formatDateRange } from '@/lib/helpers/dateHelpers';
 
 interface FullscreenPlannerProps {
   currentWeekStart: Date;
@@ -83,6 +83,8 @@ export function FullscreenPlanner({
     return '';
   };
 
+  const currentWeekNumber = getWeekNumber(getWeekStart(new Date()));
+
   return (
     <div className="fixed inset-0 z-50 bg-background overflow-hidden">
       {/* Header */}
@@ -90,6 +92,37 @@ export function FullscreenPlanner({
         <div className="flex items-center gap-6">
           <h2 className="text-lg font-semibold text-foreground">Planningsoverzicht</h2>
           
+          {/* Week navigation arrows */}
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => {
+                const prev = new Date(currentWeekStart);
+                prev.setDate(prev.getDate() - 7);
+                onWeekSelect(prev);
+              }}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="text-sm font-medium text-foreground min-w-[80px] text-center">
+              {getWeekNumber(currentWeekStart) === currentWeekNumber ? 'Huidige week' : `Week ${getWeekNumber(currentWeekStart)}`}
+            </span>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => {
+                const next = new Date(currentWeekStart);
+                next.setDate(next.getDate() + 7);
+                onWeekSelect(next);
+              }}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+
           {/* Week count selector */}
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">Toon aantal weken:</span>
