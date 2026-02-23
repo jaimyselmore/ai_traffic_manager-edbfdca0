@@ -990,26 +990,60 @@ function buildEllenPrompt(info: any, feedback?: string): string {
     parts.push(`Feedback op vorig voorstel: "${feedback}"`);
   }
 
-  // Expliciete instructies voor Ellen - VOLGORDE IS CRUCIAAL
+  // Verzamel alle medewerkers voor de beschikbaarheidscheck
+  const alleMedewerkers = new Set<string>();
+  info.fases?.forEach((f: any) => {
+    f.medewerkers?.forEach((m: string) => alleMedewerkers.add(m));
+  });
+  const medewerkersList = Array.from(alleMedewerkers).join(', ');
+
+  // Bepaal periode
+  const startDatum = info.fases?.[0]?.start_datum || 'vandaag';
+  const deadline = info.deadline || 'niet opgegeven';
+
+  // Expliciete instructies voor Ellen - COMPLETE WORKFLOW
   parts.push(``);
-  parts.push(`=== INSTRUCTIES ===`);
-  parts.push(`Volg deze stappen IN VOLGORDE:`);
+  parts.push(`=== VOLLEDIGE WORKFLOW - VOLG DEZE STAPPEN ===`);
   parts.push(``);
-  parts.push(`1. EERST: Gebruik check_beschikbaarheid voor ALLE genoemde medewerkers`);
-  parts.push(`   - Periode: van startdatum tot deadline`);
-  parts.push(`   - Check verlof, parttime dagen, bestaande taken`);
+  parts.push(`STAP 1: CHECK BESCHIKBAARHEID`);
+  parts.push(`Gebruik check_beschikbaarheid tool voor: ${medewerkersList || 'alle medewerkers'}`);
+  parts.push(`Periode: ${startDatum} tot ${deadline}`);
+  parts.push(`Check: verlof, parttime dagen, bestaande taken in de planning`);
   parts.push(``);
-  parts.push(`2. DAARNA: Gebruik zoek_klanten om planning_instructies op te halen voor "${info.klant_naam}"`);
+  parts.push(`STAP 2: CHECK MICROSOFT AGENDA`);
+  parts.push(`[BELANGRIJK: Deze functie is nog niet beschikbaar]`);
+  parts.push(`Meld in je voorstel: "Microsoft agenda kon niet gecheckt worden - check handmatig of er meetings zijn"`);
   parts.push(``);
-  parts.push(`3. ANALYSEER de toelichtingen per fase:`);
-  parts.push(`   - "1 dag per week" → verdeling: per_week, dagen_per_week: 1`);
-  parts.push(`   - "laatste week" of "finishing" → verdeling: laatste_week`);
-  parts.push(`   - Anders → verdeling: aaneengesloten`);
+  parts.push(`STAP 3: HAAL KLANT INSTRUCTIES OP`);
+  parts.push(`Gebruik zoek_klanten voor "${info.klant_naam}"`);
+  parts.push(`Let op: planning_instructies veld bevat klant-specifieke regels`);
   parts.push(``);
-  parts.push(`4. TENSLOTTE: Gebruik plan_project met alle verzamelde info`);
-  parts.push(`   - Neem beschikbaarheid mee`);
-  parts.push(`   - Respecteer klant instructies`);
-  parts.push(`   - Leg in 'reasoning' uit WAAROM je zo plant`);
+  parts.push(`STAP 4: CHECK PLANNING REGELS`);
+  parts.push(`Je hebt planning regels in je system prompt (hard/soft/voorkeur)`);
+  parts.push(`Noem in je reasoning welke regels je hebt toegepast`);
+  parts.push(``);
+  parts.push(`STAP 5: ANALYSEER TOELICHTINGEN`);
+  parts.push(`Per fase, interpreteer de toelichting:`);
+  parts.push(`- "1 dag per week" of "wekelijks" → verdeling: per_week, dagen_per_week: 1`);
+  parts.push(`- "2 dagen per week" → verdeling: per_week, dagen_per_week: 2`);
+  parts.push(`- "laatste week" of "finishing touches" → verdeling: laatste_week`);
+  parts.push(`- "feedback" of "review" → plan op DONDERDAG of VRIJDAG`);
+  parts.push(`- Geen specifieke instructie → verdeling: aaneengesloten`);
+  parts.push(``);
+  parts.push(`STAP 6: MAAK PLANNING`);
+  parts.push(`Gebruik plan_project tool met:`);
+  parts.push(`- Alle medewerkers starten PARALLEL (niet sequentieel)`);
+  parts.push(`- Respecteer beschikbaarheid uit stap 1`);
+  parts.push(`- Respecteer klant instructies uit stap 3`);
+  parts.push(`- Pas planning regels toe uit stap 4`);
+  parts.push(`- Gebruik verdelingen uit stap 5`);
+  parts.push(``);
+  parts.push(`STAP 7: RAPPORTEER`);
+  parts.push(`In je antwoord, vermeld ALTIJD:`);
+  parts.push(`- Wat je WEL hebt gecheckt en gevonden`);
+  parts.push(`- Wat je NIET kon checken (bijv. Microsoft agenda)`);
+  parts.push(`- Welke regels je hebt toegepast`);
+  parts.push(`- Eventuele risico's of waarschuwingen`);
 
   return parts.join('\n');
 }
