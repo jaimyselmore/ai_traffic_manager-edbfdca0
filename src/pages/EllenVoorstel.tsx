@@ -585,23 +585,15 @@ export default function EllenVoorstel() {
 
             {/* Feedback banner - toon welke feedback is verwerkt */}
             {laatsteFeedback && (
-              <Card className="p-4 bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800">
+              <Card className="p-4 bg-muted/50 border-border">
                 <div className="space-y-2">
-                  <p className="text-xs font-semibold text-amber-800 dark:text-amber-200 uppercase tracking-wide">
-                    📝 Verwerkte feedback
-                  </p>
-                  <p className="text-sm text-amber-900 dark:text-amber-100 italic">
-                    "{laatsteFeedback}"
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Jouw feedback: <span className="italic text-foreground">"{laatsteFeedback}"</span>
                   </p>
                   {ellenUitleg && (
-                    <div className="pt-2 border-t border-amber-200 dark:border-amber-800">
-                      <p className="text-xs font-semibold text-amber-800 dark:text-amber-200 uppercase tracking-wide mb-1">
-                        🤖 Ellen's toelichting
-                      </p>
-                      <p className="text-sm text-amber-900 dark:text-amber-100">
-                        {ellenUitleg}
-                      </p>
-                    </div>
+                    <p className="text-sm text-foreground">
+                      {ellenUitleg}
+                    </p>
                   )}
                 </div>
               </Card>
@@ -1122,7 +1114,8 @@ function buildEllenPrompt(info: any, feedback?: string, vorigVoorstel?: Voorstel
       });
     }
     parts.push(``);
-    parts.push(`^ MAAK EEN NIEUW VOORSTEL DAT REKENING HOUDT MET DEZE FEEDBACK. VERANDER WAT DE PLANNER VRAAGT.`);
+    parts.push(`BELANGRIJK: Gebruik plan_project tool om een NIEUW voorstel te maken dat de feedback verwerkt.`);
+    parts.push(`Pas ALLEEN aan wat de planner vraagt. Behoud de rest van het voorstel.`);
   }
 
   // Verzamel alle medewerkers voor de beschikbaarheidscheck
@@ -1195,14 +1188,13 @@ function buildEllenPrompt(info: any, feedback?: string, vorigVoorstel?: Voorstel
   parts.push(`- Als bij een medewerker "⚠️ ONGEVEER" staat: je mag tot ±20% afwijken als dat beter uitkomt qua beschikbaarheid.`);
   parts.push(`- Als er GEEN "ongeveer" info is: behandel het als EXACT.`);
   parts.push(``);
-  parts.push(`STAP 9: RAPPORTEER`);
-  parts.push(`In je antwoord, vermeld ALTIJD:`);
-  parts.push(`- Huidige bezetting per medewerker (uit stap 1 & 2)`);
-  parts.push(`- Conflicten met bestaande projecten`);
-  parts.push(`- Wat je WEL hebt gecheckt en gevonden`);
-  parts.push(`- Wat je NIET kon checken (bijv. Microsoft agenda)`);
-  parts.push(`- Welke regels je hebt toegepast`);
-  parts.push(`- Eventuele risico's of waarschuwingen`);
+  parts.push(`STAP 9: KORTE TOELICHTING`);
+  parts.push(`Geef een kort, menselijk antwoord (max 2-3 zinnen) over wat je hebt gedaan.`);
+  parts.push(`Geen opsommingen, geen bullet points. Gewoon een normale zin.`);
+  parts.push(`Voorbeeld: "Ik heb Jaimy op maandag en dinsdag ingepland. Woensdag had hij al een ander project."`);
+  parts.push(`Bij feedback: leg kort uit wat je hebt aangepast en waarom.`);
+  parts.push(`Voorbeeld: "Ik heb Lisa verplaatst naar donderdag zoals gevraagd. De rest blijft hetzelfde."`);
+  parts.push(`BELANGRIJK: Schrijf alsof je een collega bent, niet als een AI.`);
 
   return parts.join('\n');
 }
