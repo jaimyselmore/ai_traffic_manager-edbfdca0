@@ -20,10 +20,12 @@ import {
 import { TaskLegend } from './TaskLegend';
 import { PlannerGrid } from './PlannerGrid';
 import { FullscreenPlanner } from './FullscreenPlanner';
+import { TaskEditDialog } from './TaskEditDialog';
 import { getWeekStart, getWeekNumber, formatDateRange } from '@/lib/helpers/dateHelpers';
 import { useEmployees } from '@/hooks/use-employees';
 import { useClients } from '@/hooks/use-clients';
 import { useTasks, Task } from '@/hooks/use-tasks';
+import { useUpdateTask, useDeleteTask, useDeleteProjectTasks } from '@/hooks/use-task-mutations';
 import { toast } from '@/hooks/use-toast';
 import { exportToCSV, exportToPDF } from '@/lib/export/planningExport';
 
@@ -37,6 +39,11 @@ export function Planner() {
   const [selectedClient, setSelectedClient] = useState<string>('all');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [plannerZoom, setPlannerZoom] = useState<number>(100);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+
+  const updateTask = useUpdateTask();
+  const deleteTask = useDeleteTask();
+  const deleteProjectTasks = useDeleteProjectTasks();
 
   const [visibleEmployeeIds, setVisibleEmployeeIds] = useState<string[]>(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -298,6 +305,7 @@ export function Planner() {
           weekStart={currentWeekStart}
           employees={filteredEmployees}
           tasks={filteredTasks}
+          onTaskClick={setSelectedTask}
         />
       </div>
 
@@ -313,6 +321,16 @@ export function Planner() {
           onZoomChange={setPlannerZoom}
         />
       )}
+
+      {/* Task Edit Dialog */}
+      <TaskEditDialog
+        task={selectedTask}
+        employees={employees}
+        onClose={() => setSelectedTask(null)}
+        onUpdate={(id, updates) => updateTask.mutate({ id, updates })}
+        onDelete={(id) => deleteTask.mutate(id)}
+        onDeleteProject={(projectId) => deleteProjectTasks.mutate(projectId)}
+      />
     </div>
   );
 }

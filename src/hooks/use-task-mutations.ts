@@ -1,0 +1,58 @@
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { updateTaak, deleteTaak } from '@/lib/data/takenService';
+import { secureDelete } from '@/lib/data/secureDataClient';
+import { toast } from '@/hooks/use-toast';
+
+export function useUpdateTask() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, updates }: { id: string; updates: Record<string, unknown> }) => {
+      return updateTaak(id, updates as any, '', '');
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      toast({ title: 'Taak bijgewerkt', description: 'De wijziging is opgeslagen.' });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Fout bij opslaan', description: error.message, variant: 'destructive' });
+    },
+  });
+}
+
+export function useDeleteTask() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      return deleteTaak(id, '', '');
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      toast({ title: 'Taak verwijderd', description: 'De taak is uit de planner gehaald.' });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Fout bij verwijderen', description: error.message, variant: 'destructive' });
+    },
+  });
+}
+
+export function useDeleteProjectTasks() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (projectId: string) => {
+      const { error } = await secureDelete('taken', [
+        { column: 'project_id', operator: 'eq', value: projectId },
+      ]);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      toast({ title: 'Planning verwijderd', description: 'Alle taken van dit project zijn verwijderd.' });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Fout bij verwijderen', description: error.message, variant: 'destructive' });
+    },
+  });
+}

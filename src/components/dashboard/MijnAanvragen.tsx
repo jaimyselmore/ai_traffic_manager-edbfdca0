@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, Send, Clock, Trash2 } from 'lucide-react';
+import { FileText, Send, Clock, Trash2, CheckCircle2, XCircle, RotateCcw } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -15,15 +16,18 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
-interface SavedAanvraag {
+export interface SavedAanvraag {
   id: string;
   type: 'nieuw-project' | 'wijziging' | 'meeting' | 'verlof';
   status: 'concept' | 'ingediend';
+  resultaat?: 'gelukt' | 'mislukt';
+  foutmelding?: string;
   titel: string;
   klant?: string;
   datum: string;
   projectType?: string;
-  storageKey?: string; // localStorage key where form data is stored
+  storageKey?: string;
+  projectInfo?: any; // For retry
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -98,63 +102,101 @@ export function MijnAanvragen() {
     setDeleteTarget(null);
   };
 
-  const renderAanvraag = (aanvraag: SavedAanvraag) => (
-    <div
-      key={aanvraag.id}
-      className="flex items-center justify-between p-4 border border-border rounded-xl bg-card hover:bg-accent/50 transition-colors cursor-pointer"
-      onClick={() => {
-        // Restore the form data from the linked storage key (for both concept and ingediend)
-        if (aanvraag.storageKey) {
-          const savedData = localStorage.getItem(aanvraag.storageKey);
-          if (savedData) {
-            // Set the main storage key so the form loads this data
-            const mainKey = TYPE_STORAGE_KEYS[aanvraag.type];
-            if (mainKey) {
-              localStorage.setItem(mainKey, savedData);
+  const renderAanvraag = (aanvraag: SavedAanvraag) => {
+    const isGelukt = aanvraag.resultaat === 'gelukt';
+    const isMislukt = aanvraag.resultaat === 'mislukt';
+
+    return (
+      <div
+        key={aanvraag.id}
+        className={cn(
+          'flex items-center justify-between p-4 border rounded-xl bg-card transition-colors',
+          isGelukt && 'border-green-500/50 bg-green-50/30 dark:bg-green-950/10',
+          isMislukt && 'border-destructive/50 bg-red-50/30 dark:bg-red-950/10',
+          !isGelukt && !isMislukt && 'border-border hover:bg-accent/50 cursor-pointer'
+        )}
+        onClick={() => {
+          if (isMislukt) return; // Don't navigate on failed items
+          if (aanvraag.storageKey) {
+            const savedData = localStorage.getItem(aanvraag.storageKey);
+            if (savedData) {
+              const mainKey = TYPE_STORAGE_KEYS[aanvraag.type];
+              if (mainKey) {
+                localStorage.setItem(mainKey, savedData);
+              }
             }
           }
-        }
-        navigate(TYPE_ROUTES[aanvraag.type] || '/');
-      }}
-    >
-      <div className="flex items-center gap-3 min-w-0">
-        <div className="flex-shrink-0">
-          {aanvraag.status === 'concept' ? (
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          ) : (
-            <Send className="h-4 w-4 text-primary" />
-          )}
-        </div>
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-foreground truncate">
-            {aanvraag.titel || 'Zonder titel'}
-          </p>
-          <div className="flex items-center gap-2 mt-0.5">
-            <Badge variant="outline" className="text-xs">
-              {TYPE_LABELS[aanvraag.type] || aanvraag.type}
-            </Badge>
-            {aanvraag.klant && (
-              <span className="text-xs text-muted-foreground">{aanvraag.klant}</span>
-            )}
-            <span className="text-xs text-muted-foreground">
-              {new Date(aanvraag.datum).toLocaleDateString('nl-NL')}
-            </span>
-          </div>
-        </div>
-      </div>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="flex-shrink-0 h-8 w-8"
-        onClick={(e) => {
-          e.stopPropagation();
-          setDeleteTarget(aanvraag);
+          navigate(TYPE_ROUTES[aanvraag.type] || '/');
         }}
       >
-        <Trash2 className="h-4 w-4 text-muted-foreground" />
-      </Button>
-    </div>
-  );
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="flex-shrink-0">
+            {isGelukt ? (
+              <CheckCircle2 className="h-4 w-4 text-green-600" />
+            ) : isMislukt ? (
+              <XCircle className="h-4 w-4 text-destructive" />
+            ) : aanvraag.status === 'concept' ? (
+              <Clock className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <Send className="h-4 w-4 text-primary" />
+            )}
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-foreground truncate">
+              {aanvraag.titel || 'Zonder titel'}
+            </p>
+            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+              <Badge variant="outline" className="text-xs">
+                {TYPE_LABELS[aanvraag.type] || aanvraag.type}
+              </Badge>
+              {isGelukt && (
+                <Badge className="text-xs bg-green-600 hover:bg-green-700 text-white">Ingepland</Badge>
+              )}
+              {isMislukt && (
+                <Badge variant="destructive" className="text-xs">Mislukt</Badge>
+              )}
+              {aanvraag.klant && (
+                <span className="text-xs text-muted-foreground">{aanvraag.klant}</span>
+              )}
+              <span className="text-xs text-muted-foreground">
+                {new Date(aanvraag.datum).toLocaleDateString('nl-NL')}
+              </span>
+            </div>
+            {isMislukt && aanvraag.foutmelding && (
+              <p className="text-xs text-destructive mt-1">{aanvraag.foutmelding}</p>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {isMislukt && aanvraag.projectInfo && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate('/ellen-voorstel', { state: { projectInfo: aanvraag.projectInfo } });
+              }}
+            >
+              <RotateCcw className="h-3 w-3 mr-1" />
+              Opnieuw
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={(e) => {
+              e.stopPropagation();
+              setDeleteTarget(aanvraag);
+            }}
+          >
+            <Trash2 className="h-4 w-4 text-muted-foreground" />
+          </Button>
+        </div>
+      </div>
+    );
+  };
 
   if (aanvragen.length === 0) {
     return (
