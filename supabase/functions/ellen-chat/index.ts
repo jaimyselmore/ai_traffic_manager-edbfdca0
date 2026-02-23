@@ -1444,6 +1444,10 @@ Deno.serve(async (req) => {
       if (prefetchParts.length > 0) {
         prefetchedContext = '\n\n=== DATA IS AL OPGEHAALD - GEBRUIK GEEN zoek_taken, check_beschikbaarheid of zoek_klanten TOOLS ===\n' +
           'Alle benodigde data staat hieronder. Ga DIRECT naar plan_project.\n' +
+          '\n--- BELANGRIJK: MICROSOFT AGENDA ---\n' +
+          'De Microsoft agenda\'s van medewerkers zijn NIET gekoppeld. Je kunt dus GEEN agenda-afspraken checken.\n' +
+          'Vermeld dit ALTIJD in je voorstel: "Let op: Microsoft agenda\'s zijn nog niet gekoppeld. ' +
+          'Controleer handmatig of medewerkers meetings of afspraken hebben die conflicteren met deze planning."\n' +
           prefetchParts.join('\n');
       }
     }
