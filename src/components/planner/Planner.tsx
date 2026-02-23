@@ -294,8 +294,8 @@ export function Planner() {
         <TaskLegend />
       </div>
 
-      {/* Week navigation arrows + Grid */}
-      <div className="flex items-center justify-end gap-1">
+      {/* Grid with zoom + navigation arrows */}
+      <div className="flex items-center justify-end gap-1 -mb-2">
         <Button
           variant="outline"
           size="icon"
