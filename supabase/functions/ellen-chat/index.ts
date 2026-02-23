@@ -525,13 +525,16 @@ async function vindEersteVrijeSlot(
   benodigdeUren: number
 ): Promise<TimeSlot | null> {
   const bezet = await getBestaandeBlokken(supabase, medewerkernaam, datum);
+  const werkdagDuur = config.werkdag_eind - config.werkdag_start; // 18-9 = 9 uur
+  const lunchDuur = config.lunch_eind - config.lunch_start; // 13.5-12.5 = 1 uur
+  const maxWerkUren = werkdagDuur - lunchDuur; // 9-1 = 8 effectieve werkuren
 
-  // Full day block
-  if (benodigdeUren >= 8) {
-    const ochtendVrij = !heeftConflict(bezet, config.werkdag_start, 3.5);
-    const middagVrij = !heeftConflict(bezet, 14, 4);
+  // Full day block: als benodigde uren >= effectieve werkuren, plan hele dag (9-18)
+  if (benodigdeUren >= maxWerkUren) {
+    const ochtendVrij = !heeftConflict(bezet, config.werkdag_start, config.lunch_start - config.werkdag_start);
+    const middagVrij = !heeftConflict(bezet, config.lunch_eind, config.werkdag_eind - config.lunch_eind);
     if (ochtendVrij && middagVrij) {
-      return { startUur: config.werkdag_start, duurUren: 9 };
+      return { startUur: config.werkdag_start, duurUren: werkdagDuur }; // 9:00-18:00 = 9 uur
     }
     return null;
   }
