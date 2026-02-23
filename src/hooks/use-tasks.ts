@@ -31,7 +31,8 @@ export interface Task {
 }
 
 export function useTasks(weekStart: Date, employeeName?: string) {
-  const weekStartISO = weekStart.toISOString().split('T')[0];
+  // Use local date to avoid timezone shift (toISOString converts to UTC which can shift the day)
+  const weekStartISO = `${weekStart.getFullYear()}-${String(weekStart.getMonth() + 1).padStart(2, '0')}-${String(weekStart.getDate()).padStart(2, '0')}`;
 
   return useQuery({
     queryKey: ['tasks', weekStartISO, employeeName],
