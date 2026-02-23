@@ -325,6 +325,7 @@ export function Planner() {
       {/* Task Edit Dialog */}
       <TaskEditDialog
         task={selectedTask}
+        allWeekTasks={filteredTasks}
         employees={employees}
         onClose={() => setSelectedTask(null)}
         onUpdate={(id, updates) => updateTask.mutate({ id, updates })}
