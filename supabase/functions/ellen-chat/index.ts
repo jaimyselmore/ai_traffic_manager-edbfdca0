@@ -333,6 +333,25 @@ Je praat met: ${plannerNaam}
 ${plannerInfo}
 </huidige_gebruiker>
 
+<directe_wijzigingen>
+IN DE CHAT kun je DIRECT de planning aanpassen met deze tools:
+- wijzig_taak: Verplaats een taak naar andere dag/tijd, pas uren aan, wijs toe aan andere medewerker
+- verwijder_taak: Verwijder een taak uit de planning
+- voeg_taak_toe: Voeg een losse taak toe aan de planning
+
+WANNEER DIRECT WIJZIGEN:
+- Als de gebruiker vraagt om een specifieke taak te verplaatsen/wijzigen/verwijderen
+- Als de gebruiker vraagt om snel iets toe te voegen aan de planning
+- Bij kleine aanpassingen die geen heel projectvoorstel nodig hebben
+
+WANNEER VOORSTEL (plan_project):
+- Bij nieuwe projecten met meerdere fases en medewerkers
+- Bij grote planningswijzigingen
+- Via het template-formulier (niet de chat)
+
+Let op: Hard-locked taken kunnen niet gewijzigd worden door anderen dan de eigenaar.
+</directe_wijzigingen>
+
 <kritieke_regels>
 1. TOELICHTINGEN ZIJN HEILIG: Citeer ELKE toelichting en bepaal de verdeling VOORDAT je plant!
 2. BESTAANDE PLANNING CHECKEN: Bekijk wat medewerkers al hebben, vergelijk deadlines
@@ -340,7 +359,7 @@ ${plannerInfo}
 4. Als PRE-LOADED data aanwezig is, gebruik die direct - ga dan DIRECT naar plan_project
 5. Bij plannen: gebruik ALTIJD de plan_project tool met correcte verdeling per fase
 6. SCHUIVEN: Tijden op dezelfde dag mag, uren aanpassen of dagen verplaatsen ALLEEN met goedkeuring
-7. NOOIT de echte planning aanpassen zonder goedkeuring
+7. IN DE CHAT: gebruik wijzig_taak/verwijder_taak/voeg_taak_toe voor directe wijzigingen
 8. Vermeld ALTIJD wat je niet hebt kunnen checken (bijv. Microsoft agenda's)
 </kritieke_regels>
 
@@ -505,6 +524,66 @@ const CLAUDE_TOOLS = [
         beschrijving: { type: 'string', description: 'Uitleg voor de gebruiker' },
       },
       required: ['tabel', 'id', 'veld', 'nieuwe_waarde', 'beschrijving'],
+    },
+  },
+  // === DIRECTE PLANNING WIJZIGINGEN (vanuit chat) ===
+  {
+    name: 'wijzig_taak',
+    description: 'Wijzig een bestaande taak in de planning DIRECT (geen voorstel). Gebruik dit vanuit de chat om taken te verplaatsen, uren aan te passen, etc.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        taak_id: { type: 'string', description: 'UUID van de taak' },
+        nieuwe_waarden: {
+          type: 'object',
+          description: 'De velden die je wilt wijzigen',
+          properties: {
+            werknemer_naam: { type: 'string', description: 'Nieuwe medewerker' },
+            week_start: { type: 'string', description: 'Nieuwe week (YYYY-MM-DD, maandag)' },
+            dag_van_week: { type: 'number', description: 'Nieuwe dag (0=ma, 1=di, 2=wo, 3=do, 4=vr)' },
+            start_uur: { type: 'number', description: 'Nieuw startuur (9-18)' },
+            duur_uren: { type: 'number', description: 'Nieuwe duur in uren' },
+            fase_naam: { type: 'string', description: 'Nieuwe fase naam' },
+            plan_status: { type: 'string', description: 'Nieuwe status', enum: ['concept', 'vast', 'wacht_klant'] },
+          },
+        },
+        reden: { type: 'string', description: 'Korte uitleg waarom je dit wijzigt' },
+      },
+      required: ['taak_id', 'nieuwe_waarden', 'reden'],
+    },
+  },
+  {
+    name: 'verwijder_taak',
+    description: 'Verwijder een taak uit de planning DIRECT (geen voorstel). Gebruik dit vanuit de chat om taken te verwijderen.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        taak_id: { type: 'string', description: 'UUID van de taak' },
+        reden: { type: 'string', description: 'Korte uitleg waarom je dit verwijdert' },
+      },
+      required: ['taak_id', 'reden'],
+    },
+  },
+  {
+    name: 'voeg_taak_toe',
+    description: 'Voeg een nieuwe taak toe aan de planning DIRECT (geen voorstel). Gebruik dit vanuit de chat om losse taken toe te voegen.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        werknemer_naam: { type: 'string', description: 'Naam van de medewerker' },
+        klant_naam: { type: 'string', description: 'Naam van de klant' },
+        project_nummer: { type: 'string', description: 'Projectnummer (optioneel, wordt gegenereerd als leeg)' },
+        project_titel: { type: 'string', description: 'Titel/omschrijving van het project' },
+        fase_naam: { type: 'string', description: 'Fase naam (bijv. Concept, Edit, Review)' },
+        werktype: { type: 'string', description: 'Type werk', enum: ['concept', 'uitwerking', 'productie', 'extern', 'review'] },
+        week_start: { type: 'string', description: 'Week maandag (YYYY-MM-DD)' },
+        dag_van_week: { type: 'number', description: 'Dag (0=ma, 1=di, 2=wo, 3=do, 4=vr)' },
+        start_uur: { type: 'number', description: 'Startuur (9-18)' },
+        duur_uren: { type: 'number', description: 'Duur in uren' },
+        plan_status: { type: 'string', description: 'Status', enum: ['concept', 'vast', 'wacht_klant'] },
+        reden: { type: 'string', description: 'Korte uitleg waarom je dit toevoegt' },
+      },
+      required: ['werknemer_naam', 'klant_naam', 'project_titel', 'fase_naam', 'week_start', 'dag_van_week', 'start_uur', 'duur_uren', 'reden'],
     },
   },
 ];
@@ -1144,6 +1223,220 @@ async function executeTool(
           veld: args.veld,
           nieuwe_waarde: args.nieuwe_waarde,
           beschrijving: args.beschrijving,
+        });
+      }
+
+      // === DIRECTE PLANNING WIJZIGINGEN ===
+      case 'wijzig_taak': {
+        const taakId = args.taak_id;
+        const nieuweWaarden = args.nieuwe_waarden || {};
+        const reden = args.reden || '';
+
+        if (!taakId) {
+          return 'Fout: taak_id is verplicht';
+        }
+
+        // Haal huidige taak op om te checken of ie bestaat
+        const { data: huidige, error: fetchErr } = await supabase
+          .from('taken')
+          .select('id, werknemer_naam, klant_naam, project_nummer, fase_naam, is_hard_lock, created_by')
+          .eq('id', taakId)
+          .maybeSingle();
+
+        if (fetchErr || !huidige) {
+          return `Taak met ID "${taakId}" niet gevonden.`;
+        }
+
+        // Check hard lock
+        if (huidige.is_hard_lock) {
+          return `Deze taak is vergrendeld (hard lock) en kan alleen worden aangepast door ${huidige.created_by || 'de eigenaar'}.`;
+        }
+
+        // Filter alleen toegestane velden
+        const toegestaneVelden = ['werknemer_naam', 'week_start', 'dag_van_week', 'start_uur', 'duur_uren', 'fase_naam', 'plan_status', 'werktype'];
+        const updateData: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(nieuweWaarden)) {
+          if (toegestaneVelden.includes(key) && value !== undefined) {
+            updateData[key] = value;
+          }
+        }
+
+        if (Object.keys(updateData).length === 0) {
+          return 'Geen geldige velden om te wijzigen.';
+        }
+
+        // Update de taak
+        const { error: updateErr } = await supabase
+          .from('taken')
+          .update(updateData)
+          .eq('id', taakId);
+
+        if (updateErr) {
+          return `Fout bij wijzigen: ${updateErr.message}`;
+        }
+
+        const gewijzigdeVelden = Object.keys(updateData).join(', ');
+        return JSON.stringify({
+          type: 'wijziging_uitgevoerd',
+          taak_id: taakId,
+          gewijzigd: updateData,
+          oude_waarden: {
+            medewerker: huidige.werknemer_naam,
+            klant: huidige.klant_naam,
+            project: huidige.project_nummer,
+          },
+          reden,
+          bericht: `Taak succesvol gewijzigd (${gewijzigdeVelden}). De planning is direct bijgewerkt.`,
+        });
+      }
+
+      case 'verwijder_taak': {
+        const taakId = args.taak_id;
+        const reden = args.reden || '';
+
+        if (!taakId) {
+          return 'Fout: taak_id is verplicht';
+        }
+
+        // Haal taak op om te checken
+        const { data: taak, error: fetchErr } = await supabase
+          .from('taken')
+          .select('id, werknemer_naam, klant_naam, project_nummer, fase_naam, is_hard_lock, created_by')
+          .eq('id', taakId)
+          .maybeSingle();
+
+        if (fetchErr || !taak) {
+          return `Taak met ID "${taakId}" niet gevonden.`;
+        }
+
+        // Check hard lock
+        if (taak.is_hard_lock) {
+          return `Deze taak is vergrendeld (hard lock) en kan alleen worden verwijderd door ${taak.created_by || 'de eigenaar'}.`;
+        }
+
+        // Verwijder de taak
+        const { error: deleteErr } = await supabase
+          .from('taken')
+          .delete()
+          .eq('id', taakId);
+
+        if (deleteErr) {
+          return `Fout bij verwijderen: ${deleteErr.message}`;
+        }
+
+        return JSON.stringify({
+          type: 'taak_verwijderd',
+          taak_id: taakId,
+          verwijderde_taak: {
+            medewerker: taak.werknemer_naam,
+            klant: taak.klant_naam,
+            project: taak.project_nummer,
+            fase: taak.fase_naam,
+          },
+          reden,
+          bericht: `Taak voor ${taak.werknemer_naam} (${taak.klant_naam} - ${taak.fase_naam}) is verwijderd uit de planning.`,
+        });
+      }
+
+      case 'voeg_taak_toe': {
+        const werknemerNaam = args.werknemer_naam;
+        const klantNaam = args.klant_naam;
+        const projectTitel = args.project_titel;
+        const faseNaam = args.fase_naam;
+        const weekStart = args.week_start;
+        const dagVanWeek = args.dag_van_week;
+        const startUur = args.start_uur;
+        const duurUren = args.duur_uren;
+        const reden = args.reden || '';
+
+        if (!werknemerNaam || !klantNaam || !projectTitel || !faseNaam || !weekStart || dagVanWeek === undefined || !startUur || !duurUren) {
+          return 'Fout: niet alle verplichte velden zijn ingevuld.';
+        }
+
+        // Valideer dag en tijd
+        if (dagVanWeek < 0 || dagVanWeek > 4) {
+          return 'Fout: dag_van_week moet 0-4 zijn (ma-vr).';
+        }
+        if (startUur < config.werkdag_start || startUur > config.werkdag_eind) {
+          return `Fout: start_uur moet tussen ${config.werkdag_start} en ${config.werkdag_eind} zijn.`;
+        }
+
+        // Check of medewerker al iets heeft op die tijd
+        const { data: bestaand } = await supabase
+          .from('taken')
+          .select('id, start_uur, duur_uren')
+          .eq('werknemer_naam', werknemerNaam)
+          .eq('week_start', weekStart)
+          .eq('dag_van_week', dagVanWeek);
+
+        const eindUur = startUur + duurUren;
+        const conflict = (bestaand || []).find((t: { id: string; start_uur: number; duur_uren: number }) => {
+          const tEind = t.start_uur + t.duur_uren;
+          return startUur < tEind && eindUur > t.start_uur;
+        });
+
+        if (conflict) {
+          return `Fout: ${werknemerNaam} heeft al een taak op dat tijdstip (${conflict.start_uur}:00 - ${conflict.start_uur + conflict.duur_uren}:00).`;
+        }
+
+        // Genereer projectnummer als niet gegeven
+        const projectNummer = args.project_nummer || `P-${Date.now().toString().slice(-6)}`;
+        const werktype = args.werktype || 'concept';
+        const planStatus = args.plan_status || 'concept';
+
+        // Check of project al bestaat (voor koppeling)
+        let projectId = null;
+        const { data: bestaandProject } = await supabase
+          .from('projecten')
+          .select('id')
+          .eq('projectnummer', projectNummer)
+          .maybeSingle();
+
+        if (bestaandProject) {
+          projectId = bestaandProject.id;
+        }
+
+        // Insert de taak
+        const { data: nieuweTaak, error: insertErr } = await supabase
+          .from('taken')
+          .insert({
+            project_id: projectId,
+            werknemer_naam: werknemerNaam,
+            klant_naam: klantNaam,
+            project_nummer: projectNummer,
+            project_titel: projectTitel,
+            fase_naam: faseNaam,
+            werktype,
+            discipline: bepaalDiscipline(faseNaam),
+            week_start: weekStart,
+            dag_van_week: dagVanWeek,
+            start_uur: startUur,
+            duur_uren: duurUren,
+            plan_status: planStatus,
+            is_hard_lock: false,
+          })
+          .select('id')
+          .single();
+
+        if (insertErr) {
+          return `Fout bij toevoegen: ${insertErr.message}`;
+        }
+
+        const dagNamen = ['maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag'];
+        return JSON.stringify({
+          type: 'taak_toegevoegd',
+          taak_id: nieuweTaak?.id,
+          taak: {
+            medewerker: werknemerNaam,
+            klant: klantNaam,
+            project: projectNummer,
+            fase: faseNaam,
+            dag: dagNamen[dagVanWeek],
+            tijd: `${startUur}:00 - ${startUur + duurUren}:00`,
+            uren: duurUren,
+          },
+          reden,
+          bericht: `Nieuwe taak toegevoegd: ${werknemerNaam} - ${klantNaam} (${faseNaam}) op ${dagNamen[dagVanWeek]} ${startUur}:00-${startUur + duurUren}:00. De planning is direct bijgewerkt.`,
         });
       }
 
