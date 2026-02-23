@@ -138,11 +138,26 @@ export default function EllenVoorstel() {
       }
 
       try {
+        // Collect medewerkers and period for pre-fetching
+        const alleMedewerkers: string[] = [];
+        projectInfo.fases?.forEach((f: any) => {
+          f.medewerkers?.forEach((m: string) => {
+            if (!alleMedewerkers.includes(m)) alleMedewerkers.push(m);
+          });
+        });
+        const startDatum = projectInfo.fases?.[0]?.start_datum || new Date().toISOString().split('T')[0];
+
         const { data, error } = await supabase.functions.invoke('ellen-chat', {
           headers: { Authorization: `Bearer ${sessionToken}` },
           body: {
             sessie_id: `project-${Date.now()}`,
             bericht: buildEllenPrompt(projectInfo),
+            project_data: {
+              medewerkers: alleMedewerkers,
+              klant_naam: projectInfo.klant_naam,
+              start_datum: startDatum,
+              eind_datum: projectInfo.deadline,
+            },
           },
         });
 
@@ -281,11 +296,24 @@ export default function EllenVoorstel() {
         console.warn('Feedback opslaan mislukt, ga door met nieuw voorstel');
       }
 
+      const alleMw: string[] = [];
+      projectInfo.fases?.forEach((f: any) => {
+        f.medewerkers?.forEach((m: string) => {
+          if (!alleMw.includes(m)) alleMw.push(m);
+        });
+      });
+
       const { data, error } = await supabase.functions.invoke('ellen-chat', {
         headers: { Authorization: `Bearer ${sessionToken}` },
         body: {
           sessie_id: `project-${Date.now()}`,
           bericht: buildEllenPrompt(projectInfo, feedbackInput),
+          project_data: {
+            medewerkers: alleMw,
+            klant_naam: projectInfo.klant_naam,
+            start_datum: projectInfo.fases?.[0]?.start_datum || new Date().toISOString().split('T')[0],
+            eind_datum: projectInfo.deadline,
+          },
         },
       });
 
