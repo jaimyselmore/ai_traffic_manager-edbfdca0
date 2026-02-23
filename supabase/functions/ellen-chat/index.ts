@@ -1439,15 +1439,42 @@ Deno.serve(async (req) => {
           }
           prefetchParts.push(`\n--- PRE-LOADED: BESCHIKBAARHEID (${start_datum} t/m ${eind_datum}) ---\n${JSON.stringify(beschikbaarheid, null, 2)}`);
         }
+
+        // Check Microsoft agenda koppeling per medewerker
+        const mwIds = mwData?.map((m: { werknemer_id: number }) => m.werknemer_id) || [];
+        if (mwIds.length > 0) {
+          const { data: tokenData } = await supabase
+            .from('microsoft_tokens')
+            .select('werknemer_id')
+            .in('werknemer_id', mwIds);
+          
+          const gekoppeldeIds = new Set((tokenData || []).map((t: { werknemer_id: number }) => t.werknemer_id));
+          const nietGekoppeld = (mwData || [])
+            .filter((m: { werknemer_id: number }) => !gekoppeldeIds.has(m.werknemer_id))
+            .map((m: { naam_werknemer: string }) => m.naam_werknemer);
+          const welGekoppeld = (mwData || [])
+            .filter((m: { werknemer_id: number }) => gekoppeldeIds.has(m.werknemer_id))
+            .map((m: { naam_werknemer: string }) => m.naam_werknemer);
+
+          if (nietGekoppeld.length > 0 && welGekoppeld.length > 0) {
+            prefetchParts.push(`\n--- MICROSOFT AGENDA STATUS ---\n` +
+              `Gekoppeld: ${welGekoppeld.join(', ')}\n` +
+              `NIET gekoppeld: ${nietGekoppeld.join(', ')}\n` +
+              `Vermeld in je voorstel dat de agenda's van ${nietGekoppeld.join(', ')} niet gecheckt konden worden.`);
+          } else if (nietGekoppeld.length > 0) {
+            prefetchParts.push(`\n--- MICROSOFT AGENDA STATUS ---\n` +
+              `Geen van de medewerkers heeft een gekoppelde Microsoft agenda (${nietGekoppeld.join(', ')}).\n` +
+              `Vermeld in je voorstel: "Let op: Microsoft agenda's zijn nog niet gekoppeld. Controleer handmatig of medewerkers meetings hebben die conflicteren met deze planning."`);
+          } else {
+            prefetchParts.push(`\n--- MICROSOFT AGENDA STATUS ---\n` +
+              `Alle medewerkers hebben een gekoppelde Microsoft agenda. Agenda-data is meegenomen in de beschikbaarheidscheck.`);
+          }
+        }
       }
 
       if (prefetchParts.length > 0) {
         prefetchedContext = '\n\n=== DATA IS AL OPGEHAALD - GEBRUIK GEEN zoek_taken, check_beschikbaarheid of zoek_klanten TOOLS ===\n' +
           'Alle benodigde data staat hieronder. Ga DIRECT naar plan_project.\n' +
-          '\n--- BELANGRIJK: MICROSOFT AGENDA ---\n' +
-          'De Microsoft agenda\'s van medewerkers zijn NIET gekoppeld. Je kunt dus GEEN agenda-afspraken checken.\n' +
-          'Vermeld dit ALTIJD in je voorstel: "Let op: Microsoft agenda\'s zijn nog niet gekoppeld. ' +
-          'Controleer handmatig of medewerkers meetings of afspraken hebben die conflicteren met deze planning."\n' +
           prefetchParts.join('\n');
       }
     }
