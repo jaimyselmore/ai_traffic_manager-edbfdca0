@@ -6,7 +6,8 @@ import { MedewerkersTab } from '@/components/admin/WerknemersTab';
 import { RolprofielenTab } from '@/components/admin/RolprofielenTab';
 import { DisciplinesTab } from '@/components/admin/DisciplinesTab';
 import { KlantenTab } from '@/components/admin/KlantenTab';
-import { Users, Briefcase, Palette, Building2 } from 'lucide-react';
+import { MicrosoftKoppelingTab } from '@/components/admin/MicrosoftKoppelingTab';
+import { Users, Briefcase, Palette, Building2, Calendar } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 type Tab = 'overzicht' | 'planner' | 'agendas' | 'ellen' | 'admin';
@@ -36,7 +37,7 @@ export default function Admin() {
           </div>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full max-w-2xl grid-cols-4">
+            <TabsList className="grid w-full max-w-3xl grid-cols-5">
               <TabsTrigger value="medewerkers" className="flex items-center gap-2">
                 <Users className="h-4 w-4" />
                 Medewerkers
@@ -52,6 +53,10 @@ export default function Admin() {
               <TabsTrigger value="klanten" className="flex items-center gap-2">
                 <Building2 className="h-4 w-4" />
                 Klanten
+              </TabsTrigger>
+              <TabsTrigger value="microsoft" className="flex items-center gap-2">
+                <Calendar className="h-4 w-4" />
+                Agenda's
               </TabsTrigger>
             </TabsList>
 
@@ -69,6 +74,10 @@ export default function Admin() {
 
             <TabsContent value="klanten" className="mt-6">
               <KlantenTab />
+            </TabsContent>
+
+            <TabsContent value="microsoft" className="mt-6">
+              <MicrosoftKoppelingTab />
             </TabsContent>
           </Tabs>
         </main>
