@@ -325,17 +325,17 @@ export default function EllenVoorstel() {
         throw new Error(`Geen taken geplaatst. Fouten: ${fouten.join('; ')}`);
       }
 
-      if (needsClientApproval) {
-        saveAanvraag({
-          id: `wacht-klant-${Date.now()}`,
-          type: 'nieuw-project',
-          status: 'concept',
-          titel: projectInfo?.projectnaam || 'Project',
-          klant: projectInfo?.klant_naam,
-          datum: new Date().toISOString(),
-          projectType: projectInfo?.projecttype,
-        });
-      }
+      // Save aanvraag with success status (green)
+      saveAanvraag({
+        id: `project-${Date.now()}`,
+        type: 'nieuw-project',
+        status: 'ingediend',
+        resultaat: 'gelukt',
+        titel: projectInfo?.projectnaam || 'Project',
+        klant: projectInfo?.klant_naam,
+        datum: new Date().toISOString(),
+        projectType: projectInfo?.projecttype,
+      });
 
       toast({
         title: `${aantalGeplaatst} taken geplaatst`,
@@ -346,8 +346,24 @@ export default function EllenVoorstel() {
       setFlowState('done');
     } catch (err) {
       console.error('Planning opslaan fout:', err);
+      const foutMsg = err instanceof Error ? err.message : 'Er ging iets mis bij het aanmaken';
+      
+      // Save aanvraag with failure status (red) + projectInfo for retry
+      saveAanvraag({
+        id: `project-mislukt-${Date.now()}`,
+        type: 'nieuw-project',
+        status: 'ingediend',
+        resultaat: 'mislukt',
+        foutmelding: foutMsg,
+        titel: projectInfo?.projectnaam || 'Project',
+        klant: projectInfo?.klant_naam,
+        datum: new Date().toISOString(),
+        projectType: projectInfo?.projecttype,
+        projectInfo: projectInfo,
+      });
+
       setFlowState('error');
-      setErrorMessage(err instanceof Error ? err.message : 'Er ging iets mis bij het aanmaken');
+      setErrorMessage(foutMsg);
     }
   };
 

@@ -8,6 +8,7 @@ interface PlannerGridProps {
   employees: Employee[];
   tasks: Task[];
   compact?: boolean;
+  onTaskClick?: (task: Task) => void;
 }
 
 const dayNames = ['Ma', 'Di', 'Wo', 'Do', 'Vr'];
@@ -22,7 +23,7 @@ const taskColors: Record<string, string> = {
   optie: 'bg-task-optie',
 };
 
-export function PlannerGrid({ weekStart, employees, tasks, compact = false }: PlannerGridProps) {
+export function PlannerGrid({ weekStart, employees, tasks, compact = false, onTaskClick }: PlannerGridProps) {
   const weekDates = useMemo(() => {
     return dayNames.map((_, index) => {
       const date = new Date(weekStart);
@@ -138,12 +139,13 @@ export function PlannerGrid({ weekStart, employees, tasks, compact = false }: Pl
                           <div
                             key={task.id}
                             className={cn(
-                              'rounded px-1.5 py-0.5 text-xs text-white overflow-hidden cursor-pointer hover:opacity-90 transition-opacity h-full',
+                              'rounded px-1.5 py-0.5 text-xs text-white overflow-hidden cursor-pointer hover:opacity-80 hover:ring-2 hover:ring-primary/50 transition-all h-full',
                               taskColors[task.type],
                               isDoorzichtig && 'opacity-50',
                               isWachtKlant && 'border-2 border-dashed border-white/50'
                             )}
                             title={`${task.projectTitel || getClientName(task)} - ${getTaskLabel(task.type)}${isConcept ? ' (concept)' : ''}${isWachtKlant ? ' (wacht op klant)' : ''}\n${task.startTime} - ${task.endTime}${task.faseNaam ? `\nFase: ${task.faseNaam}` : ''}`}
+                            onClick={(e) => { e.stopPropagation(); onTaskClick?.(task); }}
                           >
                             <div className="truncate font-medium">
                               {task.projectTitel ? (
