@@ -928,171 +928,72 @@ export default function EllenVoorstel() {
 }
 
 /**
- * Analyseer notities en bepaal de verdeling automatisch
- * Dit voorkomt dat OpenAI moet interpreteren
+ * Bouw Ellen prompt - VEREENVOUDIGD
+ * Ellen (Claude) doet nu zelf de interpretatie van toelichtingen
  */
-function analyseNotities(notities: string | undefined): {
-  verdeling: 'aaneengesloten' | 'per_week' | 'laatste_week';
-  dagen_per_week?: number;
-  uren_per_dag?: number;
-} {
-  if (!notities) return { verdeling: 'aaneengesloten' };
-
-  const lower = notities.toLowerCase();
-
-  // Check voor "laatste week" / "aan het eind" patronen
-  if (lower.includes('laatste week') || lower.includes('aan het eind') ||
-      lower.includes('einde van') || lower.includes('helemaal aan het eind')) {
-    return { verdeling: 'laatste_week' };
-  }
-
-  // Check voor "X dag per week" patronen
-  const dagPerWeekMatch = lower.match(/(\d+)\s*dag(?:en)?\s*per\s*week/);
-  if (dagPerWeekMatch) {
-    return { verdeling: 'per_week', dagen_per_week: parseInt(dagPerWeekMatch[1]) };
-  }
-
-  // Check voor "1 dag per week" of "wekelijks" of "elke week" patronen
-  if (lower.includes('per week') || lower.includes('wekelijks') ||
-      (lower.includes('elke week') && !lower.includes('elke dag'))) {
-    return { verdeling: 'per_week', dagen_per_week: 1 };
-  }
-
-  // Check voor "X uur per week" patronen → converteer naar dagen
-  const uurPerWeekMatch = lower.match(/(\d+)\s*(?:uur|u|uurtje)?\s*per\s*week/);
-  if (uurPerWeekMatch) {
-    const uren = parseInt(uurPerWeekMatch[1]);
-    // Als het minder dan 4 uur is, plan als 1 dag met die uren
-    return { verdeling: 'per_week', dagen_per_week: 1, uren_per_dag: Math.min(uren, 8) };
-  }
-
-  // Check voor korte feedback sessies
-  if (lower.includes('uurtje') || lower.includes('feedback') || lower.includes('review')) {
-    // Als er "uurtje" staat, waarschijnlijk kort en verspreid
-    if (lower.includes('elke week') || lower.includes('wekelijks')) {
-      return { verdeling: 'per_week', dagen_per_week: 1, uren_per_dag: 1 };
-    }
-    // Feedback zonder "elke week" - nog steeds verspreiden als er meerdere dagen zijn
-    // Dit voorkomt dat 2 dagen feedback als 2 achtereenvolgende dagen wordt gepland
-    return { verdeling: 'per_week', dagen_per_week: 1, uren_per_dag: 2 };
-  }
-
-  // Check voor "finishing touches" of "afronding" - plan in laatste week
-  if (lower.includes('finishing') || lower.includes('afronding') ||
-      lower.includes('final') || lower.includes('laatste check')) {
-    return { verdeling: 'laatste_week' };
-  }
-
-  // Default: aaneengesloten
-  return { verdeling: 'aaneengesloten' };
-}
-
 function buildEllenPrompt(info: any, feedback?: string): string {
   const parts: string[] = [];
 
-  // KRITIEKE INSTRUCTIE BOVENAAN
-  parts.push(`⚠️ KRITIEKE INSTRUCTIE: Je MOET de plan_project tool aanroepen!`);
-  parts.push(`Beschrijf de planning NIET in tekst - gebruik ALLEEN de tool.`);
-  parts.push(`\n---\n`);
+  // Basis project info
+  parts.push(`Maak een planning voor dit project:`);
+  parts.push(``);
+  parts.push(`Klant: ${info.klant_naam}`);
+  parts.push(`Project: ${info.projectTitel || info.projectnaam}`);
+  parts.push(`Type: ${info.projecttype || 'algemeen'}`);
+  if (info.deadline) parts.push(`Deadline: ${info.deadline}`);
+  if (info.isInternProject) parts.push(`(Intern project)`);
 
-  // Basisinfo
-  parts.push(`## Planning Aanvraag`);
-  parts.push(`- Klant: "${info.klant_naam}"`);
-  parts.push(`- Project: "${info.projectTitel || info.projectnaam}"`);
-  parts.push(`- Type: ${info.projecttype || 'algemeen'}`);
-  parts.push(`- Intern: ${info.isInternProject ? 'JA' : 'NEE'}`);
-  if (info.deadline) parts.push(`- Deadline: ${info.deadline}`);
-
-  // KRITIEK: Alle medewerkers starten PARALLEL op dezelfde datum!
-  parts.push(`\n## ⚠️ BELANGRIJK: PARALLELLE PLANNING!`);
-  parts.push(`Alle medewerkers starten op DEZELFDE startdatum en werken TEGELIJK.`);
-  parts.push(`Dit is GEEN sequentiële planning - iedereen begint parallel!`);
-
-  // Betrokken personen
-  if (info.betrokkenPersonen?.length > 0) {
-    parts.push(`\n## Overige betrokkenen (voor meetings)`);
-    parts.push(`${info.betrokkenPersonen.join(', ')}`);
+  // Fases met toelichtingen - Ellen interpreteert deze zelf
+  if (info.fases?.length > 0) {
+    parts.push(``);
+    parts.push(`Fases:`);
+    info.fases.forEach((f: any, i: number) => {
+      parts.push(``);
+      parts.push(`${i + 1}. ${f.fase_naam || 'Fase'}`);
+      parts.push(`   Medewerkers: ${f.medewerkers?.join(', ') || 'Geen'}`);
+      parts.push(`   Start: ${f.start_datum}`);
+      parts.push(`   Dagen: ${f.duur_dagen}`);
+      if (f.uren_per_dag && f.uren_per_dag !== 8) {
+        parts.push(`   Uren per dag: ${f.uren_per_dag}`);
+      }
+      if (f.notities) {
+        // Dit is de TOELICHTING - Ellen moet dit zelf interpreteren
+        parts.push(`   Toelichting: "${f.notities}"`);
+      }
+    });
   }
 
   // Meetings
   if (info.meetings?.length > 0) {
-    parts.push(`\n## Meetings/Presentaties`);
-    info.meetings.forEach((m: any, i: number) => {
+    parts.push(``);
+    parts.push(`Meetings:`);
+    info.meetings.forEach((m: any) => {
       const typeLabels: Record<string, string> = {
         'kick-off': 'Kick-off',
         'tussentijds': 'Tussentijdse presentatie',
         'eindpresentatie': 'Eindpresentatie',
         'anders': 'Meeting',
       };
-      parts.push(`${i + 1}. ${typeLabels[m.type] || m.type} (${m.aantalUren}u)${m.notitie ? ` - "${m.notitie}"` : ''}`);
+      parts.push(`- ${typeLabels[m.type] || m.type} (${m.aantalUren}u)${m.notitie ? `: ${m.notitie}` : ''}`);
     });
   }
 
-  // Pre-analyseer alle fases en bepaal de verdeling
-  const geanalyseerde_fases: any[] = [];
-  if (info.fases?.length) {
-    info.fases.forEach((f: any) => {
-      const analyse = analyseNotities(f.notities);
-      geanalyseerde_fases.push({
-        fase_naam: f.fase_naam,
-        medewerkers: f.medewerkers || [],
-        start_datum: f.start_datum,
-        duur_dagen: f.duur_dagen,
-        uren_per_dag: analyse.uren_per_dag || f.uren_per_dag || 8,
-        verdeling: analyse.verdeling,
-        dagen_per_week: analyse.dagen_per_week,
-        notities: f.notities,
-      });
-    });
+  // Betrokken personen
+  if (info.betrokkenPersonen?.length > 0) {
+    parts.push(``);
+    parts.push(`Overige betrokkenen: ${info.betrokkenPersonen.join(', ')}`);
   }
 
-  // Fases met VOORGEKAUWDE verdeling
-  if (geanalyseerde_fases.length > 0) {
-    parts.push(`\n## Medewerkers (PARALLEL, allen starten ${geanalyseerde_fases[0]?.start_datum})`);
-    geanalyseerde_fases.forEach((f: any) => {
-      parts.push(`\n### ${f.medewerkers?.[0] || f.fase_naam}`);
-      parts.push(`- Medewerker: ${f.medewerkers?.join(', ') || f.fase_naam}`);
-      parts.push(`- Totaal dagen: ${f.duur_dagen}`);
-      parts.push(`- Start: ${f.start_datum}`);
-      parts.push(`- Uren/dag: ${f.uren_per_dag}`);
-      parts.push(`- **VERDELING: ${f.verdeling.toUpperCase()}**`);
-      if (f.verdeling === 'per_week') {
-        parts.push(`- Dagen per week: ${f.dagen_per_week || 1}`);
-      }
-      if (f.notities) {
-        parts.push(`- Toelichting: "${f.notities}"`);
-      }
-    });
-  }
-
-  // Feedback
+  // Feedback van planner
   if (feedback) {
-    parts.push(`\n## Feedback op vorig voorstel`);
-    parts.push(`"${feedback}"`);
+    parts.push(``);
+    parts.push(`Feedback op vorig voorstel: "${feedback}"`);
   }
 
-  // Actie met EXACTE fases array
-  parts.push(`\n## ACTIE`);
-  parts.push(`Roep plan_project aan met EXACT deze parameters:`);
-  parts.push(`\`\`\`json`);
-  parts.push(JSON.stringify({
-    klant_naam: info.klant_naam,
-    project_naam: info.projectTitel || info.projectnaam,
-    projecttype: info.projecttype || 'algemeen',
-    deadline: info.deadline || undefined,
-    fases: geanalyseerde_fases.map(f => ({
-      fase_naam: f.medewerkers?.[0] || f.fase_naam,
-      medewerkers: f.medewerkers || [f.fase_naam],
-      start_datum: f.start_datum,
-      duur_dagen: f.duur_dagen,
-      uren_per_dag: f.uren_per_dag,
-      verdeling: f.verdeling,
-      dagen_per_week: f.dagen_per_week,
-    })),
-    betrokken_personen: info.betrokkenPersonen?.length > 0 ? info.betrokkenPersonen : undefined,
-  }, null, 2));
-  parts.push(`\`\`\``);
-  parts.push(`\nGeef daarna een KORTE samenvatting (1-2 zinnen).`);
+  // Instructie voor Ellen
+  parts.push(``);
+  parts.push(`Analyseer de toelichtingen zorgvuldig en bepaal zelf de juiste verdeling per fase.`);
+  parts.push(`Gebruik de plan_project tool om een voorstel te maken.`);
 
   return parts.join('\n');
 }
