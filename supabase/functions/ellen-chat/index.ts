@@ -1300,6 +1300,7 @@ Deno.serve(async (req) => {
     if (actie === 'plannen') {
       const planning = body.planning;
       const gekozenWerktype = body.werktype;
+      const gekozenPlanStatus = body.plan_status || 'concept'; // 'concept' of 'wacht_klant'
 
       if (!planning || !planning.taken?.length) {
         return new Response(
@@ -1374,7 +1375,7 @@ Deno.serve(async (req) => {
           dag_van_week: taak.dag_van_week,
           start_uur: taak.start_uur,
           duur_uren: taak.duur_uren,
-          plan_status: 'concept',
+          plan_status: gekozenPlanStatus, // 'concept' of 'wacht_klant'
           is_hard_lock: false,
         });
         if (!error) aantalGeplaatst++;

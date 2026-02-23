@@ -205,28 +205,13 @@ export default function EllenVoorstel() {
   };
 
   const handleClientApprovalNeeded = async (needsClientApproval: boolean) => {
-    if (needsClientApproval) {
-      saveAanvraag({
-        id: `wacht-klant-${Date.now()}`,
-        type: 'nieuw-project',
-        status: 'concept',
-        titel: projectInfo?.projectnaam || 'Project',
-        klant: projectInfo?.klant_naam,
-        datum: new Date().toISOString(),
-        projectType: projectInfo?.projecttype,
-      });
-      toast({
-        title: 'Voorstel opgeslagen',
-        description: 'Het voorstel wacht op goedkeuring van de klant. Je vindt het terug bij "Mijn aanvragen".',
-      });
-      navigate('/');
-      return;
-    }
-
     setFlowState('placing');
     try {
       const sessionToken = getSessionToken();
       if (!sessionToken) throw new Error('Niet ingelogd');
+
+      // Bepaal de plan_status: wacht_klant of concept
+      const planStatus = needsClientApproval ? 'wacht_klant' : 'concept';
 
       // Gebruik de Edge Function met het geselecteerde werktype
       const { data, error } = await supabase.functions.invoke('ellen-chat', {
@@ -235,6 +220,7 @@ export default function EllenVoorstel() {
           sessie_id: `project-${Date.now()}`,
           actie: 'plannen',
           werktype: selectedWerktype,
+          plan_status: planStatus,
           planning: {
             klant_naam: projectInfo.klant_naam,
             project_nummer: `P-${Date.now().toString().slice(-6)}`,
@@ -252,7 +238,22 @@ export default function EllenVoorstel() {
       if (error) throw new Error(error.message);
 
       if (data?.success) {
-        // Template is al opgeslagen in NieuwProject.tsx - geen nieuwe entry nodig
+        if (needsClientApproval) {
+          // Sla ook op in aanvragen voor tracking
+          saveAanvraag({
+            id: `wacht-klant-${Date.now()}`,
+            type: 'nieuw-project',
+            status: 'concept',
+            titel: projectInfo?.projectnaam || 'Project',
+            klant: projectInfo?.klant_naam,
+            datum: new Date().toISOString(),
+            projectType: projectInfo?.projecttype,
+          });
+          toast({
+            title: 'Planning als concept geplaatst',
+            description: 'De planning staat als concept in de planner (doorzichtig). Je vindt het ook bij "Meldingen" voor goedkeuring.',
+          });
+        }
         setFlowState('done');
       } else {
         throw new Error(data?.message || 'Onbekende fout');

@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, Clock, Eye, Bell, FolderOpen, Plus, FileEdit, Users, CalendarOff } from 'lucide-react';
+import { CheckCircle2, Clock, Eye, Bell, FolderOpen, Plus, FileEdit, Users, CalendarOff } from 'lucide-react';
 import { StatCard } from './StatCard';
 import { RequestBlock } from './RequestBlock';
 import { NotificationPanel, type Notification as PanelNotification, type NotificationType } from './NotificationPanel';
 import { MijnAanvragen } from './MijnAanvragen';
+import { WachtOpGoedkeuring, getWachtKlantCount } from './WachtOpGoedkeuring';
 import { getWeekNumber, getWeekStart, formatDateRange } from '@/lib/helpers/dateHelpers';
 import { useNotifications } from '@/lib/data';
 import { useAuth } from '@/contexts/AuthContext';
@@ -34,6 +35,8 @@ export function Dashboard({ selectedEmployeeId }: DashboardProps) {
 
   const [notifications, setNotifications] = useState<PanelNotification[]>([]);
   const [openPanel, setOpenPanel] = useState<NotificationType | null>(null);
+  const [wachtKlantCount, setWachtKlantCount] = useState(0);
+  const [showWachtOpGoedkeuring, setShowWachtOpGoedkeuring] = useState(false);
 
   // Update notifications when data loads
   useState(() => {
@@ -41,6 +44,11 @@ export function Dashboard({ selectedEmployeeId }: DashboardProps) {
       setNotifications(convertNotifications(initialNotifications));
     }
   });
+
+  // Load wacht_klant count
+  useEffect(() => {
+    getWachtKlantCount().then(setWachtKlantCount);
+  }, []);
 
   const today = new Date();
   const weekStart = getWeekStart(today);
@@ -78,11 +86,11 @@ export function Dashboard({ selectedEmployeeId }: DashboardProps) {
       {/* Stats Grid */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <StatCard
-          title="Te laat"
-          value={getCount('late')}
-          icon={AlertTriangle}
-          variant="danger"
-          onClick={() => setOpenPanel('late')}
+          title="Wacht op goedkeuring"
+          value={wachtKlantCount}
+          icon={CheckCircle2}
+          variant={wachtKlantCount > 0 ? 'warning' : 'success'}
+          onClick={() => setShowWachtOpGoedkeuring(!showWachtOpGoedkeuring)}
         />
         <StatCard
           title="Aankomende deadlines"
@@ -113,6 +121,14 @@ export function Dashboard({ selectedEmployeeId }: DashboardProps) {
           onClick={() => setOpenPanel('active')}
         />
       </div>
+
+      {/* Wacht op Goedkeuring Panel */}
+      {showWachtOpGoedkeuring && wachtKlantCount > 0 && (
+        <div>
+          <h2 className="mb-4 text-xl font-semibold text-foreground">Wacht op goedkeuring</h2>
+          <WachtOpGoedkeuring />
+        </div>
+      )}
 
       {/* Request Blocks */}
       <div>
