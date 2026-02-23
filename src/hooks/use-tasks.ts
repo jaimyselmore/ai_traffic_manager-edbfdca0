@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase/client';
+import { secureSelect } from '@/lib/data/secureDataClient';
 
 // Task interface matching what Planner expects
 export interface Task {
@@ -15,7 +15,7 @@ export interface Task {
   dag_van_week: number;
   start_uur: number;
   duur_uren: number;
-  plan_status: 'concept' | 'vast';
+  plan_status: 'concept' | 'vast' | 'wacht_klant';
   is_hard_lock: boolean;
   // Mapping properties for compatibility with PlannerGrid
   employeeId: string;
@@ -25,7 +25,7 @@ export interface Task {
   startTime: string;
   endTime: string;
   type: string;
-  planStatus: 'concept' | 'vast';
+  planStatus: 'concept' | 'vast' | 'wacht_klant';
   projectTitel?: string;
   faseNaam?: string;
 }
@@ -36,19 +36,18 @@ export function useTasks(weekStart: Date, employeeName?: string) {
   return useQuery({
     queryKey: ['tasks', weekStartISO, employeeName],
     queryFn: async () => {
-      let query = supabase
-        .from('taken')
-        .select('*')
-        .eq('week_start', weekStartISO)
-        .order('dag_van_week')
-        .order('start_uur');
+      const filters: Array<{ column: string; operator: 'eq'; value: string }> = [
+        { column: 'week_start', operator: 'eq', value: weekStartISO },
+      ];
 
-      // Filter by employee name if provided
       if (employeeName) {
-        query = query.eq('werknemer_naam', employeeName);
+        filters.push({ column: 'werknemer_naam', operator: 'eq', value: employeeName });
       }
 
-      const { data, error } = await query;
+      const { data, error } = await secureSelect<any>('taken', {
+        filters,
+        order: { column: 'dag_van_week', ascending: true },
+      });
 
       if (error) {
         throw new Error(`Fout bij ophalen taken: ${error.message}`);
@@ -57,9 +56,9 @@ export function useTasks(weekStart: Date, employeeName?: string) {
       // Map database rows to Task objects with compatibility fields
       return ((data || []) as any[]).map(row => {
         // Calculate the actual date for this task
-        const taskDate = new Date(weekStartISO);
+        const taskDate = new Date(weekStartISO + 'T00:00:00');
         taskDate.setDate(taskDate.getDate() + row.dag_van_week);
-        const dateStr = taskDate.toISOString().split('T')[0];
+        const dateStr = `${taskDate.getFullYear()}-${String(taskDate.getMonth() + 1).padStart(2, '0')}-${String(taskDate.getDate()).padStart(2, '0')}`;
 
         return {
           id: row.id,
@@ -90,7 +89,7 @@ export function useTasks(weekStart: Date, employeeName?: string) {
         } as Task;
       });
     },
-    staleTime: 5 * 60 * 1000, // 5 minuten
-    enabled: !!weekStartISO, // Only run query if we have a week start
+    staleTime: 5 * 60 * 1000,
+    enabled: !!weekStartISO,
   });
 }
