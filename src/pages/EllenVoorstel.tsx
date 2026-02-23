@@ -65,6 +65,8 @@ export default function EllenVoorstel() {
   const [isRequestingNewProposal, setIsRequestingNewProposal] = useState(false);
   const [bestaandeTaken, setBestaandeTaken] = useState<Taak[]>([]);
   const [, setIsLoadingTaken] = useState(false);
+  const [laatsteFeedback, setLaatsteFeedback] = useState<string>('');
+  const [ellenUitleg, setEllenUitleg] = useState<string>('');
 
   // Load existing tasks for relevant medewerkers and weeks
   useEffect(() => {
@@ -273,6 +275,7 @@ export default function EllenVoorstel() {
 
     setIsRequestingNewProposal(true);
     setEllenMessage('Even kijken, ik pas het voorstel aan...');
+    const gegevenFeedback = feedbackInput.trim();
 
     try {
       const sessionToken = getSessionToken();
@@ -285,7 +288,7 @@ export default function EllenVoorstel() {
           body: {
             sessie_id: `feedback-${Date.now()}`,
             actie: 'feedback_opslaan',
-            feedback: feedbackInput,
+            feedback: gegevenFeedback,
             context: {
               project_info: projectInfo,
               vorig_voorstel: voorstellen,
@@ -293,7 +296,6 @@ export default function EllenVoorstel() {
           },
         });
       } catch {
-        // Feedback opslaan mag niet falen - ga gewoon door
         console.warn('Feedback opslaan mislukt, ga door met nieuw voorstel');
       }
 
@@ -308,7 +310,7 @@ export default function EllenVoorstel() {
         headers: { Authorization: `Bearer ${sessionToken}` },
         body: {
           sessie_id: `project-${Date.now()}`,
-          bericht: buildEllenPrompt(projectInfo, feedbackInput, voorstellen),
+          bericht: buildEllenPrompt(projectInfo, gegevenFeedback, voorstellen),
           project_data: {
             medewerkers: alleMw,
             klant_naam: projectInfo.klant_naam,
@@ -322,13 +324,17 @@ export default function EllenVoorstel() {
 
       if (data?.voorstel?.type === 'planning_voorstel' && data.voorstel.taken?.length > 0) {
         setVoorstellen(data.voorstel.taken);
-        // Niet Ellen's tekst gebruiken - samenvatting wordt automatisch gegenereerd
+        setLaatsteFeedback(gegevenFeedback);
+        // Gebruik Ellen's antwoord als uitleg over wat er is aangepast
+        setEllenUitleg(data?.antwoord || '');
         setEllenMessage('');
       } else if (data?.antwoord) {
-        // Fallback - Ellen heeft geen tool gebruikt
-        const defaultTaken = generateDefaultVoorstel(projectInfo);
-        setVoorstellen(defaultTaken);
-        setEllenMessage('');
+        // Fallback - Ellen heeft geen tool gebruikt, maar probeer haar antwoord te tonen
+        console.warn('Geen planning_voorstel ontvangen bij feedback, gebruik vorig voorstel als basis');
+        setLaatsteFeedback(gegevenFeedback);
+        setEllenUitleg(data.antwoord);
+        // Behoud het huidige voorstel zodat de gebruiker het opnieuw kan proberen
+        setEllenMessage('Ellen kon geen nieuw voorstel genereren. Probeer het opnieuw met andere feedback.');
       }
 
       setFeedbackInput('');
@@ -553,7 +559,7 @@ export default function EllenVoorstel() {
 
         {/* Voorstel State with mini planner */}
         {flowState === 'voorstel' && (
-          <div className="space-y-6">
+           <div className="space-y-6">
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                 <span className="text-lg">🤖</span>
@@ -561,10 +567,34 @@ export default function EllenVoorstel() {
               <div className="space-y-1">
                 <p className="text-sm font-medium text-foreground">Ellen</p>
                 <p className="text-sm text-muted-foreground">
-                  Hier is mijn voorstel voor de planning:
+                  {laatsteFeedback ? 'Ik heb je feedback verwerkt. Hier is het aangepaste voorstel:' : 'Hier is mijn voorstel voor de planning:'}
                 </p>
               </div>
             </div>
+
+            {/* Feedback banner - toon welke feedback is verwerkt */}
+            {laatsteFeedback && (
+              <Card className="p-4 bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800">
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-amber-800 dark:text-amber-200 uppercase tracking-wide">
+                    📝 Verwerkte feedback
+                  </p>
+                  <p className="text-sm text-amber-900 dark:text-amber-100 italic">
+                    "{laatsteFeedback}"
+                  </p>
+                  {ellenUitleg && (
+                    <div className="pt-2 border-t border-amber-200 dark:border-amber-800">
+                      <p className="text-xs font-semibold text-amber-800 dark:text-amber-200 uppercase tracking-wide mb-1">
+                        🤖 Ellen's toelichting
+                      </p>
+                      <p className="text-sm text-amber-900 dark:text-amber-100">
+                        {ellenUitleg}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            )}
 
             {/* Project summary with generated planning details */}
             <Card className="p-4 bg-accent/30 border-primary/20">
