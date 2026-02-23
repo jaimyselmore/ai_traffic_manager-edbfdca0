@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { AppSidebar } from '@/components/layout/AppSidebar';
 import { TopBar } from '@/components/layout/TopBar';
 import { Dashboard } from '@/components/dashboard/Dashboard';
@@ -10,8 +11,19 @@ import { useAuth } from '@/contexts/AuthContext';
 type Tab = 'overzicht' | 'planner' | 'agendas' | 'ellen' | 'admin';
 
 const Index = () => {
-  const [activeTab, setActiveTab] = useState<Tab>('overzicht');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab') as Tab | null;
+  const [activeTab, setActiveTab] = useState<Tab>(tabParam || 'overzicht');
   const { user } = useAuth();
+
+  // Update tab when URL param changes
+  useEffect(() => {
+    if (tabParam && ['overzicht', 'planner', 'agendas', 'ellen', 'admin'].includes(tabParam)) {
+      setActiveTab(tabParam);
+      // Clear the param after reading it
+      setSearchParams({}, { replace: true });
+    }
+  }, [tabParam, setSearchParams]);
 
   const renderContent = () => {
     switch (activeTab) {

@@ -924,7 +924,7 @@ export default function EllenVoorstel() {
               <Button variant="outline" onClick={() => navigate('/')}>
                 Terug naar dashboard
               </Button>
-              <Button onClick={() => navigate('/planner')}>
+              <Button onClick={() => navigate('/?tab=planner')}>
                 Bekijk in planner
               </Button>
             </div>
