@@ -307,7 +307,7 @@ export default function EllenVoorstel() {
         headers: { Authorization: `Bearer ${sessionToken}` },
         body: {
           sessie_id: `project-${Date.now()}`,
-          bericht: buildEllenPrompt(projectInfo, feedbackInput),
+          bericht: buildEllenPrompt(projectInfo, feedbackInput, voorstellen),
           project_data: {
             medewerkers: alleMw,
             klant_naam: projectInfo.klant_naam,
@@ -958,7 +958,7 @@ export default function EllenVoorstel() {
 /**
  * Bouw Ellen prompt - Volledige context voor slimme planning
  */
-function buildEllenPrompt(info: any, feedback?: string): string {
+function buildEllenPrompt(info: any, feedback?: string, vorigVoorstel?: VoorstelTaak[]): string {
   const parts: string[] = [];
 
   // Header met duidelijke opdracht
@@ -1040,8 +1040,32 @@ function buildEllenPrompt(info: any, feedback?: string): string {
   if (feedback) {
     parts.push(``);
     parts.push(`--- FEEDBACK OP VORIG VOORSTEL ---`);
+    parts.push(`De planner heeft het volgende voorstel AFGEKEURD met deze feedback:`);
     parts.push(`"${feedback}"`);
-    parts.push(`^ NEEM DEZE FEEDBACK MEE IN JE NIEUWE VOORSTEL`);
+    parts.push(``);
+    parts.push(`VORIG VOORSTEL (dat werd afgekeurd):`);
+    if (vorigVoorstel?.length) {
+      const perMw: Record<string, Array<{ dag: number; week: string; uur: number; duur: number; fase: string }>> = {};
+      vorigVoorstel.forEach((t: VoorstelTaak) => {
+        if (!perMw[t.werknemer_naam]) perMw[t.werknemer_naam] = [];
+        perMw[t.werknemer_naam].push({
+          dag: t.dag_van_week,
+          week: t.week_start,
+          uur: t.start_uur,
+          duur: t.duur_uren,
+          fase: t.fase_naam,
+        });
+      });
+      Object.entries(perMw).forEach(([naam, taken]) => {
+        parts.push(`  ${naam}: ${taken.length} blokken`);
+        taken.forEach(t => {
+          const dagNamen = ['ma', 'di', 'wo', 'do', 'vr'];
+          parts.push(`    - ${dagNamen[t.dag] || t.dag} (week ${t.week}): ${t.uur}:00-${t.uur + t.duur}:00 → ${t.fase}`);
+        });
+      });
+    }
+    parts.push(``);
+    parts.push(`^ MAAK EEN NIEUW VOORSTEL DAT REKENING HOUDT MET DEZE FEEDBACK. VERANDER WAT DE PLANNER VRAAGT.`);
   }
 
   // Verzamel alle medewerkers voor de beschikbaarheidscheck
