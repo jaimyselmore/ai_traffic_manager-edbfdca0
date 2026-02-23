@@ -141,7 +141,7 @@ export function Planner() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Planner</h1>
           <p className="mt-1 text-base text-muted-foreground">
-            Week {weekNumber} – {dateRange}
+            Week {currentWeekNumber} – {formatDateRange(getWeekStart(new Date()))}
           </p>
         </div>
 
