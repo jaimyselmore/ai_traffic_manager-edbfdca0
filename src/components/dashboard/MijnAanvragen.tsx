@@ -4,6 +4,16 @@ import { FileText, Send, Clock, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface SavedAanvraag {
   id: string;
@@ -73,6 +83,7 @@ export function removeAanvraag(id: string) {
 export function MijnAanvragen() {
   const navigate = useNavigate();
   const [aanvragen, setAanvragen] = useState<SavedAanvraag[]>([]);
+  const [deleteTarget, setDeleteTarget] = useState<SavedAanvraag | null>(null);
 
   useEffect(() => {
     setAanvragen(getAanvragenLijst());
@@ -84,6 +95,7 @@ export function MijnAanvragen() {
   const handleDelete = (id: string) => {
     removeAanvraag(id);
     setAanvragen(getAanvragenLijst());
+    setDeleteTarget(null);
   };
 
   const renderAanvraag = (aanvraag: SavedAanvraag) => (
@@ -136,7 +148,7 @@ export function MijnAanvragen() {
         className="flex-shrink-0 h-8 w-8"
         onClick={(e) => {
           e.stopPropagation();
-          handleDelete(aanvraag.id);
+          setDeleteTarget(aanvraag);
         }}
       >
         <Trash2 className="h-4 w-4 text-muted-foreground" />
@@ -183,6 +195,26 @@ export function MijnAanvragen() {
           ) : ingediend.map(renderAanvraag)}
         </TabsContent>
       </Tabs>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Template verwijderen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Weet je zeker dat je "{deleteTarget?.titel || 'dit item'}" wilt verwijderen? Dit kan niet ongedaan worden gemaakt.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuleren</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteTarget && handleDelete(deleteTarget.id)}
+            >
+              Verwijderen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
