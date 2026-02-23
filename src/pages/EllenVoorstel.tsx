@@ -1,11 +1,11 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Loader2, CheckCircle2, XCircle, ArrowLeft, Send, Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
-import { getSessionToken, secureSelect } from '@/lib/data/secureDataClient';
+import { getSessionToken, secureSelect, secureInsert } from '@/lib/data/secureDataClient';
 import { saveAanvraag } from '@/components/dashboard/MijnAanvragen';
 import { toast } from '@/hooks/use-toast';
 import { Taak } from '@/lib/data/takenService';
@@ -96,6 +96,7 @@ export default function EllenVoorstel() {
   const [, setIsLoadingTaken] = useState(false);
   const [laatsteFeedback, setLaatsteFeedback] = useState<string>('');
   const [ellenUitleg, setEllenUitleg] = useState<string>('');
+  const voorstelGenerated = useRef(false);
 
   // Load existing tasks for relevant medewerkers and weeks
   useEffect(() => {
@@ -161,6 +162,10 @@ export default function EllenVoorstel() {
     }
 
     const generateVoorstel = async () => {
+      // Prevent double execution (React StrictMode / re-renders)
+      if (voorstelGenerated.current) return;
+      voorstelGenerated.current = true;
+
       const sessionToken = getSessionToken();
       if (!sessionToken) {
         setFlowState('error');
@@ -253,55 +258,94 @@ export default function EllenVoorstel() {
       const sessionToken = getSessionToken();
       if (!sessionToken) throw new Error('Niet ingelogd');
 
-      // Bepaal de plan_status: wacht_klant (doorzichtig) of vast (vol kleur)
       const planStatus = needsClientApproval ? 'wacht_klant' : 'vast';
+      const werktype = selectedWerktype;
+      const werktypeLabels: Record<string, string> = {
+        concept: 'Conceptontwikkeling',
+        uitwerking: 'Conceptuitwerking',
+        productie: 'Productie',
+        extern: 'Meeting met klant',
+        review: 'Interne review',
+      };
+      const faseLabel = werktypeLabels[werktype] || werktype;
+      const projectNummer = `P-${Date.now().toString().slice(-6)}`;
 
-      // Gebruik de Edge Function met het geselecteerde werktype
-      const { data, error } = await supabase.functions.invoke('ellen-chat', {
-        headers: { Authorization: `Bearer ${sessionToken}` },
-        body: {
-          sessie_id: `project-${Date.now()}`,
-          actie: 'plannen',
-          werktype: selectedWerktype,
-          plan_status: planStatus,
-          planning: {
-            klant_naam: projectInfo.klant_naam,
-            project_nummer: `P-${Date.now().toString().slice(-6)}`,
-            project_omschrijving: projectInfo.projectnaam,
-            projecttype: projectInfo.projecttype,
-            deadline: projectInfo.deadline,
-            taken: voorstellen.map(t => ({
-              ...t,
-              werktype: selectedWerktype,
-            })),
-          },
-        },
+      // 1. Zoek klant
+      const { data: klanten } = await secureSelect<{ id: string }>('klanten', {
+        columns: 'id',
+        filters: [{ column: 'naam', operator: 'ilike', value: `%${projectInfo.klant_naam}%` }],
+        limit: 1,
       });
+      const klantId = klanten?.[0]?.id;
+      if (!klantId) throw new Error(`Klant "${projectInfo.klant_naam}" niet gevonden`);
 
-      if (error) throw new Error(error.message);
+      // 2. Maak project aan
+      const { data: projectResult, error: projectErr } = await secureInsert<{ id: string; projectnummer: string }>('projecten', {
+        klant_id: klantId,
+        projectnummer: projectNummer,
+        omschrijving: projectInfo.projectnaam || projectInfo.klant_naam,
+        projecttype: projectInfo.projecttype || 'algemeen',
+        deadline: projectInfo.deadline,
+        status: 'concept',
+        datum_aanvraag: new Date().toISOString().split('T')[0],
+        volgnummer: Date.now() % 10000,
+      });
+      if (projectErr) throw new Error(`Kon project niet aanmaken: ${projectErr.message}`);
+      const project = Array.isArray(projectResult) ? projectResult[0] : projectResult;
+      if (!project?.id) throw new Error('Project aangemaakt maar geen ID terug gekregen');
 
-      if (data?.success) {
-        if (needsClientApproval) {
-          // Sla ook op in aanvragen voor tracking
-          saveAanvraag({
-            id: `wacht-klant-${Date.now()}`,
-            type: 'nieuw-project',
-            status: 'concept',
-            titel: projectInfo?.projectnaam || 'Project',
-            klant: projectInfo?.klant_naam,
-            datum: new Date().toISOString(),
-            projectType: projectInfo?.projecttype,
-          });
-          toast({
-            title: 'Planning als concept geplaatst',
-            description: 'De planning staat als concept in de planner (doorzichtig). Je vindt het ook bij "Meldingen" voor goedkeuring.',
-          });
+      // 3. Maak taken aan - één voor één
+      let aantalGeplaatst = 0;
+      const fouten: string[] = [];
+      for (const taak of voorstellen) {
+        const { error: taakErr } = await secureInsert('taken', {
+          project_id: project.id,
+          werknemer_naam: taak.werknemer_naam,
+          klant_naam: projectInfo.klant_naam,
+          project_nummer: projectNummer,
+          fase_naam: faseLabel,
+          werktype,
+          discipline: 'Algemeen',
+          week_start: taak.week_start,
+          dag_van_week: taak.dag_van_week,
+          start_uur: taak.start_uur,
+          duur_uren: taak.duur_uren,
+          plan_status: planStatus,
+          is_hard_lock: false,
+        });
+        if (taakErr) {
+          console.error('Taak insert fout:', taakErr.message);
+          fouten.push(`${taak.werknemer_naam}: ${taakErr.message}`);
+        } else {
+          aantalGeplaatst++;
         }
-        setFlowState('done');
-      } else {
-        throw new Error(data?.message || 'Onbekende fout');
       }
+
+      if (aantalGeplaatst === 0) {
+        throw new Error(`Geen taken geplaatst. Fouten: ${fouten.join('; ')}`);
+      }
+
+      if (needsClientApproval) {
+        saveAanvraag({
+          id: `wacht-klant-${Date.now()}`,
+          type: 'nieuw-project',
+          status: 'concept',
+          titel: projectInfo?.projectnaam || 'Project',
+          klant: projectInfo?.klant_naam,
+          datum: new Date().toISOString(),
+          projectType: projectInfo?.projecttype,
+        });
+      }
+
+      toast({
+        title: `${aantalGeplaatst} taken geplaatst`,
+        description: needsClientApproval
+          ? 'De planning staat als concept in de planner (doorzichtig).'
+          : `Planning "${projectNummer}" is vastgezet in de planner.`,
+      });
+      setFlowState('done');
     } catch (err) {
+      console.error('Planning opslaan fout:', err);
       setFlowState('error');
       setErrorMessage(err instanceof Error ? err.message : 'Er ging iets mis bij het aanmaken');
     }
