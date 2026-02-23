@@ -1149,7 +1149,7 @@ Deno.serve(async (req) => {
 
     // 2. Parse request
     const body = await req.json();
-    const { sessie_id, bericht, actie, tabel, id, veld, nieuwe_waarde } = body;
+    const { sessie_id, bericht, actie, tabel, id, veld, nieuwe_waarde, project_data } = body;
     if (!sessie_id) {
       return new Response(
         JSON.stringify({ error: 'sessie_id is verplicht' }),
@@ -1382,7 +1382,73 @@ Deno.serve(async (req) => {
         });
       }
     }
-    claudeMessages.push({ role: 'user', content: bericht });
+    // Pre-fetch data for project planning to avoid tool-call timeouts
+    let prefetchedContext = '';
+    if (project_data) {
+      console.log('Pre-fetching data for project planning...');
+      const { medewerkers: mwNames, klant_naam, start_datum, eind_datum } = project_data;
+      
+      const prefetchParts: string[] = [];
+      
+      // Fetch klant info
+      if (klant_naam) {
+        const { data: klantData } = await supabase
+          .from('klanten')
+          .select('id, klantnummer, naam, contactpersoon, planning_instructies')
+          .ilike('naam', `%${klant_naam}%`)
+          .limit(1)
+          .maybeSingle();
+        if (klantData) {
+          prefetchParts.push(`\n--- PRE-LOADED: KLANT INFO ---\n${JSON.stringify(klantData, null, 2)}`);
+        }
+      }
+
+      // Fetch medewerker info
+      if (mwNames?.length) {
+        const { data: mwData } = await supabase
+          .from('medewerkers')
+          .select('werknemer_id, naam_werknemer, primaire_rol, tweede_rol, discipline, werkuren, parttime_dag, duo_team, beschikbaar, notities')
+          .in('naam_werknemer', mwNames);
+        if (mwData?.length) {
+          prefetchParts.push(`\n--- PRE-LOADED: MEDEWERKER INFO ---\n${JSON.stringify(mwData, null, 2)}`);
+        }
+
+        // Fetch beschikbaarheid (taken + verlof) for each medewerker
+        if (start_datum && eind_datum) {
+          const beschikbaarheid: Record<string, unknown> = {};
+          for (const mw of mwNames) {
+            const [takenRes, verlofRes] = await Promise.all([
+              supabase.from('taken')
+                .select('week_start, dag_van_week, start_uur, duur_uren, klant_naam, project_nummer')
+                .eq('werknemer_naam', mw)
+                .gte('week_start', start_datum)
+                .lte('week_start', eind_datum),
+              supabase.from('beschikbaarheid_medewerkers')
+                .select('start_datum, eind_datum, type, reden')
+                .eq('werknemer_naam', mw)
+                .eq('status', 'goedgekeurd')
+                .or(`start_datum.lte.${eind_datum},eind_datum.gte.${start_datum}`),
+            ]);
+            
+            const totaalIngepland = (takenRes.data || []).reduce((sum: number, b: { duur_uren: number }) => sum + b.duur_uren, 0);
+            beschikbaarheid[mw] = {
+              ingeplande_uren: totaalIngepland,
+              bestaande_taken: takenRes.data || [],
+              verlof_periodes: verlofRes.data || [],
+            };
+          }
+          prefetchParts.push(`\n--- PRE-LOADED: BESCHIKBAARHEID (${start_datum} t/m ${eind_datum}) ---\n${JSON.stringify(beschikbaarheid, null, 2)}`);
+        }
+      }
+
+      if (prefetchParts.length > 0) {
+        prefetchedContext = '\n\n=== DATA IS AL OPGEHAALD - GEBRUIK GEEN zoek_taken, check_beschikbaarheid of zoek_klanten TOOLS ===\n' +
+          'Alle benodigde data staat hieronder. Ga DIRECT naar plan_project.\n' +
+          prefetchParts.join('\n');
+      }
+    }
+
+    claudeMessages.push({ role: 'user', content: bericht + prefetchedContext });
 
     // 8. Check API key
     const anthropicKey = Deno.env.get('ANTHROPIC_API_KEY');
@@ -1400,7 +1466,8 @@ Deno.serve(async (req) => {
     // deno-lint-ignore no-explicit-any
     let currentMessages = [...claudeMessages];
 
-    for (let i = 0; i < 5; i++) {
+    const maxIterations = project_data ? 3 : 5;
+    for (let i = 0; i < maxIterations; i++) {
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
