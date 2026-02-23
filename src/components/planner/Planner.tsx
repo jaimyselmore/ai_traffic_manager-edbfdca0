@@ -144,7 +144,7 @@ export function Planner() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       {/* Header with controls on same line */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
@@ -294,8 +294,8 @@ export function Planner() {
         <TaskLegend />
       </div>
 
-      {/* Grid with zoom + navigation arrows */}
-      <div className="flex items-center justify-end gap-1 -mb-2">
+      {/* Week navigation arrows */}
+      <div className="flex items-center justify-end gap-1">
         <Button
           variant="outline"
           size="icon"
@@ -308,6 +308,9 @@ export function Planner() {
         >
           <ChevronLeft className="h-4 w-4" />
         </Button>
+        <span className="text-sm font-medium text-foreground min-w-[60px] text-center">
+          Week {weekNumber}
+        </span>
         <Button
           variant="outline"
           size="icon"

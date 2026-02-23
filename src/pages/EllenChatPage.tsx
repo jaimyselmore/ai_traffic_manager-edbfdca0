@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { getSessionToken } from '@/lib/data/secureDataClient';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
+import { getWeekNumber, getWeekStart, formatDateRange } from '@/lib/helpers/dateHelpers';
 
 const STORAGE_KEY = 'ellen_sessie_id';
 
@@ -299,7 +300,7 @@ export default function EllenChatPage() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Ellen</h1>
           <p className="mt-1 text-base text-muted-foreground">
-            Stel je vraag over de planning, projecten of capaciteit
+            Week {getWeekNumber(new Date())} – {formatDateRange(getWeekStart(new Date()))}
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={handleNewConversation}>
