@@ -132,7 +132,7 @@ export function PlannerGrid({ weekStart, employees, tasks, compact = false }: Pl
                         const isStart = getTaskStart(task, hour);
                         if (!isStart) return null;
                         const isConcept = task.planStatus === 'concept';
-                        const isWachtKlant = task.planStatus === 'wacht_klant';
+                        const isWachtKlant = (task.planStatus as string) === 'wacht_klant';
                         const isDoorzichtig = isConcept || isWachtKlant;
 
                         return (
