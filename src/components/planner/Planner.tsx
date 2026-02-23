@@ -33,28 +33,24 @@ const zoomLevels = [50, 75, 100, 125, 150];
 
 export function Planner() {
   const [currentWeekStart, setCurrentWeekStart] = useState(() => getWeekStart(new Date()));
-  const currentWeekNumber = getWeekNumber(getWeekStart(new Date())); // The actual current week
+  const currentWeekNumber = getWeekNumber(getWeekStart(new Date()));
   const [selectedClient, setSelectedClient] = useState<string>('all');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [plannerZoom, setPlannerZoom] = useState<number>(100);
 
-  // Visible employees - stored in localStorage
   const [visibleEmployeeIds, setVisibleEmployeeIds] = useState<string[]>(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
     return stored ? JSON.parse(stored) : [];
   });
 
-  // Fetch data from Supabase
   const { data: employees = [], isLoading: isLoadingEmployees } = useEmployees();
   const { data: clients = [], isLoading: isLoadingClients } = useClients();
   const { data: tasksFromDb = [], isLoading: isLoadingTasks } = useTasks(currentWeekStart);
 
-  // Save visible employees to localStorage when it changes
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(visibleEmployeeIds));
   }, [visibleEmployeeIds]);
 
-  // If no employees selected yet and employees loaded, show all by default
   useEffect(() => {
     if (employees.length > 0 && visibleEmployeeIds.length === 0) {
       setVisibleEmployeeIds(employees.map(e => e.id));
@@ -68,23 +64,19 @@ export function Planner() {
 
   const filteredTasks = useMemo(() => {
     return tasks.filter((task) => {
-      // Filter by visible employees
       if (!visibleEmployeeIds.includes(task.employeeId)) return false;
       if (selectedClient !== 'all' && task.clientName !== selectedClient) return false;
       return true;
     });
   }, [tasks, visibleEmployeeIds, selectedClient]);
 
-  // Voor de grid: gebruik alleen geselecteerde employees
   const filteredEmployees = useMemo(() => {
     return employees.filter((emp) => visibleEmployeeIds.includes(emp.id));
   }, [employees, visibleEmployeeIds]);
 
-  // Toggle employee visibility
   const toggleEmployee = (employeeId: string) => {
     setVisibleEmployeeIds(prev => {
       if (prev.includes(employeeId)) {
-        // Don't allow deselecting if it's the last one
         if (prev.length === 1) return prev;
         return prev.filter(id => id !== employeeId);
       }
@@ -92,7 +84,6 @@ export function Planner() {
     });
   };
 
-  // Select all employees
   const selectAllEmployees = () => {
     setVisibleEmployeeIds(employees.map(e => e.id));
   };
@@ -154,16 +145,9 @@ export function Planner() {
           </p>
         </div>
 
-        {/* Zoom, Download, Vergroot planner - right side, responsive */}
         <div className="flex flex-wrap items-center gap-2 sm:gap-3 self-center">
           <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              onClick={handleZoomOut}
-              disabled={plannerZoom === 50}
-            >
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleZoomOut} disabled={plannerZoom === 50}>
               <ZoomOut className="h-4 w-4" />
             </Button>
             <Select value={plannerZoom.toString()} onValueChange={(v) => setPlannerZoom(parseInt(v))}>
@@ -172,19 +156,11 @@ export function Planner() {
               </SelectTrigger>
               <SelectContent>
                 {zoomLevels.map((z) => (
-                  <SelectItem key={z} value={z.toString()}>
-                    {z}%
-                  </SelectItem>
+                  <SelectItem key={z} value={z.toString()}>{z}%</SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              onClick={handleZoomIn}
-              disabled={plannerZoom === 150}
-            >
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleZoomIn} disabled={plannerZoom === 150}>
               <ZoomIn className="h-4 w-4" />
             </Button>
           </div>
@@ -197,12 +173,8 @@ export function Planner() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
-              <DropdownMenuItem onClick={handleDownloadPDF}>
-                Deze week als PDF
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleDownloadCSV}>
-                Deze week als CSV
-              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleDownloadPDF}>Deze week als PDF</DropdownMenuItem>
+              <DropdownMenuItem onClick={handleDownloadCSV}>Deze week als CSV</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -213,117 +185,103 @@ export function Planner() {
         </div>
       </div>
 
-      {/* Filter card left + Legend right */}
-      <div className="mt-4 flex items-start gap-8">
-        {/* Left: Filter card */}
-        <div className="rounded-xl border border-border bg-card px-4 py-4 shadow-sm flex flex-col gap-3">
-          <Select 
-            value={weekNumber.toString()} 
-            onValueChange={(v) => {
-              const targetWeek = parseInt(v);
-              const year = currentWeekStart.getFullYear();
-              const jan1 = new Date(year, 0, 1);
-              const firstMonday = getWeekStart(jan1);
-              const targetDate = new Date(firstMonday);
-              targetDate.setDate(targetDate.getDate() + (targetWeek - 1) * 7);
-              setCurrentWeekStart(targetDate);
-            }}
-          >
-            <SelectTrigger className="w-[200px]">
-              <SelectValue>
-                {weekNumber === currentWeekNumber ? 'Huidige week' : `Week ${weekNumber}`}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {Array.from({ length: 52 }, (_, i) => i + 1).map((week) => (
-                <SelectItem key={week} value={week.toString()}>
-                  {week === currentWeekNumber ? `Huidige week (${week})` : `Week ${week}`}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      {/* Filter card left + Legend right + Week nav arrows bottom-right */}
+      <div className="flex items-end justify-between">
+        <div className="flex items-start gap-8">
+          <div className="rounded-xl border border-border bg-card px-4 py-4 shadow-sm flex flex-col gap-3">
+            <Select 
+              value={weekNumber.toString()} 
+              onValueChange={(v) => {
+                const targetWeek = parseInt(v);
+                const year = currentWeekStart.getFullYear();
+                const jan1 = new Date(year, 0, 1);
+                const firstMonday = getWeekStart(jan1);
+                const targetDate = new Date(firstMonday);
+                targetDate.setDate(targetDate.getDate() + (targetWeek - 1) * 7);
+                setCurrentWeekStart(targetDate);
+              }}
+            >
+              <SelectTrigger className="w-[200px]">
+                <SelectValue>
+                  {weekNumber === currentWeekNumber ? 'Huidige week' : `Week ${weekNumber}`}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: 52 }, (_, i) => i + 1).map((week) => (
+                  <SelectItem key={week} value={week.toString()}>
+                    {week === currentWeekNumber ? `Huidige week (${week})` : `Week ${week}`}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="w-[200px] justify-between">
-                <span className="flex items-center gap-2">
-                  <Users className="h-4 w-4" />
-                  {visibleEmployeeIds.length === employees.length
-                    ? 'Alle medewerkers'
-                    : `${visibleEmployeeIds.length} medewerker${visibleEmployeeIds.length !== 1 ? 's' : ''}`}
-                </span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-[200px]">
-              <DropdownMenuItem
-                onClick={selectAllEmployees}
-                onSelect={(e) => e.preventDefault()}
-              >
-                Toon iedereen
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              {employees.map((emp) => (
-                <DropdownMenuCheckboxItem
-                  key={emp.id}
-                  checked={visibleEmployeeIds.includes(emp.id)}
-                  onCheckedChange={() => toggleEmployee(emp.id)}
-                  onSelect={(e) => e.preventDefault()}
-                >
-                  {emp.name}
-                </DropdownMenuCheckboxItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="w-[200px] justify-between">
+                  <span className="flex items-center gap-2">
+                    <Users className="h-4 w-4" />
+                    {visibleEmployeeIds.length === employees.length
+                      ? 'Alle medewerkers'
+                      : `${visibleEmployeeIds.length} medewerker${visibleEmployeeIds.length !== 1 ? 's' : ''}`}
+                  </span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-[200px]">
+                <DropdownMenuItem onClick={selectAllEmployees} onSelect={(e) => e.preventDefault()}>
+                  Toon iedereen
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                {employees.map((emp) => (
+                  <DropdownMenuCheckboxItem
+                    key={emp.id}
+                    checked={visibleEmployeeIds.includes(emp.id)}
+                    onCheckedChange={() => toggleEmployee(emp.id)}
+                    onSelect={(e) => e.preventDefault()}
+                  >
+                    {emp.name}
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
 
-          <Select value={selectedClient} onValueChange={setSelectedClient}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Selecteer klant" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Alle klanten</SelectItem>
-              {clients.map((client) => (
-                <SelectItem key={client.id} value={client.id}>
-                  {client.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            <Select value={selectedClient} onValueChange={setSelectedClient}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="Selecteer klant" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Alle klanten</SelectItem>
+                {clients.map((client) => (
+                  <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <TaskLegend />
         </div>
 
-        {/* Right: Legend */}
-        <TaskLegend />
-      </div>
-
-      {/* Week navigation arrows */}
-      <div className="flex items-center justify-end gap-1">
-        <Button
-          variant="outline"
-          size="icon"
-          className="h-8 w-8"
-          onClick={() => {
+        {/* Week navigation arrows */}
+        <div className="flex items-center gap-1 pb-1">
+          <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => {
             const prev = new Date(currentWeekStart);
             prev.setDate(prev.getDate() - 7);
             setCurrentWeekStart(prev);
-          }}
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </Button>
-        <span className="text-sm font-medium text-foreground min-w-[60px] text-center">
-          Week {weekNumber}
-        </span>
-        <Button
-          variant="outline"
-          size="icon"
-          className="h-8 w-8"
-          onClick={() => {
+          }}>
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <span className="text-sm font-medium text-foreground min-w-[80px] text-center">
+            {weekNumber === currentWeekNumber ? 'Huidige week' : `Week ${weekNumber}`}
+          </span>
+          <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => {
             const next = new Date(currentWeekStart);
             next.setDate(next.getDate() + 7);
             setCurrentWeekStart(next);
-          }}
-        >
-          <ChevronRight className="h-4 w-4" />
-        </Button>
+          }}>
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
+
+      {/* Grid with zoom */}
       <div
         className="origin-top-left inline-block w-full"
         style={{ 
