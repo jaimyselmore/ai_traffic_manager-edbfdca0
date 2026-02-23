@@ -27,6 +27,7 @@ interface MedewerkerAllocatie {
   aantalDagen: number;
   eenheid: 'dagen' | 'uren';
   toelichting: string;
+  ongeveer: boolean;
 }
 
 interface TeamAllocatie {
@@ -34,6 +35,7 @@ interface TeamAllocatie {
   aantalDagen: number;
   planningType: 'samen_met_team' | 'beide' | '';
   toelichting: string;
+  ongeveer: boolean;
 }
 
 interface MeetingData {
@@ -287,6 +289,7 @@ export default function NieuwProject() {
               inspanning: teamAllocatie.aantalDagen,
               eenheid: 'dagen',
               toelichting: teamAllocatie.toelichting || '',
+              ongeveer: teamAllocatie.ongeveer,
             })),
           });
         } else if (teamAllocatie.planningType === 'beide') {
@@ -303,6 +306,7 @@ export default function NieuwProject() {
               inspanning: teamDagen,
               eenheid: 'dagen',
               toelichting: teamAllocatie.toelichting || '',
+              ongeveer: teamAllocatie.ongeveer,
             })),
           });
           const individueleDagen = Math.ceil(teamAllocatie.aantalDagen / 2);
@@ -319,6 +323,7 @@ export default function NieuwProject() {
                 inspanning: individueleDagen,
                 eenheid: 'dagen',
                 toelichting: teamAllocatie.toelichting || '',
+                ongeveer: teamAllocatie.ongeveer,
               }],
             });
           });
@@ -343,6 +348,7 @@ export default function NieuwProject() {
             inspanning: allocatie.aantalDagen,
             eenheid: allocatie.eenheid || 'dagen',
             toelichting: allocatie.toelichting || '',
+            ongeveer: allocatie.ongeveer,
           }],
         });
       });
@@ -439,7 +445,8 @@ export default function NieuwProject() {
                 medewerkerId: id,
                 aantalDagen: 5,
                 eenheid: 'dagen',
-                toelichting: ''
+                toelichting: '',
+                ongeveer: false,
               }
             ]
           }
@@ -479,6 +486,30 @@ export default function NieuwProject() {
         ...prev.algemeen,
         medewerkerAllocaties: prev.algemeen.medewerkerAllocaties.map(a =>
           a.medewerkerId === id ? { ...a, eenheid, aantalDagen: eenheid === 'uren' ? 8 : 1 } : a
+        )
+      }
+    }));
+  };
+
+  const handleMedewerkerOngeveerChange = (id: string, ongeveer: boolean) => {
+    setFormData(prev => ({
+      ...prev,
+      algemeen: {
+        ...prev.algemeen,
+        medewerkerAllocaties: prev.algemeen.medewerkerAllocaties.map(a =>
+          a.medewerkerId === id ? { ...a, ongeveer } : a
+        )
+      }
+    }));
+  };
+
+  const handleTeamOngeveerChange = (teamName: string, ongeveer: boolean) => {
+    setFormData(prev => ({
+      ...prev,
+      algemeen: {
+        ...prev.algemeen,
+        teamAllocaties: prev.algemeen.teamAllocaties.map(t =>
+          t.teamName === teamName ? { ...t, ongeveer } : t
         )
       }
     }));
@@ -540,7 +571,8 @@ export default function NieuwProject() {
                 teamName,
                 aantalDagen: 5,
                 planningType: '',
-                toelichting: ''
+                toelichting: '',
+                ongeveer: false,
               }
             ],
             medewerkerAllocaties: prev.algemeen.medewerkerAllocaties.filter(
@@ -731,6 +763,17 @@ export default function NieuwProject() {
                                     <span className="text-sm text-muted-foreground">dagen</span>
                                   </div>
 
+                                  <div className="flex items-center gap-2">
+                                    <Checkbox
+                                      id={`team-ongeveer-${teamName}`}
+                                      checked={teamAllocatie.ongeveer}
+                                      onCheckedChange={(checked) => handleTeamOngeveerChange(teamName, !!checked)}
+                                    />
+                                    <Label htmlFor={`team-ongeveer-${teamName}`} className="text-sm cursor-pointer text-muted-foreground">
+                                      Ongeveer (Ellen mag ± afwijken)
+                                    </Label>
+                                  </div>
+
                                   <div className="space-y-2">
                                     <Label className="text-sm">Hoe plannen? *</Label>
                                     <Select
@@ -818,6 +861,16 @@ export default function NieuwProject() {
                                             />
                                           </div>
 
+                                          <div className="flex items-center gap-2">
+                                            <Checkbox
+                                              id={`emp-ongeveer-${emp.id}`}
+                                              checked={allocatie.ongeveer}
+                                              onCheckedChange={(checked) => handleMedewerkerOngeveerChange(emp.id, !!checked)}
+                                            />
+                                            <Label htmlFor={`emp-ongeveer-${emp.id}`} className="text-sm cursor-pointer text-muted-foreground">
+                                              Ongeveer (Ellen mag ± afwijken)
+                                            </Label>
+                                          </div>
                                           <div className="space-y-2">
                                             <Label className="text-sm">Toelichting</Label>
                                             <Textarea
@@ -886,6 +939,17 @@ export default function NieuwProject() {
                                     onChange={(e) => handleMedewerkerDagenChange(emp.id, parseFloat(e.target.value) || 0)}
                                     placeholder="Aantal"
                                   />
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                  <Checkbox
+                                    id={`emp-ongeveer-standalone-${emp.id}`}
+                                    checked={allocatie.ongeveer}
+                                    onCheckedChange={(checked) => handleMedewerkerOngeveerChange(emp.id, !!checked)}
+                                  />
+                                  <Label htmlFor={`emp-ongeveer-standalone-${emp.id}`} className="text-sm cursor-pointer text-muted-foreground">
+                                    Ongeveer (Ellen mag ± afwijken)
+                                  </Label>
                                 </div>
 
                                 <div className="space-y-2">

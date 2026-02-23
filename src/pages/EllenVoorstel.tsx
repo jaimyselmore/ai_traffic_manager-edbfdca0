@@ -999,6 +999,21 @@ function buildEllenPrompt(info: any, feedback?: string, vorigVoorstel?: Voorstel
       parts.push(`  → Gewenste startdatum: ${f.start_datum || 'Niet opgegeven'}`);
       parts.push(`  → Geschatte duur: ${f.duur_dagen} dagen`);
       parts.push(`  → Uren per dag: ${f.uren_per_dag || 8} uur`);
+
+      // Medewerker details met exact/ongeveer info
+      if (f.medewerkerDetails?.length > 0) {
+        parts.push(`  → INSPANNING PER MEDEWERKER:`);
+        f.medewerkerDetails.forEach((md: any) => {
+          const exactheid = md.ongeveer
+            ? '⚠️ ONGEVEER – je mag ± 20% afwijken van dit aantal'
+            : '🔒 EXACT – je mag NIET afwijken van dit aantal';
+          parts.push(`    • ${md.naam}: ${md.inspanning} ${md.eenheid} (${exactheid})`);
+          if (md.toelichting) {
+            parts.push(`      Toelichting: "${md.toelichting}"`);
+          }
+        });
+      }
+
       if (f.notities) {
         parts.push(`  → TOELICHTING (BELANGRIJK!): "${f.notities}"`);
         parts.push(`     ^ ANALYSEER DIT! Bevat instructies over verdeling (per week, laatste week, etc.)`);
@@ -1132,6 +1147,11 @@ function buildEllenPrompt(info: any, feedback?: string, vorigVoorstel?: Voorstel
   parts.push(`- Respecteer klant instructies`);
   parts.push(`- Pas planning regels toe`);
   parts.push(`- Gebruik verdelingen uit stap 7`);
+  parts.push(``);
+  parts.push(`BELANGRIJK - EXACT vs ONGEVEER:`);
+  parts.push(`- Als bij een medewerker "🔒 EXACT" staat: plan PRECIES dat aantal uren/dagen. Geen afwijking toegestaan.`);
+  parts.push(`- Als bij een medewerker "⚠️ ONGEVEER" staat: je mag tot ±20% afwijken als dat beter uitkomt qua beschikbaarheid.`);
+  parts.push(`- Als er GEEN "ongeveer" info is: behandel het als EXACT.`);
   parts.push(``);
   parts.push(`STAP 9: RAPPORTEER`);
   parts.push(`In je antwoord, vermeld ALTIJD:`);
