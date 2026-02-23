@@ -9,6 +9,7 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 interface MedewerkerStatus {
   werknemer_id: number;
   naam_werknemer: string;
+  microsoft_email: string | null;
   connected: boolean;
   connectedAt?: string;
   loading?: boolean;
@@ -63,6 +64,7 @@ export function MicrosoftKoppelingTab() {
           return {
             werknemer_id: mw.werknemer_id,
             naam_werknemer: mw.naam_werknemer,
+            microsoft_email: mw.microsoft_email || null,
             connected: data?.connected ?? false,
             connectedAt: data?.connectedAt,
           };
@@ -70,6 +72,7 @@ export function MicrosoftKoppelingTab() {
           return {
             werknemer_id: mw.werknemer_id,
             naam_werknemer: mw.naam_werknemer,
+            microsoft_email: mw.microsoft_email || null,
             connected: false,
           };
         }
@@ -159,6 +162,7 @@ export function MicrosoftKoppelingTab() {
             <thead>
               <tr className="bg-muted/50 border-b">
                 <th className="text-left text-sm font-medium text-muted-foreground px-4 py-3">Medewerker</th>
+                <th className="text-left text-sm font-medium text-muted-foreground px-4 py-3">E-mail</th>
                 <th className="text-left text-sm font-medium text-muted-foreground px-4 py-3">Status</th>
                 <th className="text-left text-sm font-medium text-muted-foreground px-4 py-3">Gekoppeld op</th>
                 <th className="text-right text-sm font-medium text-muted-foreground px-4 py-3"></th>
@@ -168,6 +172,7 @@ export function MicrosoftKoppelingTab() {
               {medewerkers.map(mw => (
                 <tr key={mw.werknemer_id} className="border-b last:border-b-0">
                   <td className="px-4 py-3 text-sm font-medium text-foreground">{mw.naam_werknemer}</td>
+                  <td className="px-4 py-3 text-sm text-muted-foreground">{mw.microsoft_email || <span className="italic">Geen e-mail</span>}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       {mw.connected ? (
