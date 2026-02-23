@@ -928,66 +928,92 @@ export default function EllenVoorstel() {
 }
 
 /**
- * Bouw Ellen prompt - VEREENVOUDIGD
- * Ellen (Claude) doet nu zelf de interpretatie van toelichtingen
+ * Bouw Ellen prompt - Volledige context voor slimme planning
  */
 function buildEllenPrompt(info: any, feedback?: string): string {
   const parts: string[] = [];
 
-  // Basis project info
-  parts.push(`Maak een planning voor dit project:`);
+  // Header met duidelijke opdracht
+  parts.push(`=== PROJECT PLANNING AANVRAAG ===`);
   parts.push(``);
-  parts.push(`Klant: ${info.klant_naam}`);
-  parts.push(`Project: ${info.projectTitel || info.projectnaam}`);
-  parts.push(`Type: ${info.projecttype || 'algemeen'}`);
-  if (info.deadline) parts.push(`Deadline: ${info.deadline}`);
-  if (info.isInternProject) parts.push(`(Intern project)`);
+  parts.push(`LEES ALLE INFORMATIE HIERONDER ZORGVULDIG:`);
+  parts.push(``);
 
-  // Fases met toelichtingen - Ellen interpreteert deze zelf
+  // Project details
+  parts.push(`--- PROJECT DETAILS ---`);
+  parts.push(`Klant: ${info.klant_naam}`);
+  parts.push(`Project titel: ${info.projectTitel || 'Niet opgegeven'}`);
+  parts.push(`Project omschrijving: ${info.projectnaam || 'Niet opgegeven'}`);
+  parts.push(`Type: ${info.projecttype || 'algemeen'}`);
+  parts.push(`Intern project: ${info.isInternProject ? 'Ja' : 'Nee'}`);
+  parts.push(``);
+
+  // Datum en deadline - EXPLICIET
+  parts.push(`--- DATUM & DEADLINE ---`);
+  const startDatumVanFases = info.fases?.[0]?.start_datum;
+  parts.push(`Startdatum: ${startDatumVanFases || 'Niet opgegeven - bepaal zelf een geschikte start'}`);
+  parts.push(`Deadline: ${info.deadline || 'NIET OPGEGEVEN - vraag om verduidelijking of plan conservatief'}`);
+  if (info.deadline) {
+    const deadlineDate = new Date(info.deadline);
+    const today = new Date();
+    const diffDays = Math.ceil((deadlineDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    parts.push(`Dagen tot deadline: ${diffDays} dagen`);
+  }
+
+  // Fases met ALLE details
+  parts.push(``);
+  parts.push(`--- FASES & MEDEWERKERS (GESELECTEERD IN TEMPLATE) ---`);
   if (info.fases?.length > 0) {
-    parts.push(``);
-    parts.push(`Fases:`);
     info.fases.forEach((f: any, i: number) => {
       parts.push(``);
-      parts.push(`${i + 1}. ${f.fase_naam || 'Fase'}`);
-      parts.push(`   Medewerkers: ${f.medewerkers?.join(', ') || 'Geen'}`);
-      parts.push(`   Start: ${f.start_datum}`);
-      parts.push(`   Dagen: ${f.duur_dagen}`);
-      if (f.uren_per_dag && f.uren_per_dag !== 8) {
-        parts.push(`   Uren per dag: ${f.uren_per_dag}`);
-      }
+      parts.push(`FASE ${i + 1}: ${f.fase_naam || 'Onbenoemd'}`);
+      parts.push(`  → Geselecteerde medewerkers: ${f.medewerkers?.join(', ') || 'GEEN - dit is een probleem!'}`);
+      parts.push(`  → Gewenste startdatum: ${f.start_datum || 'Niet opgegeven'}`);
+      parts.push(`  → Geschatte duur: ${f.duur_dagen} dagen`);
+      parts.push(`  → Uren per dag: ${f.uren_per_dag || 8} uur`);
       if (f.notities) {
-        // Dit is de TOELICHTING - Ellen moet dit zelf interpreteren
-        parts.push(`   Toelichting: "${f.notities}"`);
+        parts.push(`  → TOELICHTING (BELANGRIJK!): "${f.notities}"`);
+        parts.push(`     ^ ANALYSEER DIT! Bevat instructies over verdeling (per week, laatste week, etc.)`);
+      } else {
+        parts.push(`  → Toelichting: Geen - plan aaneengesloten`);
       }
     });
+  } else {
+    parts.push(`GEEN FASES OPGEGEVEN - dit is een probleem, vraag om verduidelijking`);
   }
 
   // Meetings
+  parts.push(``);
+  parts.push(`--- MEETINGS & PRESENTATIES ---`);
   if (info.meetings?.length > 0) {
-    parts.push(``);
-    parts.push(`Meetings:`);
     info.meetings.forEach((m: any) => {
       const typeLabels: Record<string, string> = {
-        'kick-off': 'Kick-off',
+        'kick-off': 'Kick-off meeting',
         'tussentijds': 'Tussentijdse presentatie',
         'eindpresentatie': 'Eindpresentatie',
-        'anders': 'Meeting',
+        'anders': 'Overige meeting',
       };
-      parts.push(`- ${typeLabels[m.type] || m.type} (${m.aantalUren}u)${m.notitie ? `: ${m.notitie}` : ''}`);
+      parts.push(`- ${typeLabels[m.type] || m.type}: ${m.aantalUren} uur${m.notitie ? ` - "${m.notitie}"` : ''}`);
     });
+  } else {
+    parts.push(`Geen meetings opgegeven in template`);
   }
 
   // Betrokken personen
+  parts.push(``);
+  parts.push(`--- OVERIGE BETROKKENEN ---`);
   if (info.betrokkenPersonen?.length > 0) {
-    parts.push(``);
-    parts.push(`Overige betrokkenen: ${info.betrokkenPersonen.join(', ')}`);
+    parts.push(`${info.betrokkenPersonen.join(', ')}`);
+  } else {
+    parts.push(`Geen overige betrokkenen opgegeven`);
   }
 
   // Feedback van planner
   if (feedback) {
     parts.push(``);
-    parts.push(`Feedback op vorig voorstel: "${feedback}"`);
+    parts.push(`--- FEEDBACK OP VORIG VOORSTEL ---`);
+    parts.push(`"${feedback}"`);
+    parts.push(`^ NEEM DEZE FEEDBACK MEE IN JE NIEUWE VOORSTEL`);
   }
 
   // Verzamel alle medewerkers voor de beschikbaarheidscheck
