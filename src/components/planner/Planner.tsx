@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Maximize2, Download, ZoomIn, ZoomOut, Users } from 'lucide-react';
+import { Maximize2, Download, ZoomIn, ZoomOut, Users, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -237,7 +237,7 @@ export function Planner() {
             <SelectContent>
               {Array.from({ length: 52 }, (_, i) => i + 1).map((week) => (
                 <SelectItem key={week} value={week.toString()}>
-                  Week {week}
+                  {week === currentWeekNumber ? `Huidige week (${week})` : `Week ${week}`}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -294,7 +294,36 @@ export function Planner() {
         <TaskLegend />
       </div>
 
-      {/* Grid with zoom */}
+      {/* Week navigation arrows + Grid */}
+      <div className="flex items-center justify-end gap-2 mb-2">
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-8 w-8"
+          onClick={() => {
+            const prev = new Date(currentWeekStart);
+            prev.setDate(prev.getDate() - 7);
+            setCurrentWeekStart(prev);
+          }}
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <span className="text-sm font-medium text-foreground">
+          Week {weekNumber}
+        </span>
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-8 w-8"
+          onClick={() => {
+            const next = new Date(currentWeekStart);
+            next.setDate(next.getDate() + 7);
+            setCurrentWeekStart(next);
+          }}
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
       <div
         className="origin-top-left inline-block w-full"
         style={{ 
