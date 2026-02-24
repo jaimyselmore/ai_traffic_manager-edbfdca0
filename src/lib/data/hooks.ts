@@ -22,6 +22,9 @@ import {
   createTask,
   updateTask,
   deleteTask,
+  getDashboardStats,
+  getUpcomingDeadlines,
+  getActiveProjects,
 } from './dataService';
 import type { Employee, Client } from './types';
 
@@ -144,6 +147,30 @@ export function useNotifications() {
     queryKey: dataKeys.notifications(),
     queryFn: getNotifications,
     staleTime: 1 * 60 * 1000, // 1 minute - more dynamic
+  });
+}
+
+export function useDashboardStats() {
+  return useQuery({
+    queryKey: [...dataKeys.all, 'dashboardStats'] as const,
+    queryFn: getDashboardStats,
+    staleTime: 1 * 60 * 1000,
+  });
+}
+
+export function useUpcomingDeadlines() {
+  return useQuery({
+    queryKey: [...dataKeys.all, 'upcomingDeadlines'] as const,
+    queryFn: getUpcomingDeadlines,
+    staleTime: 1 * 60 * 1000,
+  });
+}
+
+export function useActiveProjects() {
+  return useQuery({
+    queryKey: [...dataKeys.all, 'activeProjects'] as const,
+    queryFn: getActiveProjects,
+    staleTime: 1 * 60 * 1000,
   });
 }
 

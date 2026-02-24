@@ -635,6 +635,144 @@ export async function getAllConfigurableData(): Promise<ConfigurableData> {
 }
 
 // ===========================================
+// DASHBOARD STATISTIEKEN
+// ===========================================
+
+export interface DashboardStats {
+  upcomingDeadlines: number
+  activeProjects: number
+  pendingReviews: number
+  pendingChanges: number
+}
+
+export interface UpcomingDeadline {
+  id: string
+  projectnummer: string
+  klant_naam: string
+  omschrijving: string
+  deadline: string
+  daysUntil: number
+  severity: 'low' | 'medium' | 'high'
+}
+
+export interface ActiveProject {
+  id: string
+  projectnummer: string
+  klant_naam: string
+  omschrijving: string
+  deadline: string
+  status: string
+}
+
+/**
+ * Haal aankomende deadlines op (projecten met deadline binnen 14 dagen)
+ */
+export async function getUpcomingDeadlines(): Promise<UpcomingDeadline[]> {
+  const today = new Date()
+  const todayISO = today.toISOString().split('T')[0]
+
+  // Haal projecten op met deadline in de toekomst
+  const { data: projectData, error: projectError } = await secureSelect<ProjectRow>('projecten', {
+    columns: '*',
+    filters: [
+      { column: 'deadline', operator: 'gte', value: todayISO },
+    ],
+    order: { column: 'deadline', ascending: true },
+  })
+
+  if (projectError) {
+    console.error('Fout bij ophalen deadlines:', projectError)
+    return []
+  }
+
+  // Get clients for name lookup
+  const { data: clientData } = await secureSelect<KlantRow>('klanten', {
+    columns: 'id,naam',
+  })
+  const clientMap = new Map((clientData || []).map(c => [c.id, c.naam]))
+
+  const results: UpcomingDeadline[] = []
+
+  for (const project of (projectData || [])) {
+    const deadlineDate = new Date(project.deadline + 'T00:00:00')
+    const diffTime = deadlineDate.getTime() - today.getTime()
+    const daysUntil = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+
+    // Alleen projecten binnen 14 dagen
+    if (daysUntil <= 14) {
+      results.push({
+        id: project.id,
+        projectnummer: project.projectnummer,
+        klant_naam: project.klant_id ? clientMap.get(project.klant_id) || 'Onbekende klant' : 'Onbekende klant',
+        omschrijving: project.omschrijving,
+        deadline: project.deadline,
+        daysUntil,
+        severity: daysUntil <= 2 ? 'high' : daysUntil <= 7 ? 'medium' : 'low',
+      })
+    }
+  }
+
+  return results
+}
+
+/**
+ * Haal actieve projecten op (deadline niet verstreken)
+ */
+export async function getActiveProjects(): Promise<ActiveProject[]> {
+  const today = new Date()
+  const todayISO = today.toISOString().split('T')[0]
+
+  const { data: projectData, error: projectError } = await secureSelect<ProjectRow>('projecten', {
+    columns: '*',
+    filters: [
+      { column: 'deadline', operator: 'gte', value: todayISO },
+    ],
+    order: { column: 'deadline', ascending: true },
+  })
+
+  if (projectError) {
+    console.error('Fout bij ophalen actieve projecten:', projectError)
+    return []
+  }
+
+  // Get clients for name lookup
+  const { data: clientData } = await secureSelect<KlantRow>('klanten', {
+    columns: 'id,naam',
+  })
+  const clientMap = new Map((clientData || []).map(c => [c.id, c.naam]))
+
+  return ((projectData || []) as ProjectRow[]).map(project => ({
+    id: project.id,
+    projectnummer: project.projectnummer,
+    klant_naam: project.klant_id ? clientMap.get(project.klant_id) || 'Onbekende klant' : 'Onbekende klant',
+    omschrijving: project.omschrijving,
+    deadline: project.deadline,
+    status: project.status || 'actief',
+  }))
+}
+
+/**
+ * Haal dashboard statistieken op (counts)
+ */
+export async function getDashboardStats(): Promise<DashboardStats> {
+  const [upcomingDeadlines, activeProjects] = await Promise.all([
+    getUpcomingDeadlines(),
+    getActiveProjects(),
+  ])
+
+  // Reviews en changes komen later uit aparte tabel of notificaties
+  const pendingReviews = 0 // TODO: koppel aan interne reviews
+  const pendingChanges = 0 // TODO: koppel aan wijzigingsverzoeken
+
+  return {
+    upcomingDeadlines: upcomingDeadlines.length,
+    activeProjects: activeProjects.length,
+    pendingReviews,
+    pendingChanges,
+  }
+}
+
+// ===========================================
 // LEGACY FUNCTIONS
 // ===========================================
 
