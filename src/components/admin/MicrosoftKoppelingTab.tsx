@@ -55,7 +55,6 @@ export function MicrosoftKoppelingTab() {
       }
 
       const allMw = (mwData.data as any[])
-        .filter((m: any) => m.in_planning)
         .sort((a: any, b: any) => (a.display_order ?? 999) - (b.display_order ?? 999));
 
       // Check Microsoft status for each medewerker
