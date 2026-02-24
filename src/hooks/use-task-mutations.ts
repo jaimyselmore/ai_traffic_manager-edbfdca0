@@ -42,14 +42,22 @@ export function useDeleteProjectTasks() {
 
   return useMutation({
     mutationFn: async (projectId: string) => {
-      const { error } = await secureDelete('taken', [
+      // Eerst alle taken verwijderen
+      const { error: takenError } = await secureDelete('taken', [
         { column: 'project_id', operator: 'eq', value: projectId },
       ]);
-      if (error) throw error;
+      if (takenError) throw takenError;
+
+      // Dan het project zelf verwijderen
+      const { error: projectError } = await secureDelete('projecten', [
+        { column: 'id', operator: 'eq', value: projectId },
+      ]);
+      if (projectError) throw projectError;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      toast({ title: 'Planning verwijderd', description: 'Alle taken van dit project zijn verwijderd.' });
+      queryClient.invalidateQueries({ queryKey: ['data'] });
+      toast({ title: 'Project verwijderd', description: 'Het project en alle taken zijn verwijderd.' });
     },
     onError: (error: Error) => {
       toast({ title: 'Fout bij verwijderen', description: error.message, variant: 'destructive' });
