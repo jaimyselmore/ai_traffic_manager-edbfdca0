@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FileText, Send, Clock, Trash2, CheckCircle, XCircle, RefreshCw } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -15,7 +16,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
-interface SavedAanvraag {
+export interface SavedAanvraag {
   id: string;
   type: 'nieuw-project' | 'wijziging' | 'meeting' | 'verlof';
   status: 'concept' | 'ingediend' | 'geplaatst' | 'mislukt' | 'wacht_klant';
@@ -23,8 +24,9 @@ interface SavedAanvraag {
   klant?: string;
   datum: string;
   projectType?: string;
-  storageKey?: string; // localStorage key where form data is stored
-  errorMessage?: string; // Foutmelding bij mislukt
+  storageKey?: string;
+  errorMessage?: string;
+  projectInfo?: any; // For retry
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -132,15 +134,13 @@ export function MijnAanvragen() {
   const renderAanvraag = (aanvraag: SavedAanvraag) => (
     <div
       key={aanvraag.id}
-      className={`flex items-center justify-between p-4 border rounded-xl transition-colors cursor-pointer ${
-        aanvraag.status === 'geplaatst'
-          ? 'border-green-200 bg-green-50/50 hover:bg-green-100/50'
-          : aanvraag.status === 'mislukt'
-          ? 'border-red-200 bg-red-50/50 hover:bg-red-100/50'
-          : aanvraag.status === 'wacht_klant'
-          ? 'border-amber-200 bg-amber-50/50 hover:bg-amber-100/50'
-          : 'border-border bg-card hover:bg-accent/50'
-      }`}
+      className={cn(
+        'flex items-center justify-between p-4 border rounded-xl transition-colors cursor-pointer',
+        aanvraag.status === 'geplaatst' && 'border-green-200 bg-green-50/50 hover:bg-green-100/50',
+        aanvraag.status === 'mislukt' && 'border-red-200 bg-red-50/50 hover:bg-red-100/50',
+        aanvraag.status === 'wacht_klant' && 'border-amber-200 bg-amber-50/50 hover:bg-amber-100/50',
+        !['geplaatst', 'mislukt', 'wacht_klant'].includes(aanvraag.status) && 'border-border bg-card hover:bg-accent/50'
+      )}
       onClick={() => {
         // Restore the form data from the linked storage key (for both concept and ingediend)
         if (aanvraag.storageKey) {
@@ -191,8 +191,10 @@ export function MijnAanvragen() {
             className="h-8 w-8 text-amber-600 hover:text-amber-700 hover:bg-amber-100"
             onClick={(e) => {
               e.stopPropagation();
-              // Retry: open de template opnieuw
-              if (aanvraag.storageKey) {
+              // Retry: navigeer naar ellen-voorstel met projectInfo of open template
+              if (aanvraag.projectInfo) {
+                navigate('/ellen-voorstel', { state: { projectInfo: aanvraag.projectInfo } });
+              } else if (aanvraag.storageKey) {
                 const savedData = localStorage.getItem(aanvraag.storageKey);
                 if (savedData) {
                   const mainKey = TYPE_STORAGE_KEYS[aanvraag.type];
@@ -200,8 +202,8 @@ export function MijnAanvragen() {
                     localStorage.setItem(mainKey, savedData);
                   }
                 }
+                navigate(TYPE_ROUTES[aanvraag.type] || '/');
               }
-              navigate(TYPE_ROUTES[aanvraag.type] || '/');
             }}
             title="Opnieuw proberen"
           >

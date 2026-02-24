@@ -4,6 +4,7 @@ import { secureSelect } from '@/lib/data/secureDataClient';
 // Task interface matching what Planner expects
 export interface Task {
   id: string;
+  project_id: string | null;
   werknemer_naam: string;
   klant_naam: string;
   project_nummer: string;
@@ -31,7 +32,8 @@ export interface Task {
 }
 
 export function useTasks(weekStart: Date, employeeName?: string) {
-  const weekStartISO = weekStart.toISOString().split('T')[0];
+  // Use local date to avoid timezone shift (toISOString converts to UTC which can shift the day)
+  const weekStartISO = `${weekStart.getFullYear()}-${String(weekStart.getMonth() + 1).padStart(2, '0')}-${String(weekStart.getDate()).padStart(2, '0')}`;
 
   return useQuery({
     queryKey: ['tasks', weekStartISO, employeeName],
@@ -62,6 +64,7 @@ export function useTasks(weekStart: Date, employeeName?: string) {
 
         return {
           id: row.id,
+          project_id: row.project_id || null,
           werknemer_naam: row.werknemer_naam,
           klant_naam: row.klant_naam,
           project_nummer: row.project_nummer,

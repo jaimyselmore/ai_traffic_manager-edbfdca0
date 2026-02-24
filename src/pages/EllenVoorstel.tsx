@@ -326,9 +326,8 @@ export default function EllenVoorstel() {
       }
 
       // Sla de aanvraag op met juiste status
-      const aanvraagId = `project-${Date.now()}`;
       saveAanvraag({
-        id: aanvraagId,
+        id: `project-${Date.now()}`,
         type: 'nieuw-project',
         status: needsClientApproval ? 'wacht_klant' : 'geplaatst',
         titel: projectInfo?.projectnaam || projectInfo?.klant_naam || 'Project',
@@ -358,6 +357,7 @@ export default function EllenVoorstel() {
         datum: new Date().toISOString(),
         projectType: projectInfo?.projecttype,
         errorMessage: errorMsg,
+        projectInfo: projectInfo,
       });
 
       setFlowState('error');
@@ -1265,6 +1265,9 @@ function buildEllenPrompt(info: any, feedback?: string, vorigVoorstel?: Voorstel
   parts.push(``);
   parts.push(`STAP 8: MAAK PLANNING`);
   parts.push(`Gebruik plan_project tool met:`);
+  parts.push(`- Zet voor ELKE taak een specifiek start_uur (niet altijd 9!)`);
+  parts.push(`- Als een medewerker al iets heeft van 9-12, plan dan vanaf 14 (na lunch)`);
+  parts.push(`- Korte taken (1-2u) mogen later op de dag (bijv. 14:00 of 15:00)`);
   parts.push(`- Plan rondom bestaande taken (niet overschrijven!)`);
   parts.push(`- Alle medewerkers starten PARALLEL (niet sequentieel)`);
   parts.push(`- Respecteer beschikbaarheid en max 40u/week`);
@@ -1292,53 +1295,136 @@ function generateDefaultVoorstel(info: any): VoorstelTaak[] {
   const taken: VoorstelTaak[] = [];
   const today = new Date();
   const dayOfWeek = today.getDay();
-  const daysUntilMonday = dayOfWeek === 0 ? 1 : 8 - dayOfWeek;
+  const daysUntilMonday = dayOfWeek === 0 ? 1 : dayOfWeek === 1 ? 0 : 8 - dayOfWeek;
   const nextMonday = new Date(today);
   nextMonday.setDate(today.getDate() + daysUntilMonday);
-  const weekStart = nextMonday.toISOString().split('T')[0];
+  // Use local date to avoid timezone shift
+  const defaultWeekStart = `${nextMonday.getFullYear()}-${String(nextMonday.getMonth() + 1).padStart(2, '0')}-${String(nextMonday.getDate()).padStart(2, '0')}`;
 
-  if (info.fases?.length) {
-    let currentDay = 0;
-    for (const fase of info.fases) {
-      const medewerkers = fase.medewerkers || [];
-      const dagen = fase.duur_dagen || 1;
+  if (!info.fases?.length) return taken;
 
-      if (medewerkers.length === 0) {
-        // Fallback: single block
-        for (let d = 0; d < dagen && currentDay < 5; d++) {
-          taken.push({
-            werknemer_naam: 'Medewerker',
-            fase_naam: fase.fase_naam,
-            dag_van_week: currentDay % 5,
-            week_start: weekStart,
-            start_uur: 9,
-            duur_uren: fase.uren_per_dag || 8,
-          });
-          currentDay++;
-        }
+  // Track occupied slots per medewerker per day: { "naam-weekstart-dag": nextFreeHour }
+  const bezetteSlotsPerDag: Record<string, number> = {};
+
+  const getNextFreeSlot = (medewerker: string, weekStart: string, dagVanWeek: number, duurUren: number): { startUur: number; weekStart: string; dagVanWeek: number } | null => {
+    // Try to find a free slot on this day
+    const key = `${medewerker}-${weekStart}-${dagVanWeek}`;
+    const nextFree = bezetteSlotsPerDag[key] || 9;
+
+    // Skip lunch hour (13:00-14:00)
+    let startUur = nextFree;
+    if (startUur < 13 && startUur + duurUren > 13) {
+      // Block would span lunch - check if it fits before lunch
+      if (13 - startUur >= duurUren) {
+        // Fits before lunch
       } else {
-        // Distribute days across medewerkers
-        const dagenPerMedewerker = Math.max(1, Math.ceil(dagen / medewerkers.length));
-        let day = currentDay;
-        for (const mw of medewerkers) {
-          for (let d = 0; d < dagenPerMedewerker && day < currentDay + dagen && day < 5; d++) {
+        // Start after lunch
+        startUur = 14;
+      }
+    } else if (startUur === 13) {
+      startUur = 14;
+    }
+
+    // Check if it fits within working hours (max 18:00)
+    if (startUur + duurUren <= 18) {
+      bezetteSlotsPerDag[key] = startUur + duurUren;
+      // Skip over lunch for next free calculation
+      if (bezetteSlotsPerDag[key] === 13) bezetteSlotsPerDag[key] = 14;
+      return { startUur, weekStart, dagVanWeek };
+    }
+
+    return null; // Day is full
+  };
+
+  // Calculate week start from fase start_datum or use default
+  const getWeekStartForDate = (dateStr: string): string => {
+    const d = new Date(dateStr + 'T00:00:00');
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+    d.setDate(diff);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+
+  const getDayOfWeekFromDate = (dateStr: string): number => {
+    const d = new Date(dateStr + 'T00:00:00');
+    const day = d.getDay();
+    return day === 0 ? 6 : day - 1; // Mon=0, Fri=4
+  };
+
+  for (const fase of info.fases) {
+    const medewerkers: string[] = fase.medewerkers || [];
+    const dagen = fase.duur_dagen || 1;
+    const urenPerDag = fase.uren_per_dag || 8;
+    const faseStartDatum = fase.start_datum;
+
+    // Determine starting point
+    let currentWeekStart = faseStartDatum ? getWeekStartForDate(faseStartDatum) : defaultWeekStart;
+    let currentDayIndex = faseStartDatum ? getDayOfWeekFromDate(faseStartDatum) : 0;
+
+    // Check medewerkerDetails for specific hours per person
+    const medewerkerUren: Record<string, number> = {};
+    if (fase.medewerkerDetails?.length > 0) {
+      for (const md of fase.medewerkerDetails) {
+        if (md.eenheid === 'uren') {
+          medewerkerUren[md.naam] = md.inspanning;
+        } else if (md.eenheid === 'dagen') {
+          medewerkerUren[md.naam] = md.inspanning * urenPerDag;
+        }
+      }
+    }
+
+    if (medewerkers.length === 0) {
+      // Fallback: plan generic blocks
+      for (let d = 0; d < dagen; d++) {
+        if (currentDayIndex > 4) { currentDayIndex = 0; currentWeekStart = nextWeek(currentWeekStart); }
+        taken.push({
+          werknemer_naam: 'Medewerker',
+          fase_naam: fase.fase_naam,
+          dag_van_week: currentDayIndex,
+          week_start: currentWeekStart,
+          start_uur: 9,
+          duur_uren: urenPerDag,
+        });
+        currentDayIndex++;
+      }
+    } else {
+      // For each medewerker, plan their specific hours
+      for (const mw of medewerkers) {
+        const totaalUren = medewerkerUren[mw] || (dagen * urenPerDag);
+        let restUren = totaalUren;
+        let mwWeekStart = currentWeekStart;
+        let mwDayIndex = currentDayIndex;
+
+        while (restUren > 0) {
+          if (mwDayIndex > 4) { mwDayIndex = 0; mwWeekStart = nextWeek(mwWeekStart); }
+
+          const blokUren = Math.min(restUren, urenPerDag);
+          const slot = getNextFreeSlot(mw, mwWeekStart, mwDayIndex, blokUren);
+
+          if (slot) {
             taken.push({
               werknemer_naam: mw,
               fase_naam: fase.fase_naam,
-              dag_van_week: day % 5,
-              week_start: weekStart,
-              start_uur: 9,
-              duur_uren: fase.uren_per_dag || 8,
+              dag_van_week: slot.dagVanWeek,
+              week_start: slot.weekStart,
+              start_uur: slot.startUur,
+              duur_uren: blokUren,
             });
-            day++;
+            restUren -= blokUren;
           }
+          mwDayIndex++;
         }
-        currentDay = day;
       }
     }
   }
 
   return taken;
+}
+
+function nextWeek(weekStart: string): string {
+  const d = new Date(weekStart + 'T00:00:00');
+  d.setDate(d.getDate() + 7);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 function getWeekNumber(date: Date): number {
