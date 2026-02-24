@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
-import { CheckCircle2, XCircle, Loader2, Link2, Unlink } from 'lucide-react';
+import { CheckCircle2, XCircle, Loader2, Link2, Unlink, Pencil, Check, X } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -19,6 +20,8 @@ export function MicrosoftKoppelingTab() {
   const [medewerkers, setMedewerkers] = useState<MedewerkerStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
+  const [editingEmail, setEditingEmail] = useState<number | null>(null);
+  const [emailInput, setEmailInput] = useState('');
 
   // Check for OAuth callback
   useEffect(() => {
@@ -123,6 +126,54 @@ export function MicrosoftKoppelingTab() {
     }
   };
 
+  const startEditEmail = (werknemerId: number, currentEmail: string | null) => {
+    setEditingEmail(werknemerId);
+    setEmailInput(currentEmail || '');
+  };
+
+  const cancelEditEmail = () => {
+    setEditingEmail(null);
+    setEmailInput('');
+  };
+
+  const saveEmail = async (werknemerId: number) => {
+    const email = emailInput.trim();
+
+    // Basic email validation
+    if (email && !email.includes('@')) {
+      setMessage('Voer een geldig e-mailadres in');
+      return;
+    }
+
+    try {
+      const { error } = await supabase.functions.invoke('data-access', {
+        body: {
+          table: 'medewerkers',
+          action: 'update',
+          id: werknemerId,
+          data: { microsoft_email: email || null },
+        },
+      });
+
+      if (error) {
+        setMessage('Fout bij opslaan e-mail');
+      } else {
+        setMedewerkers(prev =>
+          prev.map(m =>
+            m.werknemer_id === werknemerId
+              ? { ...m, microsoft_email: email || null }
+              : m
+          )
+        );
+        setMessage(email ? 'E-mailadres opgeslagen' : 'E-mailadres verwijderd');
+        setEditingEmail(null);
+        setEmailInput('');
+      }
+    } catch {
+      setMessage('Fout bij opslaan e-mail');
+    }
+  };
+
   const connectedCount = medewerkers.filter(m => m.connected).length;
 
   return (
@@ -172,7 +223,52 @@ export function MicrosoftKoppelingTab() {
               {medewerkers.map(mw => (
                 <tr key={mw.werknemer_id} className="border-b last:border-b-0">
                   <td className="px-4 py-3 text-sm font-medium text-foreground">{mw.naam_werknemer}</td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground">{mw.microsoft_email || <span className="italic">Geen e-mail</span>}</td>
+                  <td className="px-4 py-3 text-sm text-muted-foreground">
+                    {editingEmail === mw.werknemer_id ? (
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="email"
+                          value={emailInput}
+                          onChange={(e) => setEmailInput(e.target.value)}
+                          placeholder="naam@bedrijf.nl"
+                          className="h-8 w-48 text-sm"
+                          autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') saveEmail(mw.werknemer_id);
+                            if (e.key === 'Escape') cancelEditEmail();
+                          }}
+                        />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => saveEmail(mw.werknemer_id)}
+                        >
+                          <Check className="h-4 w-4 text-green-600" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={cancelEditEmail}
+                        >
+                          <X className="h-4 w-4 text-muted-foreground" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span>{mw.microsoft_email || <span className="italic text-muted-foreground/70">Geen e-mail</span>}</span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 opacity-50 hover:opacity-100"
+                          onClick={() => startEditEmail(mw.werknemer_id, mw.microsoft_email)}
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    )}
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       {mw.connected ? (

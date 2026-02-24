@@ -13,10 +13,11 @@ import { cn } from '@/lib/utils';
 import { mockClients, generateMockTasks, Task } from '@/lib/mockData';
 import { getWeekStart, getWeekNumber, formatDateRange } from '@/lib/helpers/dateHelpers';
 import { TaskLegend } from '@/components/planner/TaskLegend';
-import { Loader2, CheckCircle2, XCircle, Link, Unlink } from 'lucide-react';
+import { Loader2, CheckCircle2, XCircle, Link, Unlink, Construction, Settings } from 'lucide-react';
 import { useEmployees } from '@/hooks/use-employees';
 import type { Employee } from '@/lib/data/types';
 import { supabase } from '@/integrations/supabase/client';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
@@ -235,6 +236,9 @@ function EllenPopup({ isOpen, status, action, onClose, onRetry, onCancel }: Elle
 
 export function AgendasFlow() {
   const navigate = useNavigate();
+
+  // Feature flag - set to true when Microsoft integration is ready
+  const isFeatureReady = false;
   const [currentWeekStart, setCurrentWeekStart] = useState(() => getWeekStart(new Date()));
   const currentWeekNumber = getWeekNumber(getWeekStart(new Date())); // The actual current week
   const [selectedEmployee, setSelectedEmployee] = useState<string>('');
@@ -522,6 +526,55 @@ export function AgendasFlow() {
     targetDate.setDate(targetDate.getDate() + (week - 1) * 7);
     setCurrentWeekStart(targetDate);
   };
+
+  // Show "in development" page when feature is not ready
+  if (!isFeatureReady) {
+    return (
+      <div className="space-y-8">
+        {/* Header */}
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Microsoft agenda's</h1>
+          <p className="mt-1 text-base text-muted-foreground">
+            Bekijk en beheer Microsoft agenda's van medewerkers
+          </p>
+        </div>
+
+        {/* In Development Notice */}
+        <div className="max-w-2xl">
+          <Alert className="border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30">
+            <Construction className="h-5 w-5 text-amber-600" />
+            <AlertDescription className="ml-2">
+              <div className="space-y-3">
+                <p className="font-medium text-amber-800 dark:text-amber-200">
+                  Deze functie is nog in ontwikkeling
+                </p>
+                <p className="text-sm text-amber-700 dark:text-amber-300">
+                  We werken aan de integratie met Microsoft 365. Zodra dit klaar is kun je hier:
+                </p>
+                <ul className="text-sm text-amber-700 dark:text-amber-300 list-disc list-inside space-y-1">
+                  <li>Beschikbaarheid van medewerkers ophalen uit hun Outlook agenda</li>
+                  <li>Planningsblokken direct in Microsoft agenda's plaatsen</li>
+                  <li>Agenda's synchroniseren met Ellen</li>
+                </ul>
+                <div className="pt-2 flex items-center gap-2">
+                  <Settings className="h-4 w-4 text-amber-600" />
+                  <p className="text-sm text-amber-700 dark:text-amber-300">
+                    <strong>Admin:</strong> Je kunt alvast Microsoft accounts koppelen via{' '}
+                    <button
+                      onClick={() => navigate('/admin')}
+                      className="underline hover:text-amber-900 dark:hover:text-amber-100"
+                    >
+                      Instellingen → Agenda's
+                    </button>
+                  </p>
+                </div>
+              </div>
+            </AlertDescription>
+          </Alert>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
