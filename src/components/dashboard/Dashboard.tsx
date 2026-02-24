@@ -116,8 +116,8 @@ export function Dashboard({ selectedEmployeeId: _selectedEmployeeId }: Dashboard
         title: 'Actieve projecten',
         value: activeProjectsCount,
         icon: FolderOpen,
-        variant: 'success' as const,
-        priority: 1, // Altijd laagste prioriteit (gewoon informatief)
+        variant: activeProjectsCount > 0 ? 'success' as const : 'default' as const,
+        priority: activeProjectsCount > 0 ? 1 : 0,
         onClick: () => setOpenPanel('active'),
       },
       {
