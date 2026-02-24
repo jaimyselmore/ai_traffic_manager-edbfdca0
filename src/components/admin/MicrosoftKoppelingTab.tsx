@@ -57,30 +57,14 @@ export function MicrosoftKoppelingTab() {
       const allMw = (mwData.data as any[])
         .sort((a: any, b: any) => (a.display_order ?? 999) - (b.display_order ?? 999));
 
-      // Check Microsoft status for each medewerker
-      const statusPromises = allMw.map(async (mw: any) => {
-        try {
-          const { data } = await supabase.functions.invoke('microsoft-status', {
-            body: { werknemerId: String(mw.werknemer_id) },
-          });
-          return {
-            werknemer_id: mw.werknemer_id,
-            naam_werknemer: mw.naam_werknemer,
-            microsoft_email: mw.microsoft_email || null,
-            connected: data?.connected ?? false,
-            connectedAt: data?.connectedAt,
-          };
-        } catch {
-          return {
-            werknemer_id: mw.werknemer_id,
-            naam_werknemer: mw.naam_werknemer,
-            microsoft_email: mw.microsoft_email || null,
-            connected: false,
-          };
-        }
-      });
+      // Map medewerkers to status objects (Microsoft integration not yet active)
+      const statuses = allMw.map((mw: any) => ({
+        werknemer_id: mw.werknemer_id,
+        naam_werknemer: mw.naam_werknemer,
+        microsoft_email: mw.microsoft_email || null,
+        connected: false, // Will be checked when Microsoft integration is ready
+      }));
 
-      const statuses = await Promise.all(statusPromises);
       setMedewerkers(statuses);
     } catch (err) {
       console.error('Error:', err);
@@ -178,7 +162,7 @@ export function MicrosoftKoppelingTab() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold text-foreground">Microsoft Agenda Koppelingen</h2>
+        <h2 className="text-lg font-semibold text-foreground">Microsoft agenda koppelingen</h2>
         <p className="text-sm text-muted-foreground mt-1">
           Koppel de Microsoft-agenda's van medewerkers zodat Ellen beschikbaarheid kan checken en planning kan plaatsen.
         </p>
