@@ -662,6 +662,43 @@ export interface ActiveProject {
   omschrijving: string
   deadline: string
   status: string
+  takenCount: number
+}
+
+export interface AfgerondProject {
+  id: string
+  projectnummer: string
+  klant_naam: string
+  omschrijving: string
+  deadline: string
+  afgerond_op: string
+}
+
+export interface InterneReview {
+  id: string
+  project_id: string | null
+  projectnummer: string
+  klant_naam: string
+  reviewer_naam: string
+  titel: string
+  beschrijving: string
+  status: 'open' | 'in_review' | 'goedgekeurd' | 'afgewezen'
+  prioriteit: 'laag' | 'normaal' | 'hoog' | 'urgent'
+  deadline: string | null
+}
+
+export interface Wijzigingsverzoek {
+  id: string
+  project_id: string | null
+  projectnummer: string
+  klant_naam: string
+  aanvrager_naam: string
+  type: 'scope' | 'deadline' | 'team' | 'budget' | 'anders'
+  status: 'ingediend' | 'in_behandeling' | 'goedgekeurd' | 'afgewezen'
+  prioriteit: 'laag' | 'normaal' | 'hoog' | 'urgent'
+  titel: string
+  huidige_situatie: string
+  gewenste_situatie: string
 }
 
 /**
@@ -716,22 +753,301 @@ export async function getUpcomingDeadlines(): Promise<UpcomingDeadline[]> {
 }
 
 /**
- * Haal actieve projecten op (deadline niet verstreken)
+ * Haal actieve projecten op - projecten die daadwerkelijke taken in de planner hebben
+ * Een project is "actief" als er minstens 1 taak in de taken-tabel bestaat
  */
 export async function getActiveProjects(): Promise<ActiveProject[]> {
-  const today = new Date()
-  const todayISO = today.toISOString().split('T')[0]
+  // Eerst alle taken ophalen om te zien welke projecten daadwerkelijk gepland zijn
+  const { data: takenData, error: takenError } = await secureSelect<TaakRow>('taken', {
+    columns: 'project_id,project_nummer,klant_naam',
+  })
 
-  const { data: projectData, error: projectError } = await secureSelect<ProjectRow>('projecten', {
+  if (takenError) {
+    console.error('Fout bij ophalen taken voor actieve projecten:', takenError)
+    return []
+  }
+
+  // Groepeer taken per project_nummer om te tellen
+  const projectTakenMap = new Map<string, { count: number, klant_naam: string, project_id: string | null }>()
+  for (const taak of (takenData || [])) {
+    const existing = projectTakenMap.get(taak.project_nummer)
+    if (existing) {
+      existing.count++
+    } else {
+      projectTakenMap.set(taak.project_nummer, {
+        count: 1,
+        klant_naam: taak.klant_naam,
+        project_id: taak.project_id,
+      })
+    }
+  }
+
+  // Als er geen taken zijn, return lege array
+  if (projectTakenMap.size === 0) {
+    return []
+  }
+
+  // Haal project details op voor de projecten die taken hebben
+  const projectIds = Array.from(projectTakenMap.values())
+    .map(p => p.project_id)
+    .filter((id): id is string => id !== null)
+
+  let projectDetails = new Map<string, ProjectRow>()
+
+  if (projectIds.length > 0) {
+    const { data: projectData } = await secureSelect<ProjectRow>('projecten', {
+      columns: '*',
+      filters: [
+        { column: 'status', operator: 'neq', value: 'afgerond' },
+      ],
+    })
+
+    for (const project of (projectData || [])) {
+      projectDetails.set(project.id, project)
+    }
+  }
+
+  // Combineer de data
+  const results: ActiveProject[] = []
+
+  for (const [projectnummer, taakInfo] of projectTakenMap) {
+    // Check of project niet afgerond is
+    const projectDetail = taakInfo.project_id ? projectDetails.get(taakInfo.project_id) : null
+
+    // Skip afgeronde projecten
+    if (projectDetail?.status === 'afgerond') continue
+
+    results.push({
+      id: taakInfo.project_id || projectnummer,
+      projectnummer,
+      klant_naam: taakInfo.klant_naam,
+      omschrijving: projectDetail?.omschrijving || '',
+      deadline: projectDetail?.deadline || '',
+      status: projectDetail?.status || 'actief',
+      takenCount: taakInfo.count,
+    })
+  }
+
+  // Sorteer op deadline
+  return results.sort((a, b) => {
+    if (!a.deadline) return 1
+    if (!b.deadline) return -1
+    return a.deadline.localeCompare(b.deadline)
+  })
+}
+
+/**
+ * Haal dashboard statistieken op (counts)
+ */
+export async function getDashboardStats(): Promise<DashboardStats> {
+  const [upcomingDeadlines, activeProjects, pendingReviews, pendingChanges] = await Promise.all([
+    getUpcomingDeadlines(),
+    getActiveProjects(),
+    getInterneReviewsCount(),
+    getWijzigingsverzoekenCount(),
+  ])
+
+  return {
+    upcomingDeadlines: upcomingDeadlines.length,
+    activeProjects: activeProjects.length,
+    pendingReviews,
+    pendingChanges,
+  }
+}
+
+// ===========================================
+// INTERNE REVIEWS
+// ===========================================
+
+interface InterneReviewRow {
+  id: string
+  project_id: string | null
+  reviewer_id: number | null
+  aanvrager_id: number | null
+  status: string
+  prioriteit: string
+  titel: string
+  beschrijving: string | null
+  deadline: string | null
+  opmerkingen: string | null
+  created_at: string
+}
+
+/**
+ * Haal openstaande interne reviews count op
+ */
+export async function getInterneReviewsCount(): Promise<number> {
+  const { data, error } = await secureSelect<InterneReviewRow>('interne_reviews', {
+    columns: 'id',
+    filters: [
+      { column: 'status', operator: 'in', value: '(open,in_review)' },
+    ],
+  })
+
+  if (error) {
+    // Tabel bestaat mogelijk nog niet
+    console.log('Interne reviews tabel nog niet beschikbaar')
+    return 0
+  }
+
+  return (data || []).length
+}
+
+/**
+ * Haal alle openstaande interne reviews op
+ */
+export async function getInterneReviews(): Promise<InterneReview[]> {
+  const { data, error } = await secureSelect<InterneReviewRow>('interne_reviews', {
     columns: '*',
     filters: [
-      { column: 'deadline', operator: 'gte', value: todayISO },
+      { column: 'status', operator: 'in', value: '(open,in_review)' },
     ],
-    order: { column: 'deadline', ascending: true },
+    order: { column: 'created_at', ascending: false },
+  })
+
+  if (error) {
+    console.log('Interne reviews tabel nog niet beschikbaar')
+    return []
+  }
+
+  // Get projects en medewerkers for name lookup
+  const [{ data: projectData }, { data: medewerkerData }] = await Promise.all([
+    secureSelect<ProjectRow>('projecten', { columns: 'id,projectnummer,klant_id' }),
+    secureSelect<MedewerkerRow>('medewerkers', { columns: 'werknemer_id,naam_werknemer' }),
+  ])
+
+  const { data: clientData } = await secureSelect<KlantRow>('klanten', { columns: 'id,naam' })
+
+  const projectMap = new Map((projectData || []).map(p => [p.id, p]))
+  const medewerkerMap = new Map((medewerkerData || []).map(m => [m.werknemer_id, m.naam_werknemer]))
+  const clientMap = new Map((clientData || []).map(c => [c.id, c.naam]))
+
+  return ((data || []) as InterneReviewRow[]).map(review => {
+    const project = review.project_id ? projectMap.get(review.project_id) : null
+    const klantNaam = project?.klant_id ? clientMap.get(project.klant_id) || '' : ''
+
+    return {
+      id: review.id,
+      project_id: review.project_id,
+      projectnummer: project?.projectnummer || '',
+      klant_naam: klantNaam,
+      reviewer_naam: review.reviewer_id ? medewerkerMap.get(review.reviewer_id) || '' : '',
+      titel: review.titel,
+      beschrijving: review.beschrijving || '',
+      status: review.status as InterneReview['status'],
+      prioriteit: review.prioriteit as InterneReview['prioriteit'],
+      deadline: review.deadline,
+    }
+  })
+}
+
+// ===========================================
+// WIJZIGINGSVERZOEKEN
+// ===========================================
+
+interface WijzigingsverzoekRow {
+  id: string
+  project_id: string | null
+  aanvrager_id: number | null
+  type: string
+  status: string
+  prioriteit: string
+  titel: string
+  huidige_situatie: string | null
+  gewenste_situatie: string | null
+  reden: string | null
+  impact: string | null
+  deadline: string | null
+  created_at: string
+}
+
+/**
+ * Haal openstaande wijzigingsverzoeken count op
+ */
+export async function getWijzigingsverzoekenCount(): Promise<number> {
+  const { data, error } = await secureSelect<WijzigingsverzoekRow>('wijzigingsverzoeken', {
+    columns: 'id',
+    filters: [
+      { column: 'status', operator: 'in', value: '(ingediend,in_behandeling)' },
+    ],
+  })
+
+  if (error) {
+    // Tabel bestaat mogelijk nog niet
+    console.log('Wijzigingsverzoeken tabel nog niet beschikbaar')
+    return 0
+  }
+
+  return (data || []).length
+}
+
+/**
+ * Haal alle openstaande wijzigingsverzoeken op
+ */
+export async function getWijzigingsverzoeken(): Promise<Wijzigingsverzoek[]> {
+  const { data, error } = await secureSelect<WijzigingsverzoekRow>('wijzigingsverzoeken', {
+    columns: '*',
+    filters: [
+      { column: 'status', operator: 'in', value: '(ingediend,in_behandeling)' },
+    ],
+    order: { column: 'created_at', ascending: false },
+  })
+
+  if (error) {
+    console.log('Wijzigingsverzoeken tabel nog niet beschikbaar')
+    return []
+  }
+
+  // Get projects en medewerkers for name lookup
+  const [{ data: projectData }, { data: medewerkerData }] = await Promise.all([
+    secureSelect<ProjectRow>('projecten', { columns: 'id,projectnummer,klant_id' }),
+    secureSelect<MedewerkerRow>('medewerkers', { columns: 'werknemer_id,naam_werknemer' }),
+  ])
+
+  const { data: clientData } = await secureSelect<KlantRow>('klanten', { columns: 'id,naam' })
+
+  const projectMap = new Map((projectData || []).map(p => [p.id, p]))
+  const medewerkerMap = new Map((medewerkerData || []).map(m => [m.werknemer_id, m.naam_werknemer]))
+  const clientMap = new Map((clientData || []).map(c => [c.id, c.naam]))
+
+  return ((data || []) as WijzigingsverzoekRow[]).map(verzoek => {
+    const project = verzoek.project_id ? projectMap.get(verzoek.project_id) : null
+    const klantNaam = project?.klant_id ? clientMap.get(project.klant_id) || '' : ''
+
+    return {
+      id: verzoek.id,
+      project_id: verzoek.project_id,
+      projectnummer: project?.projectnummer || '',
+      klant_naam: klantNaam,
+      aanvrager_naam: verzoek.aanvrager_id ? medewerkerMap.get(verzoek.aanvrager_id) || '' : '',
+      type: verzoek.type as Wijzigingsverzoek['type'],
+      status: verzoek.status as Wijzigingsverzoek['status'],
+      prioriteit: verzoek.prioriteit as Wijzigingsverzoek['prioriteit'],
+      titel: verzoek.titel,
+      huidige_situatie: verzoek.huidige_situatie || '',
+      gewenste_situatie: verzoek.gewenste_situatie || '',
+    }
+  })
+}
+
+// ===========================================
+// AFGERONDE PROJECTEN
+// ===========================================
+
+/**
+ * Haal afgeronde projecten op
+ */
+export async function getAfgerondeProjecten(): Promise<AfgerondProject[]> {
+  const { data: projectData, error: projectError } = await secureSelect<ProjectRow & { afgerond_op: string | null }>('projecten', {
+    columns: '*',
+    filters: [
+      { column: 'status', operator: 'eq', value: 'afgerond' },
+    ],
+    order: { column: 'afgerond_op', ascending: false },
   })
 
   if (projectError) {
-    console.error('Fout bij ophalen actieve projecten:', projectError)
+    console.error('Fout bij ophalen afgeronde projecten:', projectError)
     return []
   }
 
@@ -741,34 +1057,45 @@ export async function getActiveProjects(): Promise<ActiveProject[]> {
   })
   const clientMap = new Map((clientData || []).map(c => [c.id, c.naam]))
 
-  return ((projectData || []) as ProjectRow[]).map(project => ({
+  return ((projectData || []) as (ProjectRow & { afgerond_op: string | null })[]).map(project => ({
     id: project.id,
     projectnummer: project.projectnummer,
     klant_naam: project.klant_id ? clientMap.get(project.klant_id) || 'Onbekende klant' : 'Onbekende klant',
     omschrijving: project.omschrijving,
     deadline: project.deadline,
-    status: project.status || 'actief',
+    afgerond_op: project.afgerond_op || '',
   }))
 }
 
 /**
- * Haal dashboard statistieken op (counts)
+ * Markeer project als afgerond
  */
-export async function getDashboardStats(): Promise<DashboardStats> {
-  const [upcomingDeadlines, activeProjects] = await Promise.all([
-    getUpcomingDeadlines(),
-    getActiveProjects(),
+export async function markProjectAsCompleted(projectId: string): Promise<void> {
+  const { error } = await secureUpdate('projecten',
+    {
+      status: 'afgerond',
+      afgerond_op: new Date().toISOString(),
+    },
+    [{ column: 'id', operator: 'eq', value: projectId }]
+  )
+
+  if (error) {
+    console.error('Fout bij afronden project:', error)
+    throw error
+  }
+}
+
+/**
+ * Verwijder alle taken voor een project (cascade delete)
+ */
+export async function deleteTasksForProject(projectId: string): Promise<void> {
+  const { error } = await secureDelete('taken', [
+    { column: 'project_id', operator: 'eq', value: projectId }
   ])
 
-  // Reviews en changes komen later uit aparte tabel of notificaties
-  const pendingReviews = 0 // TODO: koppel aan interne reviews
-  const pendingChanges = 0 // TODO: koppel aan wijzigingsverzoeken
-
-  return {
-    upcomingDeadlines: upcomingDeadlines.length,
-    activeProjects: activeProjects.length,
-    pendingReviews,
-    pendingChanges,
+  if (error) {
+    console.error('Fout bij verwijderen taken voor project:', error)
+    throw error
   }
 }
 

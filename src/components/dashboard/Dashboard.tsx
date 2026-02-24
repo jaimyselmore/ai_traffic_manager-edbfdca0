@@ -1,13 +1,13 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle2, Clock, Eye, Bell, FolderOpen, Plus, FileEdit, Users, CalendarOff } from 'lucide-react';
+import { CheckCircle2, Clock, Eye, Bell, FolderOpen, Plus, FileEdit, Users, CalendarOff, Archive } from 'lucide-react';
 import { StatCard } from './StatCard';
 import { RequestBlock } from './RequestBlock';
 import { NotificationPanel, type Notification as PanelNotification, type NotificationType } from './NotificationPanel';
 import { MijnAanvragen } from './MijnAanvragen';
 import { WachtOpGoedkeuring, getWachtKlantCount } from './WachtOpGoedkeuring';
 import { getWeekNumber, getWeekStart, formatDateRange } from '@/lib/helpers/dateHelpers';
-import { useNotifications, useUpcomingDeadlines, useActiveProjects } from '@/lib/data';
+import { useNotifications, useUpcomingDeadlines, useActiveProjects, useInterneReviews, useWijzigingsverzoeken, useAfgerondeProjecten } from '@/lib/data';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface DashboardProps {
@@ -20,6 +20,9 @@ export function Dashboard({ selectedEmployeeId: _selectedEmployeeId }: Dashboard
   const { data: initialNotifications = [] } = useNotifications();
   const { data: upcomingDeadlines = [] } = useUpcomingDeadlines();
   const { data: activeProjects = [] } = useActiveProjects();
+  const { data: interneReviews = [] } = useInterneReviews();
+  const { data: wijzigingsverzoeken = [] } = useWijzigingsverzoeken();
+  const { data: afgerondeProjecten = [] } = useAfgerondeProjecten();
 
   // Convert data layer notifications to panel notifications
   const convertNotifications = (notifs: typeof initialNotifications): PanelNotification[] =>
@@ -39,6 +42,7 @@ export function Dashboard({ selectedEmployeeId: _selectedEmployeeId }: Dashboard
   const [openPanel, setOpenPanel] = useState<NotificationType | null>(null);
   const [wachtKlantCount, setWachtKlantCount] = useState(0);
   const [showWachtOpGoedkeuring, setShowWachtOpGoedkeuring] = useState(false);
+  const [showAfgerondeProjecten, setShowAfgerondeProjecten] = useState(false);
 
   // Update notifications when data loads
   useState(() => {
@@ -63,8 +67,10 @@ export function Dashboard({ selectedEmployeeId: _selectedEmployeeId }: Dashboard
   // Echte counts uit database
   const upcomingDeadlinesCount = upcomingDeadlines.length;
   const activeProjectsCount = activeProjects.length;
-  const reviewsCount = notifications.filter(n => n.type === 'review' && !n.isDone).length;
-  const changesCount = notifications.filter(n => n.type === 'change' && !n.isDone).length;
+  const afgerondeProjectenCount = afgerondeProjecten.length;
+  // Reviews en wijzigingsverzoeken komen nu uit de nieuwe tabellen
+  const reviewsCount = interneReviews.length;
+  const changesCount = wijzigingsverzoeken.length;
 
   // Statistieken met prioriteit - hoogste eerst (links)
   const statsConfig = useMemo(() => {
@@ -114,11 +120,20 @@ export function Dashboard({ selectedEmployeeId: _selectedEmployeeId }: Dashboard
         priority: 1, // Altijd laagste prioriteit (gewoon informatief)
         onClick: () => setOpenPanel('active'),
       },
+      {
+        id: 'afgerond',
+        title: 'Afgeronde projecten',
+        value: afgerondeProjectenCount,
+        icon: Archive,
+        variant: 'default' as const,
+        priority: 0, // Laagste prioriteit - archief/historie
+        onClick: () => setShowAfgerondeProjecten(!showAfgerondeProjecten),
+      },
     ];
 
     // Sorteer op prioriteit (hoogste eerst), behoud volgorde bij gelijke prioriteit
     return stats.sort((a, b) => b.priority - a.priority);
-  }, [wachtKlantCount, upcomingDeadlinesCount, reviewsCount, changesCount, activeProjectsCount, showWachtOpGoedkeuring]);
+  }, [wachtKlantCount, upcomingDeadlinesCount, reviewsCount, changesCount, activeProjectsCount, afgerondeProjectenCount, showWachtOpGoedkeuring, showAfgerondeProjecten]);
 
   const handleMarkDone = (id: string) => {
     setNotifications(prev =>
@@ -170,7 +185,7 @@ export function Dashboard({ selectedEmployeeId: _selectedEmployeeId }: Dashboard
       </div>
 
       {/* Stats Grid - dynamisch gesorteerd op prioriteit */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         {statsConfig.map((stat) => (
           <StatCard
             key={stat.id}
@@ -188,6 +203,49 @@ export function Dashboard({ selectedEmployeeId: _selectedEmployeeId }: Dashboard
         <div>
           <h2 className="mb-4 text-xl font-semibold text-foreground">Wacht op goedkeuring</h2>
           <WachtOpGoedkeuring />
+        </div>
+      )}
+
+      {/* Afgeronde Projecten Panel */}
+      {showAfgerondeProjecten && (
+        <div>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-foreground">Afgeronde projecten</h2>
+            <button
+              onClick={() => setShowAfgerondeProjecten(false)}
+              className="text-sm text-muted-foreground hover:text-foreground"
+            >
+              Sluiten
+            </button>
+          </div>
+          {afgerondeProjecten.length === 0 ? (
+            <div className="rounded-lg border bg-card p-6 text-center text-muted-foreground">
+              Geen afgeronde projecten
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {afgerondeProjecten.map((project) => (
+                <div
+                  key={project.id}
+                  className="rounded-lg border bg-slate-50 p-4 opacity-75"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="font-medium text-slate-600">{project.projectnummer}</span>
+                      <span className="mx-2 text-slate-400">•</span>
+                      <span className="text-slate-500">{project.klant_naam}</span>
+                    </div>
+                    <div className="text-sm text-slate-400">
+                      Afgerond: {project.afgerond_op ? new Date(project.afgerond_op).toLocaleDateString('nl-NL') : '-'}
+                    </div>
+                  </div>
+                  {project.omschrijving && (
+                    <p className="mt-1 text-sm text-slate-400">{project.omschrijving}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

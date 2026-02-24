@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Trash2, Download, Save, Plus } from 'lucide-react';
+import { Trash2, Download, Save, Plus, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -47,6 +47,7 @@ interface TaskEditDialogProps {
   onUpdate: (id: string, updates: Record<string, unknown>) => void;
   onDelete: (id: string) => void;
   onDeleteProject?: (projectId: string) => void;
+  onCompleteProject?: (projectId: string) => void;
 }
 
 const DAG_NAMEN = ['Ma', 'Di', 'Wo', 'Do', 'Vr'];
@@ -79,10 +80,12 @@ export function TaskEditDialog({
   onUpdate,
   onDelete,
   onDeleteProject,
+  onCompleteProject,
 }: TaskEditDialogProps) {
   const [projectTasks, setProjectTasks] = useState<Task[]>([]);
   const [editableRows, setEditableRows] = useState<EditableRow[]>([]);
   const [showDeleteProjectConfirm, setShowDeleteProjectConfirm] = useState(false);
+  const [showCompleteProjectConfirm, setShowCompleteProjectConfirm] = useState(false);
   const [showDeleteTaskConfirm, setShowDeleteTaskConfirm] = useState<string | null>(null);
   const [isLoadingAll, setIsLoadingAll] = useState(false);
 
@@ -412,7 +415,18 @@ export function TaskEditDialog({
           </div>
 
           <DialogFooter className="flex flex-col gap-2 sm:flex-row sm:justify-between border-t border-border pt-4">
-            <div>
+            <div className="flex gap-2">
+              {task.project_id && onCompleteProject && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-green-600 border-green-600/30 hover:bg-green-50"
+                  onClick={() => setShowCompleteProjectConfirm(true)}
+                >
+                  <CheckCircle2 className="h-4 w-4 mr-1" />
+                  Project afronden
+                </Button>
+              )}
               {task.project_id && onDeleteProject && (
                 <Button
                   variant="outline"
@@ -492,6 +506,38 @@ export function TaskEditDialog({
               }}
             >
               Ja, hele planning verwijderen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Complete project confirmation */}
+      <AlertDialog open={showCompleteProjectConfirm} onOpenChange={setShowCompleteProjectConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Project afronden?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Het project wordt gemarkeerd als afgerond. De taken blijven bewaard in het systeem maar het project verschijnt niet meer bij de actieve projecten.
+              <br />
+              <br />
+              Project: <strong>{task?.project_nummer}</strong> — {task?.klant_naam}
+              <br />
+              <span className="text-muted-foreground">({editableRows.length} taken, {totalUren} uur totaal)</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuleren</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-green-600 text-white hover:bg-green-700"
+              onClick={() => {
+                if (task?.project_id && onCompleteProject) {
+                  onCompleteProject(task.project_id);
+                }
+                onClose();
+              }}
+            >
+              <CheckCircle2 className="h-4 w-4 mr-1" />
+              Ja, project afronden
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

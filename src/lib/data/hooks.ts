@@ -25,6 +25,11 @@ import {
   getDashboardStats,
   getUpcomingDeadlines,
   getActiveProjects,
+  getInterneReviews,
+  getWijzigingsverzoeken,
+  getAfgerondeProjecten,
+  markProjectAsCompleted,
+  deleteTasksForProject,
 } from './dataService';
 import type { Employee, Client } from './types';
 
@@ -171,6 +176,52 @@ export function useActiveProjects() {
     queryKey: [...dataKeys.all, 'activeProjects'] as const,
     queryFn: getActiveProjects,
     staleTime: 1 * 60 * 1000,
+  });
+}
+
+export function useInterneReviews() {
+  return useQuery({
+    queryKey: [...dataKeys.all, 'interneReviews'] as const,
+    queryFn: getInterneReviews,
+    staleTime: 1 * 60 * 1000,
+  });
+}
+
+export function useWijzigingsverzoeken() {
+  return useQuery({
+    queryKey: [...dataKeys.all, 'wijzigingsverzoeken'] as const,
+    queryFn: getWijzigingsverzoeken,
+    staleTime: 1 * 60 * 1000,
+  });
+}
+
+export function useAfgerondeProjecten() {
+  return useQuery({
+    queryKey: [...dataKeys.all, 'afgerondeProjecten'] as const,
+    queryFn: getAfgerondeProjecten,
+    staleTime: 1 * 60 * 1000,
+  });
+}
+
+export function useMarkProjectCompleted() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: markProjectAsCompleted,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: dataKeys.all });
+    },
+  });
+}
+
+export function useDeleteTasksForProject() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: deleteTasksForProject,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: dataKeys.all });
+    },
   });
 }
 

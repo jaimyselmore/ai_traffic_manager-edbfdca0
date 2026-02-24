@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { updateTaak, deleteTaak } from '@/lib/data/takenService';
-import { secureDelete } from '@/lib/data/secureDataClient';
+import { secureDelete, secureUpdate } from '@/lib/data/secureDataClient';
 import { toast } from '@/hooks/use-toast';
 
 export function useUpdateTask() {
@@ -53,6 +53,31 @@ export function useDeleteProjectTasks() {
     },
     onError: (error: Error) => {
       toast({ title: 'Fout bij verwijderen', description: error.message, variant: 'destructive' });
+    },
+  });
+}
+
+export function useCompleteProject() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (projectId: string) => {
+      const { error } = await secureUpdate('projecten',
+        {
+          status: 'afgerond',
+          afgerond_op: new Date().toISOString(),
+        },
+        [{ column: 'id', operator: 'eq', value: projectId }]
+      );
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['data'] });
+      toast({ title: 'Project afgerond', description: 'Het project is gemarkeerd als afgerond.' });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Fout bij afronden', description: error.message, variant: 'destructive' });
     },
   });
 }
