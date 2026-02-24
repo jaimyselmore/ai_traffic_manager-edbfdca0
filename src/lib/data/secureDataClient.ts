@@ -5,6 +5,9 @@
 
 import { supabase } from '@/integrations/supabase/client';
 
+// Flag to prevent multiple redirects when multiple requests fail simultaneously
+let isRedirecting = false;
+
 interface Filter {
   column: string;
   operator: 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'like' | 'ilike' | 'in' | 'is';
@@ -43,7 +46,9 @@ export function getSessionToken(): string | null {
       return null;
     }
     return session.sessionToken;
-  } catch {
+  } catch (error) {
+    console.warn('Failed to parse stored session:', error);
+    localStorage.removeItem('ellen_auth_session');
     return null;
   }
 }
@@ -68,7 +73,10 @@ export async function secureDataAccess<T>(request: DataRequest): Promise<DataRes
       // Check for session errors
       if (error.message?.includes('401') || error.message?.includes('Unauthorized')) {
         localStorage.removeItem('ellen_auth_session');
-        window.location.href = '/login';
+        if (!isRedirecting) {
+          isRedirecting = true;
+          window.location.href = '/login';
+        }
         return { data: null, error: new Error('Sessie verlopen - log opnieuw in') };
       }
       return { data: null, error: new Error(error.message || 'Database fout') };
@@ -77,7 +85,10 @@ export async function secureDataAccess<T>(request: DataRequest): Promise<DataRes
     if (data?.error) {
       if (data.code === 'INVALID_SESSION' || data.code === 'NO_SESSION') {
         localStorage.removeItem('ellen_auth_session');
-        window.location.href = '/login';
+        if (!isRedirecting) {
+          isRedirecting = true;
+          window.location.href = '/login';
+        }
         return { data: null, error: new Error('Sessie verlopen - log opnieuw in') };
       }
       return { data: null, error: new Error(data.error) };

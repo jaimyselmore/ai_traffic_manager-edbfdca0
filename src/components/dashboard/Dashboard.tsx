@@ -45,15 +45,17 @@ export function Dashboard({ selectedEmployeeId: _selectedEmployeeId }: Dashboard
   const [showAfgerondeProjecten, setShowAfgerondeProjecten] = useState(false);
 
   // Update notifications when data loads
-  useState(() => {
+  useEffect(() => {
     if (initialNotifications.length > 0 && notifications.length === 0) {
       setNotifications(convertNotifications(initialNotifications));
     }
-  });
+  }, [initialNotifications, notifications.length]);
 
   // Load wacht_klant count
   useEffect(() => {
-    getWachtKlantCount().then(setWachtKlantCount);
+    getWachtKlantCount()
+      .then(setWachtKlantCount)
+      .catch((error) => console.error('Failed to load wacht klant count:', error));
   }, []);
 
   const today = new Date();

@@ -74,7 +74,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSessionToken(session.sessionToken);
       setMustChangePassword(session.mustChangePassword ?? false);
       return true;
-    } catch {
+    } catch (error) {
+      console.error('Session verification failed:', error);
       localStorage.removeItem(STORAGE_KEY);
       setUser(null);
       setSessionToken(null);
@@ -102,7 +103,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, 5 * 60 * 1000);
 
     return () => clearInterval(interval);
-  }, [sessionToken, verifySession]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionToken]); // verifySession is stable via useCallback, exclude to prevent interval recreation
 
   const signIn = async (username: string, password: string): Promise<{ error: Error | null }> => {
     try {
@@ -166,8 +168,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const session: AuthSession = JSON.parse(storedSession);
         session.mustChangePassword = false;
         localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
-      } catch {
-        // Ignore parse errors
+      } catch (error) {
+        console.warn('Failed to update stored session:', error);
       }
     }
   }, []);

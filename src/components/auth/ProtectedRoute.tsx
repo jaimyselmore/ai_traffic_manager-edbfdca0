@@ -39,8 +39,8 @@ export function ProtectedRoute({ children, allowPasswordChange = false, requireA
     );
   }
 
-  // Check if admin access is required
-  if (requireAdmin && user.rol !== 'admin') {
+  // Check if admin access is required (explicit check for admin role)
+  if (requireAdmin && user.rol?.toLowerCase() !== 'admin') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">

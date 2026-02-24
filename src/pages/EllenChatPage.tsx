@@ -21,7 +21,8 @@ function getOrCreateSessieId(): string {
 function extractVoorstelFromHistory(content: string): WijzigingsVoorstel | undefined {
   try {
     // Check voor [VOORSTEL:...] formaat in opgeslagen berichten
-    const match = content.match(/\[VOORSTEL:(\{.*\})\]/);
+    // Use non-greedy match to prevent matching across multiple voorstel objects
+    const match = content.match(/\[VOORSTEL:(\{[^}]*\})\]/);
     if (match) {
       const parsed = JSON.parse(match[1]);
       if (parsed.type === 'voorstel' && parsed.tabel && parsed.id && parsed.veld) {
@@ -34,8 +35,8 @@ function extractVoorstelFromHistory(content: string): WijzigingsVoorstel | undef
         };
       }
     }
-  } catch {
-    // Geen geldig voorstel
+  } catch (error) {
+    console.warn('Failed to extract voorstel from history:', error);
   }
   return undefined;
 }
@@ -94,8 +95,8 @@ export default function EllenChatPage() {
           );
           setMessages([welcomeMessage, ...loadedMessages]);
         }
-      } catch {
-        // Geen geschiedenis gevonden
+      } catch (error) {
+        console.warn('Failed to load chat history:', error);
       } finally {
         setIsLoadingHistory(false);
       }
@@ -202,7 +203,6 @@ Kun je een aangepast voorstel maken?`;
     setIsLoading(true);
 
     try {
-      console.log('Bevestig voorstel:', voorstel);
       const { data, error } = await supabase.functions.invoke('ellen-chat', {
         headers: { Authorization: `Bearer ${sessionToken}` },
         body: {
@@ -214,8 +214,6 @@ Kun je een aangepast voorstel maken?`;
           nieuwe_waarde: voorstel.nieuwe_waarde,
         },
       });
-
-      console.log('Resultaat:', { data, error });
 
       // Betere error handling
       let resultContent: string;

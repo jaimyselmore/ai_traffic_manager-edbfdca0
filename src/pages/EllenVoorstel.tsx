@@ -197,8 +197,6 @@ export default function EllenVoorstel() {
           },
         });
 
-        console.log('Ellen response:', { data, error });
-
         if (error) {
           // Check for rate limit
           const errorMsg = error.message || '';

@@ -50,18 +50,10 @@ export function BetrokkenTeam({ data, onChange, showEllenToggle = true, ellenDef
                 </SelectTrigger>
                 <SelectContent>
                   {employees.filter(e => {
-                    // DEBUG: Log all employees to see what we're filtering
-                    console.log('Employee filter check:', {
-                      name: e.name,
-                      role: e.role,
-                      discipline: e.discipline
-                    });
-
                     // Explicitly exclude studio team members by name (case-insensitive)
                     const studioNames = ['martijn', 'daniël', 'daniel', 'jaimy'];
                     const nameLower = (e.name || '').toLowerCase();
                     if (studioNames.some(studio => nameLower.includes(studio))) {
-                      console.log('❌ Excluded by name:', e.name);
                       return false;
                     }
 
@@ -89,9 +81,7 @@ export function BetrokkenTeam({ data, onChange, showEllenToggle = true, ellenDef
                       role.includes('designer') ||
                       role.includes('studio');
 
-                    const result = (isCreativeDiscipline || isCreativeRole) && !isStudioRole;
-                    console.log(result ? '✅ Included:' : '❌ Excluded:', e.name);
-                    return result;
+                    return (isCreativeDiscipline || isCreativeRole) && !isStudioRole;
                   }).map((emp) => (
                     <SelectItem key={emp.id} value={emp.id}>{emp.name}</SelectItem>
                   ))}
