@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, Send, Clock, Trash2 } from 'lucide-react';
+import { FileText, Send, Clock, Trash2, CheckCircle, XCircle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -18,12 +18,13 @@ import {
 interface SavedAanvraag {
   id: string;
   type: 'nieuw-project' | 'wijziging' | 'meeting' | 'verlof';
-  status: 'concept' | 'ingediend';
+  status: 'concept' | 'ingediend' | 'geplaatst' | 'mislukt' | 'wacht_klant';
   titel: string;
   klant?: string;
   datum: string;
   projectType?: string;
   storageKey?: string; // localStorage key where form data is stored
+  errorMessage?: string; // Foutmelding bij mislukt
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -90,7 +91,7 @@ export function MijnAanvragen() {
   }, []);
 
   const concepten = aanvragen.filter(a => a.status === 'concept');
-  const ingediend = aanvragen.filter(a => a.status === 'ingediend');
+  const ingediend = aanvragen.filter(a => a.status === 'ingediend' || a.status === 'geplaatst' || a.status === 'mislukt' || a.status === 'wacht_klant');
 
   const handleDelete = (id: string) => {
     removeAanvraag(id);
@@ -98,10 +99,48 @@ export function MijnAanvragen() {
     setDeleteTarget(null);
   };
 
+  // Bepaal icoon en kleur op basis van status
+  const getStatusIcon = (status: SavedAanvraag['status']) => {
+    switch (status) {
+      case 'geplaatst':
+        return <CheckCircle className="h-4 w-4 text-green-500" />;
+      case 'mislukt':
+        return <XCircle className="h-4 w-4 text-red-500" />;
+      case 'wacht_klant':
+        return <Clock className="h-4 w-4 text-amber-500" />;
+      case 'ingediend':
+        return <Send className="h-4 w-4 text-primary" />;
+      case 'concept':
+      default:
+        return <Clock className="h-4 w-4 text-muted-foreground" />;
+    }
+  };
+
+  const getStatusBadge = (status: SavedAanvraag['status']) => {
+    switch (status) {
+      case 'geplaatst':
+        return <Badge className="bg-green-100 text-green-700 border-green-200 text-xs">Geplaatst</Badge>;
+      case 'mislukt':
+        return <Badge className="bg-red-100 text-red-700 border-red-200 text-xs">Mislukt</Badge>;
+      case 'wacht_klant':
+        return <Badge className="bg-amber-100 text-amber-700 border-amber-200 text-xs">Wacht op klant</Badge>;
+      default:
+        return null;
+    }
+  };
+
   const renderAanvraag = (aanvraag: SavedAanvraag) => (
     <div
       key={aanvraag.id}
-      className="flex items-center justify-between p-4 border border-border rounded-xl bg-card hover:bg-accent/50 transition-colors cursor-pointer"
+      className={`flex items-center justify-between p-4 border rounded-xl transition-colors cursor-pointer ${
+        aanvraag.status === 'geplaatst'
+          ? 'border-green-200 bg-green-50/50 hover:bg-green-100/50'
+          : aanvraag.status === 'mislukt'
+          ? 'border-red-200 bg-red-50/50 hover:bg-red-100/50'
+          : aanvraag.status === 'wacht_klant'
+          ? 'border-amber-200 bg-amber-50/50 hover:bg-amber-100/50'
+          : 'border-border bg-card hover:bg-accent/50'
+      }`}
       onClick={() => {
         // Restore the form data from the linked storage key (for both concept and ingediend)
         if (aanvraag.storageKey) {
@@ -119,17 +158,16 @@ export function MijnAanvragen() {
     >
       <div className="flex items-center gap-3 min-w-0">
         <div className="flex-shrink-0">
-          {aanvraag.status === 'concept' ? (
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          ) : (
-            <Send className="h-4 w-4 text-primary" />
-          )}
+          {getStatusIcon(aanvraag.status)}
         </div>
         <div className="min-w-0">
-          <p className="text-sm font-medium text-foreground truncate">
-            {aanvraag.titel || 'Zonder titel'}
-          </p>
-          <div className="flex items-center gap-2 mt-0.5">
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-medium text-foreground truncate">
+              {aanvraag.titel || 'Zonder titel'}
+            </p>
+            {getStatusBadge(aanvraag.status)}
+          </div>
+          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
             <Badge variant="outline" className="text-xs">
               {TYPE_LABELS[aanvraag.type] || aanvraag.type}
             </Badge>
@@ -140,19 +178,48 @@ export function MijnAanvragen() {
               {new Date(aanvraag.datum).toLocaleDateString('nl-NL')}
             </span>
           </div>
+          {aanvraag.status === 'mislukt' && aanvraag.errorMessage && (
+            <p className="text-xs text-red-600 mt-1">{aanvraag.errorMessage}</p>
+          )}
         </div>
       </div>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="flex-shrink-0 h-8 w-8"
-        onClick={(e) => {
-          e.stopPropagation();
-          setDeleteTarget(aanvraag);
-        }}
-      >
-        <Trash2 className="h-4 w-4 text-muted-foreground" />
-      </Button>
+      <div className="flex items-center gap-1 flex-shrink-0">
+        {aanvraag.status === 'mislukt' && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-amber-600 hover:text-amber-700 hover:bg-amber-100"
+            onClick={(e) => {
+              e.stopPropagation();
+              // Retry: open de template opnieuw
+              if (aanvraag.storageKey) {
+                const savedData = localStorage.getItem(aanvraag.storageKey);
+                if (savedData) {
+                  const mainKey = TYPE_STORAGE_KEYS[aanvraag.type];
+                  if (mainKey) {
+                    localStorage.setItem(mainKey, savedData);
+                  }
+                }
+              }
+              navigate(TYPE_ROUTES[aanvraag.type] || '/');
+            }}
+            title="Opnieuw proberen"
+          >
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+        )}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          onClick={(e) => {
+            e.stopPropagation();
+            setDeleteTarget(aanvraag);
+          }}
+        >
+          <Trash2 className="h-4 w-4 text-muted-foreground" />
+        </Button>
+      </div>
     </div>
   );
 
@@ -178,7 +245,7 @@ export function MijnAanvragen() {
             Concepten ({concepten.length})
           </TabsTrigger>
           <TabsTrigger value="ingediend">
-            Ingevulde templates ({ingediend.length})
+            Verstuurd ({ingediend.length})
           </TabsTrigger>
         </TabsList>
         <TabsContent value="alle" className="space-y-2">
@@ -191,7 +258,7 @@ export function MijnAanvragen() {
         </TabsContent>
         <TabsContent value="ingediend" className="space-y-2">
           {ingediend.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-4 text-center">Geen ingevulde templates</p>
+            <p className="text-sm text-muted-foreground py-4 text-center">Geen verstuurde aanvragen</p>
           ) : ingediend.map(renderAanvraag)}
         </TabsContent>
       </Tabs>

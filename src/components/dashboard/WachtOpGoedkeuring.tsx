@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle, Clock, XCircle } from 'lucide-react';
+import { CheckCircle, Clock, XCircle, MessageSquare, Edit3, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,6 +14,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { secureSelect, secureUpdate, secureDelete } from '@/lib/data/secureDataClient';
 import { toast } from '@/hooks/use-toast';
 
@@ -25,7 +34,17 @@ interface WachtKlantProject {
   totaal_uren: number;
   medewerkers: string[];
   created_at: string;
+  taken_details?: Array<{
+    werknemer_naam: string;
+    dag_van_week: number;
+    week_start: string;
+    start_uur: number;
+    duur_uren: number;
+    fase_naam: string;
+  }>;
 }
+
+type RejectAction = 'feedback_ellen' | 'manual_edit' | 'delete';
 
 export function WachtOpGoedkeuring() {
   const navigate = useNavigate();
@@ -33,6 +52,12 @@ export function WachtOpGoedkeuring() {
   const [isLoading, setIsLoading] = useState(true);
   const [actionTarget, setActionTarget] = useState<{ project: WachtKlantProject; action: 'approve' | 'reject' } | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Feedback dialoog state
+  const [feedbackDialogOpen, setFeedbackDialogOpen] = useState(false);
+  const [feedbackProject, setFeedbackProject] = useState<WachtKlantProject | null>(null);
+  const [feedbackText, setFeedbackText] = useState('');
+  const [selectedRejectAction, setSelectedRejectAction] = useState<RejectAction>('feedback_ellen');
 
   useEffect(() => {
     loadWachtKlantProjecten();
@@ -49,6 +74,9 @@ export function WachtOpGoedkeuring() {
         fase_naam: string;
         werknemer_naam: string;
         duur_uren: number;
+        dag_van_week: number;
+        week_start: string;
+        start_uur: number;
         created_at: string;
       }>('taken', {
         filters: [{ column: 'plan_status', operator: 'eq', value: 'wacht_klant' }],
@@ -74,6 +102,7 @@ export function WachtOpGoedkeuring() {
             totaal_uren: 0,
             medewerkers: [],
             created_at: taak.created_at || '',
+            taken_details: [],
           };
         }
         grouped[key].taak_ids.push(taak.id);
@@ -81,6 +110,15 @@ export function WachtOpGoedkeuring() {
         if (!grouped[key].medewerkers.includes(taak.werknemer_naam)) {
           grouped[key].medewerkers.push(taak.werknemer_naam);
         }
+        // Bewaar taak details voor heropenen template
+        grouped[key].taken_details?.push({
+          werknemer_naam: taak.werknemer_naam,
+          dag_van_week: taak.dag_van_week,
+          week_start: taak.week_start,
+          start_uur: taak.start_uur,
+          duur_uren: taak.duur_uren,
+          fase_naam: taak.fase_naam,
+        });
       }
 
       setProjecten(Object.values(grouped));
@@ -120,32 +158,71 @@ export function WachtOpGoedkeuring() {
     }
   }
 
-  async function handleReject(project: WachtKlantProject) {
+  // Open feedback dialoog in plaats van direct verwijderen
+  function openFeedbackDialog(project: WachtKlantProject) {
+    setFeedbackProject(project);
+    setFeedbackText('');
+    setSelectedRejectAction('feedback_ellen');
+    setFeedbackDialogOpen(true);
+    setActionTarget(null);
+  }
+
+  // Verwerk de feedback actie
+  async function handleFeedbackSubmit() {
+    if (!feedbackProject) return;
+
     setIsProcessing(true);
     try {
-      // Verwijder alle taken
-      for (const taakId of project.taak_ids) {
-        await secureDelete('taken', [
-          { column: 'id', operator: 'eq', value: taakId },
-        ]);
+      if (selectedRejectAction === 'delete') {
+        // Direct verwijderen zonder aanpassingen
+        for (const taakId of feedbackProject.taak_ids) {
+          await secureDelete('taken', [
+            { column: 'id', operator: 'eq', value: taakId },
+          ]);
+        }
+        toast({
+          title: 'Verwijderd',
+          description: `Planning voor ${feedbackProject.klant_naam} is verwijderd.`,
+        });
+        loadWachtKlantProjecten();
+      } else if (selectedRejectAction === 'feedback_ellen') {
+        // Navigeer naar Ellen chat met feedback context
+        const projectInfo = {
+          klant_naam: feedbackProject.klant_naam,
+          project_nummer: feedbackProject.project_nummer,
+          fase_naam: feedbackProject.fase_naam,
+          feedback: feedbackText,
+          taken: feedbackProject.taken_details,
+          heropend_van: 'wacht_klant',
+        };
+        // Sla op in localStorage voor Ellen chat
+        localStorage.setItem('ellen_feedback_context', JSON.stringify(projectInfo));
+        navigate('/ellen-chat');
+      } else if (selectedRejectAction === 'manual_edit') {
+        // Navigeer naar planner met focus op deze taken
+        const eersteWeek = feedbackProject.taken_details?.[0]?.week_start;
+        navigate(`/?tab=planner${eersteWeek ? `&week=${eersteWeek}` : ''}`);
+        toast({
+          title: 'Handmatig aanpassen',
+          description: 'Je kunt de taken nu handmatig aanpassen in de planner.',
+        });
       }
-
-      toast({
-        title: 'Afgewezen',
-        description: `Planning voor ${project.klant_naam} is verwijderd.`,
-      });
-
-      loadWachtKlantProjecten();
     } catch (err) {
       toast({
         title: 'Fout',
-        description: 'Kon de planning niet verwijderen.',
+        description: 'Er ging iets mis.',
         variant: 'destructive',
       });
     } finally {
       setIsProcessing(false);
-      setActionTarget(null);
+      setFeedbackDialogOpen(false);
+      setFeedbackProject(null);
     }
+  }
+
+  // Legacy functie voor directe afwijzing (nu redirect naar feedback dialoog)
+  async function handleReject(project: WachtKlantProject) {
+    openFeedbackDialog(project);
   }
 
   if (isLoading) {
@@ -227,7 +304,7 @@ export function WachtOpGoedkeuring() {
             <AlertDialogDescription>
               {actionTarget?.action === 'approve'
                 ? `De planning voor "${actionTarget.project.klant_naam}" wordt goedgekeurd en staat dan als concept in de planner.`
-                : `De planning voor "${actionTarget?.project.klant_naam}" wordt verwijderd. Dit kan niet ongedaan worden gemaakt.`}
+                : `Hoe wil je de afwijzing verwerken voor "${actionTarget?.project.klant_naam}"?`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -243,11 +320,124 @@ export function WachtOpGoedkeuring() {
                 }
               }}
             >
-              {isProcessing ? 'Bezig...' : (actionTarget?.action === 'approve' ? 'Goedkeuren' : 'Afwijzen')}
+              {isProcessing ? 'Bezig...' : (actionTarget?.action === 'approve' ? 'Goedkeuren' : 'Doorgaan')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Feedback Dialoog voor afwijzing */}
+      <Dialog open={feedbackDialogOpen} onOpenChange={(open) => !open && setFeedbackDialogOpen(false)}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Klant niet akkoord - Feedback</DialogTitle>
+            <DialogDescription>
+              De klant is niet akkoord met de planning voor {feedbackProject?.klant_naam}. Geef aan wat er moet veranderen.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {/* Actie keuze */}
+            <div className="space-y-3">
+              <p className="text-sm font-medium">Wat wil je doen?</p>
+
+              <button
+                type="button"
+                onClick={() => setSelectedRejectAction('feedback_ellen')}
+                className={`w-full flex items-start gap-3 p-3 rounded-lg border-2 transition-all text-left ${
+                  selectedRejectAction === 'feedback_ellen'
+                    ? 'border-primary bg-primary/5'
+                    : 'border-border hover:border-muted-foreground/50'
+                }`}
+              >
+                <MessageSquare className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="font-medium text-sm">Feedback aan Ellen geven</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Ellen past de planning aan op basis van je feedback
+                  </p>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedRejectAction('manual_edit')}
+                className={`w-full flex items-start gap-3 p-3 rounded-lg border-2 transition-all text-left ${
+                  selectedRejectAction === 'manual_edit'
+                    ? 'border-primary bg-primary/5'
+                    : 'border-border hover:border-muted-foreground/50'
+                }`}
+              >
+                <Edit3 className="h-5 w-5 text-amber-500 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="font-medium text-sm">Handmatig aanpassen</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Open de planner en pas de blokken zelf aan
+                  </p>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedRejectAction('delete')}
+                className={`w-full flex items-start gap-3 p-3 rounded-lg border-2 transition-all text-left ${
+                  selectedRejectAction === 'delete'
+                    ? 'border-destructive bg-destructive/5'
+                    : 'border-border hover:border-muted-foreground/50'
+                }`}
+              >
+                <Trash2 className="h-5 w-5 text-destructive mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="font-medium text-sm">Planning verwijderen</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Verwijder de hele planning en begin opnieuw
+                  </p>
+                </div>
+              </button>
+            </div>
+
+            {/* Feedback tekstveld - alleen tonen bij Ellen feedback */}
+            {selectedRejectAction === 'feedback_ellen' && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  Wat moet er anders?
+                </label>
+                <Textarea
+                  placeholder="Bijv. 'De klant wil de presentatie op vrijdag in plaats van woensdag' of 'Er moet meer tijd tussen de conceptfase en de productie'"
+                  value={feedbackText}
+                  onChange={(e) => setFeedbackText(e.target.value)}
+                  rows={3}
+                  className="resize-none"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Wees zo specifiek mogelijk zodat Ellen de juiste aanpassingen kan maken.
+                </p>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setFeedbackDialogOpen(false)}
+              disabled={isProcessing}
+            >
+              Annuleren
+            </Button>
+            <Button
+              onClick={handleFeedbackSubmit}
+              disabled={isProcessing || (selectedRejectAction === 'feedback_ellen' && !feedbackText.trim())}
+              className={selectedRejectAction === 'delete' ? 'bg-destructive hover:bg-destructive/90' : ''}
+            >
+              {isProcessing ? 'Bezig...' : (
+                selectedRejectAction === 'delete' ? 'Verwijderen' :
+                selectedRejectAction === 'manual_edit' ? 'Naar planner' :
+                'Naar Ellen'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

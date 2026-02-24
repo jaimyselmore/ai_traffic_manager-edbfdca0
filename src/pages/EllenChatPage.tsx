@@ -61,6 +61,7 @@ export default function EllenChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([welcomeMessage]);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+  const [pendingFeedback, setPendingFeedback] = useState<string | null>(null);
 
   // Laad vorige berichten bij mount
   useEffect(() => {
@@ -102,6 +103,37 @@ export default function EllenChatPage() {
 
     loadHistory();
   }, [sessieId, welcomeMessage]);
+
+  // Check voor feedback context bij mount (van WachtOpGoedkeuring afwijzing)
+  useEffect(() => {
+    const feedbackContext = localStorage.getItem('ellen_feedback_context');
+    if (feedbackContext) {
+      try {
+        const context = JSON.parse(feedbackContext);
+        // Verwijder de context zodat het niet opnieuw wordt getriggerd
+        localStorage.removeItem('ellen_feedback_context');
+
+        // Bouw het feedback bericht op
+        const takenOmschrijving = context.taken?.map((t: any) => {
+          const dagNamen = ['maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag'];
+          return `${t.werknemer_naam}: ${dagNamen[t.dag_van_week] || t.dag_van_week} ${t.start_uur}:00-${t.start_uur + t.duur_uren}:00`;
+        }).join(', ');
+
+        const feedbackBericht = `De klant (${context.klant_naam}) is niet akkoord met de voorgestelde planning voor project ${context.project_nummer}.
+
+Huidige planning: ${takenOmschrijving || 'geen details beschikbaar'}
+
+Feedback van de klant: "${context.feedback}"
+
+Kun je een aangepast voorstel maken?`;
+
+        setPendingFeedback(feedbackBericht);
+      } catch (err) {
+        console.error('Error parsing feedback context:', err);
+        localStorage.removeItem('ellen_feedback_context');
+      }
+    }
+  }, []);
 
   const handleNewConversation = useCallback(() => {
     const newId = crypto.randomUUID();
@@ -293,6 +325,31 @@ export default function EllenChatPage() {
       content: 'Oké, planning geannuleerd.',
     }]);
   }, []);
+
+  // Verwerk pending feedback nadat history is geladen
+  useEffect(() => {
+    if (pendingFeedback && !isLoadingHistory && !isLoading) {
+      // Start nieuw gesprek en stuur feedback
+      const newId = crypto.randomUUID();
+      localStorage.setItem(STORAGE_KEY, newId);
+      setSessieId(newId);
+
+      // Voeg intro bericht toe
+      const introMessage: ChatMessage = {
+        id: 'feedback-intro',
+        role: 'ellen',
+        content: 'Ik zie dat er feedback is van de klant. Ik ga kijken hoe we de planning kunnen aanpassen...',
+      };
+
+      setMessages([welcomeMessage, introMessage]);
+      setPendingFeedback(null);
+
+      // Stuur het feedback bericht na korte delay
+      setTimeout(() => {
+        handleSendMessage(pendingFeedback);
+      }, 100);
+    }
+  }, [pendingFeedback, isLoadingHistory, isLoading, welcomeMessage, handleSendMessage]);
 
   return (
     <div className="h-full flex flex-col space-y-8">
