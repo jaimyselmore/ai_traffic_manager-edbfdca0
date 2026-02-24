@@ -80,7 +80,7 @@ export function Dashboard({ selectedEmployeeId: _selectedEmployeeId }: Dashboard
         title: 'Wacht op goedkeuring',
         value: wachtKlantCount,
         icon: CheckCircle2,
-        variant: wachtKlantCount > 0 ? 'warning' as const : 'success' as const,
+        variant: wachtKlantCount > 0 ? 'warning' as const : 'default' as const,
         priority: wachtKlantCount > 0 ? 5 : 0, // Hoogste prioriteit als er items zijn
         onClick: () => setShowWachtOpGoedkeuring(!showWachtOpGoedkeuring),
       },
