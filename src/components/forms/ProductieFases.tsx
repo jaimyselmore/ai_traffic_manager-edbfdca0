@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { ChevronDown, Plus } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -292,10 +292,31 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
 
   const FaseCollapsible = ({ fase, children }: { fase: string; children: React.ReactNode }) => {
     const isOpen = openFases[fase] || false;
+    const triggerRef = useRef<HTMLButtonElement | null>(null);
+
+    const handleOpenChange = (open: boolean) => {
+      const prevTop = triggerRef.current
+        ? triggerRef.current.getBoundingClientRect().top
+        : null;
+
+      setOpenFases(prev => ({ ...prev, [fase]: open }));
+
+      if (prevTop !== null && typeof window !== 'undefined') {
+        requestAnimationFrame(() => {
+          if (!triggerRef.current) return;
+          const newTop = triggerRef.current.getBoundingClientRect().top;
+          const delta = newTop - prevTop;
+          window.scrollBy(0, delta);
+        });
+      }
+    };
 
     return (
-      <Collapsible open={isOpen} onOpenChange={() => toggleFase(fase)}>
-        <CollapsibleTrigger className="w-full flex items-center justify-between py-3 px-4 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors">
+      <Collapsible open={isOpen} onOpenChange={handleOpenChange}>
+        <CollapsibleTrigger
+          ref={triggerRef}
+          className="w-full flex items-center justify-between py-3 px-4 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
+        >
           <span className="font-medium text-sm">{faseLabels[fase].title}</span>
           <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
         </CollapsibleTrigger>
@@ -319,10 +340,31 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
     renderMeetingFase: (fase: string) => React.ReactNode;
   }) => {
     const isOpen = openFases[fase] || false;
+    const triggerRef = useRef<HTMLButtonElement | null>(null);
+
+    const handleOpenChange = (open: boolean) => {
+      const prevTop = triggerRef.current
+        ? triggerRef.current.getBoundingClientRect().top
+        : null;
+
+      setOpenFases(prev => ({ ...prev, [fase]: open }));
+
+      if (prevTop !== null && typeof window !== 'undefined') {
+        requestAnimationFrame(() => {
+          if (!triggerRef.current) return;
+          const newTop = triggerRef.current.getBoundingClientRect().top;
+          const delta = newTop - prevTop;
+          window.scrollBy(0, delta);
+        });
+      }
+    };
 
     return (
-      <Collapsible open={isOpen} onOpenChange={() => toggleFase(fase)}>
-        <CollapsibleTrigger className="w-full flex items-center justify-between py-3 px-4 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors">
+      <Collapsible open={isOpen} onOpenChange={handleOpenChange}>
+        <CollapsibleTrigger
+          ref={triggerRef}
+          className="w-full flex items-center justify-between py-3 px-4 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
+        >
           <span className="font-medium text-sm">{faseLabels[fase].title}</span>
           <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
         </CollapsibleTrigger>

@@ -22,14 +22,16 @@ export default function Login() {
     setError(null);
     setIsSubmitting(true);
 
-    const { error } = await signIn(username, password);
+    const { error } = await signIn(username.trim(), password);
 
     if (error) {
-      setError('Ongeldige gebruikersnaam of wachtwoord');
+      // Toon de foutmelding van de server (incl. rate limiting / andere codes)
+      setError(error.message || 'Inloggen mislukt');
       setIsSubmitting(false);
-    } else {
-      navigate('/');
+      return;
     }
+
+    navigate('/');
   };
 
   return (
