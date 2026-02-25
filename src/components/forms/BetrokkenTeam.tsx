@@ -1,16 +1,12 @@
-import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { useEmployees } from '@/hooks/use-employees';
 
 export interface BetrokkenTeamData {
-  betrokkenCreatie: boolean;
-  creatieTeam: string;
-  betrokkenAccount: boolean;
-  accountVerantwoordelijke: string;
-  betrokkenProductie: boolean;
-  producer: string;
+  accountManagers: string[]; // IDs van account managers
+  producers: string[]; // IDs van producers
+  strategen: string[]; // IDs van strategen
+  creatieTeam: string[]; // IDs van creatief team
   ellenVoorstel: boolean;
 }
 
@@ -18,137 +14,147 @@ interface BetrokkenTeamProps {
   data: BetrokkenTeamData;
   onChange: (data: BetrokkenTeamData) => void;
   showEllenToggle?: boolean;
-  ellenDefaultOn?: boolean;
 }
 
-export function BetrokkenTeam({ data, onChange, showEllenToggle = true, ellenDefaultOn = false }: BetrokkenTeamProps) {
+export function BetrokkenTeam({ data, onChange, showEllenToggle = true }: BetrokkenTeamProps) {
   const { data: employees = [] } = useEmployees();
 
-  return (
-    <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
-      <h2 className="text-lg font-semibold text-foreground">Betrokken team</h2>
-      <p className="text-sm text-muted-foreground">
-        Welke rollen zijn standaard aanwezig bij meetings en presentaties voor dit project?
-      </p>
+  // Filter employees by role
+  const accountEmployees = employees.filter(e => {
+    const role = (e.role || '').toLowerCase();
+    return role.includes('account') || role.includes('project manager');
+  });
 
-      <div className="space-y-4">
-        <div className="flex items-start gap-3">
-          <Checkbox
-            id="creatie"
-            checked={data.betrokkenCreatie}
-            onCheckedChange={(checked) => onChange({ ...data, betrokkenCreatie: !!checked })}
-          />
-          <div className="flex-1">
-            <Label htmlFor="creatie" className="text-sm font-medium">Creatie</Label>
-            {data.betrokkenCreatie && (
-              <Select
-                value={data.creatieTeam}
-                onValueChange={(value) => onChange({ ...data, creatieTeam: value })}
-              >
-                <SelectTrigger className="mt-2">
-                  <SelectValue placeholder="Selecteer creatief duo/team" />
-                </SelectTrigger>
-                <SelectContent>
-                  {employees.filter(e => {
-                    // Explicitly exclude studio team members by name (case-insensitive)
-                    const studioNames = ['martijn', 'daniël', 'daniel', 'jaimy'];
-                    const nameLower = (e.name || '').toLowerCase();
-                    if (studioNames.some(studio => nameLower.includes(studio))) {
-                      return false;
-                    }
+  const producerEmployees = employees.filter(e => {
+    const role = (e.role || '').toLowerCase();
+    return role.includes('producer') || role.includes('productie');
+  });
 
-                    const role = (e.role || '').toLowerCase();
-                    const discipline = (e.discipline || '').toLowerCase();
+  const strategEmployees = employees.filter(e => {
+    const role = (e.role || '').toLowerCase();
+    return role.includes('strateeg') || role.includes('strateg') || role.includes('strategy');
+  });
 
-                    // Check if discipline is creative-related
-                    const isCreativeDiscipline =
-                      discipline.includes('creatief') ||
-                      discipline.includes('creative') ||
-                      discipline.includes('concept');
+  const creatieEmployees = employees.filter(e => {
+    const studioNames = ['martijn', 'daniël', 'daniel', 'jaimy'];
+    const nameLower = (e.name || '').toLowerCase();
+    if (studioNames.some(studio => nameLower.includes(studio))) {
+      return false;
+    }
 
-                    // Check if role is creative-related
-                    const isCreativeRole =
-                      role.includes('creatief') ||
-                      role.includes('creative') ||
-                      role.includes('art director') ||
-                      role.includes('copywriter') ||
-                      role.includes('concept');
+    const role = (e.role || '').toLowerCase();
+    const discipline = (e.discipline || '').toLowerCase();
 
-                    // Exclude studio/editor roles explicitly
-                    const isStudioRole =
-                      role.includes('editor') ||
-                      role.includes('motion') ||
-                      role.includes('designer') ||
-                      role.includes('studio');
+    const isCreativeDiscipline =
+      discipline.includes('creatief') ||
+      discipline.includes('creative') ||
+      discipline.includes('concept');
 
-                    return (isCreativeDiscipline || isCreativeRole) && !isStudioRole;
-                  }).map((emp) => (
-                    <SelectItem key={emp.id} value={emp.id}>{emp.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-        </div>
+    const isCreativeRole =
+      role.includes('creatief') ||
+      role.includes('creative') ||
+      role.includes('art director') ||
+      role.includes('copywriter') ||
+      role.includes('concept');
 
-        <div className="flex items-start gap-3">
-          <Checkbox
-            id="account"
-            checked={data.betrokkenAccount}
-            onCheckedChange={(checked) => onChange({ ...data, betrokkenAccount: !!checked })}
-          />
-          <div className="flex-1">
-            <Label htmlFor="account" className="text-sm font-medium">Account</Label>
-            {data.betrokkenAccount && (
-              <Select
-                value={data.accountVerantwoordelijke}
-                onValueChange={(value) => onChange({ ...data, accountVerantwoordelijke: value })}
-              >
-                <SelectTrigger className="mt-2">
-                  <SelectValue placeholder="Selecteer accountverantwoordelijke" />
-                </SelectTrigger>
-                <SelectContent>
-                  {employees.filter(e => 
-                    e.role.toLowerCase().includes('account') ||
-                    e.role.toLowerCase().includes('project')
-                  ).map((emp) => (
-                    <SelectItem key={emp.id} value={emp.id}>{emp.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-        </div>
+    const isStudioRole =
+      role.includes('editor') ||
+      role.includes('motion') ||
+      role.includes('designer') ||
+      role.includes('studio');
 
-        <div className="flex items-start gap-3">
-          <Checkbox
-            id="productie-team"
-            checked={data.betrokkenProductie}
-            onCheckedChange={(checked) => onChange({ ...data, betrokkenProductie: !!checked })}
-          />
-          <div className="flex-1">
-            <Label htmlFor="productie-team" className="text-sm font-medium">Productie</Label>
-            {data.betrokkenProductie && (
-              <Select
-                value={data.producer}
-                onValueChange={(value) => onChange({ ...data, producer: value })}
-              >
-                <SelectTrigger className="mt-2">
-                  <SelectValue placeholder="Selecteer producer" />
-                </SelectTrigger>
-                <SelectContent>
-                  {employees.filter(e => 
-                    e.role.toLowerCase().includes('producer') || 
-                    e.role.toLowerCase().includes('productie')
-                  ).map((emp) => (
-                    <SelectItem key={emp.id} value={emp.id}>{emp.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
+    return (isCreativeDiscipline || isCreativeRole) && !isStudioRole;
+  });
+
+  const toggleEmployee = (field: keyof BetrokkenTeamData, empId: string) => {
+    if (field === 'ellenVoorstel') return;
+    const currentList = data[field] as string[];
+    const isSelected = currentList.includes(empId);
+    const updated = isSelected
+      ? currentList.filter(id => id !== empId)
+      : [...currentList, empId];
+    onChange({ ...data, [field]: updated });
+  };
+
+  const RoleSection = ({
+    title,
+    field,
+    employeeList,
+    description
+  }: {
+    title: string;
+    field: keyof BetrokkenTeamData;
+    employeeList: typeof employees;
+    description?: string;
+  }) => {
+    const selectedIds = (data[field] as string[]) || [];
+
+    return (
+      <div className="space-y-2">
+        <Label className="text-sm font-medium">{title}</Label>
+        {description && (
+          <p className="text-xs text-muted-foreground">{description}</p>
+        )}
+        <div className="flex flex-wrap gap-2">
+          {employeeList.length === 0 ? (
+            <p className="text-xs text-muted-foreground italic">Geen medewerkers met deze rol gevonden</p>
+          ) : (
+            employeeList.map(emp => {
+              const isSelected = selectedIds.includes(emp.id);
+              return (
+                <button
+                  key={emp.id}
+                  type="button"
+                  onClick={() => toggleEmployee(field, emp.id)}
+                  className={`px-3 py-1.5 text-sm rounded-full border transition-colors ${
+                    isSelected
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'bg-secondary/50 text-foreground border-border hover:bg-secondary'
+                  }`}
+                >
+                  {emp.name}
+                </button>
+              );
+            })
+          )}
         </div>
       </div>
+    );
+  };
+
+  return (
+    <div className="rounded-2xl border border-border bg-card p-6 space-y-5">
+      <div>
+        <h2 className="text-lg font-semibold text-foreground">Projectteam</h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Selecteer wie bij dit project betrokken is. Deze personen worden automatisch uitgenodigd voor meetings en presentaties.
+        </p>
+      </div>
+
+      <RoleSection
+        title="Account Manager"
+        field="accountManagers"
+        employeeList={accountEmployees}
+      />
+
+      <RoleSection
+        title="Producer"
+        field="producers"
+        employeeList={producerEmployees}
+      />
+
+      <RoleSection
+        title="Strateeg"
+        field="strategen"
+        employeeList={strategEmployees}
+      />
+
+      <RoleSection
+        title="Creatief team"
+        field="creatieTeam"
+        employeeList={creatieEmployees}
+        description="Art Directors, Copywriters en andere creatieven"
+      />
 
       {showEllenToggle && (
         <div className="flex items-center gap-3 pt-4 border-t border-border mt-4">
@@ -167,11 +173,9 @@ export function BetrokkenTeam({ data, onChange, showEllenToggle = true, ellenDef
 }
 
 export const emptyBetrokkenTeamData: BetrokkenTeamData = {
-  betrokkenCreatie: false,
-  creatieTeam: '',
-  betrokkenAccount: false,
-  accountVerantwoordelijke: '',
-  betrokkenProductie: false,
-  producer: '',
+  accountManagers: [],
+  producers: [],
+  strategen: [],
+  creatieTeam: [],
   ellenVoorstel: false,
 };

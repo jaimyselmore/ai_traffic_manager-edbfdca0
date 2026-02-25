@@ -982,57 +982,6 @@ export default function NieuwProject() {
               )}
             </div>
 
-            {/* Betrokken personen (alleen voor meetings) */}
-            <div className="space-y-2 pt-4 border-t border-border">
-              <Label className="text-sm">Overige betrokkenen (voor meetings)</Label>
-              <p className="text-xs text-muted-foreground">
-                Medewerkers die niet actief werken maar wel bij presentaties/meetings moeten zijn
-              </p>
-              <div className="flex flex-wrap gap-2 mt-2">
-                {employees
-                  .filter(emp => {
-                    // Filter out employees already in medewerkerAllocaties or teamAllocaties
-                    const isInMedewerker = formData.algemeen.medewerkerAllocaties.some(a => a.medewerkerId === emp.id);
-                    const isInTeam = formData.algemeen.teamAllocaties.some(t => {
-                      const teamMembers = employees.filter(e => e.duoTeam === t.teamName);
-                      return teamMembers.some(tm => tm.id === emp.id);
-                    });
-                    return !isInMedewerker && !isInTeam;
-                  })
-                  .map(emp => {
-                    const isSelected = formData.algemeen.betrokkenPersonen?.includes(emp.id);
-                    return (
-                      <button
-                        key={emp.id}
-                        type="button"
-                        onClick={() => {
-                          const current = formData.algemeen.betrokkenPersonen || [];
-                          const updated = isSelected
-                            ? current.filter(id => id !== emp.id)
-                            : [...current, emp.id];
-                          setFormData({
-                            ...formData,
-                            algemeen: { ...formData.algemeen, betrokkenPersonen: updated }
-                          });
-                        }}
-                        className={`px-3 py-1.5 text-sm rounded-full border transition-colors ${
-                          isSelected
-                            ? 'bg-primary text-primary-foreground border-primary'
-                            : 'bg-card border-border hover:border-primary/50'
-                        }`}
-                      >
-                        {emp.name}
-                      </button>
-                    );
-                  })}
-              </div>
-              {formData.algemeen.betrokkenPersonen?.length > 0 && (
-                <p className="text-xs text-muted-foreground mt-2">
-                  {formData.algemeen.betrokkenPersonen.length} persoon/personen worden uitgenodigd voor meetings
-                </p>
-              )}
-            </div>
-
             {/* Meetings/Presentaties */}
             <div className="space-y-3 pt-4 border-t border-border">
               <div className="flex items-center justify-between">
@@ -1169,7 +1118,6 @@ export default function NieuwProject() {
               data={formData.betrokkenTeam}
               onChange={(data) => setFormData({ ...formData, betrokkenTeam: data })}
               showEllenToggle={true}
-              ellenDefaultOn={false}
             />
             <ProductieFases
               data={formData.productieFases}
