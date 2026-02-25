@@ -7,6 +7,7 @@ export interface BetrokkenTeamData {
   producers: string[]; // IDs van producers
   strategen: string[]; // IDs van strategen
   creatieTeam: string[]; // IDs van creatief team
+  studio: string[]; // IDs van studio (editors, motion, designers)
   ellenVoorstel: boolean;
 }
 
@@ -36,14 +37,13 @@ export function BetrokkenTeam({ data, onChange, showEllenToggle = true }: Betrok
   });
 
   const creatieEmployees = employees.filter(e => {
-    const studioNames = ['martijn', 'daniël', 'daniel', 'jaimy'];
-    const nameLower = (e.name || '').toLowerCase();
-    if (studioNames.some(studio => nameLower.includes(studio))) {
-      return false;
-    }
-
     const role = (e.role || '').toLowerCase();
     const discipline = (e.discipline || '').toLowerCase();
+
+    // Exclude producers (to avoid duplicates like Sarah)
+    if (role.includes('producer') || role.includes('productie')) {
+      return false;
+    }
 
     const isCreativeDiscipline =
       discipline.includes('creatief') ||
@@ -64,6 +64,14 @@ export function BetrokkenTeam({ data, onChange, showEllenToggle = true }: Betrok
       role.includes('studio');
 
     return (isCreativeDiscipline || isCreativeRole) && !isStudioRole;
+  });
+
+  const studioEmployees = employees.filter(e => {
+    const role = (e.role || '').toLowerCase();
+    return role.includes('editor') ||
+           role.includes('motion') ||
+           role.includes('designer') ||
+           role.includes('studio');
   });
 
   const toggleEmployee = (field: keyof BetrokkenTeamData, empId: string) => {
@@ -153,7 +161,12 @@ export function BetrokkenTeam({ data, onChange, showEllenToggle = true }: Betrok
         title="Creatief team"
         field="creatieTeam"
         employeeList={creatieEmployees}
-        description="Art Directors, Copywriters en andere creatieven"
+      />
+
+      <RoleSection
+        title="Studio"
+        field="studio"
+        employeeList={studioEmployees}
       />
 
       {showEllenToggle && (
@@ -177,5 +190,6 @@ export const emptyBetrokkenTeamData: BetrokkenTeamData = {
   producers: [],
   strategen: [],
   creatieTeam: [],
+  studio: [],
   ellenVoorstel: false,
 };

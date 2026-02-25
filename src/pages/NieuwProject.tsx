@@ -398,6 +398,9 @@ export default function NieuwProject() {
       creatieTeam: (formData.betrokkenTeam.creatieTeam || [])
         .map(id => employees.find(e => e.id === id)?.name)
         .filter(Boolean) as string[],
+      studio: (formData.betrokkenTeam.studio || [])
+        .map(id => employees.find(e => e.id === id)?.name)
+        .filter(Boolean) as string[],
     };
 
     const projectInfo = {
