@@ -1654,7 +1654,17 @@ Deno.serve(async (req) => {
       const faseLabel = werktypeLabels[werktype] || werktype;
       const projectTitel = planning.project_omschrijving || planning.klant_naam;
 
+      // Debug: log de ontvangen taken om te zien of start_uur correct is
+      console.log('Planning taken ontvangen:', JSON.stringify(planning.taken, null, 2));
+
       for (const taak of planning.taken) {
+        // Valideer dat start_uur een geldig nummer is
+        const startUur = typeof taak.start_uur === 'number' ? taak.start_uur : 9;
+        const duurUren = typeof taak.duur_uren === 'number' ? taak.duur_uren : 8;
+        const dagVanWeek = typeof taak.dag_van_week === 'number' ? taak.dag_van_week : 0;
+
+        console.log(`Taak insert: ${taak.werknemer_naam} - start_uur=${startUur} (origineel: ${taak.start_uur}), duur=${duurUren}, dag=${dagVanWeek}`);
+
         const { error: taakErr } = await supabase.from('taken').insert({
           project_id: project.id,
           werknemer_naam: taak.werknemer_naam,
@@ -1664,9 +1674,9 @@ Deno.serve(async (req) => {
           werktype,
           discipline: taak.discipline || 'Algemeen',
           week_start: taak.week_start,
-          dag_van_week: taak.dag_van_week,
-          start_uur: taak.start_uur,
-          duur_uren: taak.duur_uren,
+          dag_van_week: dagVanWeek,
+          start_uur: startUur,
+          duur_uren: duurUren,
           plan_status: gekozenPlanStatus, // 'concept' of 'wacht_klant'
           is_hard_lock: false,
         });

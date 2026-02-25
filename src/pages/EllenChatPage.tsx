@@ -178,6 +178,16 @@ Kun je een aangepast voorstel maken?`;
 
       const planningVoorstel: PlanningVoorstel | undefined = data?.voorstel?.type === 'planning_voorstel' ? data.voorstel : undefined;
 
+      // Debug: log ontvangen planning voorstel met tijden
+      if (planningVoorstel) {
+        console.log('Planning voorstel ontvangen - taken met tijden:', planningVoorstel.taken.map(t => ({
+          werknemer: t.werknemer_naam,
+          dag: t.dag_van_week,
+          start_uur: t.start_uur,
+          duur: t.duur_uren
+        })));
+      }
+
       setMessages(prev => [...prev, {
         id: (Date.now() + 1).toString(),
         role: 'ellen',
@@ -270,6 +280,14 @@ Kun je een aangepast voorstel maken?`;
   const handleConfirmPlanning = useCallback(async (planning: PlanningVoorstel) => {
     const sessionToken = getSessionToken();
     if (!sessionToken) return;
+
+    // Debug: log wat er naar de backend wordt gestuurd
+    console.log('Planning bevestigd - taken met tijden:', planning.taken.map(t => ({
+      werknemer: t.werknemer_naam,
+      dag: t.dag_van_week,
+      start_uur: t.start_uur,
+      duur: t.duur_uren
+    })));
 
     setIsLoading(true);
     try {
