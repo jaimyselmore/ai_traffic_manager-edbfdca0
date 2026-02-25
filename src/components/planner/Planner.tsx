@@ -198,11 +198,11 @@ export function Planner() {
       </div>
 
       {/* Filter card left + Legend right + Week nav arrows bottom-right */}
-      <div className="flex items-end justify-between">
-        <div className="flex items-start gap-8">
-          <div className="rounded-xl border border-border bg-card px-4 py-4 shadow-sm flex flex-col gap-3">
-            <Select 
-              value={weekNumber.toString()} 
+      <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+        <div className="flex flex-col sm:flex-row items-start gap-4 lg:gap-8">
+          <div className="rounded-xl border border-border bg-card px-3 sm:px-4 py-3 sm:py-4 shadow-sm flex flex-col gap-2 sm:gap-3 w-full sm:w-auto">
+            <Select
+              value={weekNumber.toString()}
               onValueChange={(v) => {
                 const targetWeek = parseInt(v);
                 const year = currentWeekStart.getFullYear();
@@ -213,7 +213,7 @@ export function Planner() {
                 setCurrentWeekStart(targetDate);
               }}
             >
-              <SelectTrigger className="w-[200px]">
+              <SelectTrigger className="w-full sm:w-[200px]">
                 <SelectValue>
                   {weekNumber === currentWeekNumber ? 'Huidige week' : `Week ${weekNumber}`}
                 </SelectValue>
@@ -229,7 +229,7 @@ export function Planner() {
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="w-[200px] justify-between">
+                <Button variant="outline" className="w-full sm:w-[200px] justify-between">
                   <span className="flex items-center gap-2">
                     <Users className="h-4 w-4" />
                     {visibleEmployeeIds.length === employees.length
@@ -257,7 +257,7 @@ export function Planner() {
             </DropdownMenu>
 
             <Select value={selectedClient} onValueChange={setSelectedClient}>
-              <SelectTrigger className="w-[200px]">
+              <SelectTrigger className="w-full sm:w-[200px]">
                 <SelectValue placeholder="Selecteer klant" />
               </SelectTrigger>
               <SelectContent>
@@ -268,7 +268,9 @@ export function Planner() {
               </SelectContent>
             </Select>
           </div>
-          <TaskLegend />
+          <div className="hidden sm:block">
+            <TaskLegend />
+          </div>
         </div>
 
         {/* Week navigation arrows */}
