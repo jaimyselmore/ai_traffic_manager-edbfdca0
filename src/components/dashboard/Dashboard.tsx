@@ -3,11 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { CheckCircle2, Clock, Eye, Bell, FolderOpen, Plus, FileEdit, Users, CalendarOff, Archive } from 'lucide-react';
 import { StatCard } from './StatCard';
 import { RequestBlock } from './RequestBlock';
-import { NotificationPanel, type Notification as PanelNotification, type NotificationType } from './NotificationPanel';
 import { MijnAanvragen } from './MijnAanvragen';
 import { WachtOpGoedkeuring, getWachtKlantCount } from './WachtOpGoedkeuring';
 import { getWeekNumber, getWeekStart, formatDateRange } from '@/lib/helpers/dateHelpers';
-import { useNotifications, useUpcomingDeadlines, useActiveProjects, useInterneReviews, useWijzigingsverzoeken, useAfgerondeProjecten } from '@/lib/data';
+import { useUpcomingDeadlines, useActiveProjects, useInterneReviews, useWijzigingsverzoeken, useAfgerondeProjecten } from '@/lib/data';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface DashboardProps {
@@ -17,39 +16,19 @@ interface DashboardProps {
 export function Dashboard({ selectedEmployeeId: _selectedEmployeeId }: DashboardProps) {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { data: initialNotifications = [] } = useNotifications();
   const { data: upcomingDeadlines = [] } = useUpcomingDeadlines();
   const { data: activeProjects = [] } = useActiveProjects();
   const { data: interneReviews = [] } = useInterneReviews();
   const { data: wijzigingsverzoeken = [] } = useWijzigingsverzoeken();
   const { data: afgerondeProjecten = [] } = useAfgerondeProjecten();
 
-  // Convert data layer notifications to panel notifications
-  const convertNotifications = (notifs: typeof initialNotifications): PanelNotification[] =>
-    notifs.map(n => ({
-      id: n.id,
-      type: (n.type as NotificationType) || 'active',
-      client: n.client || n.clientName || '',
-      project: n.project || n.projectNumber || '',
-      workType: n.workType || '',
-      employee: n.employee || '',
-      deadline: n.deadline || '',
-      severity: n.severity,
-      isDone: n.isDone,
-    }));
-
-  const [notifications, setNotifications] = useState<PanelNotification[]>([]);
-  const [openPanel, setOpenPanel] = useState<NotificationType | null>(null);
   const [wachtKlantCount, setWachtKlantCount] = useState(0);
   const [showWachtOpGoedkeuring, setShowWachtOpGoedkeuring] = useState(false);
   const [showAfgerondeProjecten, setShowAfgerondeProjecten] = useState(false);
-
-  // Update notifications when data loads
-  useEffect(() => {
-    if (initialNotifications.length > 0 && notifications.length === 0) {
-      setNotifications(convertNotifications(initialNotifications));
-    }
-  }, [initialNotifications, notifications.length]);
+  const [showActiveProjects, setShowActiveProjects] = useState(false);
+  const [showUpcomingDeadlines, setShowUpcomingDeadlines] = useState(false);
+  const [showInterneReviews, setShowInterneReviews] = useState(false);
+  const [showWijzigingsverzoeken, setShowWijzigingsverzoeken] = useState(false);
 
   // Load wacht_klant count
   useEffect(() => {
@@ -83,7 +62,7 @@ export function Dashboard({ selectedEmployeeId: _selectedEmployeeId }: Dashboard
         value: wachtKlantCount,
         icon: CheckCircle2,
         variant: wachtKlantCount > 0 ? 'warning' as const : 'default' as const,
-        priority: wachtKlantCount > 0 ? 5 : 0, // Hoogste prioriteit als er items zijn
+        priority: wachtKlantCount > 0 ? 5 : 0,
         onClick: () => setShowWachtOpGoedkeuring(!showWachtOpGoedkeuring),
       },
       {
@@ -93,7 +72,7 @@ export function Dashboard({ selectedEmployeeId: _selectedEmployeeId }: Dashboard
         icon: Clock,
         variant: upcomingDeadlinesCount > 3 ? 'danger' as const : upcomingDeadlinesCount > 0 ? 'warning' as const : 'default' as const,
         priority: upcomingDeadlinesCount > 3 ? 4 : upcomingDeadlinesCount > 0 ? 3 : 0,
-        onClick: () => setOpenPanel('upcoming'),
+        onClick: () => setShowUpcomingDeadlines(!showUpcomingDeadlines),
       },
       {
         id: 'reviews',
@@ -102,7 +81,7 @@ export function Dashboard({ selectedEmployeeId: _selectedEmployeeId }: Dashboard
         icon: Eye,
         variant: reviewsCount > 0 ? 'info' as const : 'default' as const,
         priority: reviewsCount > 0 ? 2 : 0,
-        onClick: () => setOpenPanel('review'),
+        onClick: () => setShowInterneReviews(!showInterneReviews),
       },
       {
         id: 'changes',
@@ -111,7 +90,7 @@ export function Dashboard({ selectedEmployeeId: _selectedEmployeeId }: Dashboard
         icon: Bell,
         variant: changesCount > 0 ? 'warning' as const : 'default' as const,
         priority: changesCount > 0 ? 2 : 0,
-        onClick: () => setOpenPanel('change'),
+        onClick: () => setShowWijzigingsverzoeken(!showWijzigingsverzoeken),
       },
       {
         id: 'active',
@@ -120,7 +99,7 @@ export function Dashboard({ selectedEmployeeId: _selectedEmployeeId }: Dashboard
         icon: FolderOpen,
         variant: activeProjectsCount > 0 ? 'success' as const : 'default' as const,
         priority: activeProjectsCount > 0 ? 1 : 0,
-        onClick: () => setOpenPanel('active'),
+        onClick: () => setShowActiveProjects(!showActiveProjects),
       },
       {
         id: 'afgerond',
@@ -128,51 +107,51 @@ export function Dashboard({ selectedEmployeeId: _selectedEmployeeId }: Dashboard
         value: afgerondeProjectenCount,
         icon: Archive,
         variant: 'default' as const,
-        priority: 0, // Laagste prioriteit - archief/historie
+        priority: 0,
         onClick: () => setShowAfgerondeProjecten(!showAfgerondeProjecten),
       },
     ];
 
     // Sorteer op prioriteit (hoogste eerst), behoud volgorde bij gelijke prioriteit
     return stats.sort((a, b) => b.priority - a.priority);
-  }, [wachtKlantCount, upcomingDeadlinesCount, reviewsCount, changesCount, activeProjectsCount, afgerondeProjectenCount, showWachtOpGoedkeuring, showAfgerondeProjecten]);
+  }, [wachtKlantCount, upcomingDeadlinesCount, reviewsCount, changesCount, activeProjectsCount, afgerondeProjectenCount, showWachtOpGoedkeuring, showAfgerondeProjecten, showUpcomingDeadlines, showInterneReviews, showWijzigingsverzoeken, showActiveProjects]);
 
-  const handleMarkDone = (id: string) => {
-    setNotifications(prev =>
-      prev.map(n => n.id === id ? { ...n, isDone: true } : n)
-    );
-  };
-
-  const getNotificationsForType = (type: NotificationType) => {
-    // Voor upcoming en active, converteer echte data naar panel notifications
-    if (type === 'upcoming') {
-      return upcomingDeadlines.map(d => ({
-        id: d.id,
-        type: 'upcoming' as NotificationType,
-        client: d.klant_naam,
-        project: d.projectnummer,
-        workType: d.omschrijving,
-        employee: '',
-        deadline: d.deadline,
-        severity: d.severity,
-        isDone: false,
-      }));
-    }
-    if (type === 'active') {
-      return activeProjects.map(p => ({
-        id: p.id,
-        type: 'active' as NotificationType,
-        client: p.klant_naam,
-        project: p.projectnummer,
-        workType: p.omschrijving,
-        employee: '',
-        deadline: p.deadline,
-        severity: 'low' as const,
-        isDone: false,
-      }));
-    }
-    return notifications.filter(n => n.type === type);
-  };
+  // Klikbare project item component
+  const ProjectItem = ({ project, variant = 'default' }: { project: { id: string; projectnummer: string; klant_naam: string; omschrijving?: string; deadline?: string; afgerond_op?: string }; variant?: 'default' | 'muted' }) => (
+    <div
+      onClick={() => navigate(`/planner?project=${project.id}`)}
+      className={`rounded-lg border p-4 cursor-pointer hover:bg-accent/50 transition-colors ${
+        variant === 'muted' ? 'bg-slate-50 opacity-75' : 'bg-card'
+      }`}
+    >
+      <div className="flex items-center justify-between">
+        <div>
+          <span className={`font-medium ${variant === 'muted' ? 'text-slate-600' : 'text-foreground'}`}>
+            {project.projectnummer}
+          </span>
+          <span className="mx-2 text-muted-foreground">•</span>
+          <span className={variant === 'muted' ? 'text-slate-500' : 'text-muted-foreground'}>
+            {project.klant_naam}
+          </span>
+        </div>
+        {project.deadline && (
+          <div className="text-sm text-muted-foreground">
+            Deadline: {new Date(project.deadline).toLocaleDateString('nl-NL')}
+          </div>
+        )}
+        {project.afgerond_op && (
+          <div className="text-sm text-slate-400">
+            Afgerond: {new Date(project.afgerond_op).toLocaleDateString('nl-NL')}
+          </div>
+        )}
+      </div>
+      {project.omschrijving && (
+        <p className={`mt-1 text-sm ${variant === 'muted' ? 'text-slate-400' : 'text-muted-foreground'}`}>
+          {project.omschrijving}
+        </p>
+      )}
+    </div>
+  );
 
   return (
     <div className="space-y-8">
@@ -283,22 +262,155 @@ export function Dashboard({ selectedEmployeeId: _selectedEmployeeId }: Dashboard
         </div>
       </div>
 
+      {/* Actieve Projecten Panel */}
+      {showActiveProjects && activeProjects.length > 0 && (
+        <div>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-foreground">Actieve projecten</h2>
+            <button
+              onClick={() => setShowActiveProjects(false)}
+              className="text-sm text-muted-foreground hover:text-foreground"
+            >
+              Sluiten
+            </button>
+          </div>
+          <div className="space-y-2">
+            {activeProjects.map((project) => (
+              <ProjectItem key={project.id} project={project} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Aankomende Deadlines Panel */}
+      {showUpcomingDeadlines && upcomingDeadlines.length > 0 && (
+        <div>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-foreground">Aankomende deadlines</h2>
+            <button
+              onClick={() => setShowUpcomingDeadlines(false)}
+              className="text-sm text-muted-foreground hover:text-foreground"
+            >
+              Sluiten
+            </button>
+          </div>
+          <div className="space-y-2">
+            {upcomingDeadlines.map((deadline) => (
+              <div
+                key={deadline.id}
+                onClick={() => navigate(`/planner?project=${deadline.id}`)}
+                className={`rounded-lg border p-4 cursor-pointer hover:bg-accent/50 transition-colors ${
+                  deadline.severity === 'high' ? 'border-destructive/50 bg-destructive/5' :
+                  deadline.severity === 'medium' ? 'border-warning/50 bg-warning/5' : 'bg-card'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="font-medium text-foreground">{deadline.projectnummer}</span>
+                    <span className="mx-2 text-muted-foreground">•</span>
+                    <span className="text-muted-foreground">{deadline.klant_naam}</span>
+                  </div>
+                  <div className={`text-sm font-medium ${
+                    deadline.severity === 'high' ? 'text-destructive' :
+                    deadline.severity === 'medium' ? 'text-warning' : 'text-muted-foreground'
+                  }`}>
+                    {new Date(deadline.deadline).toLocaleDateString('nl-NL')}
+                  </div>
+                </div>
+                {deadline.omschrijving && (
+                  <p className="mt-1 text-sm text-muted-foreground">{deadline.omschrijving}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Interne Reviews Panel */}
+      {showInterneReviews && interneReviews.length > 0 && (
+        <div>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-foreground">Interne reviews</h2>
+            <button
+              onClick={() => setShowInterneReviews(false)}
+              className="text-sm text-muted-foreground hover:text-foreground"
+            >
+              Sluiten
+            </button>
+          </div>
+          <div className="space-y-2">
+            {interneReviews.map((review) => (
+              <div
+                key={review.id}
+                onClick={() => navigate('/interne-reviews')}
+                className="rounded-lg border bg-primary/5 border-primary/30 p-4 cursor-pointer hover:bg-primary/10 transition-colors"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="font-medium text-foreground">{review.projectnummer || 'Review'}</span>
+                    {review.klant_naam && (
+                      <>
+                        <span className="mx-2 text-muted-foreground">•</span>
+                        <span className="text-muted-foreground">{review.klant_naam}</span>
+                      </>
+                    )}
+                  </div>
+                  <span className="text-sm text-primary font-medium">Plan review →</span>
+                </div>
+                {review.beschrijving && (
+                  <p className="mt-1 text-sm text-muted-foreground">{review.beschrijving}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Wijzigingsverzoeken Panel */}
+      {showWijzigingsverzoeken && wijzigingsverzoeken.length > 0 && (
+        <div>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-foreground">Wijzigingsverzoeken</h2>
+            <button
+              onClick={() => setShowWijzigingsverzoeken(false)}
+              className="text-sm text-muted-foreground hover:text-foreground"
+            >
+              Sluiten
+            </button>
+          </div>
+          <div className="space-y-2">
+            {wijzigingsverzoeken.map((verzoek) => (
+              <div
+                key={verzoek.id}
+                onClick={() => navigate(`/wijzigingsverzoek/${verzoek.id}`)}
+                className="rounded-lg border bg-warning/5 border-warning/30 p-4 cursor-pointer hover:bg-warning/10 transition-colors"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="font-medium text-foreground">{verzoek.projectnummer || 'Wijziging'}</span>
+                    {verzoek.klant_naam && (
+                      <>
+                        <span className="mx-2 text-muted-foreground">•</span>
+                        <span className="text-muted-foreground">{verzoek.klant_naam}</span>
+                      </>
+                    )}
+                  </div>
+                  <span className="text-sm text-warning font-medium">Bekijk wijziging →</span>
+                </div>
+                {verzoek.titel && (
+                  <p className="mt-1 text-sm text-muted-foreground">{verzoek.titel}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Mijn Aanvragen */}
       <div>
         <h2 className="mb-6 text-xl font-semibold text-foreground">Mijn aanvragen</h2>
         <MijnAanvragen />
       </div>
-
-      {/* Notification Panel */}
-      {openPanel && (
-        <NotificationPanel
-          isOpen={!!openPanel}
-          onClose={() => setOpenPanel(null)}
-          type={openPanel}
-          notifications={getNotificationsForType(openPanel)}
-          onMarkDone={handleMarkDone}
-        />
-      )}
     </div>
   );
 }
