@@ -263,7 +263,7 @@ export function Dashboard({ selectedEmployeeId: _selectedEmployeeId }: Dashboard
       </div>
 
       {/* Actieve Projecten Panel */}
-      {showActiveProjects && activeProjects.length > 0 && (
+      {showActiveProjects && (
         <div>
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-xl font-semibold text-foreground">Actieve projecten</h2>
@@ -274,16 +274,22 @@ export function Dashboard({ selectedEmployeeId: _selectedEmployeeId }: Dashboard
               Sluiten
             </button>
           </div>
-          <div className="space-y-2">
-            {activeProjects.map((project) => (
-              <ProjectItem key={project.id} project={project} />
-            ))}
-          </div>
+          {activeProjects.length === 0 ? (
+            <div className="rounded-lg border bg-card p-6 text-center text-muted-foreground">
+              Geen actieve projecten
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {activeProjects.map((project) => (
+                <ProjectItem key={project.id} project={project} />
+              ))}
+            </div>
+          )}
         </div>
       )}
 
       {/* Aankomende Deadlines Panel */}
-      {showUpcomingDeadlines && upcomingDeadlines.length > 0 && (
+      {showUpcomingDeadlines && (
         <div>
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-xl font-semibold text-foreground">Aankomende deadlines</h2>
@@ -294,40 +300,46 @@ export function Dashboard({ selectedEmployeeId: _selectedEmployeeId }: Dashboard
               Sluiten
             </button>
           </div>
-          <div className="space-y-2">
-            {upcomingDeadlines.map((deadline) => (
-              <div
-                key={deadline.id}
-                onClick={() => navigate(`/planner?project=${deadline.id}`)}
-                className={`rounded-lg border p-4 cursor-pointer hover:bg-accent/50 transition-colors ${
-                  deadline.severity === 'high' ? 'border-destructive/50 bg-destructive/5' :
-                  deadline.severity === 'medium' ? 'border-warning/50 bg-warning/5' : 'bg-card'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="font-medium text-foreground">{deadline.projectnummer}</span>
-                    <span className="mx-2 text-muted-foreground">•</span>
-                    <span className="text-muted-foreground">{deadline.klant_naam}</span>
+          {upcomingDeadlines.length === 0 ? (
+            <div className="rounded-lg border bg-card p-6 text-center text-muted-foreground">
+              Geen aankomende deadlines
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {upcomingDeadlines.map((deadline) => (
+                <div
+                  key={deadline.id}
+                  onClick={() => navigate(`/planner?project=${deadline.id}`)}
+                  className={`rounded-lg border p-4 cursor-pointer hover:bg-accent/50 transition-colors ${
+                    deadline.severity === 'high' ? 'border-destructive/50 bg-destructive/5' :
+                    deadline.severity === 'medium' ? 'border-warning/50 bg-warning/5' : 'bg-card'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="font-medium text-foreground">{deadline.projectnummer}</span>
+                      <span className="mx-2 text-muted-foreground">•</span>
+                      <span className="text-muted-foreground">{deadline.klant_naam}</span>
+                    </div>
+                    <div className={`text-sm font-medium ${
+                      deadline.severity === 'high' ? 'text-destructive' :
+                      deadline.severity === 'medium' ? 'text-warning' : 'text-muted-foreground'
+                    }`}>
+                      {new Date(deadline.deadline).toLocaleDateString('nl-NL')}
+                    </div>
                   </div>
-                  <div className={`text-sm font-medium ${
-                    deadline.severity === 'high' ? 'text-destructive' :
-                    deadline.severity === 'medium' ? 'text-warning' : 'text-muted-foreground'
-                  }`}>
-                    {new Date(deadline.deadline).toLocaleDateString('nl-NL')}
-                  </div>
+                  {deadline.omschrijving && (
+                    <p className="mt-1 text-sm text-muted-foreground">{deadline.omschrijving}</p>
+                  )}
                 </div>
-                {deadline.omschrijving && (
-                  <p className="mt-1 text-sm text-muted-foreground">{deadline.omschrijving}</p>
-                )}
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
       {/* Interne Reviews Panel */}
-      {showInterneReviews && interneReviews.length > 0 && (
+      {showInterneReviews && (
         <div>
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-xl font-semibold text-foreground">Interne reviews</h2>
@@ -338,36 +350,42 @@ export function Dashboard({ selectedEmployeeId: _selectedEmployeeId }: Dashboard
               Sluiten
             </button>
           </div>
-          <div className="space-y-2">
-            {interneReviews.map((review) => (
-              <div
-                key={review.id}
-                onClick={() => navigate('/interne-reviews')}
-                className="rounded-lg border bg-primary/5 border-primary/30 p-4 cursor-pointer hover:bg-primary/10 transition-colors"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="font-medium text-foreground">{review.projectnummer || 'Review'}</span>
-                    {review.klant_naam && (
-                      <>
-                        <span className="mx-2 text-muted-foreground">•</span>
-                        <span className="text-muted-foreground">{review.klant_naam}</span>
-                      </>
-                    )}
+          {interneReviews.length === 0 ? (
+            <div className="rounded-lg border bg-card p-6 text-center text-muted-foreground">
+              Geen interne reviews
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {interneReviews.map((review) => (
+                <div
+                  key={review.id}
+                  onClick={() => navigate('/interne-reviews')}
+                  className="rounded-lg border bg-primary/5 border-primary/30 p-4 cursor-pointer hover:bg-primary/10 transition-colors"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="font-medium text-foreground">{review.projectnummer || 'Review'}</span>
+                      {review.klant_naam && (
+                        <>
+                          <span className="mx-2 text-muted-foreground">•</span>
+                          <span className="text-muted-foreground">{review.klant_naam}</span>
+                        </>
+                      )}
+                    </div>
+                    <span className="text-sm text-primary font-medium">Plan review →</span>
                   </div>
-                  <span className="text-sm text-primary font-medium">Plan review →</span>
+                  {review.beschrijving && (
+                    <p className="mt-1 text-sm text-muted-foreground">{review.beschrijving}</p>
+                  )}
                 </div>
-                {review.beschrijving && (
-                  <p className="mt-1 text-sm text-muted-foreground">{review.beschrijving}</p>
-                )}
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
       {/* Wijzigingsverzoeken Panel */}
-      {showWijzigingsverzoeken && wijzigingsverzoeken.length > 0 && (
+      {showWijzigingsverzoeken && (
         <div>
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-xl font-semibold text-foreground">Wijzigingsverzoeken</h2>
@@ -378,31 +396,37 @@ export function Dashboard({ selectedEmployeeId: _selectedEmployeeId }: Dashboard
               Sluiten
             </button>
           </div>
-          <div className="space-y-2">
-            {wijzigingsverzoeken.map((verzoek) => (
-              <div
-                key={verzoek.id}
-                onClick={() => navigate(`/wijzigingsverzoek/${verzoek.id}`)}
-                className="rounded-lg border bg-warning/5 border-warning/30 p-4 cursor-pointer hover:bg-warning/10 transition-colors"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="font-medium text-foreground">{verzoek.projectnummer || 'Wijziging'}</span>
-                    {verzoek.klant_naam && (
-                      <>
-                        <span className="mx-2 text-muted-foreground">•</span>
-                        <span className="text-muted-foreground">{verzoek.klant_naam}</span>
-                      </>
-                    )}
+          {wijzigingsverzoeken.length === 0 ? (
+            <div className="rounded-lg border bg-card p-6 text-center text-muted-foreground">
+              Geen wijzigingsverzoeken
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {wijzigingsverzoeken.map((verzoek) => (
+                <div
+                  key={verzoek.id}
+                  onClick={() => navigate(`/wijzigingsverzoek/${verzoek.id}`)}
+                  className="rounded-lg border bg-warning/5 border-warning/30 p-4 cursor-pointer hover:bg-warning/10 transition-colors"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="font-medium text-foreground">{verzoek.projectnummer || 'Wijziging'}</span>
+                      {verzoek.klant_naam && (
+                        <>
+                          <span className="mx-2 text-muted-foreground">•</span>
+                          <span className="text-muted-foreground">{verzoek.klant_naam}</span>
+                        </>
+                      )}
+                    </div>
+                    <span className="text-sm text-warning font-medium">Bekijk wijziging →</span>
                   </div>
-                  <span className="text-sm text-warning font-medium">Bekijk wijziging →</span>
+                  {verzoek.titel && (
+                    <p className="mt-1 text-sm text-muted-foreground">{verzoek.titel}</p>
+                  )}
                 </div>
-                {verzoek.titel && (
-                  <p className="mt-1 text-sm text-muted-foreground">{verzoek.titel}</p>
-                )}
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
