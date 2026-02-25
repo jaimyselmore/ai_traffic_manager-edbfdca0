@@ -1,4 +1,5 @@
-import { ChevronDown, ChevronUp, Plus } from 'lucide-react';
+import { useState } from 'react';
+import { ChevronDown, Plus } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -13,13 +14,16 @@ export interface FaseData {
   startDatum?: string;
   eindDatum?: string;
   dagen?: number;
+  dagenMin?: number;  // Minimum dagen (flexibiliteit)
+  dagenMax?: number;  // Maximum dagen (flexibiliteit)
   inspanning?: number;  // Alias for dagen, for automation compatibility
-  medewerkers?: string[];  // Employee names for automation
+  medewerkers?: string[];  // Employee IDs for this fase
   datumTijd?: string;
   locatie?: 'selmore' | 'klant';
   reistijd?: boolean;
   creatief?: boolean;
   aanwezig?: string[];
+  flexibel?: boolean;  // Of er speling is in de planning
 }
 
 export interface ProductieFasesData {
@@ -49,6 +53,11 @@ const faseLabels: Record<string, { title: string; hint?: string }> = {
 
 export function ProductieFases({ data, onChange }: ProductieFasesProps) {
   const { data: employees = [] } = useEmployees();
+  const [openFases, setOpenFases] = useState<Record<string, boolean>>({});
+
+  const toggleFase = (fase: string) => {
+    setOpenFases(prev => ({ ...prev, [fase]: !prev[fase] }));
+  };
 
   const updateFase = (fase: string, field: string, value: any) => {
     onChange({
@@ -184,79 +193,179 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
           />
         </div>
       </div>
+      <FlexibiliteitVeld fase={fase} />
+      <MedewerkerSelectie fase={fase} />
     </div>
   );
 
-  const FaseCollapsible = ({ fase, children }: { fase: string; children: React.ReactNode }) => (
-    <Collapsible>
-      <CollapsibleTrigger className="w-full flex items-center justify-between py-3 px-4 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors">
-        <span className="font-medium text-sm">{faseLabels[fase].title}</span>
-        <ChevronDown className="h-4 w-4" />
-      </CollapsibleTrigger>
-      <CollapsibleContent className="px-4 pb-4">
-        {children}
-      </CollapsibleContent>
-    </Collapsible>
-  );
+  const toggleMedewerker = (fase: string, empId: string) => {
+    const currentList = data.fases[fase]?.medewerkers || [];
+    const isSelected = currentList.includes(empId);
+    const updated = isSelected
+      ? currentList.filter(id => id !== empId)
+      : [...currentList, empId];
+    updateFase(fase, 'medewerkers', updated);
+  };
+
+  const MedewerkerSelectie = ({ fase }: { fase: string }) => {
+    const selectedIds = data.fases[fase]?.medewerkers || [];
+    // Filter op relevante medewerkers (studio/editors/producers)
+    const relevantEmployees = employees.filter(e => {
+      const role = (e.role || '').toLowerCase();
+      return role.includes('editor') || role.includes('producer') || role.includes('studio') ||
+             role.includes('motion') || role.includes('designer') || role.includes('creative');
+    });
+
+    return (
+      <div className="space-y-2 mt-4 pt-4 border-t border-border">
+        <Label className="text-sm">Medewerkers voor deze fase</Label>
+        <div className="flex flex-wrap gap-2">
+          {relevantEmployees.length === 0 ? (
+            <p className="text-xs text-muted-foreground italic">Geen medewerkers gevonden</p>
+          ) : (
+            relevantEmployees.map(emp => {
+              const isSelected = selectedIds.includes(emp.id);
+              return (
+                <button
+                  key={emp.id}
+                  type="button"
+                  onClick={() => toggleMedewerker(fase, emp.id)}
+                  className={`px-3 py-1.5 text-sm rounded-full border transition-colors ${
+                    isSelected
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'bg-secondary/50 text-foreground border-border hover:bg-secondary'
+                  }`}
+                >
+                  {emp.name}
+                </button>
+              );
+            })
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const FlexibiliteitVeld = ({ fase }: { fase: string }) => {
+    const faseData = data.fases[fase];
+    const isFlexibel = faseData?.flexibel || false;
+
+    return (
+      <div className="space-y-3 mt-4 pt-4 border-t border-border">
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id={`${fase}-flexibel`}
+            checked={isFlexibel}
+            onCheckedChange={(checked) => updateFase(fase, 'flexibel', checked)}
+          />
+          <Label htmlFor={`${fase}-flexibel`} className="text-sm">
+            Flexibele planning (speling toestaan)
+          </Label>
+        </div>
+        {isFlexibel && (
+          <div className="grid grid-cols-2 gap-3 pl-6">
+            <div>
+              <Label className="text-xs text-muted-foreground">Min. dagen</Label>
+              <Input
+                type="number"
+                min={1}
+                value={faseData?.dagenMin || faseData?.dagen || 1}
+                onChange={(e) => updateFase(fase, 'dagenMin', parseInt(e.target.value))}
+                className="w-20"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">Max. dagen</Label>
+              <Input
+                type="number"
+                min={1}
+                value={faseData?.dagenMax || (faseData?.dagen ? faseData.dagen + 1 : 2)}
+                onChange={(e) => updateFase(fase, 'dagenMax', parseInt(e.target.value))}
+                className="w-20"
+              />
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const FaseCollapsible = ({ fase, children }: { fase: string; children: React.ReactNode }) => {
+    const isOpen = openFases[fase] || false;
+
+    return (
+      <Collapsible open={isOpen} onOpenChange={() => toggleFase(fase)}>
+        <CollapsibleTrigger className="w-full flex items-center justify-between py-3 px-4 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors">
+          <span className="font-medium text-sm">{faseLabels[fase].title}</span>
+          <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        </CollapsibleTrigger>
+        <CollapsibleContent className="px-4 pb-4">
+          {children}
+        </CollapsibleContent>
+      </Collapsible>
+    );
+  };
 
   // Special Presentatie collapsible that includes extra presentaties and add button inside
-  const PresentatieCollapsible = ({ 
-    fase, 
-    extraPresentaties, 
-    addExtraPresentatie, 
-    renderMeetingFase,
-    employees 
-  }: { 
-    fase: string; 
+  const PresentatieCollapsible = ({
+    fase,
+    extraPresentaties,
+    addExtraPresentatie,
+    renderMeetingFase
+  }: {
+    fase: string;
     extraPresentaties: FaseData[];
     addExtraPresentatie: () => void;
     renderMeetingFase: (fase: string) => React.ReactNode;
-    employees: { id: string; name: string; role?: string; primaryRole?: string }[];
-  }) => (
-    <Collapsible>
-      <CollapsibleTrigger className="w-full flex items-center justify-between py-3 px-4 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors">
-        <span className="font-medium text-sm">{faseLabels[fase].title}</span>
-        <ChevronDown className="h-4 w-4" />
-      </CollapsibleTrigger>
-      <CollapsibleContent className="px-4 pb-4">
-        {renderMeetingFase(fase)}
-        
-        {/* Extra presentaties */}
-        {extraPresentaties.map((_, index) => (
-          <div key={`extra-${index}`} className="mt-4 p-4 border border-border rounded-lg space-y-4">
-            <span className="font-medium text-sm">Extra presentatie {index + 1}</span>
-            <div>
-              <Label className="text-sm">Datum & tijd</Label>
-              <Input type="datetime-local" />
+  }) => {
+    const isOpen = openFases[fase] || false;
+
+    return (
+      <Collapsible open={isOpen} onOpenChange={() => toggleFase(fase)}>
+        <CollapsibleTrigger className="w-full flex items-center justify-between py-3 px-4 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors">
+          <span className="font-medium text-sm">{faseLabels[fase].title}</span>
+          <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        </CollapsibleTrigger>
+        <CollapsibleContent className="px-4 pb-4">
+          {renderMeetingFase(fase)}
+
+          {/* Extra presentaties */}
+          {extraPresentaties.map((_, index) => (
+            <div key={`extra-${index}`} className="mt-4 p-4 border border-border rounded-lg space-y-4">
+              <span className="font-medium text-sm">Extra presentatie {index + 1}</span>
+              <div>
+                <Label className="text-sm">Datum & tijd</Label>
+                <Input type="datetime-local" />
+              </div>
+              <div>
+                <Label className="text-sm mb-2 block">Locatie</Label>
+                <RadioGroup defaultValue="selmore">
+                  <div className="flex items-center gap-2">
+                    <RadioGroupItem value="selmore" id={`extra-${index}-selmore`} />
+                    <Label htmlFor={`extra-${index}-selmore`} className="text-sm">Bij Selmore</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <RadioGroupItem value="klant" id={`extra-${index}-klant`} />
+                    <Label htmlFor={`extra-${index}-klant`} className="text-sm">Bij klant</Label>
+                  </div>
+                </RadioGroup>
+              </div>
             </div>
-            <div>
-              <Label className="text-sm mb-2 block">Locatie</Label>
-              <RadioGroup defaultValue="selmore">
-                <div className="flex items-center gap-2">
-                  <RadioGroupItem value="selmore" id={`extra-${index}-selmore`} />
-                  <Label htmlFor={`extra-${index}-selmore`} className="text-sm">Bij Selmore</Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <RadioGroupItem value="klant" id={`extra-${index}-klant`} />
-                  <Label htmlFor={`extra-${index}-klant`} className="text-sm">Bij klant</Label>
-                </div>
-              </RadioGroup>
-            </div>
-          </div>
-        ))}
-        
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={addExtraPresentatie}
-          className="mt-4"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Extra presentatie toevoegen
-        </Button>
-      </CollapsibleContent>
-    </Collapsible>
-  );
+          ))}
+
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={addExtraPresentatie}
+            className="mt-4"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Extra presentatie toevoegen
+          </Button>
+        </CollapsibleContent>
+      </Collapsible>
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -285,12 +394,11 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
         <FaseCollapsible fase="presentatieReEdit">{renderMeetingFase('presentatieReEdit')}</FaseCollapsible>
         <FaseCollapsible fase="onlineGrading">{renderDagenFase('onlineGrading')}</FaseCollapsible>
         <FaseCollapsible fase="geluid">{renderDagenFase('geluid')}</FaseCollapsible>
-        <PresentatieCollapsible 
-          fase="presentatieFinals" 
+        <PresentatieCollapsible
+          fase="presentatieFinals"
           extraPresentaties={data.extraPresentaties}
           addExtraPresentatie={addExtraPresentatie}
           renderMeetingFase={renderMeetingFase}
-          employees={employees}
         />
         <FaseCollapsible fase="deliverables">
           {renderDagenFase('deliverables')}
@@ -328,17 +436,17 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
 
 export const emptyProductieFasesData: ProductieFasesData = {
   fases: {
-    pp: { enabled: false, startDatum: '', eindDatum: '', creatief: false, dagen: 2, medewerkers: [] },
+    pp: { enabled: false, startDatum: '', eindDatum: '', creatief: false, dagen: 2, medewerkers: [], flexibel: false },
     ppm: { enabled: false, datumTijd: '', locatie: 'selmore', reistijd: false },
-    shoot: { enabled: false, dagen: 1, startDatum: '', eindDatum: '', aanwezig: [], medewerkers: [] },
-    offlineEdit: { enabled: false, dagen: 2, startDatum: '', eindDatum: '', creatief: false, medewerkers: [] },
+    shoot: { enabled: false, dagen: 1, startDatum: '', eindDatum: '', aanwezig: [], medewerkers: [], flexibel: false },
+    offlineEdit: { enabled: false, dagen: 2, startDatum: '', eindDatum: '', creatief: false, medewerkers: [], flexibel: false },
     presentatieOffline: { enabled: false, datumTijd: '', locatie: 'selmore', reistijd: false },
-    reEdit: { enabled: false, dagen: 1, startDatum: '', eindDatum: '', medewerkers: [] },
+    reEdit: { enabled: false, dagen: 1, startDatum: '', eindDatum: '', medewerkers: [], flexibel: false },
     presentatieReEdit: { enabled: false, datumTijd: '', locatie: 'selmore', reistijd: false },
-    onlineGrading: { enabled: false, dagen: 2, startDatum: '', eindDatum: '', medewerkers: [] },
-    geluid: { enabled: false, dagen: 2, startDatum: '', eindDatum: '', medewerkers: [] },
+    onlineGrading: { enabled: false, dagen: 2, startDatum: '', eindDatum: '', medewerkers: [], flexibel: false },
+    geluid: { enabled: false, dagen: 2, startDatum: '', eindDatum: '', medewerkers: [], flexibel: false },
     presentatieFinals: { enabled: false, datumTijd: '', locatie: 'selmore', reistijd: false },
-    deliverables: { enabled: false, dagen: 1, startDatum: '', eindDatum: '', medewerkers: [] },
+    deliverables: { enabled: false, dagen: 1, startDatum: '', eindDatum: '', medewerkers: [], flexibel: false },
   },
   extraPresentaties: [],
   deadlineOplevering: '',

@@ -384,7 +384,22 @@ export default function NieuwProject() {
       .map(id => employees.find(e => e.id === id)?.name)
       .filter(Boolean) as string[];
 
-    // Navigate to Ellen voorstel page instead of creating directly
+    // Resolve betrokkenTeam IDs to names
+    const betrokkenTeamNamen = {
+      accountManagers: (formData.betrokkenTeam.accountManagers || [])
+        .map(id => employees.find(e => e.id === id)?.name)
+        .filter(Boolean) as string[],
+      producers: (formData.betrokkenTeam.producers || [])
+        .map(id => employees.find(e => e.id === id)?.name)
+        .filter(Boolean) as string[],
+      strategen: (formData.betrokkenTeam.strategen || [])
+        .map(id => employees.find(e => e.id === id)?.name)
+        .filter(Boolean) as string[],
+      creatieTeam: (formData.betrokkenTeam.creatieTeam || [])
+        .map(id => employees.find(e => e.id === id)?.name)
+        .filter(Boolean) as string[],
+    };
+
     const projectInfo = {
       klant_id: formData.projectHeader.klantId,
       klant_naam: klantNaam,
@@ -396,12 +411,46 @@ export default function NieuwProject() {
       fases,
       // Nieuwe velden voor meetings
       betrokkenPersonen: betrokkenPersonenNamen,
+      betrokkenTeam: betrokkenTeamNamen,
       meetings: formData.algemeen.meetings || [],
     };
 
-    navigate('/ellen-voorstel', {
-      state: { formData, projectInfo },
-    });
+    if (formData.projectType === 'productie') {
+      // Productie projecten worden direct opgeslagen, niet via Ellen
+      try {
+        await createProjectAndSchedule({
+          klant_id: formData.projectHeader.klantId,
+          klant_naam: klantNaam,
+          projectnaam: formData.projectHeader.projectomschrijving,
+          projectTitel: formData.projectHeader.projectTitel,
+          isInternProject: formData.isInternProject,
+          deadline: formData.projectHeader.deadline,
+          fases,
+          betrokkenTeam: betrokkenTeamNamen,
+        });
+
+        toast({
+          title: 'Project aangemaakt',
+          description: 'Het productie project is opgeslagen.',
+        });
+
+        // Clear localStorage and redirect
+        localStorage.removeItem(STORAGE_KEY);
+        navigate('/planner');
+      } catch (error) {
+        console.error('Fout bij aanmaken project:', error);
+        toast({
+          title: 'Fout',
+          description: error instanceof Error ? error.message : 'Onbekende fout bij aanmaken project',
+          variant: 'destructive',
+        });
+      }
+    } else {
+      // Algemeen project -> navigate to Ellen voorstel page
+      navigate('/ellen-voorstel', {
+        state: { formData, projectInfo },
+      });
+    }
   };
 
   // Check all required fields for enabling submit button
