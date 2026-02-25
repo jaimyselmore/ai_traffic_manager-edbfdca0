@@ -57,15 +57,37 @@ export function MicrosoftKoppelingTab() {
       const allMw = (mwData.data as any[])
         .sort((a: any, b: any) => (a.display_order ?? 999) - (b.display_order ?? 999));
 
-      // Map medewerkers to status objects (Microsoft integration not yet active)
-      const statuses = allMw.map((mw: any) => ({
+      // Basisstatus zonder Microsoft-informatie
+      const baseStatuses: MedewerkerStatus[] = allMw.map((mw: any) => ({
         werknemer_id: mw.werknemer_id,
         naam_werknemer: mw.naam_werknemer,
         microsoft_email: mw.microsoft_email || null,
-        connected: false, // Will be checked when Microsoft integration is ready
+        connected: false,
       }));
 
-      setMedewerkers(statuses);
+      // Verrijk met actuele Microsoft-status op basis van microsoft_tokens tabel
+      const withStatus = await Promise.all(
+        baseStatuses.map(async (mw) => {
+          try {
+            const { data, error } = await supabase.functions.invoke('microsoft-status', {
+              body: { werknemerId: String(mw.werknemer_id) },
+            });
+
+            if (!error && data) {
+              return {
+                ...mw,
+                connected: !!data.connected,
+                connectedAt: data.connectedAt || undefined,
+              };
+            }
+          } catch (err) {
+            console.error('Error loading Microsoft status for', mw.werknemer_id, err);
+          }
+          return mw;
+        })
+      );
+
+      setMedewerkers(withStatus);
     } catch (err) {
       console.error('Error:', err);
     } finally {
@@ -74,8 +96,9 @@ export function MicrosoftKoppelingTab() {
   };
 
   const handleConnect = (werknemerId: number) => {
-    // Redirect to Microsoft OAuth - will come back to /admin page
-    window.location.href = `${SUPABASE_URL}/functions/v1/microsoft-login/${werknemerId}`;
+    // Open Microsoft OAuth in een nieuw tabblad zodat de instellingenpagina open blijft
+    const url = `${SUPABASE_URL}/functions/v1/microsoft-login/${werknemerId}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   const handleDisconnect = async (werknemerId: number) => {
