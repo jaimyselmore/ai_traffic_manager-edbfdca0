@@ -47,6 +47,12 @@ export function PlannerGrid({ weekStart, employees, tasks, compact = false, onTa
     return hour === startHour;
   };
 
+  const getTaskDuration = (task: Task) => {
+    const startHour = parseInt(task.startTime.split(':')[0]);
+    const endHour = parseInt(task.endTime.split(':')[0]);
+    return endHour - startHour;
+  };
+
   const getClientName = (task: Task) => {
     return task.klant_naam || task.clientName || '';
   };
@@ -118,19 +124,23 @@ export function PlannerGrid({ weekStart, employees, tasks, compact = false, onTa
                 {weekDates.map((date, dayIndex) => {
                   const cellTasks = getTasksForCell(employee.name, date, hour);
                   const isLunchHour = hour === 13;
-                  
+                  const cellHeight = compact ? 24 : 32;
+
                   return (
                     <td
                       key={dayIndex}
                       className={cn(
-                        "border-b border-r border-border p-0.5",
+                        "border-b border-r border-border p-0.5 relative",
                         isLunchHour && 'bg-task-lunch/30'
                       )}
-                      style={{ height: compact ? '24px' : '32px' }}
+                      style={{ height: `${cellHeight}px`, overflow: 'visible' }}
                     >
                       {cellTasks.map((task) => {
                         const isStart = getTaskStart(task, hour);
                         if (!isStart) return null;
+
+                        const duration = getTaskDuration(task);
+                        const taskHeight = duration * cellHeight - 2; // -2 for padding
                         const isConcept = task.planStatus === 'concept';
                         const isWachtKlant = (task.planStatus as string) === 'wacht_klant';
                         const isDoorzichtig = isConcept || isWachtKlant;
@@ -139,11 +149,16 @@ export function PlannerGrid({ weekStart, employees, tasks, compact = false, onTa
                           <div
                             key={task.id}
                             className={cn(
-                              'rounded px-1.5 py-0.5 text-xs text-white overflow-hidden cursor-pointer hover:opacity-80 hover:ring-2 hover:ring-primary/50 transition-all h-full',
+                              'absolute left-0.5 right-0.5 rounded px-1.5 py-0.5 text-xs text-white overflow-hidden cursor-pointer hover:opacity-90 hover:ring-2 hover:ring-primary/50 transition-all z-20',
                               taskColors[task.type],
                               isDoorzichtig && 'opacity-50',
                               isWachtKlant && 'border-2 border-dashed border-white/50'
                             )}
+                            style={{
+                              top: '1px',
+                              height: `${taskHeight}px`,
+                              minHeight: `${cellHeight - 4}px`
+                            }}
                             title={`${task.projectTitel || getClientName(task)} - ${getTaskLabel(task.type)}${isConcept ? ' (concept)' : ''}${isWachtKlant ? ' (wacht op klant)' : ''}\n${task.startTime} - ${task.endTime}${task.faseNaam ? `\nFase: ${task.faseNaam}` : ''}`}
                             onClick={(e) => { e.stopPropagation(); onTaskClick?.(task); }}
                           >
@@ -154,9 +169,14 @@ export function PlannerGrid({ weekStart, employees, tasks, compact = false, onTa
                                 compact ? getClientName(task).substring(0, 4) : getClientName(task)
                               )}
                             </div>
-                            {!compact && (
+                            {!compact && duration > 1 && (
                               <div className="truncate opacity-80 text-[10px]">
                                 {task.faseNaam || getTaskLabel(task.type)}
+                              </div>
+                            )}
+                            {duration > 2 && (
+                              <div className="truncate opacity-70 text-[10px] mt-1">
+                                {task.startTime} - {task.endTime}
                               </div>
                             )}
                           </div>
