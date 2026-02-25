@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
-import { CheckCircle2, XCircle, Loader2, Link2, Unlink, Pencil, Check, X } from 'lucide-react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { CheckCircle2, XCircle, Loader2, Link2, Unlink, Pencil, Check, X, AlertCircle, ExternalLink } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
@@ -181,6 +182,7 @@ export function MicrosoftKoppelingTab() {
   };
 
   const connectedCount = medewerkers.filter(m => m.connected).length;
+  const [showSetupGuide, setShowSetupGuide] = useState(false);
 
   return (
     <div className="space-y-6">
@@ -196,6 +198,96 @@ export function MicrosoftKoppelingTab() {
           <AlertDescription>{message}</AlertDescription>
         </Alert>
       )}
+
+      {/* Setup Guide */}
+      <Collapsible open={showSetupGuide} onOpenChange={setShowSetupGuide}>
+        <Alert className="border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/30">
+          <AlertCircle className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+          <AlertTitle className="text-blue-800 dark:text-blue-300">Microsoft 365 integratie setup</AlertTitle>
+          <AlertDescription className="text-blue-700 dark:text-blue-400">
+            <p className="mt-1">
+              Om Microsoft agenda's te koppelen moet eerst een Azure App Registration worden aangemaakt.
+              Dit hoeft maar één keer - daarna kunnen alle medewerkers hun account koppelen via OAuth (geen wachtwoorden nodig).
+            </p>
+            <CollapsibleTrigger asChild>
+              <Button variant="link" className="p-0 h-auto mt-2 text-blue-600 dark:text-blue-400">
+                {showSetupGuide ? 'Verberg setup instructies' : 'Toon setup instructies →'}
+              </Button>
+            </CollapsibleTrigger>
+          </AlertDescription>
+        </Alert>
+        <CollapsibleContent className="mt-4">
+          <div className="rounded-lg border bg-card p-4 space-y-4 text-sm">
+            <h4 className="font-semibold">Stap 1: Azure App Registration aanmaken</h4>
+            <ol className="list-decimal list-inside space-y-2 text-muted-foreground">
+              <li>
+                Ga naar{' '}
+                <a
+                  href="https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps/ApplicationsListBlade"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline inline-flex items-center gap-1"
+                >
+                  Azure Portal - App Registrations
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              </li>
+              <li>Klik op "New registration"</li>
+              <li>Naam: "Ellen Planning" (of iets vergelijkbaars)</li>
+              <li>Supported account types: "Accounts in this organizational directory only" (single tenant)</li>
+              <li>Redirect URI: Web - <code className="bg-muted px-1 rounded text-xs">{SUPABASE_URL}/functions/v1/microsoft-callback</code></li>
+              <li>Klik "Register"</li>
+            </ol>
+
+            <h4 className="font-semibold pt-2">Stap 2: Client Secret aanmaken</h4>
+            <ol className="list-decimal list-inside space-y-2 text-muted-foreground">
+              <li>In je nieuwe app, ga naar "Certificates & secrets"</li>
+              <li>Klik "New client secret"</li>
+              <li>Beschrijving: "Ellen Planning", Expiry: 24 months</li>
+              <li>Kopieer de secret VALUE (niet de ID) - je ziet dit maar één keer!</li>
+            </ol>
+
+            <h4 className="font-semibold pt-2">Stap 3: API Permissions toevoegen</h4>
+            <ol className="list-decimal list-inside space-y-2 text-muted-foreground">
+              <li>Ga naar "API permissions"</li>
+              <li>Klik "Add a permission" → Microsoft Graph → Delegated permissions</li>
+              <li>Voeg toe: <code className="bg-muted px-1 rounded text-xs">User.Read</code>, <code className="bg-muted px-1 rounded text-xs">Calendars.ReadWrite</code>, <code className="bg-muted px-1 rounded text-xs">offline_access</code></li>
+              <li>Klik "Grant admin consent" (optioneel, maar handig)</li>
+            </ol>
+
+            <h4 className="font-semibold pt-2">Stap 4: Supabase secrets configureren</h4>
+            <ol className="list-decimal list-inside space-y-2 text-muted-foreground">
+              <li>
+                Ga naar{' '}
+                <a
+                  href="https://supabase.com/dashboard/project/mrouohttlvirnvmdmwqj/settings/functions"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline inline-flex items-center gap-1"
+                >
+                  Supabase Dashboard - Edge Functions
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              </li>
+              <li>Voeg deze secrets toe:
+                <ul className="list-disc list-inside ml-4 mt-1">
+                  <li><code className="bg-muted px-1 rounded text-xs">MICROSOFT_CLIENT_ID</code> - Application (client) ID van je Azure app</li>
+                  <li><code className="bg-muted px-1 rounded text-xs">MICROSOFT_CLIENT_SECRET</code> - De secret value uit stap 2</li>
+                  <li><code className="bg-muted px-1 rounded text-xs">MICROSOFT_TENANT_ID</code> - Directory (tenant) ID van je Azure app</li>
+                  <li><code className="bg-muted px-1 rounded text-xs">MICROSOFT_REDIRECT_URI</code> - <code className="bg-muted px-1 rounded text-xs">{SUPABASE_URL}/functions/v1/microsoft-callback</code></li>
+                </ul>
+              </li>
+            </ol>
+
+            <div className="mt-4 p-3 bg-green-50 dark:bg-green-950/30 rounded-lg border border-green-200 dark:border-green-900">
+              <p className="text-green-800 dark:text-green-300 text-sm">
+                <strong>Na deze setup:</strong> Medewerkers kunnen op "Koppel" klikken en worden doorgestuurd naar Microsoft login.
+                Ze loggen in met hun eigen Microsoft account - jij hebt hun wachtwoord niet nodig.
+              </p>
+            </div>
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
 
       {/* Status overview */}
       <div className="flex items-center gap-4 p-4 rounded-lg bg-muted/50">
