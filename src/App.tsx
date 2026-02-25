@@ -16,6 +16,7 @@ import Verlof from "./pages/Verlof";
 
 import AgendaResultaat from "./pages/AgendaResultaat";
 import EllenVoorstel from "./pages/EllenVoorstel";
+import MicrosoftKoppelen from "./pages/MicrosoftKoppelen";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -29,6 +30,7 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="/microsoft-koppelen/:token" element={<MicrosoftKoppelen />} />
             <Route path="/change-password" element={<ProtectedRoute allowPasswordChange><ChangePassword /></ProtectedRoute>} />
             <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute requireAdmin><Admin /></ProtectedRoute>} />

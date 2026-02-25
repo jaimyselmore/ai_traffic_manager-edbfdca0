@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
-import { CheckCircle2, XCircle, Loader2, Link2, Unlink, Pencil, Check, X, AlertCircle, ExternalLink } from 'lucide-react';
+import { CheckCircle2, XCircle, Loader2, Unlink, Pencil, Check, X, AlertCircle, ExternalLink, Send, Copy, CheckCheck } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { useToast } from '@/hooks/use-toast';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
@@ -15,6 +16,9 @@ interface MedewerkerStatus {
   connected: boolean;
   connectedAt?: string;
   loading?: boolean;
+  invitationUrl?: string;
+  invitationLoading?: boolean;
+  copiedLink?: boolean;
 }
 
 export function MicrosoftKoppelingTab() {
@@ -23,6 +27,7 @@ export function MicrosoftKoppelingTab() {
   const [message, setMessage] = useState('');
   const [editingEmail, setEditingEmail] = useState<number | null>(null);
   const [emailInput, setEmailInput] = useState('');
+  const { toast } = useToast();
 
   // Check for OAuth callback
   useEffect(() => {
@@ -96,12 +101,6 @@ export function MicrosoftKoppelingTab() {
     }
   };
 
-  const handleConnect = (werknemerId: number) => {
-    // Open Microsoft OAuth in een nieuw tabblad zodat de instellingenpagina open blijft
-    const url = `${SUPABASE_URL}/functions/v1/microsoft-login/${werknemerId}`;
-    window.open(url, '_blank', 'noopener,noreferrer');
-  };
-
   const handleDisconnect = async (werknemerId: number) => {
     setMedewerkers(prev =>
       prev.map(m => m.werknemer_id === werknemerId ? { ...m, loading: true } : m)
@@ -168,7 +167,7 @@ export function MicrosoftKoppelingTab() {
         setMedewerkers(prev =>
           prev.map(m =>
             m.werknemer_id === werknemerId
-              ? { ...m, microsoft_email: email || null }
+              ? { ...m, microsoft_email: email || null, invitationUrl: undefined }
               : m
           )
         );
@@ -181,6 +180,83 @@ export function MicrosoftKoppelingTab() {
     }
   };
 
+  const generateInvitation = async (werknemerId: number, email: string) => {
+    setMedewerkers(prev =>
+      prev.map(m => m.werknemer_id === werknemerId ? { ...m, invitationLoading: true } : m)
+    );
+
+    try {
+      const appUrl = window.location.origin;
+      const { data, error } = await supabase.functions.invoke('microsoft-invite', {
+        body: { werknemerId, email, appUrl },
+      });
+
+      if (error || !data?.invitationUrl) {
+        setMessage('Fout bij aanmaken uitnodiging');
+        return;
+      }
+
+      setMedewerkers(prev =>
+        prev.map(m =>
+          m.werknemer_id === werknemerId
+            ? { ...m, invitationUrl: data.invitationUrl, invitationLoading: false }
+            : m
+        )
+      );
+
+      // Auto-copy to clipboard
+      await navigator.clipboard.writeText(data.invitationUrl);
+      toast({
+        title: 'Link gekopieerd!',
+        description: 'De uitnodigingslink is naar je klembord gekopieerd.',
+      });
+
+      setMedewerkers(prev =>
+        prev.map(m =>
+          m.werknemer_id === werknemerId ? { ...m, copiedLink: true } : m
+        )
+      );
+
+      // Reset copied state after 3 seconds
+      setTimeout(() => {
+        setMedewerkers(prev =>
+          prev.map(m =>
+            m.werknemer_id === werknemerId ? { ...m, copiedLink: false } : m
+          )
+        );
+      }, 3000);
+
+    } catch {
+      setMessage('Fout bij aanmaken uitnodiging');
+    } finally {
+      setMedewerkers(prev =>
+        prev.map(m => m.werknemer_id === werknemerId ? { ...m, invitationLoading: false } : m)
+      );
+    }
+  };
+
+  const copyInvitationLink = async (werknemerId: number, url: string) => {
+    await navigator.clipboard.writeText(url);
+    setMedewerkers(prev =>
+      prev.map(m =>
+        m.werknemer_id === werknemerId ? { ...m, copiedLink: true } : m
+      )
+    );
+
+    toast({
+      title: 'Link gekopieerd!',
+      description: 'De uitnodigingslink is naar je klembord gekopieerd.',
+    });
+
+    setTimeout(() => {
+      setMedewerkers(prev =>
+        prev.map(m =>
+          m.werknemer_id === werknemerId ? { ...m, copiedLink: false } : m
+        )
+      );
+    }, 3000);
+  };
+
   const connectedCount = medewerkers.filter(m => m.connected).length;
   const [showSetupGuide, setShowSetupGuide] = useState(false);
 
@@ -190,6 +266,7 @@ export function MicrosoftKoppelingTab() {
         <h2 className="text-lg font-semibold text-foreground">Microsoft agenda koppelingen</h2>
         <p className="text-sm text-muted-foreground mt-1">
           Koppel de Microsoft-agenda's van medewerkers zodat Ellen beschikbaarheid kan checken en planning kan plaatsen.
+          Voer het e-mailadres van elke medewerker in en stuur ze een uitnodigingslink.
         </p>
       </div>
 
@@ -281,8 +358,8 @@ export function MicrosoftKoppelingTab() {
 
             <div className="mt-4 p-3 bg-green-50 dark:bg-green-950/30 rounded-lg border border-green-200 dark:border-green-900">
               <p className="text-green-800 dark:text-green-300 text-sm">
-                <strong>Na deze setup:</strong> Medewerkers kunnen op "Koppel" klikken en worden doorgestuurd naar Microsoft login.
-                Ze loggen in met hun eigen Microsoft account - jij hebt hun wachtwoord niet nodig.
+                <strong>Na deze setup:</strong> Voer het e-mailadres van elke medewerker in en klik op "Maak uitnodiging".
+                Kopieer de link en stuur deze naar de medewerker. Zij kunnen dan zelf hun Microsoft account koppelen - zonder in te loggen op dit platform.
               </p>
             </div>
           </div>
@@ -409,16 +486,49 @@ export function MicrosoftKoppelingTab() {
                           </>
                         )}
                       </Button>
+                    ) : mw.microsoft_email ? (
+                      <div className="flex items-center gap-2">
+                        {mw.invitationUrl ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => copyInvitationLink(mw.werknemer_id, mw.invitationUrl!)}
+                            className="text-green-600 border-green-200 hover:bg-green-50"
+                          >
+                            {mw.copiedLink ? (
+                              <>
+                                <CheckCheck className="h-4 w-4 mr-1" />
+                                Gekopieerd!
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="h-4 w-4 mr-1" />
+                                Kopieer link
+                              </>
+                            )}
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => generateInvitation(mw.werknemer_id, mw.microsoft_email!)}
+                            disabled={mw.invitationLoading}
+                          >
+                            {mw.invitationLoading ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <>
+                                <Send className="h-4 w-4 mr-1" />
+                                Maak uitnodiging
+                              </>
+                            )}
+                          </Button>
+                        )}
+                      </div>
                     ) : (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleConnect(mw.werknemer_id)}
-                        disabled={mw.loading}
-                      >
-                        <Link2 className="h-4 w-4 mr-1" />
-                        Koppel
-                      </Button>
+                      <span className="text-xs text-muted-foreground italic">
+                        Voer eerst e-mail in
+                      </span>
                     )}
                   </td>
                 </tr>

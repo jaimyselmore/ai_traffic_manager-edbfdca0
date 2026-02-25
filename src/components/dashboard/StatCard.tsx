@@ -7,6 +7,7 @@ interface StatCardProps {
   icon: LucideIcon;
   variant?: 'default' | 'warning' | 'danger' | 'success' | 'info';
   onClick?: () => void;
+  isActive?: boolean;
 }
 
 const variantStyles = {
@@ -25,14 +26,15 @@ const iconStyles = {
   info: 'text-primary bg-primary/20',
 };
 
-export function StatCard({ title, value, icon: Icon, variant = 'default', onClick }: StatCardProps) {
+export function StatCard({ title, value, icon: Icon, variant = 'default', onClick, isActive }: StatCardProps) {
   return (
     <button
       onClick={onClick}
       className={cn(
         'w-full text-left rounded-xl border p-5 transition-all cursor-pointer',
         'hover:shadow-lg hover:border-foreground/20',
-        variantStyles[variant]
+        variantStyles[variant],
+        isActive && 'ring-2 ring-primary ring-offset-2'
       )}
     >
       <div className="flex items-start justify-between">
