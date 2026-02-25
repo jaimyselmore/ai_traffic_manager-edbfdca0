@@ -680,6 +680,15 @@ export default function NieuwProject() {
 
         </div>
 
+        {/* Projectteam - voor beide projecttypes */}
+        {formData.projectType && (
+          <BetrokkenTeam
+            data={formData.betrokkenTeam}
+            onChange={(data) => setFormData({ ...formData, betrokkenTeam: data })}
+            showEllenToggle={false}
+          />
+        )}
+
         {/* Algemeen Project Form */}
         {formData.projectType === 'algemeen' && (
           <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
@@ -1111,19 +1120,12 @@ export default function NieuwProject() {
           </div>
         )}
 
-        {/* Productie Project Form */}
+        {/* Productie Project Form - alleen ProductieFases */}
         {formData.projectType === 'productie' && (
-          <>
-            <BetrokkenTeam
-              data={formData.betrokkenTeam}
-              onChange={(data) => setFormData({ ...formData, betrokkenTeam: data })}
-              showEllenToggle={true}
-            />
-            <ProductieFases
-              data={formData.productieFases}
-              onChange={(data) => setFormData({ ...formData, productieFases: data })}
-            />
-          </>
+          <ProductieFases
+            data={formData.productieFases}
+            onChange={(data) => setFormData({ ...formData, productieFases: data })}
+          />
         )}
       </div>
 
