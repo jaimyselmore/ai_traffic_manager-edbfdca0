@@ -16,6 +16,12 @@ import { getMonday, getDayOfWeekNumber } from '@/lib/helpers/dateHelpers';
 
 const STORAGE_KEY = 'concept_meeting';
 
+interface MedewerkerSelection {
+  id: string;
+  name: string;
+  discipline: string;
+}
+
 interface MeetingFormData {
   projectId: string;
   projectTitel?: string;
@@ -27,7 +33,7 @@ interface MeetingFormData {
   eindtijd: string;
   locatieType: 'selmore' | 'klant' | 'online' | 'anders';
   locatie: string;
-  medewerkers: string[];
+  medewerkers: MedewerkerSelection[];
 }
 
 const emptyFormData: MeetingFormData = {
@@ -41,7 +47,7 @@ const emptyFormData: MeetingFormData = {
   eindtijd: '',
   locatieType: 'selmore',
   locatie: '',
-  medewerkers: [],
+  medewerkers: [] as MedewerkerSelection[],
 };
 
 export default function Meeting() {
@@ -67,13 +73,16 @@ export default function Meeting() {
     });
   };
 
-  const handleMedewerkerToggle = (id: string) => {
-    setFormData(prev => ({
-      ...prev,
-      medewerkers: prev.medewerkers.includes(id)
-        ? prev.medewerkers.filter(m => m !== id)
-        : [...prev.medewerkers, id],
-    }));
+  const handleMedewerkerToggle = (emp: { id: string; name: string; discipline: string }) => {
+    setFormData(prev => {
+      const exists = prev.medewerkers.some(m => m.id === emp.id);
+      return {
+        ...prev,
+        medewerkers: exists
+          ? prev.medewerkers.filter(m => m.id !== emp.id)
+          : [...prev.medewerkers, { id: emp.id, name: emp.name, discipline: emp.discipline }],
+      };
+    });
   };
 
   const handleSubmit = async () => {
@@ -147,7 +156,7 @@ export default function Meeting() {
         onderwerp: formData.onderwerp,
         type: formData.meetingType,
         locatie: computedLocatie,
-        deelnemers: formData.medewerkers,
+        deelnemers: formData.medewerkers.map(m => m.name),
         is_hard_lock: false,
         status: 'gepland',
       });
@@ -174,18 +183,15 @@ export default function Meeting() {
       const meetingTypeLabel = meetingTypeObj?.label || 'Meeting';
 
       // Create task entries for each participant so meetings show in the planner
-      const taskPromises = formData.medewerkers.map(async (empId) => {
-        const employee = employees.find(e => e.id === empId);
-        if (!employee) return;
-
-        await secureInsert('taken', {
+      const taskPromises = formData.medewerkers.map(async (medewerker) => {
+        const { data: insertData, error: insertError } = await secureInsert('taken', {
           project_id: formData.projectId || null,
           project_nummer: formData.projectTitel || 'Meeting',
           klant_naam: formData.projectTitel ? '' : 'Meeting',
           fase_naam: meetingTypeLabel,
-          werknemer_naam: employee.name,
+          werknemer_naam: medewerker.name,
           werktype: 'extern',
-          discipline: employee.discipline || 'Algemeen',
+          discipline: medewerker.discipline,
           week_start: weekStart,
           dag_van_week: dagVanWeek,
           start_uur: startUur,
@@ -193,6 +199,12 @@ export default function Meeting() {
           plan_status: 'gepland',
           is_hard_lock: false,
         });
+
+        if (insertError) {
+          console.error('Fout bij aanmaken taak voor medewerker:', medewerker.name, insertError);
+          throw insertError;
+        }
+        console.log('Taak aangemaakt voor:', medewerker.name, insertData);
       });
 
       await Promise.all(taskPromises);
@@ -427,8 +439,8 @@ export default function Meeting() {
               <div key={emp.id} className="flex items-center gap-2">
                 <Checkbox
                   id={`emp-${emp.id}`}
-                  checked={formData.medewerkers.includes(emp.id)}
-                  onCheckedChange={() => handleMedewerkerToggle(emp.id)}
+                  checked={formData.medewerkers.some(m => m.id === emp.id)}
+                  onCheckedChange={() => handleMedewerkerToggle({ id: emp.id, name: emp.name, discipline: emp.discipline || 'Algemeen' })}
                 />
                 <Label htmlFor={`emp-${emp.id}`} className="text-sm">
                   {emp.name}
