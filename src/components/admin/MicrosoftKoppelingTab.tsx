@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { CheckCircle2, XCircle, Loader2, Unlink, Pencil, Check, X, AlertCircle, ExternalLink, Send, Copy, CheckCheck } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useToast } from '@/hooks/use-toast';
+import { getMedewerkers } from '@/lib/data/adminService';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
@@ -22,12 +25,18 @@ interface MedewerkerStatus {
 }
 
 export function MicrosoftKoppelingTab() {
-  const [medewerkers, setMedewerkers] = useState<MedewerkerStatus[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [medewerkerStatuses, setMedewerkerStatuses] = useState<MedewerkerStatus[]>([]);
   const [message, setMessage] = useState('');
   const [editingEmail, setEditingEmail] = useState<number | null>(null);
   const [emailInput, setEmailInput] = useState('');
+  const [showSetupGuide, setShowSetupGuide] = useState(false);
   const { toast } = useToast();
+
+  // Load medewerkers using the same hook as WerknemersTab
+  const { data: medewerkers = [], isLoading } = useQuery({
+    queryKey: ['admin', 'medewerkers'],
+    queryFn: getMedewerkers,
+  });
 
   // Check for OAuth callback
   useEffect(() => {
@@ -41,68 +50,43 @@ export function MicrosoftKoppelingTab() {
     }
   }, []);
 
-  // Load all medewerkers and their Microsoft status
+  // Convert medewerkers to statuses when data loads
   useEffect(() => {
-    loadMedewerkers();
-  }, []);
+    if (medewerkers.length > 0) {
+      const statuses: MedewerkerStatus[] = medewerkers
+        .sort((a, b) => (a.display_order ?? 999) - (b.display_order ?? 999))
+        .map((mw) => ({
+          werknemer_id: mw.werknemer_id,
+          naam_werknemer: mw.naam_werknemer,
+          microsoft_email: (mw as any).microsoft_email || null,
+          connected: false,
+        }));
+      setMedewerkerStatuses(statuses);
 
-  const loadMedewerkers = async () => {
-    setLoading(true);
-    try {
-      // Get all medewerkers with in_planning = true
-      const { data: mwData, error: mwError } = await supabase.functions.invoke('data-access', {
-        body: { table: 'medewerkers', action: 'select' },
-      });
-
-      if (mwError || !mwData?.data) {
-        console.error('Error loading medewerkers:', mwError);
-        setLoading(false);
-        return;
-      }
-
-      const allMw = (mwData.data as any[])
-        .sort((a: any, b: any) => (a.display_order ?? 999) - (b.display_order ?? 999));
-
-      // Basisstatus zonder Microsoft-informatie
-      const baseStatuses: MedewerkerStatus[] = allMw.map((mw: any) => ({
-        werknemer_id: mw.werknemer_id,
-        naam_werknemer: mw.naam_werknemer,
-        microsoft_email: mw.microsoft_email || null,
-        connected: false,
-      }));
-
-      // Verrijk met actuele Microsoft-status op basis van microsoft_tokens tabel
-      const withStatus = await Promise.all(
-        baseStatuses.map(async (mw) => {
-          try {
-            const { data, error } = await supabase.functions.invoke('microsoft-status', {
-              body: { werknemerId: String(mw.werknemer_id) },
-            });
-
-            if (!error && data) {
-              return {
-                ...mw,
-                connected: !!data.connected,
-                connectedAt: data.connectedAt || undefined,
-              };
-            }
-          } catch (err) {
-            console.error('Error loading Microsoft status for', mw.werknemer_id, err);
+      // Load Microsoft status for each employee (optional - can fail silently)
+      statuses.forEach(async (mw) => {
+        try {
+          const { data, error } = await supabase.functions.invoke('microsoft-status', {
+            body: { werknemerId: String(mw.werknemer_id) },
+          });
+          if (!error && data) {
+            setMedewerkerStatuses(prev =>
+              prev.map(m =>
+                m.werknemer_id === mw.werknemer_id
+                  ? { ...m, connected: !!data.connected, connectedAt: data.connectedAt }
+                  : m
+              )
+            );
           }
-          return mw;
-        })
-      );
-
-      setMedewerkers(withStatus);
-    } catch (err) {
-      console.error('Error:', err);
-    } finally {
-      setLoading(false);
+        } catch {
+          // Silently ignore - microsoft-status might not be deployed
+        }
+      });
     }
-  };
+  }, [medewerkers]);
 
   const handleDisconnect = async (werknemerId: number) => {
-    setMedewerkers(prev =>
+    setMedewerkerStatuses(prev =>
       prev.map(m => m.werknemer_id === werknemerId ? { ...m, loading: true } : m)
     );
 
@@ -114,7 +98,7 @@ export function MicrosoftKoppelingTab() {
       if (error) {
         setMessage('Fout bij ontkoppelen');
       } else {
-        setMedewerkers(prev =>
+        setMedewerkerStatuses(prev =>
           prev.map(m =>
             m.werknemer_id === werknemerId
               ? { ...m, connected: false, connectedAt: undefined, loading: false }
@@ -126,7 +110,7 @@ export function MicrosoftKoppelingTab() {
     } catch {
       setMessage('Fout bij ontkoppelen');
     } finally {
-      setMedewerkers(prev =>
+      setMedewerkerStatuses(prev =>
         prev.map(m => m.werknemer_id === werknemerId ? { ...m, loading: false } : m)
       );
     }
@@ -145,7 +129,6 @@ export function MicrosoftKoppelingTab() {
   const saveEmail = async (werknemerId: number) => {
     const email = emailInput.trim();
 
-    // Basic email validation
     if (email && !email.includes('@')) {
       setMessage('Voer een geldig e-mailadres in');
       return;
@@ -164,14 +147,14 @@ export function MicrosoftKoppelingTab() {
       if (error) {
         setMessage('Fout bij opslaan e-mail');
       } else {
-        setMedewerkers(prev =>
+        setMedewerkerStatuses(prev =>
           prev.map(m =>
             m.werknemer_id === werknemerId
               ? { ...m, microsoft_email: email || null, invitationUrl: undefined }
               : m
           )
         );
-        setMessage(email ? 'E-mailadres opgeslagen' : 'E-mailadres verwijderd');
+        toast({ title: email ? 'E-mailadres opgeslagen' : 'E-mailadres verwijderd' });
         setEditingEmail(null);
         setEmailInput('');
       }
@@ -181,7 +164,7 @@ export function MicrosoftKoppelingTab() {
   };
 
   const generateInvitation = async (werknemerId: number, email: string) => {
-    setMedewerkers(prev =>
+    setMedewerkerStatuses(prev =>
       prev.map(m => m.werknemer_id === werknemerId ? { ...m, invitationLoading: true } : m)
     );
 
@@ -196,40 +179,29 @@ export function MicrosoftKoppelingTab() {
         return;
       }
 
-      setMedewerkers(prev =>
+      setMedewerkerStatuses(prev =>
         prev.map(m =>
           m.werknemer_id === werknemerId
-            ? { ...m, invitationUrl: data.invitationUrl, invitationLoading: false }
+            ? { ...m, invitationUrl: data.invitationUrl, invitationLoading: false, copiedLink: true }
             : m
         )
       );
 
-      // Auto-copy to clipboard
       await navigator.clipboard.writeText(data.invitationUrl);
       toast({
         title: 'Link gekopieerd!',
         description: 'De uitnodigingslink is naar je klembord gekopieerd.',
       });
 
-      setMedewerkers(prev =>
-        prev.map(m =>
-          m.werknemer_id === werknemerId ? { ...m, copiedLink: true } : m
-        )
-      );
-
-      // Reset copied state after 3 seconds
       setTimeout(() => {
-        setMedewerkers(prev =>
-          prev.map(m =>
-            m.werknemer_id === werknemerId ? { ...m, copiedLink: false } : m
-          )
+        setMedewerkerStatuses(prev =>
+          prev.map(m => m.werknemer_id === werknemerId ? { ...m, copiedLink: false } : m)
         );
       }, 3000);
-
     } catch {
       setMessage('Fout bij aanmaken uitnodiging');
     } finally {
-      setMedewerkers(prev =>
+      setMedewerkerStatuses(prev =>
         prev.map(m => m.werknemer_id === werknemerId ? { ...m, invitationLoading: false } : m)
       );
     }
@@ -237,37 +209,35 @@ export function MicrosoftKoppelingTab() {
 
   const copyInvitationLink = async (werknemerId: number, url: string) => {
     await navigator.clipboard.writeText(url);
-    setMedewerkers(prev =>
-      prev.map(m =>
-        m.werknemer_id === werknemerId ? { ...m, copiedLink: true } : m
-      )
+    setMedewerkerStatuses(prev =>
+      prev.map(m => m.werknemer_id === werknemerId ? { ...m, copiedLink: true } : m)
     );
-
     toast({
       title: 'Link gekopieerd!',
       description: 'De uitnodigingslink is naar je klembord gekopieerd.',
     });
-
     setTimeout(() => {
-      setMedewerkers(prev =>
-        prev.map(m =>
-          m.werknemer_id === werknemerId ? { ...m, copiedLink: false } : m
-        )
+      setMedewerkerStatuses(prev =>
+        prev.map(m => m.werknemer_id === werknemerId ? { ...m, copiedLink: false } : m)
       );
     }, 3000);
   };
 
-  const connectedCount = medewerkers.filter(m => m.connected).length;
-  const [showSetupGuide, setShowSetupGuide] = useState(false);
+  const connectedCount = medewerkerStatuses.filter(m => m.connected).length;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-lg font-semibold text-foreground">Microsoft agenda koppelingen</h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          Koppel de Microsoft-agenda's van medewerkers zodat Ellen beschikbaarheid kan checken en planning kan plaatsen.
-          Voer het e-mailadres van elke medewerker in en stuur ze een uitnodigingslink.
-        </p>
+    <div className="space-y-4">
+      {/* Header - same style as other tabs */}
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">Agenda koppelingen</h2>
+          <p className="text-sm text-muted-foreground">
+            Koppel Microsoft-agenda's zodat Ellen beschikbaarheid kan checken.
+          </p>
+        </div>
+        <div className="text-sm text-muted-foreground">
+          <span className="font-medium">{connectedCount}</span> / {medewerkerStatuses.length} gekoppeld
+        </div>
       </div>
 
       {message && (
@@ -276,129 +246,77 @@ export function MicrosoftKoppelingTab() {
         </Alert>
       )}
 
-      {/* Setup Guide */}
+      {/* Setup Guide - collapsible */}
       <Collapsible open={showSetupGuide} onOpenChange={setShowSetupGuide}>
         <Alert className="border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/30">
           <AlertCircle className="h-4 w-4 text-blue-600 dark:text-blue-400" />
           <AlertTitle className="text-blue-800 dark:text-blue-300">Microsoft 365 integratie setup</AlertTitle>
           <AlertDescription className="text-blue-700 dark:text-blue-400">
             <p className="mt-1">
-              Om Microsoft agenda's te koppelen moet eerst een Azure App Registration worden aangemaakt.
-              Dit hoeft maar één keer - daarna kunnen alle medewerkers hun account koppelen via OAuth (geen wachtwoorden nodig).
+              Eenmalige Azure App Registration nodig. Daarna kunnen medewerkers via een link hun agenda koppelen.
             </p>
             <CollapsibleTrigger asChild>
               <Button variant="link" className="p-0 h-auto mt-2 text-blue-600 dark:text-blue-400">
-                {showSetupGuide ? 'Verberg setup instructies' : 'Toon setup instructies →'}
+                {showSetupGuide ? 'Verberg instructies' : 'Toon setup instructies →'}
               </Button>
             </CollapsibleTrigger>
           </AlertDescription>
         </Alert>
         <CollapsibleContent className="mt-4">
           <div className="rounded-lg border bg-card p-4 space-y-4 text-sm">
-            <h4 className="font-semibold">Stap 1: Azure App Registration aanmaken</h4>
+            <h4 className="font-semibold">Stap 1: Azure App Registration</h4>
             <ol className="list-decimal list-inside space-y-2 text-muted-foreground">
               <li>
-                Ga naar{' '}
-                <a
-                  href="https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps/ApplicationsListBlade"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline inline-flex items-center gap-1"
-                >
-                  Azure Portal - App Registrations
-                  <ExternalLink className="h-3 w-3" />
+                <a href="https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps/ApplicationsListBlade" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1">
+                  Azure Portal - App Registrations <ExternalLink className="h-3 w-3" />
                 </a>
               </li>
-              <li>Klik op "New registration"</li>
-              <li>Naam: "Ellen Planning" (of iets vergelijkbaars)</li>
-              <li>Supported account types: "Accounts in this organizational directory only" (single tenant)</li>
-              <li>Redirect URI: Web - <code className="bg-muted px-1 rounded text-xs">{SUPABASE_URL}/functions/v1/microsoft-callback</code></li>
-              <li>Klik "Register"</li>
+              <li>New registration → Naam: "Ellen Planning"</li>
+              <li>Redirect URI: <code className="bg-muted px-1 rounded text-xs">{SUPABASE_URL}/functions/v1/microsoft-callback</code></li>
             </ol>
 
-            <h4 className="font-semibold pt-2">Stap 2: Client Secret aanmaken</h4>
+            <h4 className="font-semibold pt-2">Stap 2: Client Secret & Permissions</h4>
             <ol className="list-decimal list-inside space-y-2 text-muted-foreground">
-              <li>In je nieuwe app, ga naar "Certificates & secrets"</li>
-              <li>Klik "New client secret"</li>
-              <li>Beschrijving: "Ellen Planning", Expiry: 24 months</li>
-              <li>Kopieer de secret VALUE (niet de ID) - je ziet dit maar één keer!</li>
+              <li>Certificates & secrets → New client secret</li>
+              <li>API permissions → Add: <code className="bg-muted px-1 rounded text-xs">Calendars.ReadWrite</code>, <code className="bg-muted px-1 rounded text-xs">offline_access</code></li>
             </ol>
 
-            <h4 className="font-semibold pt-2">Stap 3: API Permissions toevoegen</h4>
-            <ol className="list-decimal list-inside space-y-2 text-muted-foreground">
-              <li>Ga naar "API permissions"</li>
-              <li>Klik "Add a permission" → Microsoft Graph → Delegated permissions</li>
-              <li>Voeg toe: <code className="bg-muted px-1 rounded text-xs">User.Read</code>, <code className="bg-muted px-1 rounded text-xs">Calendars.ReadWrite</code>, <code className="bg-muted px-1 rounded text-xs">offline_access</code></li>
-              <li>Klik "Grant admin consent" (optioneel, maar handig)</li>
-            </ol>
-
-            <h4 className="font-semibold pt-2">Stap 4: Supabase secrets configureren</h4>
-            <ol className="list-decimal list-inside space-y-2 text-muted-foreground">
-              <li>
-                Ga naar{' '}
-                <a
-                  href="https://supabase.com/dashboard/project/mrouohttlvirnvmdmwqj/settings/functions"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline inline-flex items-center gap-1"
-                >
-                  Supabase Dashboard - Edge Functions
-                  <ExternalLink className="h-3 w-3" />
-                </a>
-              </li>
-              <li>Voeg deze secrets toe:
-                <ul className="list-disc list-inside ml-4 mt-1">
-                  <li><code className="bg-muted px-1 rounded text-xs">MICROSOFT_CLIENT_ID</code> - Application (client) ID van je Azure app</li>
-                  <li><code className="bg-muted px-1 rounded text-xs">MICROSOFT_CLIENT_SECRET</code> - De secret value uit stap 2</li>
-                  <li><code className="bg-muted px-1 rounded text-xs">MICROSOFT_TENANT_ID</code> - Directory (tenant) ID van je Azure app</li>
-                  <li><code className="bg-muted px-1 rounded text-xs">MICROSOFT_REDIRECT_URI</code> - <code className="bg-muted px-1 rounded text-xs">{SUPABASE_URL}/functions/v1/microsoft-callback</code></li>
-                </ul>
-              </li>
-            </ol>
-
-            <div className="mt-4 p-3 bg-green-50 dark:bg-green-950/30 rounded-lg border border-green-200 dark:border-green-900">
-              <p className="text-green-800 dark:text-green-300 text-sm">
-                <strong>Na deze setup:</strong> Voer het e-mailadres van elke medewerker in en klik op "Maak uitnodiging".
-                Kopieer de link en stuur deze naar de medewerker. Zij kunnen dan zelf hun Microsoft account koppelen - zonder in te loggen op dit platform.
-              </p>
-            </div>
+            <h4 className="font-semibold pt-2">Stap 3: Supabase secrets</h4>
+            <p className="text-muted-foreground">
+              Voeg toe in{' '}
+              <a href="https://supabase.com/dashboard/project/mrouohttlvirnvmdmwqj/settings/functions" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                Supabase Dashboard
+              </a>:
+              <code className="block bg-muted px-2 py-1 rounded text-xs mt-1">
+                MICROSOFT_CLIENT_ID, MICROSOFT_CLIENT_SECRET, MICROSOFT_TENANT_ID, MICROSOFT_REDIRECT_URI
+              </code>
+            </p>
           </div>
         </CollapsibleContent>
       </Collapsible>
 
-      {/* Status overview */}
-      <div className="flex items-center gap-4 p-4 rounded-lg bg-muted/50">
-        <div className="text-sm">
-          <span className="font-medium">{connectedCount}</span> van{' '}
-          <span className="font-medium">{medewerkers.length}</span> medewerkers gekoppeld
-        </div>
-        {connectedCount === medewerkers.length && medewerkers.length > 0 && (
-          <span className="text-xs text-green-600 font-medium">✓ Alles gekoppeld</span>
-        )}
-      </div>
-
-      {loading ? (
-        <div className="flex items-center gap-2 py-8 justify-center">
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-          <span className="text-sm text-muted-foreground">Laden...</span>
-        </div>
+      {/* Table - same style as ProjectenTab */}
+      {isLoading ? (
+        <div className="text-sm text-muted-foreground py-4">Medewerkers worden geladen...</div>
+      ) : medewerkerStatuses.length === 0 ? (
+        <div className="text-sm text-muted-foreground py-4">Geen medewerkers gevonden.</div>
       ) : (
-        <div className="border rounded-lg overflow-hidden">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-muted/50 border-b">
-                <th className="text-left text-sm font-medium text-muted-foreground px-4 py-3">Medewerker</th>
-                <th className="text-left text-sm font-medium text-muted-foreground px-4 py-3">E-mail</th>
-                <th className="text-left text-sm font-medium text-muted-foreground px-4 py-3">Status</th>
-                <th className="text-left text-sm font-medium text-muted-foreground px-4 py-3">Gekoppeld op</th>
-                <th className="text-right text-sm font-medium text-muted-foreground px-4 py-3"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {medewerkers.map(mw => (
-                <tr key={mw.werknemer_id} className="border-b last:border-b-0">
-                  <td className="px-4 py-3 text-sm font-medium text-foreground">{mw.naam_werknemer}</td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground">
+        <div className="rounded-lg border bg-card">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Medewerker</TableHead>
+                <TableHead>E-mail</TableHead>
+                <TableHead className="w-[140px]">Status</TableHead>
+                <TableHead className="w-[140px]">Gekoppeld op</TableHead>
+                <TableHead className="w-[160px] text-right">Actie</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {medewerkerStatuses.map(mw => (
+                <TableRow key={mw.werknemer_id}>
+                  <TableCell className="font-medium">{mw.naam_werknemer}</TableCell>
+                  <TableCell>
                     {editingEmail === mw.werknemer_id ? (
                       <div className="flex items-center gap-2">
                         <Input
@@ -413,26 +331,18 @@ export function MicrosoftKoppelingTab() {
                             if (e.key === 'Escape') cancelEditEmail();
                           }}
                         />
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={() => saveEmail(mw.werknemer_id)}
-                        >
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => saveEmail(mw.werknemer_id)}>
                           <Check className="h-4 w-4 text-green-600" />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={cancelEditEmail}
-                        >
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={cancelEditEmail}>
                           <X className="h-4 w-4 text-muted-foreground" />
                         </Button>
                       </div>
                     ) : (
                       <div className="flex items-center gap-2">
-                        <span>{mw.microsoft_email || <span className="italic text-muted-foreground/70">Geen e-mail</span>}</span>
+                        <span className="text-muted-foreground">
+                          {mw.microsoft_email || <span className="italic opacity-50">Geen e-mail</span>}
+                        </span>
                         <Button
                           variant="ghost"
                           size="icon"
@@ -443,8 +353,8 @@ export function MicrosoftKoppelingTab() {
                         </Button>
                       </div>
                     )}
-                  </td>
-                  <td className="px-4 py-3">
+                  </TableCell>
+                  <TableCell>
                     <div className="flex items-center gap-2">
                       {mw.connected ? (
                         <>
@@ -458,17 +368,13 @@ export function MicrosoftKoppelingTab() {
                         </>
                       )}
                     </div>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground">
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
                     {mw.connectedAt
-                      ? new Date(mw.connectedAt).toLocaleDateString('nl-NL', {
-                          day: 'numeric',
-                          month: 'short',
-                          year: 'numeric',
-                        })
+                      ? new Date(mw.connectedAt).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' })
                       : '—'}
-                  </td>
-                  <td className="px-4 py-3 text-right">
+                  </TableCell>
+                  <TableCell className="text-right">
                     {mw.connected ? (
                       <Button
                         variant="ghost"
@@ -477,64 +383,36 @@ export function MicrosoftKoppelingTab() {
                         disabled={mw.loading}
                         className="text-destructive hover:text-destructive"
                       >
-                        {mw.loading ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <>
-                            <Unlink className="h-4 w-4 mr-1" />
-                            Ontkoppel
-                          </>
-                        )}
+                        {mw.loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Unlink className="h-4 w-4 mr-1" />Ontkoppel</>}
                       </Button>
                     ) : mw.microsoft_email ? (
-                      <div className="flex items-center gap-2">
-                        {mw.invitationUrl ? (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => copyInvitationLink(mw.werknemer_id, mw.invitationUrl!)}
-                            className="text-green-600 border-green-200 hover:bg-green-50"
-                          >
-                            {mw.copiedLink ? (
-                              <>
-                                <CheckCheck className="h-4 w-4 mr-1" />
-                                Gekopieerd!
-                              </>
-                            ) : (
-                              <>
-                                <Copy className="h-4 w-4 mr-1" />
-                                Kopieer link
-                              </>
-                            )}
-                          </Button>
-                        ) : (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => generateInvitation(mw.werknemer_id, mw.microsoft_email!)}
-                            disabled={mw.invitationLoading}
-                          >
-                            {mw.invitationLoading ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <>
-                                <Send className="h-4 w-4 mr-1" />
-                                Maak uitnodiging
-                              </>
-                            )}
-                          </Button>
-                        )}
-                      </div>
+                      mw.invitationUrl ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => copyInvitationLink(mw.werknemer_id, mw.invitationUrl!)}
+                          className="text-green-600 border-green-200 hover:bg-green-50"
+                        >
+                          {mw.copiedLink ? <><CheckCheck className="h-4 w-4 mr-1" />Gekopieerd!</> : <><Copy className="h-4 w-4 mr-1" />Kopieer link</>}
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => generateInvitation(mw.werknemer_id, mw.microsoft_email!)}
+                          disabled={mw.invitationLoading}
+                        >
+                          {mw.invitationLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Send className="h-4 w-4 mr-1" />Uitnodiging</>}
+                        </Button>
+                      )
                     ) : (
-                      <span className="text-xs text-muted-foreground italic">
-                        Voer eerst e-mail in
-                      </span>
+                      <span className="text-xs text-muted-foreground italic">Voer e-mail in</span>
                     )}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       )}
     </div>
