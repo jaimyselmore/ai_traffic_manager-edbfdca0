@@ -79,7 +79,7 @@ const ALLOWED_OPERATORS = ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'like', 'ilike
 // Define allowed columns per table for validation
 const TABLE_COLUMNS: Record<string, string[]> = {
   klanten: ['id', 'klantnummer', 'naam', 'contactpersoon', 'email', 'telefoon', 'reistijd_minuten', 'interne_notities', 'planning_instructies', 'created_by', 'created_at', 'updated_at'],
-  medewerkers: ['werknemer_id', 'naam_werknemer', 'gebruikersnaam', 'primaire_rol', 'tweede_rol', 'derde_rol', 'discipline', 'discipline_2', 'discipline_3', 'werkuren', 'parttime_dag', 'duo_team', 'vaardigheden', 'notities', 'beschikbaar', 'is_planner', 'in_planning', 'planner_volgorde', 'display_order', 'microsoft_connected', 'microsoft_connected_at', 'microsoft_email', 'created_at', 'updated_at'],
+  medewerkers: ['werknemer_id', 'naam_werknemer', 'gebruikersnaam', 'primaire_rol', 'tweede_rol', 'derde_rol', 'discipline', 'discipline_2', 'discipline_3', 'werkuren', 'parttime_dag', 'duo_team', 'vaardigheden', 'notities', 'beschikbaar', 'is_planner', 'in_planning', 'planner_volgorde', 'display_order', 'microsoft_connected', 'microsoft_connected_at', 'microsoft_email', 'rol', 'created_at', 'updated_at'],
   users: ['id', 'gebruikersnaam', 'naam', 'rol', 'is_planner', 'werknemer_id', 'password_hash', 'created_at', 'updated_at'],
   rolprofielen: ['rol_nummer', 'rol_naam', 'beschrijving_rol', 'taken_rol', 'standaard_discipline', 'created_at', 'updated_at'],
   disciplines: ['id', 'discipline_naam', 'beschrijving', 'created_at', 'updated_at'],
@@ -93,6 +93,7 @@ const TABLE_COLUMNS: Record<string, string[]> = {
   notificaties: ['id', 'type', 'titel', 'beschrijving', 'klant_naam', 'project_nummer', 'voor_werknemer', 'deadline', 'severity', 'aantal', 'is_done', 'created_at', 'updated_at'],
   audit_log: ['id', 'user_id', 'entiteit_type', 'entiteit_id', 'actie', 'oude_waarde', 'nieuwe_waarde', 'ip_address', 'created_at'],
   planning_regels: ['regel_id', 'titel_kort', 'voorwaarde_kort', 'actie_kort', 'categorie', 'ernst', 'max_per_dag', 'parameters', 'created_at', 'updated_at'],
+  ellen_regels: ['id', 'categorie', 'prioriteit', 'regel', 'rationale', 'actief', 'created_at'],
 };
 
 // Max limits per request
@@ -185,7 +186,7 @@ async function verifySessionToken(token: string): Promise<SessionPayload | null>
 const ALLOWED_TABLES = [
   'klanten', 'medewerkers', 'users', 'rolprofielen', 'disciplines', 'projecttypes',
   'projecten', 'project_fases', 'taken', 'meetings & presentaties', 'beschikbaarheid_medewerkers',
-  'wijzigingsverzoeken', 'notificaties', 'audit_log', 'planning_regels'
+  'wijzigingsverzoeken', 'notificaties', 'audit_log', 'planning_regels', 'ellen_regels'
 ];
 
 const ALLOWED_OPERATIONS = ['select', 'insert', 'update', 'delete'];

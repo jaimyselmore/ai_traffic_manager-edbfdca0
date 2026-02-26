@@ -118,7 +118,7 @@ export default function Meeting() {
     await new Promise((resolve) => setTimeout(resolve, 1500));
     localStorage.removeItem(STORAGE_KEY);
 
-    navigate('/ellen-session', {
+    navigate('/ellen-voorstel', {
       state: {
         requestType: 'meeting',
         formData: {

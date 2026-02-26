@@ -12,7 +12,7 @@ interface PlannerGridProps {
 }
 
 const dayNames = ['Ma', 'Di', 'Wo', 'Do', 'Vr'];
-const timeSlots = [9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
+const timeSlots = [9, 10, 11, 12, 13, 14, 15, 16, 17]; // Tot 18:00, zonder 18:00 rij
 
 const taskColors: Record<string, string> = {
   concept: 'bg-task-concept',

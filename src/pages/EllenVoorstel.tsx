@@ -60,7 +60,7 @@ function cleanEllenText(text: string): string {
   }
   return cleaned;
 }
-const TIME_SLOTS = [9, 10, 11, 12, 13, 14, 15, 16, 17, 18]; // Werkdag 09:00-18:00
+const TIME_SLOTS = [9, 10, 11, 12, 13, 14, 15, 16, 17]; // Werkdag 09:00 tot 18:00, zonder 18:00 rij
 const CELL_HEIGHT = 28; // px per hour cell
 
 const WORKFLOW_STEPS = [

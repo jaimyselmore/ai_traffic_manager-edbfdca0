@@ -54,12 +54,12 @@ export default function Verlof() {
     await new Promise((resolve) => setTimeout(resolve, 1500));
     localStorage.removeItem(STORAGE_KEY);
 
-    // Navigate to Ellen conversation page with form data
-    navigate('/ellen-session', { 
-      state: { 
+    // Navigate to Ellen voorstel page with form data
+    navigate('/ellen-voorstel', {
+      state: {
         requestType: 'verlof',
         formData: formData
-      } 
+      }
     });
   };
 
