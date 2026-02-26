@@ -6,11 +6,13 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useEmployees } from '@/hooks/use-employees';
 import { useMeetingTypes } from '@/lib/data';
 import { toast } from '@/hooks/use-toast';
 import { ProjectSelector } from '@/components/forms/ProjectSelector';
 import { secureInsert } from '@/lib/data/secureDataClient';
+import { getMonday, getDayOfWeekNumber } from '@/lib/helpers/dateHelpers';
 
 const STORAGE_KEY = 'concept_meeting';
 
@@ -23,6 +25,7 @@ interface MeetingFormData {
   datum: string;
   starttijd: string;
   eindtijd: string;
+  locatieType: 'selmore' | 'klant' | 'online' | 'anders';
   locatie: string;
   medewerkers: string[];
 }
@@ -36,6 +39,7 @@ const emptyFormData: MeetingFormData = {
   datum: '',
   starttijd: '',
   eindtijd: '',
+  locatieType: 'selmore',
   locatie: '',
   medewerkers: [],
 };
@@ -91,7 +95,7 @@ export default function Meeting() {
     if (!formData.starttijd || !formData.eindtijd) {
       newErrors.tijd = 'Voer start- en eindtijd in';
     }
-    if (!formData.locatie) {
+    if (formData.locatieType === 'anders' && !formData.locatie) {
       newErrors.locatie = 'Voer een locatie in';
     }
     if (formData.medewerkers.length === 0) {
@@ -117,6 +121,23 @@ export default function Meeting() {
     });
 
     try {
+      // Compute locatie value from locatieType
+      let computedLocatie = formData.locatie;
+      switch (formData.locatieType) {
+        case 'selmore':
+          computedLocatie = 'Bij Selmore';
+          break;
+        case 'klant':
+          computedLocatie = formData.projectTitel ? `Bij klant (${formData.projectTitel})` : 'Bij klant';
+          break;
+        case 'online':
+          computedLocatie = 'Online (Teams/Zoom)';
+          break;
+        case 'anders':
+          // Keep the custom value
+          break;
+      }
+
       // Direct insert into meetings & presentaties table
       const { error } = await secureInsert('meetings & presentaties', {
         project_id: formData.projectId || null,
@@ -125,7 +146,7 @@ export default function Meeting() {
         eind_tijd: formData.eindtijd,
         onderwerp: formData.onderwerp,
         type: formData.meetingType,
-        locatie: formData.locatie,
+        locatie: computedLocatie,
         deelnemers: formData.medewerkers,
         is_hard_lock: false,
         status: 'gepland',
@@ -134,6 +155,45 @@ export default function Meeting() {
       if (error) {
         throw new Error(error.message);
       }
+
+      // Calculate time values for taken
+      const meetingDate = new Date(formData.datum);
+      const weekStart = getMonday(meetingDate);
+      const dagVanWeek = getDayOfWeekNumber(meetingDate);
+
+      // Parse start and end times to calculate duration
+      const [startHour, startMin] = formData.starttijd.split(':').map(Number);
+      const [endHour, endMin] = formData.eindtijd.split(':').map(Number);
+      const startUur = startHour + (startMin / 60);
+      const duurUren = (endHour + endMin / 60) - startUur;
+
+      // Get meeting type label
+      const meetingTypeObj = meetingTypes.find(t => t.id === formData.meetingType);
+      const meetingTypeLabel = meetingTypeObj?.label || 'Meeting';
+
+      // Create task entries for each participant so meetings show in the planner
+      const taskPromises = formData.medewerkers.map(async (empId) => {
+        const employee = employees.find(e => e.id === empId);
+        if (!employee) return;
+
+        await secureInsert('taken', {
+          project_id: formData.projectId || null,
+          project_nummer: formData.projectTitel || 'Meeting',
+          klant_naam: formData.projectTitel ? '' : 'Meeting',
+          fase_naam: meetingTypeLabel,
+          werknemer_naam: employee.name,
+          werktype: 'extern',
+          discipline: employee.discipline || 'Algemeen',
+          week_start: weekStart,
+          dag_van_week: dagVanWeek,
+          start_uur: startUur,
+          duur_uren: duurUren,
+          plan_status: 'gepland',
+          is_hard_lock: false,
+        });
+      });
+
+      await Promise.all(taskPromises);
 
       localStorage.removeItem(STORAGE_KEY);
       toast({
@@ -193,7 +253,9 @@ export default function Meeting() {
                   setFormData({
                     ...formData,
                     projectId: '',
-                    projectTitel: ''
+                    projectTitel: '',
+                    // Reset locatieType if it was 'klant' (since that option disappears)
+                    locatieType: formData.locatieType === 'klant' ? 'selmore' : formData.locatieType,
                   });
                 }
               }}
@@ -213,6 +275,8 @@ export default function Meeting() {
                   // Clear project selection when checking "geen project"
                   projectId: checked ? '' : formData.projectId,
                   projectTitel: checked ? '' : formData.projectTitel,
+                  // Reset locatieType if it was 'klant' (since that option disappears)
+                  locatieType: (checked && formData.locatieType === 'klant') ? 'selmore' : formData.locatieType,
                 });
                 // Clear project error when checking "geen project"
                 if (checked && errors.projectId) {
@@ -297,17 +361,53 @@ export default function Meeting() {
 
           <div>
             <Label className="text-sm">Locatie *</Label>
-            <Input
-              placeholder="Bijv. Vergaderruimte A, Teams, of extern adres"
-              value={formData.locatie}
-              onChange={(e) => {
+            <RadioGroup
+              value={formData.locatieType}
+              onValueChange={(value: 'selmore' | 'klant' | 'online' | 'anders') => {
                 setFormData({
                   ...formData,
-                  locatie: e.target.value
+                  locatieType: value,
+                  // Reset custom locatie when switching away from 'anders'
+                  locatie: value === 'anders' ? formData.locatie : '',
                 });
               }}
-              className={errors.locatie ? 'border-destructive' : ''}
-            />
+              className="mt-2 space-y-2"
+            >
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="selmore" id="loc-selmore" />
+                <Label htmlFor="loc-selmore" className="text-sm font-normal cursor-pointer">
+                  Bij Selmore
+                </Label>
+              </div>
+              {formData.projectId && (
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="klant" id="loc-klant" />
+                  <Label htmlFor="loc-klant" className="text-sm font-normal cursor-pointer">
+                    Bij klant{formData.projectTitel ? ` (${formData.projectTitel})` : ''}
+                  </Label>
+                </div>
+              )}
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="online" id="loc-online" />
+                <Label htmlFor="loc-online" className="text-sm font-normal cursor-pointer">
+                  Online (Teams/Zoom)
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="anders" id="loc-anders" />
+                <Label htmlFor="loc-anders" className="text-sm font-normal cursor-pointer">
+                  Anders
+                </Label>
+              </div>
+            </RadioGroup>
+            {formData.locatieType === 'anders' && (
+              <Input
+                placeholder="Vul de locatie in"
+                value={formData.locatie}
+                onChange={(e) => setFormData({ ...formData, locatie: e.target.value })}
+                className={`mt-2 ${errors.locatie ? 'border-destructive' : ''}`}
+              />
+            )}
             {errors.locatie && (
               <p className="text-xs text-destructive mt-1">{errors.locatie}</p>
             )}
