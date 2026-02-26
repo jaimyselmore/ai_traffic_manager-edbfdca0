@@ -11,15 +11,28 @@ export function getMonday(date: Date): string {
   const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
   d.setDate(diff);
   d.setHours(0, 0, 0, 0);
-  return d.toISOString().split('T')[0];
+  // Use local date formatting to avoid UTC timezone shift
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/**
+ * Parse a date string as local date (not UTC)
+ */
+function parseLocalDate(dateInput: Date | string): Date {
+  if (dateInput instanceof Date) {
+    return new Date(dateInput);
+  }
+  // Parse YYYY-MM-DD string as local date
+  const [year, month, day] = dateInput.split('-').map(Number);
+  return new Date(year, month - 1, day);
 }
 
 /**
  * Get all dates between start and end (inclusive)
  */
 export function getDaysBetween(startDate: Date | string, endDate: Date | string): Date[] {
-  const start = new Date(startDate);
-  const end = new Date(endDate);
+  const start = parseLocalDate(startDate);
+  const end = parseLocalDate(endDate);
   const days: Date[] = [];
 
   const current = new Date(start);

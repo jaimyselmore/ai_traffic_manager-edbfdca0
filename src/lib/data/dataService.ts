@@ -759,7 +759,7 @@ export async function getUpcomingDeadlines(): Promise<UpcomingDeadline[]> {
 export async function getActiveProjects(): Promise<ActiveProject[]> {
   // Eerst alle taken ophalen om te zien welke projecten daadwerkelijk gepland zijn
   const { data: takenData, error: takenError } = await secureSelect<TaakRow>('taken', {
-    columns: 'project_id,project_nummer,klant_naam',
+    columns: 'project_id,project_nummer,klant_naam,werktype',
   })
 
   if (takenError) {
@@ -767,9 +767,15 @@ export async function getActiveProjects(): Promise<ActiveProject[]> {
     return []
   }
 
+  // Filter out non-project tasks (verlof, ziek, meetings without project)
+  const nonProjectTypes = ['verlof', 'ziek']
+  const projectTaken = (takenData || []).filter(taak =>
+    !nonProjectTypes.includes(taak.werktype) && taak.project_id !== null
+  )
+
   // Groepeer taken per project_nummer om te tellen
   const projectTakenMap = new Map<string, { count: number, klant_naam: string, project_id: string | null }>()
-  for (const taak of (takenData || [])) {
+  for (const taak of projectTaken) {
     const existing = projectTakenMap.get(taak.project_nummer)
     if (existing) {
       existing.count++

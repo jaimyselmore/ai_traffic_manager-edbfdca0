@@ -157,7 +157,9 @@ export default function Meeting() {
       }
 
       // Calculate time values for taken
-      const meetingDate = new Date(formData.datum);
+      // Parse date as local (not UTC) to avoid timezone issues
+      const [year, month, day] = formData.datum.split('-').map(Number);
+      const meetingDate = new Date(year, month - 1, day);
       const weekStart = getMonday(meetingDate);
       const dagVanWeek = getDayOfWeekNumber(meetingDate);
 

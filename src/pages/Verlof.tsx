@@ -87,7 +87,7 @@ export default function Verlof() {
           week_start: weekStart,
           dag_van_week: dagVanWeek,
           start_uur: 9, // Hele werkdag blokkeren
-          duur_uren: 8.5, // 9:00 - 17:30
+          duur_uren: 9, // 9:00 - 18:00
           plan_status: 'goedgekeurd',
           is_hard_lock: true, // Verlof/ziek mag niet verschoven worden
         });
