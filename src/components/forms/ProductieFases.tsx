@@ -186,6 +186,7 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
           </Label>
         </div>
       )}
+      <MedewerkerSelectie fase={fase} />
     </div>
   );
 

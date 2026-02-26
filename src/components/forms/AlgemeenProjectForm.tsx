@@ -2,14 +2,39 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useEmployees } from '@/hooks/use-employees';
+import { DatePicker } from '@/components/ui/date-picker';
+import { format, parse, isValid } from 'date-fns';
+
+// Helper functions voor datum conversie
+const parseDate = (dateStr: string | undefined): Date | undefined => {
+  if (!dateStr) return undefined;
+  const isoDate = new Date(dateStr);
+  if (isValid(isoDate)) return isoDate;
+  const parsed = parse(dateStr, 'dd-MM-yyyy', new Date());
+  return isValid(parsed) ? parsed : undefined;
+};
+
+const formatDateISO = (date: Date | undefined): string => {
+  if (!date || !isValid(date)) return '';
+  return format(date, 'yyyy-MM-dd');
+};
+
+export interface MeetingConfig {
+  modus: 'ellen' | 'exact' | 'indicatie';
+  aantalSuggestie?: number;
+  exacteDatum?: string;
+  exacteTijd?: string;
+  indicatieDagen?: number;
+}
 
 export interface AlgemeenProjectData {
   scope: string;
   gewenstePeriodeStart: string;
   gewenstePeriodeEind: string;
   betrokkenRollen: string[];
+  meetingConfig?: MeetingConfig;
 }
 
 interface AlgemeenProjectFormProps {
@@ -79,6 +104,96 @@ export function AlgemeenProjectForm({ data, onChange }: AlgemeenProjectFormProps
           ))}
         </div>
       </div>
+
+      {/* Meetings / Presentaties configuratie */}
+      <div className="pt-4 border-t border-border">
+        <Label className="text-sm mb-3 block">Meetings & Presentaties</Label>
+        <RadioGroup
+          value={data.meetingConfig?.modus || 'ellen'}
+          onValueChange={(value) => onChange({
+            ...data,
+            meetingConfig: { ...data.meetingConfig, modus: value as 'ellen' | 'exact' | 'indicatie' }
+          })}
+          className="space-y-3"
+        >
+          <div className="flex items-start gap-2 p-3 rounded-lg bg-secondary/30">
+            <RadioGroupItem value="ellen" id="meeting-ellen" className="mt-1" />
+            <div>
+              <Label htmlFor="meeting-ellen" className="text-sm font-medium cursor-pointer">
+                Ellen laten voorstellen
+              </Label>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Ellen bepaalt het juiste aantal en moment op basis van projecttype
+              </p>
+            </div>
+          </div>
+          <div className="flex items-start gap-2 p-3 rounded-lg bg-secondary/30">
+            <RadioGroupItem value="indicatie" id="meeting-indicatie" className="mt-1" />
+            <div className="flex-1">
+              <Label htmlFor="meeting-indicatie" className="text-sm font-medium cursor-pointer">
+                Indicatie geven
+              </Label>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Geef aan hoeveel meetings je verwacht nodig te hebben
+              </p>
+              {data.meetingConfig?.modus === 'indicatie' && (
+                <div className="mt-2">
+                  <Input
+                    type="number"
+                    min="1"
+                    max="10"
+                    placeholder="Aantal meetings"
+                    value={data.meetingConfig?.aantalSuggestie || ''}
+                    onChange={(e) => onChange({
+                      ...data,
+                      meetingConfig: { ...data.meetingConfig, modus: 'indicatie', aantalSuggestie: parseInt(e.target.value) || undefined }
+                    })}
+                    className="w-32"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="flex items-start gap-2 p-3 rounded-lg bg-secondary/30">
+            <RadioGroupItem value="exact" id="meeting-exact" className="mt-1" />
+            <div className="flex-1">
+              <Label htmlFor="meeting-exact" className="text-sm font-medium cursor-pointer">
+                Exacte datum en tijd opgeven
+              </Label>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Geef zelf de exacte datum en tijd op
+              </p>
+              {data.meetingConfig?.modus === 'exact' && (
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Datum</Label>
+                    <DatePicker
+                      value={parseDate(data.meetingConfig?.exacteDatum)}
+                      onChange={(date) => onChange({
+                        ...data,
+                        meetingConfig: { ...data.meetingConfig, modus: 'exact', exacteDatum: formatDateISO(date) }
+                      })}
+                      placeholder="Selecteer datum"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Tijd</Label>
+                    <Input
+                      type="time"
+                      value={data.meetingConfig?.exacteTijd || ''}
+                      onChange={(e) => onChange({
+                        ...data,
+                        meetingConfig: { ...data.meetingConfig, modus: 'exact', exacteTijd: e.target.value }
+                      })}
+                      className="h-10"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </RadioGroup>
+      </div>
     </div>
   );
 }
@@ -88,4 +203,5 @@ export const emptyAlgemeenProjectData: AlgemeenProjectData = {
   gewenstePeriodeStart: '',
   gewenstePeriodeEind: '',
   betrokkenRollen: [],
+  meetingConfig: { modus: 'ellen' },
 };

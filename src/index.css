@@ -118,6 +118,11 @@
     @apply bg-background text-foreground font-sans antialiased overflow-hidden;
     font-family: 'Inter', sans-serif;
   }
+
+  /* Prevent scroll jumping when content changes */
+  main, [data-radix-scroll-area-viewport] {
+    overflow-anchor: none;
+  }
 }
 
 @layer utilities {
