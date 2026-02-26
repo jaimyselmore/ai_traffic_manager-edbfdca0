@@ -5,11 +5,29 @@ import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
+import { DatePicker } from '@/components/ui/date-picker';
 import { useClients } from '@/hooks/use-clients';
 import { createClient } from '@/lib/data/dataService';
 import { toast } from '@/hooks/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
+import { format, parse, isValid } from 'date-fns';
+
+// Helper functions voor datum conversie
+const parseDate = (dateStr: string | undefined): Date | undefined => {
+  if (!dateStr) return undefined;
+  // Try ISO format first (YYYY-MM-DD from date inputs)
+  const isoDate = new Date(dateStr);
+  if (isValid(isoDate)) return isoDate;
+  // Try dd-MM-yyyy format
+  const parsed = parse(dateStr, 'dd-MM-yyyy', new Date());
+  return isValid(parsed) ? parsed : undefined;
+};
+
+const formatDateISO = (date: Date | undefined): string => {
+  if (!date || !isValid(date)) return '';
+  return format(date, 'yyyy-MM-dd');
+};
 
 export interface ProjectHeaderData {
   klantId: string;
@@ -370,20 +388,20 @@ export function ProjectHeader({ data, onChange, errors, isInternProject, onInter
       {/* Datum aanvraag */}
       <div>
         <Label className="text-sm">Datum aanvraag</Label>
-        <Input
-          type="date"
-          value={data.datumAanvraag}
-          onChange={(e) => onChange({ ...data, datumAanvraag: e.target.value })}
+        <DatePicker
+          value={parseDate(data.datumAanvraag)}
+          onChange={(date) => onChange({ ...data, datumAanvraag: formatDateISO(date) })}
+          placeholder="Selecteer datum"
         />
       </div>
 
       {/* Deadline */}
       <div>
         <Label className="text-sm">Deadline</Label>
-        <Input
-          type="date"
-          value={data.deadline}
-          onChange={(e) => onChange({ ...data, deadline: e.target.value })}
+        <DatePicker
+          value={parseDate(data.deadline)}
+          onChange={(date) => onChange({ ...data, deadline: formatDateISO(date) })}
+          placeholder="Selecteer deadline"
         />
         <p className="text-xs text-muted-foreground mt-1">
           Gewenste opleverdatum (indien bekend).

@@ -4,10 +4,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Button } from '@/components/ui/button';
 import { useEmployees } from '@/hooks/use-employees';
+import { DatePicker } from '@/components/ui/date-picker';
+import { DateRangePicker } from '@/components/ui/date-range-picker';
+import { DateRange } from 'react-day-picker';
+import { format, parse, isValid } from 'date-fns';
 
 export interface FaseData {
   enabled?: boolean;
@@ -36,6 +39,22 @@ interface ProductieFasesProps {
   data: ProductieFasesData;
   onChange: (data: ProductieFasesData) => void;
 }
+
+// Helper functions voor datum conversie
+const parseDate = (dateStr: string | undefined): Date | undefined => {
+  if (!dateStr) return undefined;
+  // Try dd-mm-yyyy format first
+  const parsed = parse(dateStr, 'dd-MM-yyyy', new Date());
+  if (isValid(parsed)) return parsed;
+  // Try ISO format as fallback
+  const isoDate = new Date(dateStr);
+  return isValid(isoDate) ? isoDate : undefined;
+};
+
+const formatDate = (date: Date | undefined): string => {
+  if (!date || !isValid(date)) return '';
+  return format(date, 'dd-MM-yyyy');
+};
 
 const faseLabels: Record<string, { title: string; hint?: string }> = {
   pp: { title: 'PP (pre-productie)', hint: 'Periode waarin creatief team en producer plannen' },
@@ -76,67 +95,66 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
     });
   };
 
-  const renderPeriodeFase = (fase: string) => (
-    <div className="space-y-4 pt-4">
-      <div className="grid grid-cols-2 gap-4">
+  const renderPeriodeFase = (fase: string) => {
+    const dateRange: DateRange | undefined = data.fases[fase]?.startDatum || data.fases[fase]?.eindDatum
+      ? {
+          from: parseDate(data.fases[fase]?.startDatum),
+          to: parseDate(data.fases[fase]?.eindDatum),
+        }
+      : undefined;
+
+    return (
+      <div className="space-y-4 pt-4">
         <div>
-          <Label className="text-sm">Startdatum</Label>
-          <Input
-            type="text"
-            placeholder="dd-mm-jjjj"
-            value={data.fases[fase]?.startDatum || ''}
-            onChange={(e) => updateFase(fase, 'startDatum', e.target.value)}
+          <Label className="text-sm">Periode</Label>
+          <DateRangePicker
+            value={dateRange}
+            onChange={(range) => {
+              updateFase(fase, 'startDatum', formatDate(range?.from));
+              updateFase(fase, 'eindDatum', formatDate(range?.to));
+            }}
+            placeholder="Selecteer start- en einddatum"
           />
         </div>
-        <div>
-          <Label className="text-sm">Einddatum</Label>
-          <Input
-            type="text"
-            placeholder="dd-mm-jjjj"
-            value={data.fases[fase]?.eindDatum || ''}
-            onChange={(e) => updateFase(fase, 'eindDatum', e.target.value)}
-          />
-        </div>
+        {faseLabels[fase]?.hint && (
+          <p className="text-xs text-muted-foreground">{faseLabels[fase].hint}</p>
+        )}
+        {(fase === 'pp' || fase === 'offlineEdit') && (
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id={`${fase}-creatief`}
+              checked={data.fases[fase]?.creatief || false}
+              onCheckedChange={(checked) => updateFase(fase, 'creatief', checked)}
+            />
+            <Label htmlFor={`${fase}-creatief`} className="text-sm">
+              {fase === 'pp'
+                ? 'Creatief team en producer 1 uur per dag in deze periode'
+                : 'Creatie is bij editors op locatie gedurende deze periode'}
+            </Label>
+          </div>
+        )}
       </div>
-      {faseLabels[fase]?.hint && (
-        <p className="text-xs text-muted-foreground">{faseLabels[fase].hint}</p>
-      )}
-      {(fase === 'pp' || fase === 'offlineEdit') && (
-        <div className="flex items-center gap-2">
-          <Checkbox
-            id={`${fase}-creatief`}
-            checked={data.fases[fase]?.creatief || false}
-            onCheckedChange={(checked) => updateFase(fase, 'creatief', checked)}
-          />
-          <Label htmlFor={`${fase}-creatief`} className="text-sm">
-            {fase === 'pp'
-              ? 'Creatief team en producer 1 uur per dag in deze periode'
-              : 'Creatie is bij editors op locatie gedurende deze periode'}
-          </Label>
-        </div>
-      )}
-    </div>
-  );
+    );
+  };
 
   const renderMeetingFase = (fase: string) => (
     <div className="space-y-4 pt-4">
       <div className="grid grid-cols-2 gap-4">
         <div>
           <Label className="text-sm">Datum</Label>
-          <Input
-            type="text"
-            placeholder="dd-mm-jjjj"
-            value={data.fases[fase]?.startDatum || ''}
-            onChange={(e) => updateFase(fase, 'startDatum', e.target.value)}
+          <DatePicker
+            value={parseDate(data.fases[fase]?.startDatum)}
+            onChange={(date) => updateFase(fase, 'startDatum', formatDate(date))}
+            placeholder="Selecteer datum"
           />
         </div>
         <div>
           <Label className="text-sm">Tijd</Label>
           <Input
-            type="text"
-            placeholder="hh:mm"
+            type="time"
             value={data.fases[fase]?.datumTijd || ''}
             onChange={(e) => updateFase(fase, 'datumTijd', e.target.value)}
+            className="h-10"
           />
         </div>
       </div>
@@ -171,51 +189,51 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
     </div>
   );
 
-  const renderDagenFase = (fase: string) => (
-    <div className="space-y-4 pt-4">
-      <div>
-        <Label className="text-sm">Aantal dagen</Label>
-        <Input
-          type="text"
-          inputMode="numeric"
-          pattern="[0-9]*"
-          value={data.fases[fase]?.dagen || ''}
-          onChange={(e) => {
-            const val = e.target.value;
-            if (val === '' || /^\d+$/.test(val)) {
-              updateFase(fase, 'dagen', val === '' ? '' : parseInt(val));
-            }
-          }}
-          className="w-24"
-          placeholder="1"
-        />
-        {faseLabels[fase]?.hint && (
-          <p className="text-xs text-muted-foreground mt-1">{faseLabels[fase].hint}</p>
-        )}
-      </div>
-      <div className="grid grid-cols-2 gap-4">
+  const renderDagenFase = (fase: string) => {
+    const dateRange: DateRange | undefined = data.fases[fase]?.startDatum || data.fases[fase]?.eindDatum
+      ? {
+          from: parseDate(data.fases[fase]?.startDatum),
+          to: parseDate(data.fases[fase]?.eindDatum),
+        }
+      : undefined;
+
+    return (
+      <div className="space-y-4 pt-4">
         <div>
-          <Label className="text-sm">Startdatum</Label>
+          <Label className="text-sm">Aantal dagen</Label>
           <Input
             type="text"
-            placeholder="dd-mm-jjjj"
-            value={data.fases[fase]?.startDatum || ''}
-            onChange={(e) => updateFase(fase, 'startDatum', e.target.value)}
+            inputMode="numeric"
+            pattern="[0-9]*"
+            value={data.fases[fase]?.dagen || ''}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val === '' || /^\d+$/.test(val)) {
+                updateFase(fase, 'dagen', val === '' ? '' : parseInt(val));
+              }
+            }}
+            className="w-24"
+            placeholder="1"
           />
+          {faseLabels[fase]?.hint && (
+            <p className="text-xs text-muted-foreground mt-1">{faseLabels[fase].hint}</p>
+          )}
         </div>
         <div>
-          <Label className="text-sm">Einddatum</Label>
-          <Input
-            type="text"
-            placeholder="dd-mm-jjjj"
-            value={data.fases[fase]?.eindDatum || ''}
-            onChange={(e) => updateFase(fase, 'eindDatum', e.target.value)}
+          <Label className="text-sm">Periode</Label>
+          <DateRangePicker
+            value={dateRange}
+            onChange={(range) => {
+              updateFase(fase, 'startDatum', formatDate(range?.from));
+              updateFase(fase, 'eindDatum', formatDate(range?.to));
+            }}
+            placeholder="Selecteer start- en einddatum"
           />
         </div>
+        <MedewerkerSelectie fase={fase} />
       </div>
-      <MedewerkerSelectie fase={fase} />
-    </div>
-  );
+    );
+  };
 
   const toggleMedewerker = (fase: string, empId: string) => {
     const currentList = data.fases[fase]?.medewerkers || [];
@@ -228,21 +246,15 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
 
   const MedewerkerSelectie = ({ fase }: { fase: string }) => {
     const selectedIds = data.fases[fase]?.medewerkers || [];
-    // Filter op relevante medewerkers (studio/editors/producers)
-    const relevantEmployees = employees.filter(e => {
-      const role = (e.role || '').toLowerCase();
-      return role.includes('editor') || role.includes('producer') || role.includes('studio') ||
-             role.includes('motion') || role.includes('designer') || role.includes('creative');
-    });
 
     return (
       <div className="space-y-2 mt-4 pt-4 border-t border-border">
         <Label className="text-sm">Medewerkers voor deze fase</Label>
         <div className="flex flex-wrap gap-2">
-          {relevantEmployees.length === 0 ? (
+          {employees.length === 0 ? (
             <p className="text-xs text-muted-foreground italic">Geen medewerkers gevonden</p>
           ) : (
-            relevantEmployees.map(emp => {
+            employees.map(emp => {
               const isSelected = selectedIds.includes(emp.id);
               return (
                 <button
@@ -271,7 +283,7 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
 
     return (
       <Collapsible open={isOpen} onOpenChange={(open) => setOpenFases(prev => ({ ...prev, [fase]: open }))}>
-        <CollapsibleTrigger className="w-full flex items-center justify-between py-3 px-4 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors">
+        <CollapsibleTrigger className="w-full flex items-center justify-between py-3 px-4 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors scroll-mt-24">
           <span className="font-medium text-sm">{faseLabels[fase].title}</span>
           <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
         </CollapsibleTrigger>
@@ -298,7 +310,7 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
 
     return (
       <Collapsible open={isOpen} onOpenChange={(open) => setOpenFases(prev => ({ ...prev, [fase]: open }))}>
-        <CollapsibleTrigger className="w-full flex items-center justify-between py-3 px-4 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors">
+        <CollapsibleTrigger className="w-full flex items-center justify-between py-3 px-4 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors scroll-mt-24">
           <span className="font-medium text-sm">{faseLabels[fase].title}</span>
           <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
         </CollapsibleTrigger>
@@ -306,22 +318,46 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
           {renderMeetingFase(fase)}
 
           {/* Extra presentaties */}
-          {extraPresentaties.map((_, index) => (
+          {extraPresentaties.map((extra, index) => (
             <div key={`extra-${index}`} className="mt-4 p-4 border border-border rounded-lg space-y-4">
               <span className="font-medium text-sm">Extra presentatie {index + 1}</span>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="text-sm">Datum</Label>
-                  <Input type="text" placeholder="dd-mm-jjjj" />
+                  <DatePicker
+                    value={parseDate(extra.startDatum)}
+                    onChange={(date) => {
+                      const updated = [...extraPresentaties];
+                      updated[index] = { ...updated[index], startDatum: formatDate(date) };
+                      onChange({ ...data, extraPresentaties: updated });
+                    }}
+                    placeholder="Selecteer datum"
+                  />
                 </div>
                 <div>
                   <Label className="text-sm">Tijd</Label>
-                  <Input type="text" placeholder="hh:mm" />
+                  <Input
+                    type="time"
+                    value={extra.datumTijd || ''}
+                    onChange={(e) => {
+                      const updated = [...extraPresentaties];
+                      updated[index] = { ...updated[index], datumTijd: e.target.value };
+                      onChange({ ...data, extraPresentaties: updated });
+                    }}
+                    className="h-10"
+                  />
                 </div>
               </div>
               <div>
                 <Label className="text-sm mb-2 block">Locatie</Label>
-                <RadioGroup defaultValue="selmore">
+                <RadioGroup
+                  value={extra.locatie || 'selmore'}
+                  onValueChange={(value) => {
+                    const updated = [...extraPresentaties];
+                    updated[index] = { ...updated[index], locatie: value as 'selmore' | 'klant' };
+                    onChange({ ...data, extraPresentaties: updated });
+                  }}
+                >
                   <div className="flex items-center gap-2">
                     <RadioGroupItem value="selmore" id={`extra-${index}-selmore`} />
                     <Label htmlFor={`extra-${index}-selmore`} className="text-sm">Bij Selmore</Label>
@@ -384,19 +420,6 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
         />
         <FaseCollapsible fase="deliverables">
           {renderDagenFase('deliverables')}
-          <div className="mt-4">
-            <Label className="text-sm">Studio/Designer</Label>
-            <Select>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecteer studio/designer" />
-              </SelectTrigger>
-              <SelectContent>
-                {employees.filter(e => (e.role || e.primaryRole || '').toLowerCase().includes('design') || (e.role || e.primaryRole || '').toLowerCase().includes('studio')).map((emp) => (
-                  <SelectItem key={emp.id} value={emp.id}>{emp.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
         </FaseCollapsible>
       </div>
 
@@ -405,11 +428,10 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
         <h2 className="text-lg font-semibold text-foreground mb-4">Deadline oplevering</h2>
         <div>
           <Label className="text-sm">Definitieve opleverdeadline (hard lock)</Label>
-          <Input
-            type="text"
-            placeholder="dd-mm-jjjj hh:mm"
-            value={data.deadlineOplevering}
-            onChange={(e) => onChange({ ...data, deadlineOplevering: e.target.value })}
+          <DatePicker
+            value={parseDate(data.deadlineOplevering)}
+            onChange={(date) => onChange({ ...data, deadlineOplevering: formatDate(date) })}
+            placeholder="Selecteer deadline"
           />
         </div>
       </div>
