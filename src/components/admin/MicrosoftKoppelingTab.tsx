@@ -227,16 +227,10 @@ export function MicrosoftKoppelingTab() {
 
   return (
     <div className="space-y-4">
-      {/* Header - same style as other tabs */}
+      {/* Header - same style as KlantenTab */}
       <div className="flex items-center justify-between gap-4">
-        <div>
-          <h2 className="text-lg font-semibold text-foreground">Agenda koppelingen</h2>
-          <p className="text-sm text-muted-foreground">
-            Koppel Microsoft-agenda's zodat Ellen beschikbaarheid kan checken.
-          </p>
-        </div>
         <div className="text-sm text-muted-foreground">
-          <span className="font-medium">{connectedCount}</span> / {medewerkerStatuses.length} gekoppeld
+          <span className="font-medium">{connectedCount}</span> / {medewerkerStatuses.length} medewerkers gekoppeld
         </div>
       </div>
 

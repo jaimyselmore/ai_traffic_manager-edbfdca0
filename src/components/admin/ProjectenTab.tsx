@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Search } from 'lucide-react';
 import { useActiveProjects, useAfgerondeProjecten } from '@/lib/data';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -29,42 +30,46 @@ export function ProjectenTab() {
 
   return (
     <div className="space-y-4">
+      {/* Search bar - same style as KlantenTab */}
       <div className="flex items-center justify-between gap-4">
-        <div>
-          <h2 className="text-lg font-semibold text-foreground">Projecten</h2>
-          <p className="text-sm text-muted-foreground">
-            Overzicht van alle lopende en afgeronde projecten.
-          </p>
-        </div>
-        <div className="w-full max-w-xs">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Zoek op klant, projectnummer of omschrijving..."
+            placeholder="Zoeken..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
           />
         </div>
       </div>
 
-      {isLoading ? (
-        <div className="text-sm text-muted-foreground py-4">Projecten worden geladen...</div>
-      ) : filtered.length === 0 ? (
-        <div className="text-sm text-muted-foreground py-4">
-          Geen projecten gevonden.
-        </div>
-      ) : (
-        <div className="rounded-lg border bg-card">
-          <Table>
-            <TableHeader>
+      {/* Table */}
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[140px]">Projectnummer</TableHead>
+              <TableHead>Klant</TableHead>
+              <TableHead>Omschrijving</TableHead>
+              <TableHead className="w-[140px]">Deadline</TableHead>
+              <TableHead className="w-[110px]">Status</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
               <TableRow>
-                <TableHead className="w-[140px]">Projectnummer</TableHead>
-                <TableHead>Klant</TableHead>
-                <TableHead>Omschrijving</TableHead>
-                <TableHead className="w-[140px]">Deadline</TableHead>
-                <TableHead className="w-[110px]">Status</TableHead>
+                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                  Laden...
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((project) => (
+            ) : filtered.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                  Geen projecten gevonden.
+                </TableCell>
+              </TableRow>
+            ) : (
+              filtered.map((project) => (
                 <TableRow key={project.id}>
                   <TableCell className="font-medium">{project.projectnummer}</TableCell>
                   <TableCell>{project.klant_naam}</TableCell>
@@ -91,12 +96,11 @@ export function ProjectenTab() {
                     </Badge>
                   </TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      )}
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 }
-
