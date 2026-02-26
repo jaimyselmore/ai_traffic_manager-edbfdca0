@@ -80,7 +80,31 @@ const FASE_COLORS: Record<string, string> = {
 export default function EllenVoorstel() {
   const navigate = useNavigate();
   const location = useLocation();
-  const projectInfo = location.state?.projectInfo;
+
+  // Support both projectInfo (from NieuwProject) and formData (from Meeting/Verlof)
+  const requestType = location.state?.requestType;
+  const rawProjectInfo = location.state?.projectInfo;
+  const formData = location.state?.formData;
+
+  // Convert meeting formData to projectInfo format if needed
+  const projectInfo = rawProjectInfo || (formData ? {
+    type: requestType || 'meeting',
+    onderwerp: formData.onderwerp,
+    klant_naam: formData.geenProject ? 'Intern' : formData.projectTitel,
+    datum: formData.datum,
+    starttijd: formData.starttijd,
+    eindtijd: formData.eindtijd,
+    locatie: formData.locatie,
+    medewerkers: formData.medewerkers,
+    meetingType: formData.meetingType,
+    geenProject: formData.geenProject,
+    fases: [{
+      fase_naam: formData.onderwerp || 'Meeting',
+      medewerkers: formData.medewerkers || [],
+      start_datum: formData.datum,
+      eind_datum: formData.datum,
+    }],
+  } : null);
 
   const [flowState, setFlowState] = useState<FlowState>('ellen-working');
   const [voorstellen, setVoorstellen] = useState<VoorstelTaak[]>([]);
@@ -176,23 +200,37 @@ export default function EllenVoorstel() {
       try {
         // Collect medewerkers and period for pre-fetching
         const alleMedewerkers: string[] = [];
-        projectInfo.fases?.forEach((f: any) => {
-          f.medewerkers?.forEach((m: string) => {
+
+        // Handle both project fases and meeting medewerkers
+        if (projectInfo.fases?.length > 0) {
+          projectInfo.fases.forEach((f: any) => {
+            f.medewerkers?.forEach((m: string) => {
+              if (!alleMedewerkers.includes(m)) alleMedewerkers.push(m);
+            });
+          });
+        } else if (projectInfo.medewerkers?.length > 0) {
+          // Direct medewerkers array (from meeting form)
+          projectInfo.medewerkers.forEach((m: string) => {
             if (!alleMedewerkers.includes(m)) alleMedewerkers.push(m);
           });
-        });
-        const startDatum = projectInfo.fases?.[0]?.start_datum || new Date().toISOString().split('T')[0];
+        }
+
+        const startDatum = projectInfo.datum || projectInfo.fases?.[0]?.start_datum || new Date().toISOString().split('T')[0];
+
+        // Build appropriate prompt based on request type
+        const isMeeting = projectInfo.type === 'meeting' || projectInfo.meetingType;
+        const prompt = isMeeting ? buildMeetingPrompt(projectInfo) : buildEllenPrompt(projectInfo);
 
         const { data, error } = await supabase.functions.invoke('ellen-chat', {
           headers: { Authorization: `Bearer ${sessionToken}` },
           body: {
-            sessie_id: `project-${Date.now()}`,
-            bericht: buildEllenPrompt(projectInfo),
+            sessie_id: `${isMeeting ? 'meeting' : 'project'}-${Date.now()}`,
+            bericht: prompt,
             project_data: {
               medewerkers: alleMedewerkers,
-              klant_naam: projectInfo.klant_naam,
+              klant_naam: projectInfo.klant_naam || (projectInfo.geenProject ? 'Intern' : 'Onbekend'),
               start_datum: startDatum,
-              eind_datum: projectInfo.deadline,
+              eind_datum: projectInfo.deadline || projectInfo.datum,
             },
           },
         });
@@ -1074,6 +1112,46 @@ export default function EllenVoorstel() {
       </div>
     </div>
   );
+}
+
+/**
+ * Bouw Ellen prompt voor standalone meetings (zonder project)
+ */
+function buildMeetingPrompt(info: any): string {
+  const parts: string[] = [];
+
+  parts.push(`=== MEETING PLANNING AANVRAAG ===`);
+  parts.push(``);
+  parts.push(`Type aanvraag: Meeting / Presentatie`);
+  parts.push(``);
+
+  parts.push(`--- MEETING DETAILS ---`);
+  parts.push(`Onderwerp: ${info.onderwerp || 'Niet opgegeven'}`);
+  parts.push(`Type meeting: ${info.meetingType || 'Algemeen'}`);
+  parts.push(`Gekoppeld aan project: ${info.geenProject ? 'Nee (standalone meeting)' : info.klant_naam || 'Onbekend'}`);
+  parts.push(``);
+
+  parts.push(`--- DATUM & TIJD ---`);
+  parts.push(`Gewenste datum: ${info.datum || 'Niet opgegeven'}`);
+  parts.push(`Gewenste starttijd: ${info.starttijd || 'Niet opgegeven'}`);
+  parts.push(`Gewenste eindtijd: ${info.eindtijd || 'Niet opgegeven'}`);
+  parts.push(`Locatie: ${info.locatie || 'Niet opgegeven'}`);
+  parts.push(``);
+
+  parts.push(`--- DEELNEMERS ---`);
+  if (info.medewerkers?.length > 0) {
+    parts.push(`Geselecteerde deelnemers: ${info.medewerkers.join(', ')}`);
+  } else {
+    parts.push(`Geen deelnemers geselecteerd - dit is een probleem!`);
+  }
+  parts.push(``);
+
+  parts.push(`--- INSTRUCTIE ---`);
+  parts.push(`Plan deze meeting in met de opgegeven details.`);
+  parts.push(`Check de beschikbaarheid van alle deelnemers op de gewenste datum en tijd.`);
+  parts.push(`Als de gewenste tijd niet beschikbaar is, stel alternatieve tijden voor.`);
+
+  return parts.join('\n');
 }
 
 /**
