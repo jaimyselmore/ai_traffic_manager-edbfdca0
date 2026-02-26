@@ -4,6 +4,7 @@ import { Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { VerlofForm, VerlofFormData } from '@/components/forms/VerlofForm';
 import { toast } from '@/hooks/use-toast';
+import { secureInsert } from '@/lib/data/secureDataClient';
 
 const STORAGE_KEY = 'concept_verlof';
 
@@ -51,16 +52,35 @@ export default function Verlof() {
       description: 'Even geduld alstublieft.',
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    localStorage.removeItem(STORAGE_KEY);
+    try {
+      // Direct insert into beschikbaarheid_medewerkers table
+      const { error } = await secureInsert('beschikbaarheid_medewerkers', {
+        werknemer_naam: formData.medewerker,
+        type: formData.verlofType, // 'verlof' of 'ziek'
+        start_datum: formData.startdatum,
+        eind_datum: formData.einddatum,
+        reden: formData.reden || `${formData.verlofCategorie}${formData.backupPersoon ? ` - Backup: ${formData.backupPersoon}` : ''}`,
+        status: 'goedgekeurd',
+      });
 
-    // Navigate to Ellen voorstel page with form data
-    navigate('/ellen-voorstel', {
-      state: {
-        requestType: 'verlof',
-        formData: formData
+      if (error) {
+        throw new Error(error.message);
       }
-    });
+
+      localStorage.removeItem(STORAGE_KEY);
+      toast({
+        title: formData.verlofType === 'ziek' ? 'Ziekmelding geregistreerd!' : 'Verlof aangevraagd!',
+        description: 'De beschikbaarheid is bijgewerkt in de planning.',
+      });
+      navigate('/');
+    } catch (err) {
+      console.error('Beschikbaarheid opslaan fout:', err);
+      toast({
+        title: 'Er ging iets mis',
+        description: err instanceof Error ? err.message : 'Kon de beschikbaarheid niet opslaan.',
+        variant: 'destructive',
+      });
+    }
   };
 
   return (

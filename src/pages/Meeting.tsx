@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Save } from 'lucide-react';
+import { Save, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -10,6 +10,7 @@ import { useEmployees } from '@/hooks/use-employees';
 import { useMeetingTypes } from '@/lib/data';
 import { toast } from '@/hooks/use-toast';
 import { ProjectSelector } from '@/components/forms/ProjectSelector';
+import { secureInsert } from '@/lib/data/secureDataClient';
 
 const STORAGE_KEY = 'concept_meeting';
 
@@ -115,18 +116,39 @@ export default function Meeting() {
       description: 'Even geduld alstublieft.',
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    localStorage.removeItem(STORAGE_KEY);
+    try {
+      // Direct insert into meetings & presentaties table
+      const { error } = await secureInsert('meetings & presentaties', {
+        project_id: formData.projectId || null,
+        datum: formData.datum,
+        start_tijd: formData.starttijd,
+        eind_tijd: formData.eindtijd,
+        onderwerp: formData.onderwerp,
+        type: formData.meetingType,
+        locatie: formData.locatie,
+        deelnemers: formData.medewerkers,
+        is_hard_lock: false,
+        status: 'gepland',
+      });
 
-    navigate('/ellen-voorstel', {
-      state: {
-        requestType: 'meeting',
-        formData: {
-          ...formData,
-          plan_status: 'concept',
-        },
-      },
-    });
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      localStorage.removeItem(STORAGE_KEY);
+      toast({
+        title: 'Meeting ingepland!',
+        description: 'De meeting is succesvol toegevoegd aan de planning.',
+      });
+      navigate('/');
+    } catch (err) {
+      console.error('Meeting inplannen fout:', err);
+      toast({
+        title: 'Er ging iets mis',
+        description: err instanceof Error ? err.message : 'Kon de meeting niet inplannen.',
+        variant: 'destructive',
+      });
+    }
   };
 
   return (
