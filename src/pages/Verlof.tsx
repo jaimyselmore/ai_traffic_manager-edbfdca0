@@ -6,6 +6,7 @@ import { VerlofForm, VerlofFormData } from '@/components/forms/VerlofForm';
 import { toast } from '@/hooks/use-toast';
 import { secureInsert } from '@/lib/data/secureDataClient';
 import { getMonday, getDayOfWeekNumber, getWorkingDaysBetween } from '@/lib/helpers/dateHelpers';
+import { useEmployees } from '@/hooks/use-employees';
 
 const STORAGE_KEY = 'concept_verlof';
 
@@ -21,6 +22,7 @@ const emptyFormData: VerlofFormData = {
 
 export default function Verlof() {
   const navigate = useNavigate();
+  const { data: employees = [] } = useEmployees();
   const [formData, setFormData] = useState<VerlofFormData>(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
     return stored ? JSON.parse(stored) : emptyFormData;
@@ -54,13 +56,26 @@ export default function Verlof() {
     });
 
     try {
+      // Look up employee name from ID
+      const selectedEmployee = employees.find(e => e.id === formData.medewerker);
+      if (!selectedEmployee) {
+        throw new Error('Medewerker niet gevonden');
+      }
+      const employeeName = selectedEmployee.name;
+
+      // Look up backup person name if selected
+      const backupEmployee = formData.backupPersoon
+        ? employees.find(e => e.id === formData.backupPersoon)
+        : null;
+      const backupName = backupEmployee?.name;
+
       // Direct insert into beschikbaarheid_medewerkers table
       const { error } = await secureInsert('beschikbaarheid_medewerkers', {
-        werknemer_naam: formData.medewerker,
+        werknemer_naam: employeeName,
         type: formData.verlofType, // 'verlof' of 'ziek'
         start_datum: formData.startdatum,
         eind_datum: formData.einddatum,
-        reden: formData.reden || `${formData.verlofCategorie}${formData.backupPersoon ? ` - Backup: ${formData.backupPersoon}` : ''}`,
+        reden: formData.reden || `${formData.verlofCategorie}${backupName ? ` - Backup: ${backupName}` : ''}`,
         status: 'goedgekeurd',
       });
 
@@ -76,12 +91,12 @@ export default function Verlof() {
         const weekStart = getMonday(day);
         const dagVanWeek = getDayOfWeekNumber(day);
 
-        await secureInsert('taken', {
+        const { error: taskError } = await secureInsert('taken', {
           project_id: null,
           project_nummer: verlofLabel,
           klant_naam: verlofLabel,
           fase_naam: formData.verlofCategorie || verlofLabel,
-          werknemer_naam: formData.medewerker,
+          werknemer_naam: employeeName,
           werktype: formData.verlofType === 'ziek' ? 'ziek' : 'verlof',
           discipline: 'Afwezig',
           week_start: weekStart,
@@ -91,6 +106,11 @@ export default function Verlof() {
           plan_status: 'goedgekeurd',
           is_hard_lock: true, // Verlof/ziek mag niet verschoven worden
         });
+
+        if (taskError) {
+          console.error('Fout bij aanmaken verlof taak:', taskError);
+          throw taskError;
+        }
       });
 
       await Promise.all(taskPromises);
