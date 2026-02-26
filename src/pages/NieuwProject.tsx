@@ -355,18 +355,43 @@ export default function NieuwProject() {
     } else {
       // For productie: use productie fases
       const productieFases = formData.productieFases.fases;
-      if (productieFases.pp?.enabled) {
-        fases.push({ fase_naam: 'PP', medewerkers: productieFases.pp.medewerkers || [], start_datum: productieFases.pp.startDatum || formData.projectHeader.datumAanvraag || new Date().toISOString().split('T')[0], duur_dagen: productieFases.pp.dagen || 2, uren_per_dag: 8 });
-      }
-      if (productieFases.shoot?.enabled) {
-        fases.push({ fase_naam: 'Shoot', medewerkers: productieFases.shoot.medewerkers || [], start_datum: productieFases.shoot.startDatum || formData.projectHeader.datumAanvraag || new Date().toISOString().split('T')[0], duur_dagen: productieFases.shoot.dagen || 1, uren_per_dag: 8 });
-      }
-      if (productieFases.offlineEdit?.enabled) {
-        fases.push({ fase_naam: 'Offline edit', medewerkers: productieFases.offlineEdit.medewerkers || [], start_datum: productieFases.offlineEdit.startDatum || formData.projectHeader.datumAanvraag || new Date().toISOString().split('T')[0], duur_dagen: productieFases.offlineEdit.dagen || 2, uren_per_dag: 8 });
-      }
-      if (productieFases.onlineGrading?.enabled) {
-        fases.push({ fase_naam: 'Online/VFX', medewerkers: productieFases.onlineGrading.medewerkers || [], start_datum: productieFases.onlineGrading.startDatum || formData.projectHeader.datumAanvraag || new Date().toISOString().split('T')[0], duur_dagen: productieFases.onlineGrading.dagen || 2, uren_per_dag: 8 });
-      }
+      const defaultDatum = formData.projectHeader.datumAanvraag || new Date().toISOString().split('T')[0];
+
+      // Helper to check if fase has data and should be included
+      const heeftFaseData = (fase: typeof productieFases.pp) =>
+        fase && (fase.startDatum || (fase.medewerkers && fase.medewerkers.length > 0) || (fase.dagen && fase.dagen > 0));
+
+      // Helper to convert medewerker IDs to names
+      const getMedewerkerNamen = (ids: string[] = []) =>
+        ids.map(id => employees.find(e => e.id === id)?.name).filter(Boolean) as string[];
+
+      // All productie fases with their display names
+      const faseConfig = [
+        { key: 'pp', naam: 'PP (pre-productie)', defaultDagen: 2 },
+        { key: 'ppm', naam: 'PPM', defaultDagen: 1 },
+        { key: 'shoot', naam: 'Shoot', defaultDagen: 1 },
+        { key: 'offlineEdit', naam: 'Offline edit', defaultDagen: 2 },
+        { key: 'presentatieOffline', naam: 'Presentatie offline edit', defaultDagen: 1 },
+        { key: 'reEdit', naam: 'Re-edit', defaultDagen: 1 },
+        { key: 'presentatieReEdit', naam: 'Presentatie re-edit', defaultDagen: 1 },
+        { key: 'onlineGrading', naam: 'Online grading', defaultDagen: 2 },
+        { key: 'geluid', naam: 'Geluid', defaultDagen: 2 },
+        { key: 'presentatieFinals', naam: 'Presentatie finals', defaultDagen: 1 },
+        { key: 'deliverables', naam: 'Deliverables', defaultDagen: 1 },
+      ] as const;
+
+      faseConfig.forEach(({ key, naam, defaultDagen }) => {
+        const fase = productieFases[key];
+        if (heeftFaseData(fase)) {
+          fases.push({
+            fase_naam: naam,
+            medewerkers: getMedewerkerNamen(fase?.medewerkers),
+            start_datum: fase?.startDatum || defaultDatum,
+            duur_dagen: fase?.dagen || defaultDagen,
+            uren_per_dag: 8,
+          });
+        }
+      });
     }
 
     // If no fases, create a default one

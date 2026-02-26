@@ -24,6 +24,14 @@ interface ProjectInput {
   projecttype?: string;
   deadline?: string;
   fases: ProjectFaseInput[];
+  isInternProject?: boolean;
+  betrokkenTeam?: {
+    accountManagers?: string[];
+    producers?: string[];
+    strategen?: string[];
+    creatieTeam?: string[];
+    studio?: string[];
+  };
 }
 
 interface AutomationResult {
@@ -39,7 +47,7 @@ interface AutomationResult {
  */
 export async function createProjectAndSchedule(
   projectData: ProjectInput,
-  createdBy: string
+  _createdBy?: string
 ): Promise<AutomationResult> {
   const errors: string[] = [];
   const warnings: string[] = [];

@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { ChevronDown, Plus } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -55,9 +55,6 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
   const { data: employees = [] } = useEmployees();
   const [openFases, setOpenFases] = useState<Record<string, boolean>>({});
 
-  const toggleFase = (fase: string) => {
-    setOpenFases(prev => ({ ...prev, [fase]: !prev[fase] }));
-  };
 
   const updateFase = (fase: string, field: string, value: any) => {
     onChange({
@@ -85,7 +82,8 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
         <div>
           <Label className="text-sm">Startdatum</Label>
           <Input
-            type="date"
+            type="text"
+            placeholder="dd-mm-jjjj"
             value={data.fases[fase]?.startDatum || ''}
             onChange={(e) => updateFase(fase, 'startDatum', e.target.value)}
           />
@@ -93,7 +91,8 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
         <div>
           <Label className="text-sm">Einddatum</Label>
           <Input
-            type="date"
+            type="text"
+            placeholder="dd-mm-jjjj"
             value={data.fases[fase]?.eindDatum || ''}
             onChange={(e) => updateFase(fase, 'eindDatum', e.target.value)}
           />
@@ -121,13 +120,25 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
 
   const renderMeetingFase = (fase: string) => (
     <div className="space-y-4 pt-4">
-      <div>
-        <Label className="text-sm">Datum & tijd</Label>
-        <Input
-          type="datetime-local"
-          value={data.fases[fase]?.datumTijd || ''}
-          onChange={(e) => updateFase(fase, 'datumTijd', e.target.value)}
-        />
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label className="text-sm">Datum</Label>
+          <Input
+            type="text"
+            placeholder="dd-mm-jjjj"
+            value={data.fases[fase]?.startDatum || ''}
+            onChange={(e) => updateFase(fase, 'startDatum', e.target.value)}
+          />
+        </div>
+        <div>
+          <Label className="text-sm">Tijd</Label>
+          <Input
+            type="text"
+            placeholder="hh:mm"
+            value={data.fases[fase]?.datumTijd || ''}
+            onChange={(e) => updateFase(fase, 'datumTijd', e.target.value)}
+          />
+        </div>
       </div>
       <div>
         <Label className="text-sm mb-2 block">Locatie</Label>
@@ -165,11 +176,18 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
       <div>
         <Label className="text-sm">Aantal dagen</Label>
         <Input
-          type="number"
-          min={1}
-          value={data.fases[fase]?.dagen || 1}
-          onChange={(e) => updateFase(fase, 'dagen', parseInt(e.target.value))}
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          value={data.fases[fase]?.dagen || ''}
+          onChange={(e) => {
+            const val = e.target.value;
+            if (val === '' || /^\d+$/.test(val)) {
+              updateFase(fase, 'dagen', val === '' ? '' : parseInt(val));
+            }
+          }}
           className="w-24"
+          placeholder="1"
         />
         {faseLabels[fase]?.hint && (
           <p className="text-xs text-muted-foreground mt-1">{faseLabels[fase].hint}</p>
@@ -179,7 +197,8 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
         <div>
           <Label className="text-sm">Startdatum</Label>
           <Input
-            type="date"
+            type="text"
+            placeholder="dd-mm-jjjj"
             value={data.fases[fase]?.startDatum || ''}
             onChange={(e) => updateFase(fase, 'startDatum', e.target.value)}
           />
@@ -187,13 +206,13 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
         <div>
           <Label className="text-sm">Einddatum</Label>
           <Input
-            type="date"
+            type="text"
+            placeholder="dd-mm-jjjj"
             value={data.fases[fase]?.eindDatum || ''}
             onChange={(e) => updateFase(fase, 'eindDatum', e.target.value)}
           />
         </div>
       </div>
-      <FlexibiliteitVeld fase={fase} />
       <MedewerkerSelectie fase={fase} />
     </div>
   );
@@ -246,77 +265,13 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
     );
   };
 
-  const FlexibiliteitVeld = ({ fase }: { fase: string }) => {
-    const faseData = data.fases[fase];
-    const isFlexibel = faseData?.flexibel || false;
-
-    return (
-      <div className="space-y-3 mt-4 pt-4 border-t border-border">
-        <div className="flex items-center gap-2">
-          <Checkbox
-            id={`${fase}-flexibel`}
-            checked={isFlexibel}
-            onCheckedChange={(checked) => updateFase(fase, 'flexibel', checked)}
-          />
-          <Label htmlFor={`${fase}-flexibel`} className="text-sm">
-            Flexibele planning (speling toestaan)
-          </Label>
-        </div>
-        {isFlexibel && (
-          <div className="grid grid-cols-2 gap-3 pl-6">
-            <div>
-              <Label className="text-xs text-muted-foreground">Min. dagen</Label>
-              <Input
-                type="number"
-                min={1}
-                value={faseData?.dagenMin || faseData?.dagen || 1}
-                onChange={(e) => updateFase(fase, 'dagenMin', parseInt(e.target.value))}
-                className="w-20"
-              />
-            </div>
-            <div>
-              <Label className="text-xs text-muted-foreground">Max. dagen</Label>
-              <Input
-                type="number"
-                min={1}
-                value={faseData?.dagenMax || (faseData?.dagen ? faseData.dagen + 1 : 2)}
-                onChange={(e) => updateFase(fase, 'dagenMax', parseInt(e.target.value))}
-                className="w-20"
-              />
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
 
   const FaseCollapsible = ({ fase, children }: { fase: string; children: React.ReactNode }) => {
     const isOpen = openFases[fase] || false;
-    const triggerRef = useRef<HTMLButtonElement | null>(null);
-
-    const handleOpenChange = (open: boolean) => {
-      const prevTop = triggerRef.current
-        ? triggerRef.current.getBoundingClientRect().top
-        : null;
-
-      setOpenFases(prev => ({ ...prev, [fase]: open }));
-
-      if (prevTop !== null && typeof window !== 'undefined') {
-        requestAnimationFrame(() => {
-          if (!triggerRef.current) return;
-          const newTop = triggerRef.current.getBoundingClientRect().top;
-          const delta = newTop - prevTop;
-          window.scrollBy(0, delta);
-        });
-      }
-    };
 
     return (
-      <Collapsible open={isOpen} onOpenChange={handleOpenChange}>
-        <CollapsibleTrigger
-          ref={triggerRef}
-          className="w-full flex items-center justify-between py-3 px-4 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
-        >
+      <Collapsible open={isOpen} onOpenChange={(open) => setOpenFases(prev => ({ ...prev, [fase]: open }))}>
+        <CollapsibleTrigger className="w-full flex items-center justify-between py-3 px-4 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors">
           <span className="font-medium text-sm">{faseLabels[fase].title}</span>
           <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
         </CollapsibleTrigger>
@@ -340,31 +295,10 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
     renderMeetingFase: (fase: string) => React.ReactNode;
   }) => {
     const isOpen = openFases[fase] || false;
-    const triggerRef = useRef<HTMLButtonElement | null>(null);
-
-    const handleOpenChange = (open: boolean) => {
-      const prevTop = triggerRef.current
-        ? triggerRef.current.getBoundingClientRect().top
-        : null;
-
-      setOpenFases(prev => ({ ...prev, [fase]: open }));
-
-      if (prevTop !== null && typeof window !== 'undefined') {
-        requestAnimationFrame(() => {
-          if (!triggerRef.current) return;
-          const newTop = triggerRef.current.getBoundingClientRect().top;
-          const delta = newTop - prevTop;
-          window.scrollBy(0, delta);
-        });
-      }
-    };
 
     return (
-      <Collapsible open={isOpen} onOpenChange={handleOpenChange}>
-        <CollapsibleTrigger
-          ref={triggerRef}
-          className="w-full flex items-center justify-between py-3 px-4 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
-        >
+      <Collapsible open={isOpen} onOpenChange={(open) => setOpenFases(prev => ({ ...prev, [fase]: open }))}>
+        <CollapsibleTrigger className="w-full flex items-center justify-between py-3 px-4 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors">
           <span className="font-medium text-sm">{faseLabels[fase].title}</span>
           <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
         </CollapsibleTrigger>
@@ -375,9 +309,15 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
           {extraPresentaties.map((_, index) => (
             <div key={`extra-${index}`} className="mt-4 p-4 border border-border rounded-lg space-y-4">
               <span className="font-medium text-sm">Extra presentatie {index + 1}</span>
-              <div>
-                <Label className="text-sm">Datum & tijd</Label>
-                <Input type="datetime-local" />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm">Datum</Label>
+                  <Input type="text" placeholder="dd-mm-jjjj" />
+                </div>
+                <div>
+                  <Label className="text-sm">Tijd</Label>
+                  <Input type="text" placeholder="hh:mm" />
+                </div>
               </div>
               <div>
                 <Label className="text-sm mb-2 block">Locatie</Label>
@@ -466,7 +406,8 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
         <div>
           <Label className="text-sm">Definitieve opleverdeadline (hard lock)</Label>
           <Input
-            type="datetime-local"
+            type="text"
+            placeholder="dd-mm-jjjj hh:mm"
             value={data.deadlineOplevering}
             onChange={(e) => onChange({ ...data, deadlineOplevering: e.target.value })}
           />

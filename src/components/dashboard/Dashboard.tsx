@@ -392,7 +392,10 @@ export function Dashboard({ selectedEmployeeId: _selectedEmployeeId }: Dashboard
       </div>
 
       {/* Mijn Aanvragen Sectie */}
-      <MijnAanvragen />
+      <div>
+        <h2 className="mb-6 text-xl font-semibold text-foreground">Mijn aanvragen</h2>
+        <MijnAanvragen />
+      </div>
     </div>
   );
 }
