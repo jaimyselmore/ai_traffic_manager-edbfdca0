@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { VerlofForm, VerlofFormData } from '@/components/forms/VerlofForm';
 import { toast } from '@/hooks/use-toast';
 import { secureInsert } from '@/lib/data/secureDataClient';
+import { getMonday, getDayOfWeekNumber, getWorkingDaysBetween } from '@/lib/helpers/dateHelpers';
 
 const STORAGE_KEY = 'concept_verlof';
 
@@ -48,7 +49,7 @@ export default function Verlof() {
     }
 
     toast({
-      title: 'Verlof wordt aangevraagd...',
+      title: formData.verlofType === 'ziek' ? 'Ziekmelding wordt geregistreerd...' : 'Verlof wordt geregistreerd...',
       description: 'Even geduld alstublieft.',
     });
 
@@ -67,9 +68,36 @@ export default function Verlof() {
         throw new Error(error.message);
       }
 
+      // Create task entries for each working day so verlof/ziek shows in planner
+      const workingDays = getWorkingDaysBetween(formData.startdatum, formData.einddatum);
+      const verlofLabel = formData.verlofType === 'ziek' ? 'Ziek' : 'Verlof';
+
+      const taskPromises = workingDays.map(async (day) => {
+        const weekStart = getMonday(day);
+        const dagVanWeek = getDayOfWeekNumber(day);
+
+        await secureInsert('taken', {
+          project_id: null,
+          project_nummer: verlofLabel,
+          klant_naam: verlofLabel,
+          fase_naam: formData.verlofCategorie || verlofLabel,
+          werknemer_naam: formData.medewerker,
+          werktype: formData.verlofType === 'ziek' ? 'ziek' : 'verlof',
+          discipline: 'Afwezig',
+          week_start: weekStart,
+          dag_van_week: dagVanWeek,
+          start_uur: 9, // Hele werkdag blokkeren
+          duur_uren: 8.5, // 9:00 - 17:30
+          plan_status: 'goedgekeurd',
+          is_hard_lock: true, // Verlof/ziek mag niet verschoven worden
+        });
+      });
+
+      await Promise.all(taskPromises);
+
       localStorage.removeItem(STORAGE_KEY);
       toast({
-        title: formData.verlofType === 'ziek' ? 'Ziekmelding geregistreerd!' : 'Verlof aangevraagd!',
+        title: formData.verlofType === 'ziek' ? 'Ziekmelding geregistreerd!' : 'Verlof geregistreerd!',
         description: 'De beschikbaarheid is bijgewerkt in de planning.',
       });
       navigate('/');
@@ -109,7 +137,7 @@ export default function Verlof() {
           Opslaan als concept
         </Button>
         <Button onClick={handleSubmit}>
-          Verzoek indienen
+          Registreren
         </Button>
       </div>
     </div>
