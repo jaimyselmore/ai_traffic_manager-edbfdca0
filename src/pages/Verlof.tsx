@@ -7,6 +7,7 @@ import { toast } from '@/hooks/use-toast';
 import { secureInsert } from '@/lib/data/secureDataClient';
 import { getMonday, getDayOfWeekNumber, getWorkingDaysBetween } from '@/lib/helpers/dateHelpers';
 import { useEmployees } from '@/hooks/use-employees';
+import { useQueryClient } from '@tanstack/react-query';
 
 const STORAGE_KEY = 'concept_verlof';
 
@@ -22,6 +23,7 @@ const emptyFormData: VerlofFormData = {
 
 export default function Verlof() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { data: employees = [] } = useEmployees();
   const [formData, setFormData] = useState<VerlofFormData>(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -114,6 +116,9 @@ export default function Verlof() {
       });
 
       await Promise.all(taskPromises);
+
+      // Invalidate tasks cache so the planner immediately shows the new verlof/ziek blocks
+      await queryClient.invalidateQueries({ queryKey: ['tasks'] });
 
       localStorage.removeItem(STORAGE_KEY);
       toast({

@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Maximize2, Download, ZoomIn, ZoomOut, Users, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Maximize2, Download, ZoomIn, ZoomOut, Users, ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -16,6 +16,8 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
 
 import { TaskLegend } from './TaskLegend';
 import { PlannerGrid } from './PlannerGrid';
@@ -77,6 +79,8 @@ export function Planner() {
     );
     return tasks.filter((task) => {
       if (!visibleNames.has(task.werknemer_naam)) return false;
+      // Verlof/ziek tasks always show regardless of client filter
+      if (task.werktype === 'verlof' || task.werktype === 'ziek') return true;
       if (selectedClient !== 'all' && task.klant_naam !== selectedClient) return false;
       return true;
     });
@@ -282,9 +286,39 @@ export function Planner() {
           }}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <span className="text-sm font-medium text-foreground min-w-[80px] text-center">
-            {weekNumber === currentWeekNumber ? 'Huidige week' : `Week ${weekNumber}`}
-          </span>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" className="h-8 px-2 min-w-[100px]">
+                <CalendarDays className="h-4 w-4 mr-1" />
+                <span className="text-sm font-medium">
+                  {weekNumber === currentWeekNumber ? 'Huidige week' : `Week ${weekNumber}`}
+                </span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="center">
+              <div className="p-2 border-b">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-center text-sm"
+                  onClick={() => setCurrentWeekStart(getWeekStart(new Date()))}
+                >
+                  Ga naar huidige week
+                </Button>
+              </div>
+              <Calendar
+                mode="single"
+                selected={currentWeekStart}
+                onSelect={(date) => {
+                  if (date) {
+                    setCurrentWeekStart(getWeekStart(date));
+                  }
+                }}
+                initialFocus
+                weekStartsOn={1}
+              />
+            </PopoverContent>
+          </Popover>
           <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => {
             const next = new Date(currentWeekStart);
             next.setDate(next.getDate() + 7);

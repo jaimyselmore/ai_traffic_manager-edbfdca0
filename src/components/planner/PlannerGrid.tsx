@@ -21,6 +21,8 @@ const taskColors: Record<string, string> = {
   productie: 'bg-task-productie',
   extern: 'bg-task-extern',
   optie: 'bg-task-optie',
+  verlof: 'bg-amber-500',
+  ziek: 'bg-red-400',
 };
 
 export function PlannerGrid({ weekStart, employees, tasks, compact = false, onTaskClick }: PlannerGridProps) {
@@ -65,6 +67,8 @@ export function PlannerGrid({ weekStart, employees, tasks, compact = false, onTa
       productie: 'Productie',
       extern: 'Extern',
       optie: 'Optie',
+      verlof: 'Verlof',
+      ziek: 'Ziek',
     };
     return labels[type] || type;
   };
