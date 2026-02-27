@@ -78,10 +78,10 @@ export function PlannerGrid({ weekStart, employees, tasks, compact = false, onTa
       <table className="w-full border-collapse table-fixed min-w-[800px]">
         <thead>
           <tr className="bg-secondary">
-            <th className="sticky left-0 z-10 bg-secondary border-b border-r border-border px-2 md:px-4 py-2 md:py-3 text-left text-xs md:text-sm font-medium text-muted-foreground w-32 md:w-48">
+            <th className="sticky left-0 z-30 bg-secondary border-b border-r border-border px-2 md:px-4 py-2 md:py-3 text-left text-xs md:text-sm font-medium text-muted-foreground w-32 md:w-48">
               Medewerker
             </th>
-            <th className="sticky left-32 md:left-48 z-10 bg-secondary border-b border-r border-border px-1 md:px-2 py-2 md:py-3 text-center text-[10px] md:text-xs font-medium text-muted-foreground w-10 md:w-14">
+            <th className="sticky left-32 md:left-48 z-30 bg-secondary border-b border-r border-border px-1 md:px-2 py-2 md:py-3 text-center text-[10px] md:text-xs font-medium text-muted-foreground w-10 md:w-14">
               Uur
             </th>
             {weekDates.map((date, index) => (
@@ -106,7 +106,7 @@ export function PlannerGrid({ weekStart, employees, tasks, compact = false, onTa
                 {hourIndex === 0 && (
                   <td
                     rowSpan={timeSlots.length}
-                    className="sticky left-0 z-10 bg-card border-b border-r border-border px-2 md:px-4 py-2 align-top"
+                    className="sticky left-0 z-30 bg-card border-b border-r border-border px-2 md:px-4 py-2 align-top"
                   >
                     <div className="flex items-center gap-2 md:gap-3">
                       <div className="flex h-6 w-6 md:h-8 md:w-8 items-center justify-center rounded-full bg-primary text-[10px] md:text-xs font-medium text-primary-foreground shrink-0">
@@ -119,7 +119,7 @@ export function PlannerGrid({ weekStart, employees, tasks, compact = false, onTa
                     </div>
                   </td>
                 )}
-                <td className="sticky left-32 md:left-48 z-10 bg-card border-b border-r border-border px-1 md:px-2 py-1 text-center text-[10px] md:text-xs font-medium text-muted-foreground">
+                <td className="sticky left-32 md:left-48 z-30 bg-card border-b border-r border-border px-1 md:px-2 py-1 text-center text-[10px] md:text-xs font-medium text-muted-foreground">
                   {hour === 13 ? 'Lunch' : `${hour.toString().padStart(2, '0')}:00`}
                 </td>
                 {weekDates.map((date, dayIndex) => {
