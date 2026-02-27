@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, ZoomIn, ZoomOut, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -8,6 +8,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
 import { PlannerGrid } from './PlannerGrid';
 import type { Employee } from '@/lib/data/types';
 import type { Task } from '@/hooks/use-tasks';
@@ -44,14 +46,9 @@ export function FullscreenPlanner({
       start: weekStart,
       number: getWeekNumber(weekStart),
       dateRange: formatDateRange(weekStart),
-      tasks: tasks, // Use real tasks from database
+      tasks: tasks,
     };
   });
-
-  const handleWeekClick = (weekStart: Date) => {
-    onWeekSelect(weekStart);
-    onClose();
-  };
 
   const handleZoomChange = (newZoom: number) => {
     setPlannerZoom(newZoom);
@@ -60,39 +57,32 @@ export function FullscreenPlanner({
 
   const handleZoomOut = () => {
     const currentIndex = zoomLevels.indexOf(plannerZoom);
-    if (currentIndex > 0) {
-      handleZoomChange(zoomLevels[currentIndex - 1]);
-    }
+    if (currentIndex > 0) handleZoomChange(zoomLevels[currentIndex - 1]);
   };
 
   const handleZoomIn = () => {
     const currentIndex = zoomLevels.indexOf(plannerZoom);
-    if (currentIndex < zoomLevels.length - 1) {
-      handleZoomChange(zoomLevels[currentIndex + 1]);
-    }
+    if (currentIndex < zoomLevels.length - 1) handleZoomChange(zoomLevels[currentIndex + 1]);
   };
 
-  // Grid layout based on weeks and zoom
   const getGridClasses = () => {
     if (weeksToShow === 1) return '';
     if (weeksToShow === 2) return 'grid grid-cols-2 gap-6';
     if (weeksToShow === 3) return 'grid grid-cols-3 gap-6';
-    if (weeksToShow === 4) {
-      return plannerZoom <= 75 ? 'grid grid-cols-4 gap-6' : 'grid grid-cols-2 gap-6';
-    }
+    if (weeksToShow === 4) return plannerZoom <= 75 ? 'grid grid-cols-4 gap-6' : 'grid grid-cols-2 gap-6';
     return '';
   };
 
   const currentWeekNumber = getWeekNumber(getWeekStart(new Date()));
 
   return (
-    <div className="fixed inset-0 z-50 bg-background overflow-hidden">
+    <div className="fixed inset-0 z-50 bg-background flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-card px-6 py-4">
+      <div className="flex-none flex items-center justify-between border-b border-border bg-card px-6 py-4">
         <div className="flex items-center gap-6">
           <h2 className="text-lg font-semibold text-foreground">Planningsoverzicht</h2>
-          
-          {/* Week navigation arrows */}
+
+          {/* Week navigation arrows + calendar popover */}
           <div className="flex items-center gap-1">
             <Button
               variant="outline"
@@ -106,9 +96,41 @@ export function FullscreenPlanner({
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <span className="text-sm font-medium text-foreground min-w-[80px] text-center">
-              {getWeekNumber(currentWeekStart) === currentWeekNumber ? 'Huidige week' : `Week ${getWeekNumber(currentWeekStart)}`}
-            </span>
+
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" className="h-8 px-2 min-w-[100px]">
+                  <CalendarDays className="h-4 w-4 mr-1" />
+                  <span className="text-sm font-medium">
+                    {getWeekNumber(currentWeekStart) === currentWeekNumber
+                      ? 'Huidige week'
+                      : `Week ${getWeekNumber(currentWeekStart)}`}
+                  </span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="center">
+                <div className="p-2 border-b">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-center text-sm"
+                    onClick={() => onWeekSelect(getWeekStart(new Date()))}
+                  >
+                    Ga naar huidige week
+                  </Button>
+                </div>
+                <Calendar
+                  mode="single"
+                  selected={currentWeekStart}
+                  onSelect={(date) => {
+                    if (date) onWeekSelect(getWeekStart(date));
+                  }}
+                  initialFocus
+                  weekStartsOn={1}
+                />
+              </PopoverContent>
+            </Popover>
+
             <Button
               variant="outline"
               size="icon"
@@ -125,7 +147,7 @@ export function FullscreenPlanner({
 
           {/* Week count selector */}
           <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">Toon aantal weken:</span>
+            <span className="text-sm text-muted-foreground">Weken:</span>
             {[1, 2, 3, 4].map((num) => (
               <Button
                 key={num}
@@ -139,71 +161,38 @@ export function FullscreenPlanner({
           </div>
 
           {/* Zoom control */}
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">Zoom:</span>
-            <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={handleZoomOut}
-                disabled={plannerZoom === 50}
-              >
-                <ZoomOut className="h-4 w-4" />
-              </Button>
-              <Select value={plannerZoom.toString()} onValueChange={(v) => handleZoomChange(parseInt(v))}>
-                <SelectTrigger className="w-20">
-                  <SelectValue>{plannerZoom}%</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {zoomLevels.map((z) => (
-                    <SelectItem key={z} value={z.toString()}>
-                      {z}%
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={handleZoomIn}
-                disabled={plannerZoom === 150}
-              >
-                <ZoomIn className="h-4 w-4" />
-              </Button>
-            </div>
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleZoomOut} disabled={plannerZoom === 50}>
+              <ZoomOut className="h-4 w-4" />
+            </Button>
+            <Select value={plannerZoom.toString()} onValueChange={(v) => handleZoomChange(parseInt(v))}>
+              <SelectTrigger className="w-20">
+                <SelectValue>{plannerZoom}%</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {zoomLevels.map((z) => (
+                  <SelectItem key={z} value={z.toString()}>{z}%</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleZoomIn} disabled={plannerZoom === 150}>
+              <ZoomIn className="h-4 w-4" />
+            </Button>
           </div>
         </div>
-        
+
         <Button variant="outline" size="icon" onClick={onClose}>
           <X className="h-4 w-4" />
         </Button>
       </div>
 
-      {/* Viewport with simple zoom */}
-      <div
-        className={`w-full ${
-          plannerZoom <= 75 ? 'h-[calc(100vh-73px)] overflow-hidden' : 'h-[calc(100vh-73px)] overflow-auto'
-        }`}
-      >
-        <div
-          className="p-6 origin-top-left w-full"
-          style={{ 
-            transform: `scale(${plannerZoom / 100})`,
-            transformOrigin: 'top left',
-            width: `${100 / (plannerZoom / 100)}%`
-          }}
-        >
+      {/* Scrollable viewport — zoom via CSS zoom property so scroll works correctly */}
+      <div className="flex-1 overflow-auto">
+        <div className="p-6" style={{ zoom: plannerZoom / 100 }}>
           {weeksToShow === 1 ? (
-            <div
-              className="rounded-xl border border-border bg-card p-4 cursor-pointer hover:border-primary transition-colors"
-              onClick={() => handleWeekClick(weeks[0].start)}
-            >
+            <div className="rounded-xl border border-border bg-card p-4">
               <div className="mb-4 flex items-center justify-between">
-                <h3 className="font-semibold text-foreground">
-                  Week {weeks[0].number}
-                </h3>
+                <h3 className="font-semibold text-foreground">Week {weeks[0].number}</h3>
                 <span className="text-sm text-muted-foreground">{weeks[0].dateRange}</span>
               </div>
               <PlannerGrid
@@ -217,13 +206,10 @@ export function FullscreenPlanner({
               {weeks.map((week) => (
                 <div
                   key={week.start.toISOString()}
-                  className="rounded-xl border border-border bg-card p-4 cursor-pointer hover:border-primary transition-colors"
-                  onClick={() => handleWeekClick(week.start)}
+                  className="rounded-xl border border-border bg-card p-4"
                 >
                   <div className="mb-4 flex items-center justify-between">
-                    <h3 className="font-semibold text-foreground">
-                      Week {week.number}
-                    </h3>
+                    <h3 className="font-semibold text-foreground">Week {week.number}</h3>
                     <span className="text-sm text-muted-foreground">{week.dateRange}</span>
                   </div>
                   <PlannerGrid

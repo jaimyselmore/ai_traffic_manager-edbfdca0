@@ -49,6 +49,7 @@ interface TaskEditDialogProps {
   onDeleteProject?: (projectId: string) => void;
   onCompleteProject?: (projectId: string) => void;
   onDeleteVerlof?: (werknemer_naam: string, werktype: string) => void;
+  onAddToMeeting?: (task: Task, employee: Employee) => void;
 }
 
 const DAG_NAMEN = ['Ma', 'Di', 'Wo', 'Do', 'Vr'];
@@ -84,6 +85,7 @@ export function TaskEditDialog({
   onDeleteProject,
   onCompleteProject,
   onDeleteVerlof,
+  onAddToMeeting,
 }: TaskEditDialogProps) {
   const [projectTasks, setProjectTasks] = useState<Task[]>([]);
   const [editableRows, setEditableRows] = useState<EditableRow[]>([]);
@@ -93,8 +95,14 @@ export function TaskEditDialog({
   const [showDeleteVerlofConfirm1, setShowDeleteVerlofConfirm1] = useState(false);
   const [showDeleteVerlofConfirm2, setShowDeleteVerlofConfirm2] = useState(false);
   const [isLoadingAll, setIsLoadingAll] = useState(false);
+  const [addParticipantId, setAddParticipantId] = useState<string>('');
 
   const isVerlofOfZiek = task?.werktype === 'verlof' || task?.werktype === 'ziek';
+  const isMeeting = task?.werktype === 'extern';
+
+  // Employees not yet in this meeting
+  const currentParticipantNames = new Set(editableRows.map((r) => r.werknemer_naam));
+  const availableToAdd = employees.filter((e) => !currentParticipantNames.has(e.name));
 
   // When a task is clicked, load ALL tasks for that project (across all weeks)
   useEffect(() => {
@@ -534,7 +542,41 @@ export function TaskEditDialog({
           </div>
 
           <DialogFooter className="flex flex-col gap-2 sm:flex-row sm:justify-between border-t border-border pt-4">
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
+              {/* Meeting: add participant */}
+              {isMeeting && onAddToMeeting && availableToAdd.length > 0 && (
+                <div className="flex items-center gap-1">
+                  <Select
+                    value={addParticipantId}
+                    onValueChange={setAddParticipantId}
+                  >
+                    <SelectTrigger className="h-8 w-44 text-xs">
+                      <SelectValue placeholder="Deelnemer toevoegen…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableToAdd.map((emp) => (
+                        <SelectItem key={emp.id} value={emp.id}>
+                          {emp.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={!addParticipantId}
+                    onClick={() => {
+                      const emp = employees.find((e) => e.id === addParticipantId);
+                      if (emp && task) {
+                        onAddToMeeting(task, emp);
+                        setAddParticipantId('');
+                      }
+                    }}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
               {isVerlofOfZiek && onDeleteVerlof && (
                 <Button
                   variant="outline"

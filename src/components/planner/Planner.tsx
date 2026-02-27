@@ -30,6 +30,9 @@ import { useTasks, Task } from '@/hooks/use-tasks';
 import { useUpdateTask, useDeleteTask, useDeleteProjectTasks, useCompleteProject, useDeleteVerlofTasks } from '@/hooks/use-task-mutations';
 import { toast } from '@/hooks/use-toast';
 import { exportToCSV, exportToPDF } from '@/lib/export/planningExport';
+import { secureInsert } from '@/lib/data/secureDataClient';
+import { useQueryClient } from '@tanstack/react-query';
+import type { Employee } from '@/lib/data/types';
 
 const STORAGE_KEY = 'planner-visible-employees';
 
@@ -43,11 +46,36 @@ export function Planner() {
   const [plannerZoom, setPlannerZoom] = useState<number>(100);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
+  const queryClient = useQueryClient();
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
   const deleteProjectTasks = useDeleteProjectTasks();
   const completeProject = useCompleteProject();
   const deleteVerlofTasks = useDeleteVerlofTasks();
+
+  const handleAddToMeeting = async (task: Task, employee: Employee) => {
+    const { error } = await secureInsert('taken', {
+      project_id: task.project_id,
+      project_nummer: task.project_nummer,
+      klant_naam: task.klant_naam,
+      fase_naam: task.fase_naam,
+      werknemer_naam: employee.name,
+      werktype: 'extern',
+      discipline: employee.role || 'Algemeen',
+      week_start: task.week_start,
+      dag_van_week: task.dag_van_week,
+      start_uur: task.start_uur,
+      duur_uren: task.duur_uren,
+      plan_status: task.plan_status,
+      is_hard_lock: false,
+    });
+    if (error) {
+      toast({ title: 'Fout', description: 'Kon deelnemer niet toevoegen.', variant: 'destructive' });
+    } else {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      toast({ title: 'Deelnemer toegevoegd', description: `${employee.name} is aan de meeting toegevoegd.` });
+    }
+  };
 
   const [visibleEmployeeIds, setVisibleEmployeeIds] = useState<string[]>(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -243,7 +271,7 @@ export function Planner() {
                   </span>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-[200px]">
+              <DropdownMenuContent className="w-[200px] max-h-72 overflow-y-auto">
                 <DropdownMenuItem onClick={selectAllEmployees} onSelect={(e) => e.preventDefault()}>
                   Toon iedereen
                 </DropdownMenuItem>
@@ -330,21 +358,16 @@ export function Planner() {
         </div>
       </div>
 
-      {/* Grid with zoom */}
-      <div
-        className="origin-top-left inline-block w-full"
-        style={{ 
-          transform: `scale(${plannerZoom / 100})`,
-          transformOrigin: 'top left',
-          width: `${100 / (plannerZoom / 100)}%`
-        }}
-      >
-        <PlannerGrid
-          weekStart={currentWeekStart}
-          employees={filteredEmployees}
-          tasks={filteredTasks}
-          onTaskClick={setSelectedTask}
-        />
+      {/* Grid with zoom — uses CSS zoom so scrolling works correctly */}
+      <div className="overflow-auto">
+        <div style={{ zoom: plannerZoom / 100 }}>
+          <PlannerGrid
+            weekStart={currentWeekStart}
+            employees={filteredEmployees}
+            tasks={filteredTasks}
+            onTaskClick={setSelectedTask}
+          />
+        </div>
       </div>
 
       {/* Fullscreen Mode */}
@@ -371,6 +394,7 @@ export function Planner() {
         onDeleteProject={(projectId) => deleteProjectTasks.mutate(projectId)}
         onCompleteProject={(projectId) => completeProject.mutate(projectId)}
         onDeleteVerlof={(werknemer_naam, werktype) => deleteVerlofTasks.mutate({ werknemer_naam, werktype })}
+        onAddToMeeting={handleAddToMeeting}
       />
     </div>
   );
