@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Trash2, Download, Save, Plus, CheckCircle2, X } from 'lucide-react';
+import { Trash2, Download, Save, Plus, CheckCircle2, X, MapPin, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -110,6 +110,7 @@ export function TaskEditDialog({
   const [meetingEndTime, setMeetingEndTime] = useState('');
   const [meetingDag, setMeetingDag] = useState(0);
   const [meetingTimeChanged, setMeetingTimeChanged] = useState(false);
+  const [meetingDetails, setMeetingDetails] = useState<{ onderwerp: string; locatie: string | null; type: string } | null>(null);
 
   const isVerlofOfZiek = task?.werktype === 'verlof' || task?.werktype === 'ziek';
   const isMeeting = task?.werktype === 'extern';
@@ -143,6 +144,7 @@ export function TaskEditDialog({
     if (!task) {
       setProjectTasks([]);
       setEditableRows([]);
+      setMeetingDetails(null);
       return;
     }
 
@@ -262,6 +264,29 @@ export function TaskEditDialog({
               (t) => t.project_nummer === task!.project_nummer && t.werknemer_naam === task!.werknemer_naam
             )
           );
+        }
+        // Fetch meeting details from meetings & presentaties table
+        if (task!.werktype === 'extern') {
+          const filters: { column: string; operator: string; value: unknown }[] = [];
+          if (task!.project_id) {
+            filters.push({ column: 'project_id', operator: 'eq', value: task!.project_id });
+          } else {
+            // Match by date and start time
+            const d = new Date(task!.week_start + 'T00:00:00');
+            d.setDate(d.getDate() + task!.dag_van_week);
+            const datum = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            const startH = Math.floor(task!.start_uur);
+            const startM = Math.round((task!.start_uur - startH) * 60);
+            const startTijd = `${startH.toString().padStart(2, '0')}:${startM.toString().padStart(2, '0')}`;
+            filters.push({ column: 'datum', operator: 'eq', value: datum });
+            filters.push({ column: 'start_tijd', operator: 'eq', value: startTijd });
+          }
+          const { data: mdData } = await secureSelect<any>('meetings & presentaties', { filters, limit: 1 });
+          if (mdData && mdData.length > 0) {
+            setMeetingDetails({ onderwerp: mdData[0].onderwerp, locatie: mdData[0].locatie, type: mdData[0].type });
+          } else {
+            setMeetingDetails(null);
+          }
         }
       } catch {
         setProjectTasks(
@@ -467,6 +492,23 @@ export function TaskEditDialog({
             ) : isMeeting ? (
               // Meeting: time editing + participants as chips
               <div className="py-4 px-1 space-y-5">
+                {/* Meeting details (onderwerp + locatie) */}
+                {meetingDetails && (meetingDetails.onderwerp || meetingDetails.locatie) && (
+                  <div className="space-y-1.5">
+                    {meetingDetails.onderwerp && (
+                      <div className="flex items-start gap-2 text-sm">
+                        <MessageSquare className="h-3.5 w-3.5 mt-0.5 text-muted-foreground shrink-0" />
+                        <span>{meetingDetails.onderwerp}</span>
+                      </div>
+                    )}
+                    {meetingDetails.locatie && (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <MapPin className="h-3.5 w-3.5 shrink-0" />
+                        <span>{meetingDetails.locatie}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
                 {/* Time & day controls */}
                 <div className="space-y-2">
                   <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Tijden</div>

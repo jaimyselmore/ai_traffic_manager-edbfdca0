@@ -31,7 +31,7 @@ interface MeetingFormData {
   datum: string;
   starttijd: string;
   eindtijd: string;
-  locatieType: 'selmore' | 'klant' | 'anders';
+  locatieType: 'selmore' | 'klant' | 'online' | 'anders';
   locatie: string;
   medewerkers: MedewerkerSelection[];
 }
@@ -138,6 +138,9 @@ export default function Meeting() {
           break;
         case 'klant':
           computedLocatie = formData.projectTitel ? `Bij klant (${formData.projectTitel})` : 'Bij klant';
+          break;
+        case 'online':
+          computedLocatie = 'Online';
           break;
         case 'anders':
           // Keep the custom value
@@ -374,7 +377,7 @@ export default function Meeting() {
             <Label className="text-sm">Locatie *</Label>
             <RadioGroup
               value={formData.locatieType}
-              onValueChange={(value: 'selmore' | 'klant' | 'anders') => {
+              onValueChange={(value: 'selmore' | 'klant' | 'online' | 'anders') => {
                 setFormData({
                   ...formData,
                   locatieType: value,
@@ -398,6 +401,12 @@ export default function Meeting() {
                   </Label>
                 </div>
               )}
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="online" id="loc-online" />
+                <Label htmlFor="loc-online" className="text-sm font-normal cursor-pointer">
+                  Online
+                </Label>
+              </div>
               <div className="flex items-center space-x-2">
                 <RadioGroupItem value="anders" id="loc-anders" />
                 <Label htmlFor="loc-anders" className="text-sm font-normal cursor-pointer">
