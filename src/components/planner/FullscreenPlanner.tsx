@@ -186,8 +186,8 @@ export function FullscreenPlanner({
         </Button>
       </div>
 
-      {/* Scrollable viewport — zoom via CSS zoom property so scroll works correctly */}
-      <div className="flex-1 overflow-auto">
+      {/* Scrollable viewport — PlannerGrid handles horizontal scroll; this handles vertical */}
+      <div className="flex-1 overflow-y-auto">
         <div className="p-6" style={{ zoom: plannerZoom / 100 }}>
           {weeksToShow === 1 ? (
             <div className="rounded-xl border border-border bg-card p-4">

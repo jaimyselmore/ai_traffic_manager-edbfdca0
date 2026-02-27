@@ -119,10 +119,7 @@ export function PlannerGrid({ weekStart, employees, tasks, compact = false, onTa
                     </div>
                   </td>
                 )}
-                <td className={cn(
-                  "sticky left-32 md:left-48 z-10 border-b border-r border-border px-1 md:px-2 py-1 text-center text-[10px] md:text-xs font-medium",
-                  hour === 13 ? 'bg-task-lunch/30 text-muted-foreground' : 'bg-card text-muted-foreground'
-                )}>
+                <td className="sticky left-32 md:left-48 z-10 bg-card border-b border-r border-border px-1 md:px-2 py-1 text-center text-[10px] md:text-xs font-medium text-muted-foreground">
                   {hour === 13 ? 'Lunch' : `${hour.toString().padStart(2, '0')}:00`}
                 </td>
                 {weekDates.map((date, dayIndex) => {

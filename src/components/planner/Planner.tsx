@@ -358,16 +358,14 @@ export function Planner() {
         </div>
       </div>
 
-      {/* Grid with zoom — uses CSS zoom so scrolling works correctly */}
-      <div className="overflow-auto">
-        <div style={{ zoom: plannerZoom / 100 }}>
-          <PlannerGrid
-            weekStart={currentWeekStart}
-            employees={filteredEmployees}
-            tasks={filteredTasks}
-            onTaskClick={setSelectedTask}
-          />
-        </div>
+      {/* Grid with zoom — PlannerGrid handles its own overflow-x-auto */}
+      <div style={{ zoom: plannerZoom / 100 }}>
+        <PlannerGrid
+          weekStart={currentWeekStart}
+          employees={filteredEmployees}
+          tasks={filteredTasks}
+          onTaskClick={setSelectedTask}
+        />
       </div>
 
       {/* Fullscreen Mode */}

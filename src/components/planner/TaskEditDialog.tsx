@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Trash2, Download, Save, Plus, CheckCircle2 } from 'lucide-react';
+import { Trash2, Download, Save, Plus, CheckCircle2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -209,6 +209,18 @@ export function TaskEditDialog({
           } else {
             setProjectTasks(allWeekTasks.filter((t) => t.project_id === task!.project_id));
           }
+        } else if (task!.werktype === 'extern') {
+          // Meeting without project_id: find all participants by same time slot
+          setProjectTasks(
+            allWeekTasks.filter(
+              (t) =>
+                t.project_nummer === task!.project_nummer &&
+                t.werktype === 'extern' &&
+                t.week_start === task!.week_start &&
+                t.dag_van_week === task!.dag_van_week &&
+                t.start_uur === task!.start_uur
+            )
+          );
         } else {
           // No project_id: match by project_nummer and werknemer_naam
           setProjectTasks(
@@ -345,6 +357,19 @@ export function TaskEditDialog({
                       )}
                     </div>
                   </>
+                ) : isMeeting ? (
+                  <>
+                    <span className="text-lg">Meeting — {task.projectTitel || task.faseNaam || task.klant_naam}</span>
+                    <div className="flex items-center gap-2 text-sm font-normal text-muted-foreground">
+                      <span>{task.klant_naam}</span>
+                      {task.startTime && (
+                        <>
+                          <span>•</span>
+                          <span>{task.startTime} – {task.endTime}</span>
+                        </>
+                      )}
+                    </div>
+                  </>
                 ) : (
                   <>
                     <span className="text-lg">Projectplanning — {task.klant_naam}</span>
@@ -364,27 +389,69 @@ export function TaskEditDialog({
           </DialogHeader>
 
           {/* Summary bar */}
-          <div className="flex items-center justify-between px-1 py-2 border-b border-border">
-            <div className="flex items-center gap-4 text-sm text-muted-foreground">
-              <span><strong className="text-foreground">{editableRows.length}</strong> {isVerlofOfZiek ? 'dagen' : 'taken'}</span>
-              {!isVerlofOfZiek && <span><strong className="text-foreground">{totalUren}</strong> uur totaal</span>}
-              {!isVerlofOfZiek && <span><strong className="text-foreground">{new Set(editableRows.map((r) => r.werknemer_naam)).size}</strong> medewerkers</span>}
+          <div className="px-1 py-2 border-b border-border space-y-1.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                <span>
+                  <strong className="text-foreground">{editableRows.length}</strong>{' '}
+                  {isVerlofOfZiek ? 'dagen' : isMeeting ? 'deelnemer(s)' : 'taken'}
+                </span>
+                {!isVerlofOfZiek && !isMeeting && <span><strong className="text-foreground">{totalUren}</strong> uur totaal</span>}
+                {!isVerlofOfZiek && !isMeeting && (
+                  <span><strong className="text-foreground">{new Set(editableRows.map((r) => r.werknemer_naam)).size}</strong> medewerkers</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {!isVerlofOfZiek && !isMeeting && (
+                  <Button variant="outline" size="sm" onClick={handleExportCSV}>
+                    <Download className="h-3.5 w-3.5 mr-1" />
+                    CSV
+                  </Button>
+                )}
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              {!isVerlofOfZiek && (
-                <Button variant="outline" size="sm" onClick={handleExportCSV}>
-                  <Download className="h-3.5 w-3.5 mr-1" />
-                  CSV
-                </Button>
-              )}
-            </div>
+            {/* Employee chips for regular projects */}
+            {!isVerlofOfZiek && !isMeeting && editableRows.length > 0 && (
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {Array.from(new Set(editableRows.map((r) => r.werknemer_naam))).map((name) => (
+                  <Badge key={name} variant="secondary" className="text-xs font-normal">
+                    {name}
+                  </Badge>
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* Editable table */}
+          {/* Main content */}
           <div className="flex-1 overflow-y-auto">
             {isLoadingAll ? (
               <div className="flex items-center justify-center py-12 text-muted-foreground">
                 Laden...
+              </div>
+            ) : isMeeting ? (
+              // Meeting: show participants as chips
+              <div className="py-4 px-1 space-y-3">
+                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Deelnemers</div>
+                <div className="flex flex-wrap gap-2">
+                  {editableRows.map((row) => (
+                    <div
+                      key={row.id}
+                      className="flex items-center gap-1.5 bg-secondary rounded-full pl-1.5 pr-2 py-1"
+                    >
+                      <div className="h-7 w-7 rounded-full bg-primary flex items-center justify-center text-xs text-primary-foreground shrink-0 font-medium">
+                        {row.werknemer_naam.split(' ').map((n: string) => n[0]).join('').substring(0, 2)}
+                      </div>
+                      <span className="text-sm font-medium">{row.werknemer_naam}</span>
+                      <button
+                        className="ml-0.5 h-5 w-5 rounded-full flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-background transition-colors"
+                        onClick={() => setShowDeleteTaskConfirm(row.id)}
+                        title={`${row.werknemer_naam} verwijderen uit meeting`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
             ) : isVerlofOfZiek ? (
               // Verlof/ziek: simple list per day
@@ -615,7 +682,7 @@ export function TaskEditDialog({
               <Button variant="outline" onClick={onClose}>
                 Sluiten
               </Button>
-              {hasChanges && !isVerlofOfZiek && (
+              {hasChanges && !isVerlofOfZiek && !isMeeting && (
                 <Button onClick={handleSaveAll}>
                   <Save className="h-4 w-4 mr-1" />
                   Wijzigingen opslaan ({editableRows.filter((r) => r.changed).length})
