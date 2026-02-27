@@ -27,7 +27,7 @@ import { getWeekStart, getWeekNumber, formatDateRange } from '@/lib/helpers/date
 import { useEmployees } from '@/hooks/use-employees';
 import { useClients } from '@/hooks/use-clients';
 import { useTasks, Task } from '@/hooks/use-tasks';
-import { useUpdateTask, useDeleteTask, useDeleteProjectTasks, useCompleteProject } from '@/hooks/use-task-mutations';
+import { useUpdateTask, useDeleteTask, useDeleteProjectTasks, useCompleteProject, useDeleteVerlofTasks } from '@/hooks/use-task-mutations';
 import { toast } from '@/hooks/use-toast';
 import { exportToCSV, exportToPDF } from '@/lib/export/planningExport';
 
@@ -47,6 +47,7 @@ export function Planner() {
   const deleteTask = useDeleteTask();
   const deleteProjectTasks = useDeleteProjectTasks();
   const completeProject = useCompleteProject();
+  const deleteVerlofTasks = useDeleteVerlofTasks();
 
   const [visibleEmployeeIds, setVisibleEmployeeIds] = useState<string[]>(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -369,6 +370,7 @@ export function Planner() {
         onDelete={(id) => deleteTask.mutate(id)}
         onDeleteProject={(projectId) => deleteProjectTasks.mutate(projectId)}
         onCompleteProject={(projectId) => completeProject.mutate(projectId)}
+        onDeleteVerlof={(werknemer_naam, werktype) => deleteVerlofTasks.mutate({ werknemer_naam, werktype })}
       />
     </div>
   );

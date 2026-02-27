@@ -65,6 +65,37 @@ export function useDeleteProjectTasks() {
   });
 }
 
+export function useDeleteVerlofTasks() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ werknemer_naam, werktype }: { werknemer_naam: string; werktype: string }) => {
+      // Delete all taken records for this employee + werktype
+      const { error } = await secureDelete('taken', [
+        { column: 'werknemer_naam', operator: 'eq', value: werknemer_naam },
+        { column: 'werktype', operator: 'eq', value: werktype },
+      ]);
+      if (error) throw error;
+
+      // Also remove from beschikbaarheid_medewerkers
+      await secureDelete('beschikbaarheid_medewerkers', [
+        { column: 'werknemer_naam', operator: 'eq', value: werknemer_naam },
+        { column: 'type', operator: 'eq', value: werktype },
+      ]);
+    },
+    onSuccess: (_, { werktype }) => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      toast({
+        title: werktype === 'ziek' ? 'Ziekmelding verwijderd' : 'Verlof verwijderd',
+        description: 'De volledige periode is verwijderd uit de planner.',
+      });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Fout bij verwijderen', description: error.message, variant: 'destructive' });
+    },
+  });
+}
+
 export function useCompleteProject() {
   const queryClient = useQueryClient();
 

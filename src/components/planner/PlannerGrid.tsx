@@ -21,7 +21,7 @@ const taskColors: Record<string, string> = {
   productie: 'bg-task-productie',
   extern: 'bg-task-extern',
   optie: 'bg-task-optie',
-  verlof: 'bg-amber-500',
+  verlof: 'bg-slate-400',
   ziek: 'bg-red-400',
 };
 

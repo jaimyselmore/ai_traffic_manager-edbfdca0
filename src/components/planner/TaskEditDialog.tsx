@@ -48,6 +48,7 @@ interface TaskEditDialogProps {
   onDelete: (id: string) => void;
   onDeleteProject?: (projectId: string) => void;
   onCompleteProject?: (projectId: string) => void;
+  onDeleteVerlof?: (werknemer_naam: string, werktype: string) => void;
 }
 
 const DAG_NAMEN = ['Ma', 'Di', 'Wo', 'Do', 'Vr'];
@@ -58,6 +59,7 @@ const STATUS_LABELS: Record<string, string> = {
   concept: 'Concept',
   vast: 'Vast',
   wacht_klant: 'Wacht op klant',
+  goedgekeurd: 'Goedgekeurd',
 };
 
 interface EditableRow {
@@ -81,13 +83,18 @@ export function TaskEditDialog({
   onDelete,
   onDeleteProject,
   onCompleteProject,
+  onDeleteVerlof,
 }: TaskEditDialogProps) {
   const [projectTasks, setProjectTasks] = useState<Task[]>([]);
   const [editableRows, setEditableRows] = useState<EditableRow[]>([]);
   const [showDeleteProjectConfirm, setShowDeleteProjectConfirm] = useState(false);
   const [showCompleteProjectConfirm, setShowCompleteProjectConfirm] = useState(false);
   const [showDeleteTaskConfirm, setShowDeleteTaskConfirm] = useState<string | null>(null);
+  const [showDeleteVerlofConfirm1, setShowDeleteVerlofConfirm1] = useState(false);
+  const [showDeleteVerlofConfirm2, setShowDeleteVerlofConfirm2] = useState(false);
   const [isLoadingAll, setIsLoadingAll] = useState(false);
+
+  const isVerlofOfZiek = task?.werktype === 'verlof' || task?.werktype === 'ziek';
 
   // When a task is clicked, load ALL tasks for that project (across all weeks)
   useEffect(() => {
@@ -100,13 +107,59 @@ export function TaskEditDialog({
     async function loadProjectTasks() {
       setIsLoadingAll(true);
       try {
-        // First: get tasks from current week view that match this project
-        const fromCurrentWeek = allWeekTasks.filter(
-          (t) => t.project_id === task!.project_id && t.project_nummer === task!.project_nummer
-        );
+        if (isVerlofOfZiek) {
+          // For verlof/ziek: load ALL tasks for this employee + werktype across all weeks
+          const { data, error } = await secureSelect<any>('taken', {
+            filters: [
+              { column: 'werknemer_naam', operator: 'eq', value: task!.werknemer_naam },
+              { column: 'werktype', operator: 'eq', value: task!.werktype },
+            ],
+            order: { column: 'week_start', ascending: true },
+          });
 
-        // Then: load ALL tasks for this project across all weeks
-        if (task!.project_id) {
+          if (!error && data) {
+            const mapped: Task[] = (data as any[]).map((row) => {
+              const taskDate = new Date(row.week_start + 'T00:00:00');
+              taskDate.setDate(taskDate.getDate() + row.dag_van_week);
+              const dateStr = `${taskDate.getFullYear()}-${String(taskDate.getMonth() + 1).padStart(2, '0')}-${String(taskDate.getDate()).padStart(2, '0')}`;
+              return {
+                id: row.id,
+                project_id: row.project_id,
+                werknemer_naam: row.werknemer_naam,
+                klant_naam: row.klant_naam,
+                project_nummer: row.project_nummer,
+                fase_naam: row.fase_naam,
+                werktype: row.werktype,
+                discipline: row.discipline,
+                week_start: row.week_start,
+                dag_van_week: row.dag_van_week,
+                start_uur: row.start_uur,
+                duur_uren: row.duur_uren,
+                plan_status: row.plan_status || 'goedgekeurd',
+                is_hard_lock: row.is_hard_lock || false,
+                employeeId: row.werknemer_naam,
+                clientName: row.klant_naam,
+                clientId: row.klant_naam,
+                date: dateStr,
+                startTime: `${row.start_uur.toString().padStart(2, '0')}:00`,
+                endTime: `${(row.start_uur + row.duur_uren).toString().padStart(2, '0')}:00`,
+                type: row.werktype,
+                planStatus: row.plan_status || 'goedgekeurd',
+                projectTitel: row.project_titel,
+                faseNaam: row.fase_naam,
+              } as Task;
+            });
+            setProjectTasks(mapped);
+          } else {
+            // Fallback to current week
+            setProjectTasks(
+              allWeekTasks.filter(
+                (t) => t.werknemer_naam === task!.werknemer_naam && t.werktype === task!.werktype
+              )
+            );
+          }
+        } else if (task!.project_id) {
+          // Regular project: load all tasks by project_id
           const { data, error } = await secureSelect<any>('taken', {
             filters: [{ column: 'project_id', operator: 'eq', value: task!.project_id }],
             order: { column: 'week_start', ascending: true },
@@ -146,17 +199,17 @@ export function TaskEditDialog({
             });
             setProjectTasks(mapped);
           } else {
-            setProjectTasks(fromCurrentWeek);
+            setProjectTasks(allWeekTasks.filter((t) => t.project_id === task!.project_id));
           }
         } else {
-          // No project_id, match by project_nummer
-          const fromCurrentWeek2 = allWeekTasks.filter(
-            (t) => t.project_nummer === task!.project_nummer
+          // No project_id: match by project_nummer and werknemer_naam
+          setProjectTasks(
+            allWeekTasks.filter(
+              (t) => t.project_nummer === task!.project_nummer && t.werknemer_naam === task!.werknemer_naam
+            )
           );
-          setProjectTasks(fromCurrentWeek2);
         }
       } catch {
-        // Fallback to current week tasks
         setProjectTasks(
           allWeekTasks.filter((t) => t.project_nummer === task!.project_nummer)
         );
@@ -205,13 +258,11 @@ export function TaskEditDialog({
         onUpdate(row.id, updates);
       }
     });
-    // Mark all as saved
     setEditableRows((prev) => prev.map((r) => ({ ...r, changed: false })));
   };
 
   const hasChanges = editableRows.some((r) => r.changed);
 
-  // Format week label
   const formatWeekLabel = (weekStart: string) => {
     const d = new Date(weekStart + 'T00:00:00');
     const day = d.getDate();
@@ -219,7 +270,12 @@ export function TaskEditDialog({
     return `${day}/${month}`;
   };
 
-  // Export to CSV
+  const formatDate = (weekStart: string, dagVanWeek: number) => {
+    const d = new Date(weekStart + 'T00:00:00');
+    d.setDate(d.getDate() + dagVanWeek);
+    return `${DAG_NAMEN_LANG[dagVanWeek] || ''} ${d.getDate()}/${d.getMonth() + 1}`;
+  };
+
   const handleExportCSV = () => {
     if (projectTasks.length === 0) return;
     const headers = ['Medewerker', 'Week start', 'Dag', 'Starttijd', 'Eindtijd', 'Duur (uren)', 'Fase', 'Status'];
@@ -243,7 +299,6 @@ export function TaskEditDialog({
     URL.revokeObjectURL(url);
   };
 
-  // Group tasks by week for display
   const tasksByWeek = useMemo(() => {
     const grouped: Record<string, EditableRow[]> = {};
     editableRows.forEach((r) => {
@@ -255,6 +310,8 @@ export function TaskEditDialog({
 
   const totalUren = editableRows.reduce((sum, r) => sum + r.duur_uren, 0);
 
+  const verlofLabel = task?.werktype === 'ziek' ? 'Ziekmelding' : 'Verlof';
+
   if (!task) return null;
 
   return (
@@ -264,16 +321,36 @@ export function TaskEditDialog({
           <DialogHeader>
             <DialogTitle className="flex items-center justify-between pr-8">
               <div className="space-y-1">
-                <span className="text-lg">Projectplanning — {task.klant_naam}</span>
-                <div className="flex items-center gap-2 text-sm font-normal text-muted-foreground">
-                  <span>{task.project_nummer}</span>
-                  <span>•</span>
-                  <span>{task.faseNaam || task.fase_naam}</span>
-                  <span>•</span>
-                  <Badge variant="outline" className="text-xs">
-                    {STATUS_LABELS[task.planStatus] || task.planStatus}
-                  </Badge>
-                </div>
+                {isVerlofOfZiek ? (
+                  <>
+                    <span className="text-lg">{verlofLabel} — {task.werknemer_naam}</span>
+                    <div className="flex items-center gap-2 text-sm font-normal text-muted-foreground">
+                      <span>{editableRows.length} dag{editableRows.length !== 1 ? 'en' : ''}</span>
+                      {editableRows.length > 0 && (
+                        <>
+                          <span>•</span>
+                          <span>
+                            {formatDate(editableRows[0].week_start, editableRows[0].dag_van_week)}
+                            {editableRows.length > 1 && ` t/m ${formatDate(editableRows[editableRows.length - 1].week_start, editableRows[editableRows.length - 1].dag_van_week)}`}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-lg">Projectplanning — {task.klant_naam}</span>
+                    <div className="flex items-center gap-2 text-sm font-normal text-muted-foreground">
+                      <span>{task.project_nummer}</span>
+                      <span>•</span>
+                      <span>{task.faseNaam || task.fase_naam}</span>
+                      <span>•</span>
+                      <Badge variant="outline" className="text-xs">
+                        {STATUS_LABELS[task.planStatus] || task.planStatus}
+                      </Badge>
+                    </div>
+                  </>
+                )}
               </div>
             </DialogTitle>
           </DialogHeader>
@@ -281,15 +358,17 @@ export function TaskEditDialog({
           {/* Summary bar */}
           <div className="flex items-center justify-between px-1 py-2 border-b border-border">
             <div className="flex items-center gap-4 text-sm text-muted-foreground">
-              <span><strong className="text-foreground">{editableRows.length}</strong> taken</span>
-              <span><strong className="text-foreground">{totalUren}</strong> uur totaal</span>
-              <span><strong className="text-foreground">{new Set(editableRows.map((r) => r.werknemer_naam)).size}</strong> medewerkers</span>
+              <span><strong className="text-foreground">{editableRows.length}</strong> {isVerlofOfZiek ? 'dagen' : 'taken'}</span>
+              {!isVerlofOfZiek && <span><strong className="text-foreground">{totalUren}</strong> uur totaal</span>}
+              {!isVerlofOfZiek && <span><strong className="text-foreground">{new Set(editableRows.map((r) => r.werknemer_naam)).size}</strong> medewerkers</span>}
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={handleExportCSV}>
-                <Download className="h-3.5 w-3.5 mr-1" />
-                CSV
-              </Button>
+              {!isVerlofOfZiek && (
+                <Button variant="outline" size="sm" onClick={handleExportCSV}>
+                  <Download className="h-3.5 w-3.5 mr-1" />
+                  CSV
+                </Button>
+              )}
             </div>
           </div>
 
@@ -299,7 +378,47 @@ export function TaskEditDialog({
               <div className="flex items-center justify-center py-12 text-muted-foreground">
                 Laden...
               </div>
+            ) : isVerlofOfZiek ? (
+              // Verlof/ziek: simple list per day
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Datum</TableHead>
+                    <TableHead>Starttijd</TableHead>
+                    <TableHead>Eindtijd</TableHead>
+                    <TableHead className="w-[60px]"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {editableRows
+                    .sort((a, b) => a.week_start.localeCompare(b.week_start) || a.dag_van_week - b.dag_van_week)
+                    .map((row) => (
+                      <TableRow key={row.id}>
+                        <TableCell className="font-medium">
+                          {formatDate(row.week_start, row.dag_van_week)}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {row.start_uur.toString().padStart(2, '0')}:00
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {(row.start_uur + row.duur_uren).toString().padStart(2, '0')}:00
+                        </TableCell>
+                        <TableCell className="p-1.5">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                            onClick={() => setShowDeleteTaskConfirm(row.id)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                </TableBody>
+              </Table>
             ) : (
+              // Regular project: editable rows grouped by week
               tasksByWeek.map(([weekStart, rows]) => (
                 <div key={weekStart} className="mb-4">
                   <div className="text-xs font-medium text-muted-foreground px-1 py-1.5 bg-muted/30 rounded-t-md">
@@ -416,7 +535,18 @@ export function TaskEditDialog({
 
           <DialogFooter className="flex flex-col gap-2 sm:flex-row sm:justify-between border-t border-border pt-4">
             <div className="flex gap-2">
-              {task.project_id && onCompleteProject && (
+              {isVerlofOfZiek && onDeleteVerlof && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                  onClick={() => setShowDeleteVerlofConfirm1(true)}
+                >
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  Gehele {verlofLabel.toLowerCase()}periode verwijderen
+                </Button>
+              )}
+              {!isVerlofOfZiek && task.project_id && onCompleteProject && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -427,7 +557,7 @@ export function TaskEditDialog({
                   Project afronden
                 </Button>
               )}
-              {task.project_id && onDeleteProject && (
+              {!isVerlofOfZiek && task.project_id && onDeleteProject && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -443,7 +573,7 @@ export function TaskEditDialog({
               <Button variant="outline" onClick={onClose}>
                 Sluiten
               </Button>
-              {hasChanges && (
+              {hasChanges && !isVerlofOfZiek && (
                 <Button onClick={handleSaveAll}>
                   <Save className="h-4 w-4 mr-1" />
                   Wijzigingen opslaan ({editableRows.filter((r) => r.changed).length})
@@ -454,13 +584,15 @@ export function TaskEditDialog({
         </DialogContent>
       </Dialog>
 
-      {/* Delete single task confirmation */}
+      {/* Delete single day confirmation */}
       <AlertDialog open={!!showDeleteTaskConfirm} onOpenChange={(open) => !open && setShowDeleteTaskConfirm(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Taak verwijderen?</AlertDialogTitle>
+            <AlertDialogTitle>{isVerlofOfZiek ? 'Dag verwijderen?' : 'Taak verwijderen?'}</AlertDialogTitle>
             <AlertDialogDescription>
-              Weet je zeker dat je deze taak wilt verwijderen? Dit kan niet ongedaan worden gemaakt.
+              {isVerlofOfZiek
+                ? 'Weet je zeker dat je deze dag wilt verwijderen uit de verlofperiode?'
+                : 'Weet je zeker dat je deze taak wilt verwijderen? Dit kan niet ongedaan worden gemaakt.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -477,6 +609,62 @@ export function TaskEditDialog({
               }}
             >
               Ja, verwijderen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete verlof – eerste bevestiging */}
+      <AlertDialog open={showDeleteVerlofConfirm1} onOpenChange={setShowDeleteVerlofConfirm1}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Gehele {verlofLabel.toLowerCase()}periode verwijderen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Je staat op het punt om <strong>alle {editableRows.length} dag{editableRows.length !== 1 ? 'en' : ''}</strong> van de {verlofLabel.toLowerCase()}periode van{' '}
+              <strong>{task?.werknemer_naam}</strong> te verwijderen uit de planner.
+              <br /><br />
+              Dit verwijdert ook de registratie uit de beschikbaarheidsadministratie.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuleren</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                setShowDeleteVerlofConfirm1(false);
+                setShowDeleteVerlofConfirm2(true);
+              }}
+            >
+              Ja, ik wil dit verwijderen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete verlof – tweede bevestiging */}
+      <AlertDialog open={showDeleteVerlofConfirm2} onOpenChange={setShowDeleteVerlofConfirm2}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Definitief verwijderen — weet je het zeker?</AlertDialogTitle>
+            <AlertDialogDescription>
+              <strong>Let op:</strong> dit verwijdert de volledige {verlofLabel.toLowerCase()}periode van{' '}
+              <strong>{task?.werknemer_naam}</strong> ({editableRows.length} dag{editableRows.length !== 1 ? 'en' : ''}).
+              Dit kan <strong>niet ongedaan</strong> worden gemaakt.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuleren</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (task && onDeleteVerlof) {
+                  onDeleteVerlof(task.werknemer_naam, task.werktype);
+                }
+                setShowDeleteVerlofConfirm2(false);
+                onClose();
+              }}
+            >
+              Ja, definitief verwijderen
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
