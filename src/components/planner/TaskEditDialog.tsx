@@ -746,7 +746,7 @@ export function TaskEditDialog({
                   Project afronden
                 </Button>
               )}
-              {!isVerlofOfZiek && task.project_id && onDeleteProject && (
+              {!isVerlofOfZiek && (isMeeting || task.project_id) && (isMeeting ? true : !!onDeleteProject) && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -887,6 +887,9 @@ export function TaskEditDialog({
               onClick={() => {
                 if (task?.project_id && onDeleteProject) {
                   onDeleteProject(task.project_id);
+                } else if (isMeeting) {
+                  // Meeting without project_id: delete each participant individually
+                  editableRows.forEach((row) => onDelete(row.id));
                 }
                 onClose();
               }}
