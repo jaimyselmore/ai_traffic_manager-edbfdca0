@@ -54,7 +54,17 @@ interface TaskEditDialogProps {
 
 const DAG_NAMEN = ['Ma', 'Di', 'Wo', 'Do', 'Vr'];
 const DAG_NAMEN_LANG = ['Maandag', 'Dinsdag', 'Woensdag', 'Donderdag', 'Vrijdag'];
-const UREN = [9, 10, 11, 12, 14, 15, 16, 17];
+
+// Decimal hour helpers: 9.5 → "09:30", "09:30" → 9.5
+function decimalToTimeStr(h: number): string {
+  const hours = Math.floor(h);
+  const mins = Math.round((h - hours) * 60);
+  return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+}
+function timeStrToDecimal(s: string): number {
+  const [h, m] = s.split(':').map(Number);
+  return h + (m || 0) / 60;
+}
 
 const STATUS_LABELS: Record<string, string> = {
   concept: 'Concept',
@@ -96,9 +106,33 @@ export function TaskEditDialog({
   const [showDeleteVerlofConfirm2, setShowDeleteVerlofConfirm2] = useState(false);
   const [isLoadingAll, setIsLoadingAll] = useState(false);
   const [addParticipantId, setAddParticipantId] = useState<string>('');
+  const [meetingStartTime, setMeetingStartTime] = useState('');
+  const [meetingEndTime, setMeetingEndTime] = useState('');
+  const [meetingDag, setMeetingDag] = useState(0);
+  const [meetingTimeChanged, setMeetingTimeChanged] = useState(false);
 
   const isVerlofOfZiek = task?.werktype === 'verlof' || task?.werktype === 'ziek';
   const isMeeting = task?.werktype === 'extern';
+
+  // Initialize meeting time/day when task changes
+  useEffect(() => {
+    if (!task || task.werktype !== 'extern') return;
+    setMeetingStartTime(task.startTime || decimalToTimeStr(task.start_uur ?? 9));
+    setMeetingEndTime(task.endTime || decimalToTimeStr((task.start_uur ?? 9) + (task.duur_uren ?? 1)));
+    setMeetingDag(task.dag_van_week ?? 0);
+    setMeetingTimeChanged(false);
+  }, [task?.id]);
+
+  const handleSaveMeetingTime = () => {
+    const startDecimal = timeStrToDecimal(meetingStartTime);
+    const endDecimal = timeStrToDecimal(meetingEndTime);
+    const dur = Math.round((endDecimal - startDecimal) * 4) / 4; // round to quarter-hour
+    if (dur <= 0) return;
+    editableRows.forEach((row) => {
+      onUpdate(row.id, { start_uur: startDecimal, duur_uren: dur, dag_van_week: meetingDag });
+    });
+    setMeetingTimeChanged(false);
+  };
 
   // Employees not yet in this meeting
   const currentParticipantNames = new Set(editableRows.map((r) => r.werknemer_naam));
@@ -429,28 +463,71 @@ export function TaskEditDialog({
                 Laden...
               </div>
             ) : isMeeting ? (
-              // Meeting: show participants as chips
-              <div className="py-4 px-1 space-y-3">
-                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Deelnemers</div>
-                <div className="flex flex-wrap gap-2">
-                  {editableRows.map((row) => (
-                    <div
-                      key={row.id}
-                      className="flex items-center gap-1.5 bg-secondary rounded-full pl-1.5 pr-2 py-1"
+              // Meeting: time editing + participants as chips
+              <div className="py-4 px-1 space-y-5">
+                {/* Time & day controls */}
+                <div className="space-y-2">
+                  <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Tijden</div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Select
+                      value={meetingDag.toString()}
+                      onValueChange={(v) => { setMeetingDag(parseInt(v)); setMeetingTimeChanged(true); }}
                     >
-                      <div className="h-7 w-7 rounded-full bg-primary flex items-center justify-center text-xs text-primary-foreground shrink-0 font-medium">
-                        {row.werknemer_naam.split(' ').map((n: string) => n[0]).join('').substring(0, 2)}
-                      </div>
-                      <span className="text-sm font-medium">{row.werknemer_naam}</span>
-                      <button
-                        className="ml-0.5 h-5 w-5 rounded-full flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-background transition-colors"
-                        onClick={() => setShowDeleteTaskConfirm(row.id)}
-                        title={`${row.werknemer_naam} verwijderen uit meeting`}
+                      <SelectTrigger className="h-8 w-[120px] text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DAG_NAMEN_LANG.map((dag, i) => (
+                          <SelectItem key={i} value={i.toString()}>{dag}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <input
+                      type="time"
+                      step="900"
+                      value={meetingStartTime}
+                      onChange={(e) => { setMeetingStartTime(e.target.value); setMeetingTimeChanged(true); }}
+                      className="h-8 px-2 text-xs border border-input rounded-md bg-background text-foreground"
+                    />
+                    <span className="text-muted-foreground text-xs">–</span>
+                    <input
+                      type="time"
+                      step="900"
+                      value={meetingEndTime}
+                      onChange={(e) => { setMeetingEndTime(e.target.value); setMeetingTimeChanged(true); }}
+                      className="h-8 px-2 text-xs border border-input rounded-md bg-background text-foreground"
+                    />
+                    {meetingTimeChanged && (
+                      <Button size="sm" onClick={handleSaveMeetingTime}>
+                        <Save className="h-3.5 w-3.5 mr-1" />
+                        Opslaan
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                {/* Participants */}
+                <div className="space-y-2">
+                  <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Deelnemers</div>
+                  <div className="flex flex-wrap gap-2">
+                    {editableRows.map((row) => (
+                      <div
+                        key={row.id}
+                        className="flex items-center gap-1.5 bg-secondary rounded-full pl-1.5 pr-2 py-1"
                       >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </div>
-                  ))}
+                        <div className="h-7 w-7 rounded-full bg-primary flex items-center justify-center text-xs text-primary-foreground shrink-0 font-medium">
+                          {row.werknemer_naam.split(' ').map((n: string) => n[0]).join('').substring(0, 2)}
+                        </div>
+                        <span className="text-sm font-medium">{row.werknemer_naam}</span>
+                        <button
+                          className="ml-0.5 h-5 w-5 rounded-full flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-background transition-colors"
+                          onClick={() => setShowDeleteTaskConfirm(row.id)}
+                          title={`${row.werknemer_naam} verwijderen uit meeting`}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             ) : isVerlofOfZiek ? (
@@ -505,7 +582,7 @@ export function TaskEditDialog({
                         <TableHead className="w-[180px]">Medewerker</TableHead>
                         <TableHead className="w-[100px]">Dag</TableHead>
                         <TableHead className="w-[100px]">Start</TableHead>
-                        <TableHead className="w-[80px]">Duur</TableHead>
+                        <TableHead className="w-[100px]">Eind</TableHead>
                         <TableHead className="w-[140px]">Fase</TableHead>
                         <TableHead className="w-[60px]"></TableHead>
                       </TableRow>
@@ -553,38 +630,26 @@ export function TaskEditDialog({
                               </Select>
                             </TableCell>
                             <TableCell className="p-1.5">
-                              <Select
-                                value={row.start_uur.toString()}
-                                onValueChange={(v) => updateRow(row.id, 'start_uur', parseInt(v))}
-                              >
-                                <SelectTrigger className="h-8 text-xs">
-                                  <SelectValue>{row.start_uur.toString().padStart(2, '0')}:00</SelectValue>
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {UREN.map((uur) => (
-                                    <SelectItem key={uur} value={uur.toString()}>
-                                      {uur.toString().padStart(2, '0')}:00
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                              <input
+                                type="time"
+                                step="900"
+                                value={decimalToTimeStr(row.start_uur)}
+                                onChange={(e) => updateRow(row.id, 'start_uur', timeStrToDecimal(e.target.value))}
+                                className="h-8 w-[90px] px-2 text-xs border border-input rounded-md bg-background text-foreground"
+                              />
                             </TableCell>
                             <TableCell className="p-1.5">
-                              <Select
-                                value={row.duur_uren.toString()}
-                                onValueChange={(v) => updateRow(row.id, 'duur_uren', parseInt(v))}
-                              >
-                                <SelectTrigger className="h-8 text-xs">
-                                  <SelectValue>{row.duur_uren}u</SelectValue>
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {Array.from({ length: 8 }, (_, i) => i + 1).map((d) => (
-                                    <SelectItem key={d} value={d.toString()}>
-                                      {d} uur
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                              <input
+                                type="time"
+                                step="900"
+                                value={decimalToTimeStr(row.start_uur + row.duur_uren)}
+                                onChange={(e) => {
+                                  const newEnd = timeStrToDecimal(e.target.value);
+                                  const dur = Math.round((newEnd - row.start_uur) * 4) / 4;
+                                  if (dur > 0) updateRow(row.id, 'duur_uren', dur);
+                                }}
+                                className="h-8 w-[90px] px-2 text-xs border border-input rounded-md bg-background text-foreground"
+                              />
                             </TableCell>
                             <TableCell className="p-1.5">
                               <span className="text-xs text-muted-foreground">{row.fase_naam}</span>
@@ -636,6 +701,24 @@ export function TaskEditDialog({
                       const emp = employees.find((e) => e.id === addParticipantId);
                       if (emp && task) {
                         onAddToMeeting(task, emp);
+                        // Immediately show the new participant without closing the dialog
+                        const base = editableRows[0];
+                        if (base) {
+                          setEditableRows((prev) => [
+                            ...prev,
+                            {
+                              id: `pending-${emp.id}-${Date.now()}`,
+                              werknemer_naam: emp.name,
+                              dag_van_week: base.dag_van_week,
+                              start_uur: base.start_uur,
+                              duur_uren: base.duur_uren,
+                              week_start: base.week_start,
+                              fase_naam: base.fase_naam,
+                              plan_status: base.plan_status,
+                              changed: false,
+                            },
+                          ]);
+                        }
                         setAddParticipantId('');
                       }
                     }}

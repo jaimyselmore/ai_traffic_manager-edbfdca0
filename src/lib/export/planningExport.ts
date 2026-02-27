@@ -190,13 +190,18 @@ function generatePlanningHTML(
   weekNumber: number,
   dateRange: string
 ): string {
+  // Calculate row height so everything fits on one A4 landscape page
+  // Available height after header (~70px) and body padding (20mm ≈ 76px): ~648px
+  const availableHeight = 648;
+  const totalRows = employees.length * timeSlots.length;
+  const cellHeight = totalRows > 0 ? Math.max(16, Math.min(28, Math.floor(availableHeight / totalRows))) : 28;
   // Generate weekday headers with dates
   const weekDates = dayNamesShort.map((name, index) => {
     const date = getDayDate(weekStart, index);
     return { name, date: format(date, 'd/M') };
   });
 
-  // Task colors matching the app
+  // Task colors matching the app legend
   const taskColors: Record<string, { bg: string; text: string }> = {
     concept: { bg: '#8B5CF6', text: '#fff' },
     review: { bg: '#F59E0B', text: '#fff' },
@@ -204,6 +209,8 @@ function generatePlanningHTML(
     productie: { bg: '#10B981', text: '#fff' },
     extern: { bg: '#EC4899', text: '#fff' },
     optie: { bg: '#6B7280', text: '#fff' },
+    verlof: { bg: '#94A3B8', text: '#fff' },
+    ziek: { bg: '#F87171', text: '#fff' },
   };
 
   // Generate employee rows with time slots
@@ -267,28 +274,43 @@ function generatePlanningHTML(
   <meta charset="UTF-8">
   <title>Planning Week ${weekNumber}</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { 
+    @page {
+      size: A4 landscape;
+      margin: 0;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+    }
+    html, body {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       font-size: 10px;
       line-height: 1.3;
-      padding: 15px;
+      padding: 10mm;
       background: white;
     }
     .header {
-      margin-bottom: 15px;
-      padding-bottom: 10px;
+      margin-bottom: 10px;
+      padding-bottom: 8px;
       border-bottom: 2px solid #333;
     }
     .header h1 {
-      font-size: 16px;
+      font-size: 15px;
       font-weight: 600;
       color: #333;
     }
     .header p {
-      font-size: 11px;
+      font-size: 10px;
       color: #666;
-      margin-top: 3px;
+      margin-top: 2px;
     }
     table {
       width: 100%;
@@ -297,96 +319,86 @@ function generatePlanningHTML(
     }
     th, td {
       border: 1px solid #e5e7eb;
-      padding: 4px;
+      padding: 2px 3px;
       text-align: center;
       vertical-align: middle;
     }
     th {
-      background: #f3f4f6;
+      background: #f3f4f6 !important;
       font-weight: 600;
       font-size: 9px;
       color: #374151;
-      padding: 6px 4px;
+      padding: 4px 3px;
     }
     th.employee-header {
-      width: 120px;
+      width: 110px;
       text-align: left;
     }
     th.time-header {
-      width: 50px;
+      width: 42px;
     }
     .employee-cell {
-      background: #fff;
+      background: #fff !important;
       text-align: left;
       vertical-align: top;
-      padding: 8px;
+      padding: 5px;
       border-right: 2px solid #d1d5db;
     }
     .employee-name {
       font-weight: 600;
-      font-size: 10px;
+      font-size: 9px;
       color: #111827;
-      margin-bottom: 2px;
+      margin-bottom: 1px;
     }
     .employee-role {
-      font-size: 8px;
+      font-size: 7px;
       color: #6b7280;
     }
     .time-cell {
-      background: #fff;
-      font-size: 8px;
+      background: #fff !important;
+      font-size: 7px;
       color: #6b7280;
       font-weight: 500;
-      width: 50px;
+      width: 42px;
     }
     .day-cell {
-      height: 24px;
-      padding: 2px;
+      height: ${cellHeight}px;
+      padding: 1px;
       vertical-align: top;
     }
     .lunch-cell {
       background: #fef3c7 !important;
     }
     .task-block {
-      border-radius: 3px;
-      padding: 2px 4px;
+      border-radius: 2px;
+      padding: 1px 3px;
       height: 100%;
-      min-height: 18px;
+      min-height: ${cellHeight - 2}px;
       overflow: hidden;
     }
     .task-continue {
       height: 100%;
-      min-height: 18px;
+      min-height: ${cellHeight - 2}px;
     }
     .task-client {
-      font-size: 8px;
+      font-size: 7px;
       font-weight: 600;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
     .task-phase {
-      font-size: 7px;
-      opacity: 0.85;
+      font-size: 6px;
+      opacity: 0.9;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-    }
-    .print-footer {
-      margin-top: 20px;
-      font-size: 8px;
-      color: #9ca3af;
-      text-align: center;
     }
     .no-employees {
       text-align: center;
       padding: 40px;
       color: #6b7280;
       font-style: italic;
-    }
-    @media print {
-      body { padding: 10px; }
-      .header { margin-bottom: 10px; }
     }
   </style>
 </head>
@@ -429,30 +441,30 @@ export function exportToPDF(
   dateRange: string
 ): void {
   const htmlContent = generatePlanningHTML(tasks, employees, weekStart, weekNumber, dateRange);
-  
-  // Open print dialog in a new window with the generated HTML
-  const printWindow = window.open('', '_blank', 'width=1200,height=800');
-  
+
+  // Use a blob URL so the browser print footer doesn't show "about:blank"
+  const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+  const blobUrl = URL.createObjectURL(blob);
+
+  const printWindow = window.open(blobUrl, '_blank', 'width=1400,height=900');
+
   if (!printWindow) {
-    // Fallback: offer to download as HTML if popup blocked
-    const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
+    // Fallback: download the HTML file if popup was blocked
     const link = document.createElement('a');
-    link.href = url;
+    link.href = blobUrl;
     link.download = `planning-week-${weekNumber}-${format(weekStart, 'yyyy-MM-dd')}.html`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    URL.revokeObjectURL(blobUrl);
     return;
   }
-  
-  printWindow.document.write(htmlContent);
-  printWindow.document.close();
-  
+
   // Wait for content to load, then trigger print
   printWindow.onload = () => {
     printWindow.focus();
     printWindow.print();
+    // Clean up blob URL after printing
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
   };
 }
