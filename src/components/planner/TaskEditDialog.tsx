@@ -393,15 +393,17 @@ export function TaskEditDialog({
                   </>
                 ) : isMeeting ? (
                   <>
-                    <span className="text-lg">Meeting — {task.projectTitel || task.faseNaam || task.klant_naam}</span>
-                    <div className="flex items-center gap-2 text-sm font-normal text-muted-foreground">
-                      <span>{task.klant_naam}</span>
-                      {task.startTime && (
-                        <>
-                          <span>•</span>
-                          <span>{task.startTime} – {task.endTime}</span>
-                        </>
+                    <span className="text-lg">{task.projectTitel || task.faseNaam || 'Meeting'}</span>
+                    <div className="text-sm font-normal text-muted-foreground space-y-0.5">
+                      {task.projectTitel && task.faseNaam && task.faseNaam !== task.projectTitel && (
+                        <div>{task.faseNaam}</div>
                       )}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {task.startTime && <span>{task.startTime} – {task.endTime}</span>}
+                        {task.klant_naam && task.klant_naam !== task.faseNaam && task.klant_naam !== task.projectTitel && (
+                          <><span>•</span><span>{task.klant_naam}</span></>
+                        )}
+                      </div>
                     </div>
                   </>
                 ) : (
@@ -528,6 +530,53 @@ export function TaskEditDialog({
                       </div>
                     ))}
                   </div>
+                  {onAddToMeeting && availableToAdd.length > 0 && (
+                    <div className="flex items-center gap-1 pt-1">
+                      <Select value={addParticipantId} onValueChange={setAddParticipantId}>
+                        <SelectTrigger className="h-8 w-44 text-xs">
+                          <SelectValue placeholder="Deelnemer toevoegen…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableToAdd.map((emp) => (
+                            <SelectItem key={emp.id} value={emp.id}>
+                              {emp.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={!addParticipantId}
+                        onClick={() => {
+                          const emp = employees.find((e) => e.id === addParticipantId);
+                          if (emp && task) {
+                            onAddToMeeting(task, emp);
+                            const base = editableRows[0];
+                            if (base) {
+                              setEditableRows((prev) => [
+                                ...prev,
+                                {
+                                  id: `pending-${emp.id}-${Date.now()}`,
+                                  werknemer_naam: emp.name,
+                                  dag_van_week: base.dag_van_week,
+                                  start_uur: base.start_uur,
+                                  duur_uren: base.duur_uren,
+                                  week_start: base.week_start,
+                                  fase_naam: base.fase_naam,
+                                  plan_status: base.plan_status,
+                                  changed: false,
+                                },
+                              ]);
+                            }
+                            setAddParticipantId('');
+                          }
+                        }}
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
             ) : isVerlofOfZiek ? (
@@ -675,58 +724,6 @@ export function TaskEditDialog({
 
           <DialogFooter className="flex flex-col gap-2 sm:flex-row sm:justify-between border-t border-border pt-4">
             <div className="flex flex-wrap gap-2">
-              {/* Meeting: add participant */}
-              {isMeeting && onAddToMeeting && availableToAdd.length > 0 && (
-                <div className="flex items-center gap-1">
-                  <Select
-                    value={addParticipantId}
-                    onValueChange={setAddParticipantId}
-                  >
-                    <SelectTrigger className="h-8 w-44 text-xs">
-                      <SelectValue placeholder="Deelnemer toevoegen…" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableToAdd.map((emp) => (
-                        <SelectItem key={emp.id} value={emp.id}>
-                          {emp.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={!addParticipantId}
-                    onClick={() => {
-                      const emp = employees.find((e) => e.id === addParticipantId);
-                      if (emp && task) {
-                        onAddToMeeting(task, emp);
-                        // Immediately show the new participant without closing the dialog
-                        const base = editableRows[0];
-                        if (base) {
-                          setEditableRows((prev) => [
-                            ...prev,
-                            {
-                              id: `pending-${emp.id}-${Date.now()}`,
-                              werknemer_naam: emp.name,
-                              dag_van_week: base.dag_van_week,
-                              start_uur: base.start_uur,
-                              duur_uren: base.duur_uren,
-                              week_start: base.week_start,
-                              fase_naam: base.fase_naam,
-                              plan_status: base.plan_status,
-                              changed: false,
-                            },
-                          ]);
-                        }
-                        setAddParticipantId('');
-                      }
-                    }}
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-              )}
               {isVerlofOfZiek && onDeleteVerlof && (
                 <Button
                   variant="outline"
@@ -738,7 +735,7 @@ export function TaskEditDialog({
                   Gehele {verlofLabel.toLowerCase()}periode verwijderen
                 </Button>
               )}
-              {!isVerlofOfZiek && task.project_id && onCompleteProject && (
+              {!isVerlofOfZiek && !isMeeting && task.project_id && onCompleteProject && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -757,7 +754,7 @@ export function TaskEditDialog({
                   onClick={() => setShowDeleteProjectConfirm(true)}
                 >
                   <Trash2 className="h-4 w-4 mr-1" />
-                  Hele planning verwijderen
+                  {isMeeting ? 'Hele meeting verwijderen' : 'Hele planning verwijderen'}
                 </Button>
               )}
             </div>
@@ -862,16 +859,25 @@ export function TaskEditDialog({
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Delete project planning confirmation */}
+      {/* Delete project planning / meeting confirmation */}
       <AlertDialog open={showDeleteProjectConfirm} onOpenChange={setShowDeleteProjectConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Hele projectplanning verwijderen?</AlertDialogTitle>
+            <AlertDialogTitle>{isMeeting ? 'Hele meeting verwijderen?' : 'Hele projectplanning verwijderen?'}</AlertDialogTitle>
             <AlertDialogDescription>
-              Weet je zeker dat je <strong>alle {editableRows.length} taken</strong> van dit project wilt verwijderen uit de planner? Dit kan niet ongedaan worden gemaakt.
-              <br />
-              <br />
-              Project: <strong>{task?.project_nummer}</strong> — {task?.klant_naam}
+              {isMeeting ? (
+                <>
+                  Weet je zeker dat je <strong>alle {editableRows.length} deelnemer(s)</strong> van deze meeting wilt verwijderen? Dit verwijdert de volledige meeting uit de planner en kan niet ongedaan worden gemaakt.
+                  <br /><br />
+                  Meeting: <strong>{task?.projectTitel || task?.faseNaam || 'Meeting'}</strong>
+                </>
+              ) : (
+                <>
+                  Weet je zeker dat je <strong>alle {editableRows.length} taken</strong> van dit project wilt verwijderen uit de planner? Dit kan niet ongedaan worden gemaakt.
+                  <br /><br />
+                  Project: <strong>{task?.project_nummer}</strong> — {task?.klant_naam}
+                </>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -885,7 +891,7 @@ export function TaskEditDialog({
                 onClose();
               }}
             >
-              Ja, hele planning verwijderen
+              {isMeeting ? 'Ja, meeting verwijderen' : 'Ja, hele planning verwijderen'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -131,7 +131,7 @@ export function PlannerGrid({ weekStart, employees, tasks, compact = false, onTa
                     <td
                       key={dayIndex}
                       className={cn(
-                        "border-b border-r border-border p-0.5 relative",
+                        "border-b border-r border-border p-0.5 relative z-0",
                         isLunchHour && 'bg-task-lunch/30'
                       )}
                       style={{ height: `${cellHeight}px`, overflow: 'visible' }}
