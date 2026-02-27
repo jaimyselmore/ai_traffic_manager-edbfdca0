@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { EllenChat, ChatMessage, WijzigingsVoorstel, PlanningVoorstel } from '@/components/chat/EllenChat';
 import { supabase } from '@/integrations/supabase/client';
-import { getSessionToken } from '@/lib/data/secureDataClient';
+import { getSessionToken, secureInsert } from '@/lib/data/secureDataClient';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { getWeekNumber, getWeekStart, formatDateRange } from '@/lib/helpers/dateHelpers';
+import { toast } from '@/hooks/use-toast';
+import { BookOpen, FolderOpen, X } from 'lucide-react';
 
 const STORAGE_KEY = 'ellen_sessie_id';
 
@@ -63,6 +65,9 @@ export default function EllenChatPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [pendingFeedback, setPendingFeedback] = useState<string | null>(null);
+  const [recentProposal, setRecentProposal] = useState<{ type: 'voorstel' | 'planning'; data: WijzigingsVoorstel | PlanningVoorstel } | null>(null);
+  const [feedbackToSave, setFeedbackToSave] = useState<{ text: string; proposalContext: Record<string, unknown> } | null>(null);
+  const [isSavingFeedback, setIsSavingFeedback] = useState(false);
 
   // Laad vorige berichten bij mount
   useEffect(() => {
@@ -145,6 +150,14 @@ Kun je een aangepast voorstel maken?`;
 
   const handleSendMessage = useCallback(async (message: string) => {
     const sessionToken = getSessionToken();
+
+    // Detect feedback: message sent after a proposal was rejected
+    if (recentProposal && message.trim().length > 15) {
+      setFeedbackToSave({ text: message.trim(), proposalContext: recentProposal.data as Record<string, unknown> });
+      setRecentProposal(null);
+    } else if (recentProposal) {
+      setRecentProposal(null);
+    }
 
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
@@ -263,17 +276,16 @@ Kun je een aangepast voorstel maken?`;
   }, [sessieId]);
 
   const handleRejectProposal = useCallback((voorstel: WijzigingsVoorstel) => {
-    // Verwijder voorstel uit het bericht
+    setRecentProposal({ type: 'voorstel', data: voorstel });
     setMessages(prev => prev.map(msg =>
       msg.voorstel?.id === voorstel.id && msg.voorstel?.veld === voorstel.veld
         ? { ...msg, voorstel: undefined }
         : msg
     ));
-    // Voeg annuleer-bericht toe
     setMessages(prev => [...prev, {
       id: Date.now().toString(),
       role: 'ellen',
-      content: 'Oké, wijziging geannuleerd.',
+      content: 'Oké, wijziging geannuleerd. Wat wil je anders?',
     }]);
   }, []);
 
@@ -330,6 +342,7 @@ Kun je een aangepast voorstel maken?`;
   }, [sessieId]);
 
   const handleRejectPlanning = useCallback((planning: PlanningVoorstel) => {
+    setRecentProposal({ type: 'planning', data: planning });
     setMessages(prev => prev.map(msg =>
       msg.planningVoorstel?.project_nummer === planning.project_nummer
         ? { ...msg, planningVoorstel: undefined }
@@ -338,9 +351,42 @@ Kun je een aangepast voorstel maken?`;
     setMessages(prev => [...prev, {
       id: Date.now().toString(),
       role: 'ellen',
-      content: 'Oké, planning geannuleerd.',
+      content: 'Oké, planning geannuleerd. Wat wil je anders?',
     }]);
   }, []);
+
+  const handleSaveFeedback = useCallback(async (scope: 'regels' | 'project' | 'ignore') => {
+    if (!feedbackToSave || scope === 'ignore') {
+      setFeedbackToSave(null);
+      return;
+    }
+    setIsSavingFeedback(true);
+    try {
+      if (scope === 'regels') {
+        const { error } = await secureInsert('ellen_regels', {
+          regel: feedbackToSave.text,
+          categorie: 'soft',
+          actief: true,
+          rationale: 'Feedback via Ellen-chat',
+        });
+        if (error) throw new Error(error.message);
+        toast({ title: 'Opgeslagen als planningregel', description: 'Ellen houdt hier voortaan rekening mee.' });
+      } else {
+        const { error } = await secureInsert('ellen_feedback', {
+          feedback_tekst: feedbackToSave.text,
+          gebruiker_naam: user?.naam || '',
+          vorig_voorstel: feedbackToSave.proposalContext,
+        });
+        if (error) throw new Error(error.message);
+        toast({ title: 'Opgeslagen voor dit project', description: 'Ellen gebruikt dit als context voor het huidige project.' });
+      }
+    } catch (err) {
+      toast({ title: 'Opslaan mislukt', description: err instanceof Error ? err.message : 'Onbekende fout', variant: 'destructive' });
+    } finally {
+      setIsSavingFeedback(false);
+      setFeedbackToSave(null);
+    }
+  }, [feedbackToSave, user?.naam]);
 
   // Verwerk pending feedback nadat history is geladen
   useEffect(() => {
@@ -395,6 +441,42 @@ Kun je een aangepast voorstel maken?`;
             onRejectProposal={handleRejectProposal}
             onConfirmPlanning={handleConfirmPlanning}
             onRejectPlanning={handleRejectPlanning}
+            extraActions={feedbackToSave ? (
+              <div className="w-full rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800 px-3 py-2.5">
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <p className="text-xs font-medium text-amber-800 dark:text-amber-200">Feedback opslaan?</p>
+                  <button
+                    className="text-amber-600 hover:text-amber-800 dark:text-amber-400"
+                    onClick={() => handleSaveFeedback('ignore')}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                <p className="text-xs text-amber-700 dark:text-amber-300 mb-2.5 line-clamp-2 italic">"{feedbackToSave.text}"</p>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs border-amber-300 text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-200"
+                    disabled={isSavingFeedback}
+                    onClick={() => handleSaveFeedback('regels')}
+                  >
+                    <BookOpen className="h-3 w-3 mr-1" />
+                    Planningregels
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs border-amber-300 text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-200"
+                    disabled={isSavingFeedback}
+                    onClick={() => handleSaveFeedback('project')}
+                  >
+                    <FolderOpen className="h-3 w-3 mr-1" />
+                    Huidig project
+                  </Button>
+                </div>
+              </div>
+            ) : undefined}
           />
         )}
       </div>

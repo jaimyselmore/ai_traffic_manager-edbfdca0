@@ -225,7 +225,7 @@ export function EllenChat({
             </Button>
           </div>
           {extraActions && (
-            <div className="flex justify-end gap-2">
+            <div className="w-full">
               {extraActions}
             </div>
           )}
