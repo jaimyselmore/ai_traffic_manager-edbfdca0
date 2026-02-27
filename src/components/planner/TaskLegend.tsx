@@ -5,8 +5,7 @@ const WORK_TYPES = [
   { id: 'uitwerking', label: 'Conceptuitwerking', color: 'bg-task-uitwerking' },
   { id: 'productie', label: 'Productie', color: 'bg-task-productie' },
   { id: 'extern', label: 'Afspraken/meeting extern', color: 'bg-task-extern' },
-  { id: 'optie', label: 'Optie', color: 'bg-task-optie' },
-  { id: 'verlof', label: 'Verlof / Ziekte', color: 'bg-slate-400' },
+  { id: 'verlof', label: 'Afwezigheid', color: 'bg-slate-400' },
 ];
 
 export function TaskLegend() {

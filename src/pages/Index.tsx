@@ -16,14 +16,24 @@ const Index = () => {
   const [activeTab, setActiveTab] = useState<Tab>(tabParam || 'overzicht');
   const { user } = useAuth();
 
-  // Update tab when URL param changes
+  // Sync activeTab when URL param changes (e.g. direct navigation or refresh)
   useEffect(() => {
-    if (tabParam && ['overzicht', 'planner', 'agendas', 'ellen', 'admin'].includes(tabParam)) {
+    const validTabs: Tab[] = ['overzicht', 'planner', 'agendas', 'ellen', 'admin'];
+    if (tabParam && validTabs.includes(tabParam)) {
       setActiveTab(tabParam);
-      // Clear the param after reading it
-      setSearchParams({}, { replace: true });
+    } else if (!tabParam) {
+      setActiveTab('overzicht');
     }
-  }, [tabParam, setSearchParams]);
+  }, [tabParam]);
+
+  const handleTabChange = (tab: Tab) => {
+    setActiveTab(tab);
+    if (tab === 'overzicht') {
+      setSearchParams({}, { replace: true });
+    } else {
+      setSearchParams({ tab }, { replace: true });
+    }
+  };
 
   const renderContent = () => {
     switch (activeTab) {
@@ -42,9 +52,9 @@ const Index = () => {
 
   return (
     <div className="h-full flex overflow-hidden bg-background">
-      <AppSidebar 
-        activeTab={activeTab} 
-        onTabChange={setActiveTab}
+      <AppSidebar
+        activeTab={activeTab}
+        onTabChange={handleTabChange}
       />
       <div className="flex flex-1 flex-col h-full overflow-hidden">
         <TopBar />
