@@ -352,19 +352,19 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
         </div>
       )}
 
-      {/* Project naam (optioneel) */}
+      {/* Project naam */}
       {data.volledigProjectId && (
         <div>
-          <Label className="text-sm">Projectnaam</Label>
+          <Label className="text-sm">Projectnaam *</Label>
           <Input
             value={data.projectNaam || ''}
             onChange={(e) => handleProjectNaamChange(e.target.value)}
             placeholder="bijv. Zomercampagne"
-            className="mt-1"
+            className={`mt-1 ${errors?.projectNaam ? 'border-destructive' : ''}`}
           />
-          <p className="text-xs text-muted-foreground mt-1">
-            Korte naam voor dit project (optioneel).
-          </p>
+          {errors?.projectNaam && (
+            <p className="text-xs text-destructive">{errors.projectNaam}</p>
+          )}
         </div>
       )}
 
@@ -397,15 +397,15 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
 
       {/* Deadline */}
       <div>
-        <Label className="text-sm">Deadline</Label>
+        <Label className="text-sm">Deadline *</Label>
         <DatePicker
           value={parseDate(data.deadline)}
           onChange={(date) => onChange({ ...data, deadline: formatDateISO(date) })}
           placeholder="Selecteer deadline"
         />
-        <p className="text-xs text-muted-foreground mt-1">
-          Gewenste opleverdatum (indien bekend).
-        </p>
+        {errors?.deadline && (
+          <p className="text-xs text-destructive">{errors.deadline}</p>
+        )}
       </div>
 
       {/* Opmerkingen */}

@@ -178,6 +178,12 @@ export default function NieuwProject() {
     if (!formData.projectHeader.projectomschrijving) {
       newErrors.projectomschrijving = 'Voer een projectomschrijving in';
     }
+    if (!formData.projectHeader.projectNaam?.trim()) {
+      newErrors.projectNaam = 'Voer een projectnaam in';
+    }
+    if (!formData.projectHeader.deadline) {
+      newErrors.deadline = 'Selecteer een deadline';
+    }
     if (!formData.projectType) {
       newErrors.projectType = 'Selecteer een projecttype';
     }
@@ -219,6 +225,8 @@ export default function NieuwProject() {
     const missing: string[] = [];
     if (!formData.projectHeader.klantId) missing.push('Klant');
     if (!formData.projectHeader.projectomschrijving) missing.push('Projectomschrijving');
+    if (!formData.projectHeader.projectNaam?.trim()) missing.push('Projectnaam');
+    if (!formData.projectHeader.deadline) missing.push('Deadline');
     if (!formData.projectType) missing.push('Projecttype');
     if (formData.projectType === 'algemeen') {
       if (!formData.algemeen.startDatum) missing.push('Startdatum');
