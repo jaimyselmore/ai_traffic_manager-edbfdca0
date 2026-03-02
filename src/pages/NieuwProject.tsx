@@ -181,6 +181,9 @@ export default function NieuwProject() {
     if (!formData.projectHeader.projectNaam?.trim()) {
       newErrors.projectNaam = 'Voer een projectnaam in';
     }
+    if (!formData.projectHeader.startDatum) {
+      newErrors.startDatum = 'Selecteer een startdatum';
+    }
     if (!formData.projectHeader.deadline) {
       newErrors.deadline = 'Selecteer een deadline';
     }
@@ -188,11 +191,6 @@ export default function NieuwProject() {
       newErrors.projectType = 'Selecteer een projecttype';
     }
     if (formData.projectType === 'algemeen') {
-      // Check startdatum
-      if (!formData.algemeen.startDatum) {
-        newErrors.startDatum = 'Vul een startdatum in';
-      }
-
       const totalSelections = formData.algemeen.medewerkerAllocaties.length + formData.algemeen.teamAllocaties.length;
       if (totalSelections === 0) {
         newErrors.algemeen = 'Selecteer minimaal één medewerker of team';
@@ -226,11 +224,10 @@ export default function NieuwProject() {
     if (!formData.projectHeader.klantId) missing.push('Klant');
     if (!formData.projectHeader.projectomschrijving) missing.push('Projectomschrijving');
     if (!formData.projectHeader.projectNaam?.trim()) missing.push('Projectnaam');
+    if (!formData.projectHeader.startDatum) missing.push('Startdatum');
     if (!formData.projectHeader.deadline) missing.push('Deadline');
     if (!formData.projectType) missing.push('Projecttype');
     if (formData.projectType === 'algemeen') {
-      if (!formData.algemeen.startDatum) missing.push('Startdatum');
-
       const totalSelections = formData.algemeen.medewerkerAllocaties.length + formData.algemeen.teamAllocaties.length;
       if (totalSelections === 0) missing.push('Medewerkers of teams');
 
@@ -295,7 +292,7 @@ export default function NieuwProject() {
           fases.push({
             fase_naam: `Algemeen (${teamAllocatie.teamName})`,
             medewerkers: memberNames,
-            start_datum: formData.algemeen.startDatum || formData.projectHeader.datumAanvraag || new Date().toISOString().split('T')[0],
+            start_datum: formData.projectHeader.startDatum || formData.projectHeader.datumAanvraag || new Date().toISOString().split('T')[0],
             duur_dagen: teamAllocatie.aantalDagen,
             uren_per_dag: 8,
             notities: teamAllocatie.toelichting || undefined,
@@ -312,7 +309,7 @@ export default function NieuwProject() {
           fases.push({
             fase_naam: `Algemeen (${teamAllocatie.teamName} - samen)`,
             medewerkers: memberNames,
-            start_datum: formData.algemeen.startDatum || formData.projectHeader.datumAanvraag || new Date().toISOString().split('T')[0],
+            start_datum: formData.projectHeader.startDatum || formData.projectHeader.datumAanvraag || new Date().toISOString().split('T')[0],
             duur_dagen: teamDagen,
             uren_per_dag: 8,
             notities: teamAllocatie.toelichting || undefined,
@@ -329,7 +326,7 @@ export default function NieuwProject() {
             fases.push({
               fase_naam: `Algemeen - ${member.name} (apart)`,
               medewerkers: [member.name],
-              start_datum: formData.algemeen.startDatum || formData.projectHeader.datumAanvraag || new Date().toISOString().split('T')[0],
+              start_datum: formData.projectHeader.startDatum || formData.projectHeader.datumAanvraag || new Date().toISOString().split('T')[0],
               duur_dagen: individueleDagen,
               uren_per_dag: 8,
               notities: teamAllocatie.toelichting || undefined,
@@ -354,7 +351,7 @@ export default function NieuwProject() {
         fases.push({
           fase_naam: `Algemeen - ${employeeName}`,
           medewerkers: [employeeName],
-          start_datum: formData.algemeen.startDatum || formData.projectHeader.datumAanvraag || new Date().toISOString().split('T')[0],
+          start_datum: formData.projectHeader.startDatum || formData.projectHeader.datumAanvraag || new Date().toISOString().split('T')[0],
           duur_dagen: dagenCount,
           uren_per_dag: urenPerDag,
           notities: allocatie.toelichting || undefined,
@@ -501,10 +498,11 @@ export default function NieuwProject() {
   const canSubmit = () => {
     if (!formData.projectHeader.klantId) return false;
     if (!formData.projectHeader.projectomschrijving) return false;
+    if (!formData.projectHeader.projectNaam?.trim()) return false;
+    if (!formData.projectHeader.startDatum) return false;
+    if (!formData.projectHeader.deadline) return false;
     if (!formData.projectType) return false;
     if (formData.projectType === 'algemeen') {
-      // Check startdatum
-      if (!formData.algemeen.startDatum) return false;
       const totalSelections = formData.algemeen.medewerkerAllocaties.length + formData.algemeen.teamAllocaties.length;
       if (totalSelections === 0) return false;
       // Check if all allocations have valid days
@@ -786,22 +784,6 @@ export default function NieuwProject() {
         {formData.projectType === 'algemeen' && (
           <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
             <h2 className="text-lg font-semibold text-foreground">Planning</h2>
-
-            <div className="space-y-2">
-              <Label className="text-sm">Startdatum *</Label>
-              <Input
-                type="date"
-                value={formData.algemeen.startDatum}
-                onChange={(e) => setFormData({
-                  ...formData,
-                  algemeen: { ...formData.algemeen, startDatum: e.target.value }
-                })}
-                className={errors.startDatum ? 'border-destructive' : ''}
-              />
-              {errors.startDatum && (
-                <p className="text-xs text-destructive">{errors.startDatum}</p>
-              )}
-            </div>
 
             <div className="space-y-2">
               <Label className="text-sm">Betrokken medewerkers *</Label>

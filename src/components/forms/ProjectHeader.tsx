@@ -37,6 +37,7 @@ export interface ProjectHeaderData {
   projectTitel: string; // Full title: klant_nummer_naam
   projectomschrijving: string;
   datumAanvraag: string;
+  startDatum: string; // Vanaf wanneer er ingepland moet worden
   deadline: string;
   opmerkingen: string;
   // New client fields (kept for display purposes)
@@ -395,6 +396,19 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
         )}
       </div>
 
+      {/* Startdatum */}
+      <div>
+        <Label className="text-sm">Startdatum *</Label>
+        <DatePicker
+          value={parseDate(data.startDatum)}
+          onChange={(date) => onChange({ ...data, startDatum: formatDateISO(date) })}
+          placeholder="Selecteer startdatum"
+        />
+        {errors?.startDatum && (
+          <p className="text-xs text-destructive">{errors.startDatum}</p>
+        )}
+      </div>
+
       {/* Deadline */}
       <div>
         <Label className="text-sm">Deadline *</Label>
@@ -431,6 +445,7 @@ export const emptyProjectHeaderData: ProjectHeaderData = {
   projectTitel: '',
   projectomschrijving: '',
   datumAanvraag: new Date().toISOString().split('T')[0],
+  startDatum: '',
   deadline: '',
   opmerkingen: '',
 };
