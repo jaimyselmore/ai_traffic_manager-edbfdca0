@@ -423,19 +423,6 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
           {renderDagenFase('deliverables')}
         </FaseCollapsible>
       </div>
-
-      {/* Deadline oplevering */}
-      <div className="rounded-2xl border border-border bg-card p-6">
-        <h2 className="text-lg font-semibold text-foreground mb-4">Deadline oplevering</h2>
-        <div>
-          <Label className="text-sm">Definitieve opleverdeadline *</Label>
-          <DatePicker
-            value={parseDate(data.deadlineOplevering)}
-            onChange={(date) => onChange({ ...data, deadlineOplevering: formatDate(date) })}
-            placeholder="Selecteer deadline"
-          />
-        </div>
-      </div>
     </div>
   );
 }
