@@ -39,21 +39,21 @@ export function TopBar() {
   return (
     <>
       {/* Welcome banner */}
-      <div className="flex items-center justify-between px-6 py-3 bg-primary text-primary-foreground">
-        <h1 className="text-lg font-semibold">
+      <div className="flex items-center justify-between px-6 py-2.5 bg-primary/15 border-b border-primary/20">
+        <h1 className="text-base font-semibold text-primary">
           Welkom{voornaam ? `, ${voornaam}` : ''}!
         </h1>
-        <div className="text-sm opacity-90">
+        <div className="text-sm text-primary/80">
           Week {weekNumber} — {dateRange}
         </div>
       </div>
 
-      <header className="flex h-14 items-center justify-end border-b border-border bg-card px-6">
+      <header className="flex h-12 items-center justify-end border-b border-border bg-card px-6">
         <div className="flex items-center gap-3">
           {/* + Nieuw dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-1.5 font-medium">
+              <Button variant="outline" size="sm" className="gap-1.5 font-medium h-8">
                 <Plus className="h-4 w-4" />
                 Nieuw
               </Button>
@@ -78,7 +78,7 @@ export function TopBar() {
               <button
                 className="flex items-center gap-2 hover:opacity-90 transition-opacity cursor-pointer"
               >
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-sm font-medium text-primary-foreground">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
                   {user?.naam ? user.naam.split(' ').map(n => n[0]).join('') : 'U'}
                 </div>
                 <span className="font-medium text-sm text-foreground">{user?.naam}</span>
@@ -86,11 +86,8 @@ export function TopBar() {
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>
-                <div className="flex flex-col">
-                  <span className="font-medium">{user?.naam}</span>
-                  <span className="text-xs text-muted-foreground">{user?.email}</span>
-                </div>
+              <DropdownMenuLabel className="font-normal">
+                <span className="text-xs text-muted-foreground">{user?.email}</span>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => setAccountDialogOpen(true)}>
