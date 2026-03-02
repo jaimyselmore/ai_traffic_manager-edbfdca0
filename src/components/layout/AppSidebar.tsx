@@ -28,18 +28,17 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
       onMouseLeave={() => setIsExpanded(false)}
     >
       {/* Logo */}
-      <div className={cn(
-        "flex h-14 items-center border-b border-border overflow-hidden transition-all duration-300",
-        isExpanded ? "px-3 justify-start" : "px-0 justify-center"
-      )}>
-        <div className="flex items-center">
-          <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
-            <span className="text-primary-foreground font-bold text-sm">E</span>
-          </div>
+      <div className="flex h-14 items-center justify-center border-b border-border">
+        <div className={cn(
+          "h-8 rounded-lg bg-primary flex items-center justify-center transition-all duration-300 overflow-hidden",
+          isExpanded ? "w-[72px] px-2" : "w-8"
+        )}>
           <span className={cn(
-            "font-bold text-primary transition-all duration-300 overflow-hidden",
-            isExpanded ? "ml-0 max-w-[60px] opacity-100" : "max-w-0 opacity-0"
-          )}>LLEN</span>
+            "text-primary-foreground font-bold text-sm whitespace-nowrap transition-all duration-300",
+            isExpanded ? "opacity-100" : "opacity-100"
+          )}>
+            {isExpanded ? "ELLEN" : "E"}
+          </span>
         </div>
       </div>
 
