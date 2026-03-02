@@ -304,7 +304,8 @@ export default function EllenVoorstel() {
         review: 'Interne review',
       };
       const faseLabel = werktypeLabels[werktype] || werktype;
-      const projectNummer = `P-${Date.now().toString().slice(-6)}`;
+      // Use volledigProjectId from form if available, otherwise generate
+      const projectNummer = formData?.projectHeader?.volledigProjectId || `P-${Date.now().toString().slice(-6)}`;
 
       // 1. Zoek klant
       const { data: klanten } = await secureSelect<{ id: string }>('klanten', {
