@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Settings, LogOut, User, Plus, FolderPlus, RefreshCw, Users, CalendarOff } from 'lucide-react';
+import { Settings, LogOut, User, Plus, FolderPlus, RefreshCw, Users, CalendarOff, ChevronDown } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -12,11 +12,17 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { AccountSettingsDialog } from '@/components/account/AccountSettingsDialog';
+import { getWeekNumber, getWeekStart, formatDateRange } from '@/lib/helpers/dateHelpers';
 
 export function TopBar() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [accountDialogOpen, setAccountDialogOpen] = useState(false);
+
+  const voornaam = user?.naam?.split(' ')[0] || '';
+  const currentWeekStart = getWeekStart(new Date());
+  const weekNumber = getWeekNumber(currentWeekStart);
+  const dateRange = formatDateRange(currentWeekStart);
 
   const handleLogout = async () => {
     await signOut();
@@ -32,6 +38,16 @@ export function TopBar() {
 
   return (
     <>
+      {/* Welcome banner */}
+      <div className="flex items-center justify-between px-6 py-3 bg-primary text-primary-foreground">
+        <h1 className="text-lg font-semibold">
+          Welkom{voornaam ? `, ${voornaam}` : ''}!
+        </h1>
+        <div className="text-sm opacity-90">
+          Week {weekNumber} — {dateRange}
+        </div>
+      </div>
+
       <header className="flex h-14 items-center justify-end border-b border-border bg-card px-6">
         <div className="flex items-center gap-3">
           {/* + Nieuw dropdown */}
@@ -43,10 +59,6 @@ export function TopBar() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52">
-              <DropdownMenuLabel className="text-xs text-muted-foreground">
-                Nieuwe aanvraag
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
               {templateItems.map((item) => (
                 <DropdownMenuItem
                   key={item.path}
@@ -64,10 +76,13 @@ export function TopBar() {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity cursor-pointer"
-                title={user?.naam || 'Gebruiker'}
+                className="flex items-center gap-2 hover:opacity-90 transition-opacity cursor-pointer"
               >
-                {user?.naam ? user.naam.split(' ').map(n => n[0]).join('') : 'U'}
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-sm font-medium text-primary-foreground">
+                  {user?.naam ? user.naam.split(' ').map(n => n[0]).join('') : 'U'}
+                </div>
+                <span className="font-medium text-sm text-foreground">{user?.naam}</span>
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
@@ -80,12 +95,12 @@ export function TopBar() {
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => setAccountDialogOpen(true)}>
                 <User className="mr-2 h-4 w-4" />
-                Account instellingen
+                Mijn profiel
               </DropdownMenuItem>
               {user?.rol === 'admin' && (
                 <DropdownMenuItem onClick={() => navigate('/admin')}>
                   <Settings className="mr-2 h-4 w-4" />
-                  Beheer
+                  Instellingen
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
