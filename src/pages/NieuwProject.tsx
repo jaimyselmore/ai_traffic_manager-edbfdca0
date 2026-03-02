@@ -182,6 +182,11 @@ export default function NieuwProject() {
       newErrors.projectType = 'Selecteer een projecttype';
     }
     if (formData.projectType === 'algemeen') {
+      // Check startdatum
+      if (!formData.algemeen.startDatum) {
+        newErrors.startDatum = 'Vul een startdatum in';
+      }
+
       const totalSelections = formData.algemeen.medewerkerAllocaties.length + formData.algemeen.teamAllocaties.length;
       if (totalSelections === 0) {
         newErrors.algemeen = 'Selecteer minimaal één medewerker of team';
@@ -216,6 +221,8 @@ export default function NieuwProject() {
     if (!formData.projectHeader.projectomschrijving) missing.push('Projectomschrijving');
     if (!formData.projectType) missing.push('Projecttype');
     if (formData.projectType === 'algemeen') {
+      if (!formData.algemeen.startDatum) missing.push('Startdatum');
+
       const totalSelections = formData.algemeen.medewerkerAllocaties.length + formData.algemeen.teamAllocaties.length;
       if (totalSelections === 0) missing.push('Medewerkers of teams');
 
@@ -488,6 +495,8 @@ export default function NieuwProject() {
     if (!formData.projectHeader.projectomschrijving) return false;
     if (!formData.projectType) return false;
     if (formData.projectType === 'algemeen') {
+      // Check startdatum
+      if (!formData.algemeen.startDatum) return false;
       const totalSelections = formData.algemeen.medewerkerAllocaties.length + formData.algemeen.teamAllocaties.length;
       if (totalSelections === 0) return false;
       // Check if all allocations have valid days
@@ -725,8 +734,6 @@ export default function NieuwProject() {
           data={formData.projectHeader}
           onChange={(data) => setFormData({ ...formData, projectHeader: data })}
           errors={errors}
-          isInternProject={formData.isInternProject}
-          onInternProjectChange={(value) => setFormData({ ...formData, isInternProject: value })}
         />
 
         {/* Project Type Selection */}
@@ -773,7 +780,7 @@ export default function NieuwProject() {
             <h2 className="text-lg font-semibold text-foreground">Planning</h2>
 
             <div className="space-y-2">
-              <Label className="text-sm">Startdatum (optioneel)</Label>
+              <Label className="text-sm">Startdatum *</Label>
               <Input
                 type="date"
                 value={formData.algemeen.startDatum}
@@ -781,10 +788,11 @@ export default function NieuwProject() {
                   ...formData,
                   algemeen: { ...formData.algemeen, startDatum: e.target.value }
                 })}
+                className={errors.startDatum ? 'border-destructive' : ''}
               />
-              <p className="text-xs text-muted-foreground">
-                Laat leeg voor automatische planning door Ellen
-              </p>
+              {errors.startDatum && (
+                <p className="text-xs text-destructive">{errors.startDatum}</p>
+              )}
             </div>
 
             <div className="space-y-2">

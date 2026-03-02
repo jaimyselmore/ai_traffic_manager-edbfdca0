@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { DatePicker } from '@/components/ui/date-picker';
@@ -34,7 +33,8 @@ export interface ProjectHeaderData {
   klantIdBasis: string;
   projectVolgnummer: string;
   volledigProjectId: string;
-  projectTitel: string;
+  projectNaam: string; // Custom title entered by user
+  projectTitel: string; // Full title: klant_nummer_naam
   projectomschrijving: string;
   datumAanvraag: string;
   deadline: string;
@@ -47,11 +47,9 @@ interface ProjectHeaderProps {
   data: ProjectHeaderData;
   onChange: (data: ProjectHeaderData) => void;
   errors?: Record<string, string>;
-  isInternProject?: boolean;
-  onInternProjectChange?: (value: boolean) => void;
 }
 
-export function ProjectHeader({ data, onChange, errors, isInternProject, onInternProjectChange }: ProjectHeaderProps) {
+export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
   const { data: clients = [] } = useClients();
   const queryClient = useQueryClient();
   const [isAddingNewClient, setIsAddingNewClient] = useState(false);
@@ -70,10 +68,14 @@ export function ProjectHeader({ data, onChange, errors, isInternProject, onInter
     return `${klantIdBasis}${volgnummer}`;
   };
 
-  // Compute project titel
-  const computeProjectTitel = (klantnaam: string, volledigProjectId: string): string => {
+  // Compute project titel: klant_nummer_naam
+  const computeProjectTitel = (klantnaam: string, volledigProjectId: string, projectNaam: string): string => {
     if (!klantnaam || !volledigProjectId) return '';
-    return `${klantnaam}_${volledigProjectId}`;
+    const baseTitel = `${klantnaam}_${volledigProjectId}`;
+    if (projectNaam?.trim()) {
+      return `${baseTitel}_${projectNaam.trim()}`;
+    }
+    return baseTitel;
   };
 
   const handleKlantChange = (value: string) => {
@@ -93,7 +95,7 @@ export function ProjectHeader({ data, onChange, errors, isInternProject, onInter
       const klantIdBasis = selectedClient?.code || '';
       const klantnaam = selectedClient?.name || '';
       const volledigProjectId = computeVolledigProjectId(klantIdBasis, data.projectVolgnummer);
-      const projectTitel = computeProjectTitel(klantnaam, volledigProjectId);
+      const projectTitel = computeProjectTitel(klantnaam, volledigProjectId, data.projectNaam || '');
       onChange({
         ...data,
         klantId: value,
@@ -111,11 +113,22 @@ export function ProjectHeader({ data, onChange, errors, isInternProject, onInter
     const volledigProjectId = computeVolledigProjectId(data.klantIdBasis, sanitized);
     const selectedClient = clients.find(c => c.id === data.klantId);
     const klantnaam = selectedClient?.name || '';
-    const projectTitel = computeProjectTitel(klantnaam, volledigProjectId);
+    const projectTitel = computeProjectTitel(klantnaam, volledigProjectId, data.projectNaam || '');
     onChange({
       ...data,
       projectVolgnummer: sanitized,
       volledigProjectId,
+      projectTitel,
+    });
+  };
+
+  const handleProjectNaamChange = (value: string) => {
+    const selectedClient = clients.find(c => c.id === data.klantId);
+    const klantnaam = selectedClient?.name || '';
+    const projectTitel = computeProjectTitel(klantnaam, data.volledigProjectId, value);
+    onChange({
+      ...data,
+      projectNaam: value,
       projectTitel,
     });
   };
@@ -154,7 +167,7 @@ export function ProjectHeader({ data, onChange, errors, isInternProject, onInter
 
       // Update form with new client
       const volledigProjectId = computeVolledigProjectId(newClient.code || '', data.projectVolgnummer);
-      const projectTitel = computeProjectTitel(newClient.name, volledigProjectId);
+      const projectTitel = computeProjectTitel(newClient.name, volledigProjectId, data.projectNaam || '');
       onChange({
         ...data,
         klantId: newClient.id,
@@ -339,6 +352,22 @@ export function ProjectHeader({ data, onChange, errors, isInternProject, onInter
         </div>
       )}
 
+      {/* Project naam (optioneel) */}
+      {data.volledigProjectId && (
+        <div>
+          <Label className="text-sm">Projectnaam</Label>
+          <Input
+            value={data.projectNaam || ''}
+            onChange={(e) => handleProjectNaamChange(e.target.value)}
+            placeholder="bijv. Zomercampagne"
+            className="mt-1"
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            Korte naam voor dit project (optioneel).
+          </p>
+        </div>
+      )}
+
       {/* Project titel (read-only) */}
       {data.projectTitel && (
         <div className="p-3 bg-primary/10 rounded-lg border border-primary/20">
@@ -348,25 +377,6 @@ export function ProjectHeader({ data, onChange, errors, isInternProject, onInter
           <p className="text-xs text-muted-foreground mt-1">
             Deze titel wordt gebruikt in de planner en planning communicatie.
           </p>
-        </div>
-      )}
-
-      {/* Intern project checkbox - alleen tonen als project titel er is */}
-      {data.projectTitel && onInternProjectChange && (
-        <div className="flex items-start gap-3 p-3 rounded-lg bg-secondary/30 border border-border">
-          <Checkbox
-            id="intern-project-header"
-            checked={isInternProject ?? false}
-            onCheckedChange={(checked) => onInternProjectChange(checked === true)}
-          />
-          <div>
-            <Label htmlFor="intern-project-header" className="text-sm font-medium cursor-pointer">
-              Dit is een intern project
-            </Label>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Bij interne projecten worden geen klantpresentaties voorgesteld door Ellen
-            </p>
-          </div>
         </div>
       )}
 
@@ -383,16 +393,6 @@ export function ProjectHeader({ data, onChange, errors, isInternProject, onInter
         {errors?.projectomschrijving && (
           <p className="text-xs text-destructive">{errors.projectomschrijving}</p>
         )}
-      </div>
-
-      {/* Datum aanvraag */}
-      <div>
-        <Label className="text-sm">Datum aanvraag</Label>
-        <DatePicker
-          value={parseDate(data.datumAanvraag)}
-          onChange={(date) => onChange({ ...data, datumAanvraag: formatDateISO(date) })}
-          placeholder="Selecteer datum"
-        />
       </div>
 
       {/* Deadline */}
@@ -427,6 +427,7 @@ export const emptyProjectHeaderData: ProjectHeaderData = {
   klantIdBasis: '',
   projectVolgnummer: '',
   volledigProjectId: '',
+  projectNaam: '',
   projectTitel: '',
   projectomschrijving: '',
   datumAanvraag: new Date().toISOString().split('T')[0],
