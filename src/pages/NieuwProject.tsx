@@ -451,6 +451,7 @@ export default function NieuwProject() {
           klant_naam: klantNaam,
           projectnaam: formData.projectHeader.projectomschrijving,
           projectTitel: formData.projectHeader.projectTitel,
+          volledigProjectId: formData.projectHeader.volledigProjectId,
           isInternProject: formData.isInternProject,
           deadline: formData.projectHeader.deadline,
           fases,

@@ -21,6 +21,7 @@ interface ProjectInput {
   klant_naam: string;
   projectnaam: string;
   projectTitel?: string;
+  volledigProjectId?: string;
   projecttype?: string;
   deadline?: string;
   fases: ProjectFaseInput[];
@@ -54,6 +55,8 @@ export async function createProjectAndSchedule(
 
   try {
     // 1. Create project record via secure edge function
+    // Use volledigProjectId from form if provided, otherwise generate
+    const projectnummer = projectData.volledigProjectId || `P-${Date.now().toString().slice(-6)}`;
     const insertPayload = {
       klant_id: projectData.klant_id,
       omschrijving: projectData.projectnaam,
@@ -62,7 +65,7 @@ export async function createProjectAndSchedule(
       status: 'concept',
       datum_aanvraag: new Date().toISOString().split('T')[0],
       volgnummer: Date.now() % 10000,
-      projectnummer: `P-${Date.now().toString().slice(-6)}`
+      projectnummer: projectnummer
     };
 
     const { data: projectArr, error: projectError } = await secureInsert<Record<string, unknown>>('projecten', insertPayload);
