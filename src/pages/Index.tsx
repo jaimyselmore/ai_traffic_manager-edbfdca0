@@ -5,10 +5,10 @@ import { TopBar } from '@/components/layout/TopBar';
 import { Dashboard } from '@/components/dashboard/Dashboard';
 import { Planner } from '@/components/planner/Planner';
 import { AgendasFlow } from '@/components/agendas/AgendasFlow';
-import EllenChatPage from '@/pages/EllenChatPage';
+import { EllenChatWidget } from '@/components/chat/EllenChatWidget';
 import { useAuth } from '@/contexts/AuthContext';
 
-type Tab = 'overzicht' | 'planner' | 'agendas' | 'ellen' | 'admin';
+type Tab = 'overzicht' | 'planner' | 'agendas' | 'admin';
 
 const Index = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -18,7 +18,7 @@ const Index = () => {
 
   // Sync activeTab when URL param changes (e.g. direct navigation or refresh)
   useEffect(() => {
-    const validTabs: Tab[] = ['overzicht', 'planner', 'agendas', 'ellen', 'admin'];
+    const validTabs: Tab[] = ['overzicht', 'planner', 'agendas', 'admin'];
     if (tabParam && validTabs.includes(tabParam)) {
       setActiveTab(tabParam);
     } else if (!tabParam) {
@@ -43,8 +43,6 @@ const Index = () => {
         return <Planner />;
       case 'agendas':
         return <AgendasFlow />;
-      case 'ellen':
-        return <EllenChatPage />;
       default:
         return <Dashboard selectedEmployeeId={user?.id || ''} />;
     }
@@ -62,6 +60,9 @@ const Index = () => {
           {renderContent()}
         </main>
       </div>
+
+      {/* Ellen Chat Widget - floating bottom right */}
+      <EllenChatWidget />
     </div>
   );
 };

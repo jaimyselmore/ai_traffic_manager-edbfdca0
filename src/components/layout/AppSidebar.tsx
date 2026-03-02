@@ -1,8 +1,8 @@
-import { LayoutDashboard, Calendar, CalendarSync, Sparkles } from 'lucide-react';
+import { LayoutGrid, Calendar, CalendarSync } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
 
-type Tab = 'overzicht' | 'planner' | 'agendas' | 'ellen' | 'admin';
+type Tab = 'overzicht' | 'planner' | 'agendas' | 'admin';
 
 interface AppSidebarProps {
   activeTab: Tab;
@@ -10,10 +10,9 @@ interface AppSidebarProps {
 }
 
 const navItems = [
-  { id: 'overzicht' as const, label: 'Overzicht', icon: LayoutDashboard },
+  { id: 'overzicht' as const, label: 'Dashboard', icon: LayoutGrid },
   { id: 'planner' as const, label: 'Planner', icon: Calendar },
-  { id: 'agendas' as const, label: "Microsoft agenda's", icon: CalendarSync },
-  { id: 'ellen' as const, label: 'Ellen', icon: Sparkles },
+  { id: 'agendas' as const, label: "Agenda's", icon: CalendarSync },
 ];
 
 export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
@@ -23,7 +22,7 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
     <aside
       className={cn(
         "flex h-full flex-col shrink-0 border-r border-border bg-card overflow-y-auto transition-all duration-300",
-        isExpanded ? "w-64" : "w-16"
+        isExpanded ? "w-56" : "w-14"
       )}
       onMouseEnter={() => setIsExpanded(true)}
       onMouseLeave={() => setIsExpanded(false)}
@@ -31,21 +30,24 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
       {/* Logo */}
       <div className={cn(
         "flex h-14 items-center border-b border-border overflow-hidden transition-all duration-300",
-        isExpanded ? "pl-3 pr-2 justify-start" : "px-3 justify-center"
+        isExpanded ? "px-4 justify-start" : "px-0 justify-center"
       )}>
         {isExpanded ? (
-          <div className="font-semibold text-xl tracking-wide text-foreground animate-in fade-in duration-200 pl-3">
-            ELLEN
+          <div className="flex items-center gap-2 animate-in fade-in duration-200">
+            <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
+              <span className="text-primary-foreground font-bold text-sm">E</span>
+            </div>
+            <span className="font-semibold text-foreground">Ellen</span>
           </div>
         ) : (
-          <div className="font-bold text-2xl text-primary">
-            E
+          <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
+            <span className="text-primary-foreground font-bold text-sm">E</span>
           </div>
         )}
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-2 pt-3">
+      <nav className="flex-1 px-2 py-4">
         <ul className="space-y-1">
           {navItems.map((item) => {
             const Icon = item.icon;
@@ -56,15 +58,18 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
                 <button
                   onClick={() => onTabChange(item.id)}
                   className={cn(
-                    'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                    'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-medium transition-all duration-200',
                     isActive
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
-                    !isExpanded && 'justify-center'
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                    !isExpanded && 'justify-center px-0'
                   )}
                   title={!isExpanded ? item.label : undefined}
                 >
-                  <Icon className="h-5 w-5 shrink-0" />
+                  <Icon className={cn(
+                    "h-[18px] w-[18px] shrink-0 transition-colors",
+                    isActive ? "text-primary" : ""
+                  )} strokeWidth={isActive ? 2 : 1.5} />
                   {isExpanded && <span>{item.label}</span>}
                 </button>
               </li>
