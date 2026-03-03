@@ -554,13 +554,13 @@ export default function NieuwProject() {
             <div className="flex items-center space-x-2">
               <RadioGroupItem value="algemeen" id="algemeen" />
               <Label htmlFor="algemeen" className="text-sm font-normal cursor-pointer">
-                Algemeen project
+                Algemeen
               </Label>
             </div>
             <div className="flex items-center space-x-2">
               <RadioGroupItem value="productie" id="productie" />
               <Label htmlFor="productie" className="text-sm font-normal cursor-pointer">
-                Productie project
+                Productie
               </Label>
             </div>
           </RadioGroup>

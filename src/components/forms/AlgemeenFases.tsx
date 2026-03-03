@@ -474,7 +474,13 @@ function MemberAddDropdown({
       </button>
 
       {isOpen && (
-        <div className="absolute top-full left-0 mt-1 z-50 bg-popover border border-border rounded-lg shadow-lg py-1 min-w-[200px] max-h-[240px] overflow-y-auto">
+        <div
+          className="fixed z-[100] bg-popover border border-border rounded-lg shadow-lg py-1 min-w-[200px] max-h-[240px] overflow-y-auto"
+          style={{
+            top: dropdownRef.current ? dropdownRef.current.getBoundingClientRect().bottom + 4 : 0,
+            left: dropdownRef.current ? dropdownRef.current.getBoundingClientRect().left : 0,
+          }}
+        >
           {availableEmployees.map(emp => (
             <button
               key={emp.id}
