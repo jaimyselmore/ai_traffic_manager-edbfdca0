@@ -122,10 +122,19 @@ export function PlanningRegelsTab() {
     onError: () => toast.error('Fout bij verwijderen'),
   });
 
-  const filtered = regels.filter((r: EllenRegel) =>
-    r.regel.toLowerCase().includes(search.toLowerCase()) ||
-    r.categorie.toLowerCase().includes(search.toLowerCase())
-  );
+  // Sorteer op categorie (hard, soft, voorkeur) en dan op prioriteit
+  const categorieOrder = { hard: 0, soft: 1, voorkeur: 2 };
+  const filtered = regels
+    .filter((r: EllenRegel) =>
+      r.regel.toLowerCase().includes(search.toLowerCase()) ||
+      r.categorie.toLowerCase().includes(search.toLowerCase())
+    )
+    .sort((a: EllenRegel, b: EllenRegel) => {
+      const catA = categorieOrder[a.categorie as keyof typeof categorieOrder] ?? 3;
+      const catB = categorieOrder[b.categorie as keyof typeof categorieOrder] ?? 3;
+      if (catA !== catB) return catA - catB;
+      return (a.prioriteit ?? 999) - (b.prioriteit ?? 999);
+    });
 
   const openCreate = () => {
     setEditingItem(null);
@@ -216,11 +225,6 @@ export function PlanningRegelsTab() {
           Toevoegen
         </Button>
       </div>
-
-      <p className="text-sm text-muted-foreground">
-        Planningregels die Ellen gebruikt bij het maken van planningen.
-        Hard = moet altijd, Soft = belangrijk maar kan afwijken, Voorkeur = nice to have.
-      </p>
 
       <div className="rounded-md border">
         <Table>
