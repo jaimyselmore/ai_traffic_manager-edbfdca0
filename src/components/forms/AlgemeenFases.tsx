@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Plus, X, Trash2 } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Plus, X, Trash2, ChevronDown } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -354,57 +354,63 @@ export function AlgemeenFases({ data, onChange }: AlgemeenFasesProps) {
             </div>
           </div>
 
-          {/* Workload blok */}
+          {/* Workload sectie - tabel layout */}
           <div className="border-t border-border bg-muted/30 p-4">
-            <Label className="text-sm font-medium mb-3 block">Workload (werk vooraf)</Label>
+            <Label className="text-sm font-medium mb-3 block">Workload</Label>
 
-            <div className="space-y-2">
-              {presentatie.workload.medewerkers.map(wm => {
-                const emp = employees.find(e => e.id === wm.medewerkerId);
-                if (!emp) return null;
-                return (
-                  <div key={wm.medewerkerId} className="flex items-center gap-3 bg-background rounded-lg p-3">
-                    <span className="text-sm font-medium flex-1 min-w-0 truncate">{emp.name}</span>
-                    <div className="flex items-center gap-4 shrink-0">
-                      <div className="flex items-center gap-2">
-                        <Input
-                          type="number"
-                          min="1"
-                          value={wm.aantalDagen}
-                          onChange={(e) => updateWorkloadMedewerker(presentatie.id, wm.medewerkerId, 'aantalDagen', parseInt(e.target.value) || 1)}
-                          className="w-16 h-8 text-sm"
-                        />
-                        <span className="text-xs text-muted-foreground whitespace-nowrap">dagen</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Input
-                          type="number"
-                          min="0.5"
-                          max="8"
-                          step="0.5"
-                          value={wm.urenPerDag}
-                          onChange={(e) => updateWorkloadMedewerker(presentatie.id, wm.medewerkerId, 'urenPerDag', parseFloat(e.target.value) || 1)}
-                          className="w-16 h-8 text-sm"
-                        />
-                        <span className="text-xs text-muted-foreground whitespace-nowrap">u/dag</span>
-                      </div>
+            {presentatie.workload.medewerkers.length > 0 ? (
+              <div className="bg-background rounded-lg border border-border overflow-hidden">
+                {/* Tabel header */}
+                <div className="grid grid-cols-[1fr_80px_80px_32px] gap-2 px-3 py-2 bg-muted/50 border-b border-border text-xs font-medium text-muted-foreground">
+                  <span>Medewerker</span>
+                  <span className="text-center">Dagen</span>
+                  <span className="text-center">Uren/dag</span>
+                  <span></span>
+                </div>
+
+                {/* Tabel rows */}
+                {presentatie.workload.medewerkers.map(wm => {
+                  const emp = employees.find(e => e.id === wm.medewerkerId);
+                  if (!emp) return null;
+                  return (
+                    <div key={wm.medewerkerId} className="grid grid-cols-[1fr_80px_80px_32px] gap-2 px-3 py-2 items-center border-b border-border last:border-b-0">
+                      <span className="text-sm font-medium truncate">{emp.name}</span>
+                      <Input
+                        type="number"
+                        min="1"
+                        value={wm.aantalDagen}
+                        onChange={(e) => updateWorkloadMedewerker(presentatie.id, wm.medewerkerId, 'aantalDagen', parseInt(e.target.value) || 1)}
+                        className="h-8 text-sm text-center"
+                      />
+                      <Input
+                        type="number"
+                        min="0.5"
+                        max="8"
+                        step="0.5"
+                        value={wm.urenPerDag}
+                        onChange={(e) => updateWorkloadMedewerker(presentatie.id, wm.medewerkerId, 'urenPerDag', parseFloat(e.target.value) || 1)}
+                        className="h-8 text-sm text-center"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeWorkloadMedewerker(presentatie.id, wm.medewerkerId)}
+                        className="p-1.5 hover:bg-destructive/10 hover:text-destructive rounded"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => removeWorkloadMedewerker(presentatie.id, wm.medewerkerId)}
-                      className="p-1.5 hover:bg-destructive/10 hover:text-destructive rounded shrink-0"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground mb-3">Nog geen medewerkers toegevoegd</p>
+            )}
 
+            <div className="mt-3">
               <MemberAddDropdown
                 currentIds={presentatie.workload.medewerkers.map(m => m.medewerkerId)}
                 employees={employees}
                 onAdd={(empId) => addWorkloadMedewerker(presentatie.id, empId)}
-                label="Medewerker toevoegen"
               />
             </div>
           </div>
@@ -425,57 +431,65 @@ export function AlgemeenFases({ data, onChange }: AlgemeenFasesProps) {
   );
 }
 
-// Reusable dropdown voor medewerker toevoegen
+// Dropdown voor medewerker toevoegen met betere positie
 function MemberAddDropdown({
   currentIds,
   employees,
   onAdd,
-  label = "Toevoegen",
 }: {
   currentIds: string[];
   employees: { id: string; name: string; role: string }[];
   onAdd: (empId: string) => void;
-  label?: string;
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const availableEmployees = employees.filter(e => !currentIds.includes(e.id));
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen]);
 
   if (availableEmployees.length === 0) return null;
 
   return (
-    <div className="relative">
+    <div className="relative inline-block" ref={dropdownRef}>
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-full border border-dashed border-border hover:bg-secondary transition-colors"
+        className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-dashed border-primary/50 text-primary hover:bg-primary/5 transition-colors"
       >
-        <Plus className="h-3 w-3" />
-        <span>{label}</span>
+        <Plus className="h-3.5 w-3.5" />
+        <span>Toevoegen</span>
+        <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {isOpen && (
-        <>
-          <div
-            className="fixed inset-0 z-10"
-            onClick={() => setIsOpen(false)}
-          />
-          <div className="absolute top-full left-0 mt-1 z-20 bg-popover border border-border rounded-lg shadow-lg py-1 min-w-[180px]">
-            {availableEmployees.map(emp => (
-              <button
-                key={emp.id}
-                type="button"
-                onClick={() => {
-                  onAdd(emp.id);
-                  setIsOpen(false);
-                }}
-                className="w-full text-left px-3 py-2 text-sm hover:bg-secondary transition-colors"
-              >
-                {emp.name}
-                <span className="text-muted-foreground ml-1">({emp.role})</span>
-              </button>
-            ))}
-          </div>
-        </>
+        <div className="absolute top-full left-0 mt-1 z-50 bg-popover border border-border rounded-lg shadow-lg py-1 min-w-[200px] max-h-[240px] overflow-y-auto">
+          {availableEmployees.map(emp => (
+            <button
+              key={emp.id}
+              type="button"
+              onClick={() => {
+                onAdd(emp.id);
+                setIsOpen(false);
+              }}
+              className="w-full text-left px-3 py-2 text-sm hover:bg-secondary transition-colors flex items-center justify-between"
+            >
+              <span>{emp.name}</span>
+              <span className="text-xs text-muted-foreground">{emp.role}</span>
+            </button>
+          ))}
+        </div>
       )}
     </div>
   );

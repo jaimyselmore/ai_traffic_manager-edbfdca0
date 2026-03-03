@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { ChevronDown, Plus, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -83,22 +83,24 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
       ? data.projectTeamIds.filter(id => id !== empId)
       : [...data.projectTeamIds, empId];
 
-    // Update all fases to reflect team changes
+    // Update ALL fases to reflect team changes
     const updatedFases = { ...data.fases };
     Object.keys(updatedFases).forEach(faseKey => {
       const fase = updatedFases[faseKey];
-      if (fase?.medewerkers) {
-        if (isSelected) {
-          // Remove from all fases
+      const currentMedewerkers = fase?.medewerkers || [];
+
+      if (isSelected) {
+        // Remove from all fases
+        updatedFases[faseKey] = {
+          ...fase,
+          medewerkers: currentMedewerkers.filter(id => id !== empId)
+        };
+      } else {
+        // Add to all fases (if not already present)
+        if (!currentMedewerkers.includes(empId)) {
           updatedFases[faseKey] = {
             ...fase,
-            medewerkers: fase.medewerkers.filter(id => id !== empId)
-          };
-        } else {
-          // Add to all fases
-          updatedFases[faseKey] = {
-            ...fase,
-            medewerkers: [...fase.medewerkers, empId]
+            medewerkers: [...currentMedewerkers, empId]
           };
         }
       }
@@ -303,12 +305,27 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
     const selectedIds = data.fases[fase]?.medewerkers || [];
     const availableEmployees = employees.filter(e => !selectedIds.includes(e.id));
     const [isAddOpen, setIsAddOpen] = useState(false);
+    const dropdownRef = useRef<HTMLDivElement>(null);
 
     const addMember = (empId: string) => {
       const currentList = data.fases[fase]?.medewerkers || [];
       updateFase(fase, 'medewerkers', [...currentList, empId]);
       setIsAddOpen(false);
     };
+
+    // Close dropdown on click outside
+    useEffect(() => {
+      const handleClickOutside = (event: MouseEvent) => {
+        if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+          setIsAddOpen(false);
+        }
+      };
+
+      if (isAddOpen) {
+        document.addEventListener('mousedown', handleClickOutside);
+      }
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [isAddOpen]);
 
     return (
       <div className="space-y-2 mt-4 pt-4 border-t border-border">
@@ -336,40 +353,39 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
 
           {/* Plus knop om iemand toe te voegen */}
           {availableEmployees.length > 0 && (
-            <div className="relative">
+            <div className="relative inline-block" ref={dropdownRef}>
               <button
                 type="button"
                 onClick={() => setIsAddOpen(!isAddOpen)}
-                className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-full border border-dashed border-border hover:bg-secondary transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-dashed border-primary/50 text-primary hover:bg-primary/5 transition-colors"
               >
-                <Plus className="h-3 w-3" />
+                <Plus className="h-3.5 w-3.5" />
                 <span>Toevoegen</span>
+                <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isAddOpen ? 'rotate-180' : ''}`} />
               </button>
 
               {isAddOpen && (
-                <>
-                  <div
-                    className="fixed inset-0 z-10"
-                    onClick={() => setIsAddOpen(false)}
-                  />
-                  <div className="absolute top-full left-0 mt-1 z-20 bg-popover border border-border rounded-lg shadow-lg py-1 min-w-[180px] max-h-[200px] overflow-y-auto">
-                    {availableEmployees.map(emp => (
-                      <button
-                        key={emp.id}
-                        type="button"
-                        onClick={() => addMember(emp.id)}
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-secondary transition-colors"
-                      >
-                        {emp.name}
-                        <span className="text-muted-foreground ml-1">({emp.role})</span>
-                      </button>
-                    ))}
-                  </div>
-                </>
+                <div className="absolute top-full left-0 mt-1 z-50 bg-popover border border-border rounded-lg shadow-lg py-1 min-w-[200px] max-h-[240px] overflow-y-auto">
+                  {availableEmployees.map(emp => (
+                    <button
+                      key={emp.id}
+                      type="button"
+                      onClick={() => addMember(emp.id)}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-secondary transition-colors flex items-center justify-between"
+                    >
+                      <span>{emp.name}</span>
+                      <span className="text-xs text-muted-foreground">{emp.role}</span>
+                    </button>
+                  ))}
+                </div>
               )}
             </div>
           )}
         </div>
+
+        {selectedIds.length === 0 && (
+          <p className="text-xs text-muted-foreground">Nog geen medewerkers - voeg via projectteam of klik op toevoegen</p>
+        )}
       </div>
     );
   };
