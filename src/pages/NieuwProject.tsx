@@ -5,8 +5,24 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { ProjectHeader, ProjectHeaderData, emptyProjectHeaderData } from '@/components/forms/ProjectHeader';
-import { BetrokkenTeam, BetrokkenTeamData, emptyBetrokkenTeamData } from '@/components/forms/BetrokkenTeam';
 import { ProductieFases, ProductieFasesData, emptyProductieFasesData } from '@/components/forms/ProductieFases';
+
+// Simplified team data - will be managed within ProductieFases
+interface BetrokkenTeamData {
+  accountManagers: string[];
+  producers: string[];
+  strategen: string[];
+  creatieTeam: string[];
+  studio: string[];
+}
+
+const emptyBetrokkenTeamData: BetrokkenTeamData = {
+  accountManagers: [],
+  producers: [],
+  strategen: [],
+  creatieTeam: [],
+  studio: [],
+};
 import { AlgemeenFases, AlgemeenFasesData, emptyAlgemeenFasesData } from '@/components/forms/AlgemeenFases';
 import { toast } from '@/hooks/use-toast';
 import { saveAanvraag } from '@/components/dashboard/MijnAanvragen';
@@ -114,7 +130,11 @@ export default function NieuwProject() {
         ...emptyAlgemeenFasesData,
         ...(parsed.algemeenFases ?? {}),
         projectTeamIds: (parsed.algemeenFases?.projectTeamIds ?? []) as string[],
-        presentaties: (parsed.algemeenFases?.presentaties ?? []),
+        // Ensure presentaties have workload structure
+        presentaties: (parsed.algemeenFases?.presentaties ?? []).map((p: any) => ({
+          ...p,
+          workload: p.workload ?? { medewerkers: [], aantalDagen: undefined },
+        })),
       },
       betrokkenTeam: {
         ...emptyBetrokkenTeamData,
@@ -123,6 +143,7 @@ export default function NieuwProject() {
       productieFases: {
         ...emptyProductieFasesData,
         ...(parsed.productieFases ?? {}),
+        projectTeamIds: (parsed.productieFases?.projectTeamIds ?? []) as string[],
         // `fases` is a nested object inside ProductieFasesData.
         // Ensure it exists even if older stored data misses it.
         fases: {
@@ -201,6 +222,12 @@ export default function NieuwProject() {
         newErrors.projectTeam = 'Selecteer minimaal één teamlid';
       }
     }
+    if (formData.projectType === 'productie') {
+      // Valideer dat er minimaal 1 teamlid is geselecteerd
+      if (formData.productieFases.projectTeamIds.length === 0) {
+        newErrors.projectTeam = 'Selecteer minimaal één teamlid';
+      }
+    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -216,6 +243,11 @@ export default function NieuwProject() {
     if (!formData.projectType) missing.push('Projecttype');
     if (formData.projectType === 'algemeen') {
       if (formData.algemeenFases.projectTeamIds.length === 0) {
+        missing.push('Projectteam');
+      }
+    }
+    if (formData.projectType === 'productie') {
+      if (formData.productieFases.projectTeamIds.length === 0) {
         missing.push('Projectteam');
       }
     }
@@ -492,6 +524,10 @@ export default function NieuwProject() {
       // Minimaal 1 teamlid nodig
       if (formData.algemeenFases.projectTeamIds.length === 0) return false;
     }
+    if (formData.projectType === 'productie') {
+      // Minimaal 1 teamlid nodig
+      if (formData.productieFases.projectTeamIds.length === 0) return false;
+    }
     return true;
   };
 
@@ -525,42 +561,30 @@ export default function NieuwProject() {
         />
 
         {/* Project Type Selection */}
-        <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
-          <h2 className="text-lg font-semibold text-foreground">Project Informatie</h2>
-          <div className="space-y-2">
-            <Label className="text-sm">Projecttype *</Label>
-            <RadioGroup
-              value={formData.projectType}
-              onValueChange={(value: ProjectType) => setFormData({ ...formData, projectType: value })}
-            >
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="algemeen" id="algemeen" />
-                <Label htmlFor="algemeen" className="text-sm font-normal cursor-pointer">
-                  Algemeen project
-                </Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="productie" id="productie" />
-                <Label htmlFor="productie" className="text-sm font-normal cursor-pointer">
-                  Productie project
-                </Label>
-              </div>
-            </RadioGroup>
-            {errors.projectType && (
-              <p className="text-xs text-destructive mt-1">{errors.projectType}</p>
-            )}
-          </div>
-
+        <div className="rounded-2xl border border-border bg-card p-6">
+          <Label className="text-sm mb-3 block">Projecttype *</Label>
+          <RadioGroup
+            value={formData.projectType}
+            onValueChange={(value: ProjectType) => setFormData({ ...formData, projectType: value })}
+            className="flex gap-4"
+          >
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="algemeen" id="algemeen" />
+              <Label htmlFor="algemeen" className="text-sm font-normal cursor-pointer">
+                Algemeen project
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="productie" id="productie" />
+              <Label htmlFor="productie" className="text-sm font-normal cursor-pointer">
+                Productie project
+              </Label>
+            </div>
+          </RadioGroup>
+          {errors.projectType && (
+            <p className="text-xs text-destructive mt-1">{errors.projectType}</p>
+          )}
         </div>
-
-        {/* Projectteam - alleen voor productie projecten */}
-        {formData.projectType === 'productie' && (
-          <BetrokkenTeam
-            data={formData.betrokkenTeam}
-            onChange={(data) => setFormData({ ...formData, betrokkenTeam: data })}
-            showEllenToggle={false}
-          />
-        )}
 
         {/* Algemeen Project Form - nieuwe fase-gebaseerde structuur */}
         {formData.projectType === 'algemeen' && (

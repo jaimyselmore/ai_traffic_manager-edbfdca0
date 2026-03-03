@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronDown, Plus } from 'lucide-react';
+import { ChevronDown, Plus, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -31,6 +31,7 @@ export interface FaseData {
 }
 
 export interface ProductieFasesData {
+  projectTeamIds: string[]; // Basis projectteam
   fases: Record<string, FaseData>;
   extraPresentaties: FaseData[];
   deadlineOplevering: string;
@@ -75,6 +76,40 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
   const { data: employees = [] } = useEmployees();
   const [openFases, setOpenFases] = useState<Record<string, boolean>>({});
 
+  // Toggle medewerker in projectteam
+  const toggleProjectTeamMember = (empId: string) => {
+    const isSelected = data.projectTeamIds.includes(empId);
+    const newTeamIds = isSelected
+      ? data.projectTeamIds.filter(id => id !== empId)
+      : [...data.projectTeamIds, empId];
+
+    // Update all fases to reflect team changes
+    const updatedFases = { ...data.fases };
+    Object.keys(updatedFases).forEach(faseKey => {
+      const fase = updatedFases[faseKey];
+      if (fase?.medewerkers) {
+        if (isSelected) {
+          // Remove from all fases
+          updatedFases[faseKey] = {
+            ...fase,
+            medewerkers: fase.medewerkers.filter(id => id !== empId)
+          };
+        } else {
+          // Add to all fases
+          updatedFases[faseKey] = {
+            ...fase,
+            medewerkers: [...fase.medewerkers, empId]
+          };
+        }
+      }
+    });
+
+    onChange({
+      ...data,
+      projectTeamIds: newTeamIds,
+      fases: updatedFases
+    });
+  };
 
   const updateFase = (fase: string, field: string, value: any) => {
     onChange({
@@ -266,31 +301,73 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
 
   const MedewerkerSelectie = ({ fase }: { fase: string }) => {
     const selectedIds = data.fases[fase]?.medewerkers || [];
+    const availableEmployees = employees.filter(e => !selectedIds.includes(e.id));
+    const [isAddOpen, setIsAddOpen] = useState(false);
+
+    const addMember = (empId: string) => {
+      const currentList = data.fases[fase]?.medewerkers || [];
+      updateFase(fase, 'medewerkers', [...currentList, empId]);
+      setIsAddOpen(false);
+    };
 
     return (
       <div className="space-y-2 mt-4 pt-4 border-t border-border">
         <Label className="text-sm">Medewerkers voor deze fase</Label>
         <div className="flex flex-wrap gap-2">
-          {employees.length === 0 ? (
-            <p className="text-xs text-muted-foreground italic">Geen medewerkers gevonden</p>
-          ) : (
-            employees.map(emp => {
-              const isSelected = selectedIds.includes(emp.id);
-              return (
+          {selectedIds.map(empId => {
+            const emp = employees.find(e => e.id === empId);
+            if (!emp) return null;
+            return (
+              <div
+                key={emp.id}
+                className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-full bg-primary text-primary-foreground border border-primary"
+              >
+                <span>{emp.name}</span>
                 <button
-                  key={emp.id}
                   type="button"
                   onClick={() => toggleMedewerker(fase, emp.id)}
-                  className={`px-3 py-1.5 text-sm rounded-full border transition-colors ${
-                    isSelected
-                      ? 'bg-primary text-primary-foreground border-primary'
-                      : 'bg-secondary/50 text-foreground border-border hover:bg-secondary'
-                  }`}
+                  className="ml-1 hover:bg-primary-foreground/20 rounded-full p-0.5"
                 >
-                  {emp.name}
+                  <X className="h-3 w-3" />
                 </button>
-              );
-            })
+              </div>
+            );
+          })}
+
+          {/* Plus knop om iemand toe te voegen */}
+          {availableEmployees.length > 0 && (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setIsAddOpen(!isAddOpen)}
+                className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-full border border-dashed border-border hover:bg-secondary transition-colors"
+              >
+                <Plus className="h-3 w-3" />
+                <span>Toevoegen</span>
+              </button>
+
+              {isAddOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-10"
+                    onClick={() => setIsAddOpen(false)}
+                  />
+                  <div className="absolute top-full left-0 mt-1 z-20 bg-popover border border-border rounded-lg shadow-lg py-1 min-w-[180px] max-h-[200px] overflow-y-auto">
+                    {availableEmployees.map(emp => (
+                      <button
+                        key={emp.id}
+                        type="button"
+                        onClick={() => addMember(emp.id)}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-secondary transition-colors"
+                      >
+                        {emp.name}
+                        <span className="text-muted-foreground ml-1">({emp.role})</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -407,6 +484,34 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
 
   return (
     <div className="space-y-6">
+      {/* Projectteam */}
+      <div className="rounded-2xl border border-border bg-card p-6">
+        <h2 className="text-lg font-semibold text-foreground mb-2">Projectteam</h2>
+        <p className="text-xs text-muted-foreground mb-4">
+          Selecteer het kernteam voor dit project. Dit team wordt automatisch aan alle fases toegevoegd.
+        </p>
+
+        <div className="flex flex-wrap gap-2">
+          {employees.map(emp => {
+            const isSelected = data.projectTeamIds.includes(emp.id);
+            return (
+              <button
+                key={emp.id}
+                type="button"
+                onClick={() => toggleProjectTeamMember(emp.id)}
+                className={`px-3 py-1.5 text-sm rounded-full border transition-colors ${
+                  isSelected
+                    ? 'bg-primary text-primary-foreground border-primary'
+                    : 'bg-secondary/50 text-foreground border-border hover:bg-secondary'
+                }`}
+              >
+                {emp.name}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Fases */}
       <div className="rounded-2xl border border-border bg-card p-6 space-y-2">
         <h2 className="text-lg font-semibold text-foreground mb-4">Fases</h2>
@@ -447,6 +552,7 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
 }
 
 export const emptyProductieFasesData: ProductieFasesData = {
+  projectTeamIds: [],
   fases: {
     pp: { enabled: false, startDatum: '', eindDatum: '', urenPerDag: 1, dagen: 2, medewerkers: [], flexibel: false },
     ppm: { enabled: false, datumTijd: '', locatie: 'selmore', reistijd: false },
