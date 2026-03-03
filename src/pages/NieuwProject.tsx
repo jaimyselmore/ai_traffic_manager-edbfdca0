@@ -183,7 +183,7 @@ export default function NieuwProject() {
       id: conceptKey,
       type: 'nieuw-project',
       status: 'concept',
-      titel: formData.projectHeader.projectTitel || formData.projectHeader.projectomschrijving || 'Nieuw project',
+      titel: formData.projectHeader.projectTitel || formData.projectHeader.projectNaam || 'Nieuw project',
       klant: selectedClient?.name,
       datum: new Date().toISOString(),
       projectType: formData.projectType,
@@ -201,9 +201,6 @@ export default function NieuwProject() {
 
     if (!formData.projectHeader.klantId) {
       newErrors.klantId = 'Selecteer een klant';
-    }
-    if (!formData.projectHeader.projectomschrijving) {
-      newErrors.projectomschrijving = 'Voer een projectomschrijving in';
     }
     if (!formData.projectHeader.projectNaam?.trim()) {
       newErrors.projectNaam = 'Voer een projectnaam in';
@@ -237,7 +234,6 @@ export default function NieuwProject() {
   const getMissingFieldsMessage = (): string => {
     const missing: string[] = [];
     if (!formData.projectHeader.klantId) missing.push('Klant');
-    if (!formData.projectHeader.projectomschrijving) missing.push('Projectomschrijving');
     if (!formData.projectHeader.projectNaam?.trim()) missing.push('Projectnaam');
     if (!formData.projectHeader.startDatum) missing.push('Startdatum');
     if (!formData.projectHeader.deadline) missing.push('Deadline');
@@ -286,7 +282,7 @@ export default function NieuwProject() {
       id: templateKey,
       type: 'nieuw-project',
       status: 'ingediend',
-      titel: formData.projectHeader.projectTitel || formData.projectHeader.projectomschrijving || 'Nieuw project',
+      titel: formData.projectHeader.projectTitel || formData.projectHeader.projectNaam || 'Nieuw project',
       klant: klantNaam,
       datum: new Date().toISOString(),
       projectType: formData.projectType,
@@ -297,87 +293,75 @@ export default function NieuwProject() {
     const fases: any[] = [];
 
     if (formData.projectType === 'algemeen') {
-      // Process team allocations
-      formData.algemeen.teamAllocaties.forEach(teamAllocatie => {
-        const teamMembers = employees.filter(emp => emp.duoTeam === teamAllocatie.teamName);
-        const memberNames = teamMembers.map(m => m.name);
+      // Verwerk presentaties vanuit algemeenFases
+      const defaultDatum = formData.projectHeader.startDatum || formData.projectHeader.datumAanvraag || new Date().toISOString().split('T')[0];
 
-        if (teamAllocatie.planningType === 'samen_met_team') {
+      formData.algemeenFases.presentaties.forEach(presentatie => {
+        // Verzamel medewerkers voor deze presentatie
+        const medewerkerDetails = presentatie.workload.medewerkers.map(wm => {
+          const emp = employees.find(e => e.id === wm.medewerkerId);
+          return {
+            naam: emp?.name || 'Medewerker',
+            medewerkerId: wm.medewerkerId,
+            aantalDagen: wm.aantalDagen,
+            urenPerDag: wm.urenPerDag,
+          };
+        });
+
+        const medewerkerNamen = medewerkerDetails.map(m => m.naam);
+
+        // Voeg workload fase toe (werkzaamheden vóór presentatie)
+        if (medewerkerDetails.length > 0) {
+          const maxDagen = Math.max(...medewerkerDetails.map(m => m.aantalDagen), 1);
           fases.push({
-            fase_naam: `Algemeen (${teamAllocatie.teamName})`,
-            medewerkers: memberNames,
-            start_datum: formData.projectHeader.startDatum || formData.projectHeader.datumAanvraag || new Date().toISOString().split('T')[0],
-            duur_dagen: teamAllocatie.aantalDagen,
+            fase_naam: `Werkzaamheden - ${presentatie.naam}`,
+            medewerkers: medewerkerNamen,
+            start_datum: defaultDatum,
+            duur_dagen: maxDagen,
             uren_per_dag: 8,
-            notities: teamAllocatie.toelichting || undefined,
-            medewerkerDetails: teamMembers.map(m => ({
-              naam: m.name,
-              inspanning: teamAllocatie.aantalDagen,
+            medewerkerDetails: medewerkerDetails.map(m => ({
+              naam: m.naam,
+              inspanning: m.aantalDagen,
               eenheid: 'dagen',
-              toelichting: teamAllocatie.toelichting || '',
-              ongeveer: teamAllocatie.ongeveer,
+              urenPerDag: m.urenPerDag,
             })),
-          });
-        } else if (teamAllocatie.planningType === 'beide') {
-          const teamDagen = Math.floor(teamAllocatie.aantalDagen / 2);
-          fases.push({
-            fase_naam: `Algemeen (${teamAllocatie.teamName} - samen)`,
-            medewerkers: memberNames,
-            start_datum: formData.projectHeader.startDatum || formData.projectHeader.datumAanvraag || new Date().toISOString().split('T')[0],
-            duur_dagen: teamDagen,
-            uren_per_dag: 8,
-            notities: teamAllocatie.toelichting || undefined,
-            medewerkerDetails: teamMembers.map(m => ({
-              naam: m.name,
-              inspanning: teamDagen,
-              eenheid: 'dagen',
-              toelichting: teamAllocatie.toelichting || '',
-              ongeveer: teamAllocatie.ongeveer,
-            })),
-          });
-          const individueleDagen = Math.ceil(teamAllocatie.aantalDagen / 2);
-          teamMembers.forEach(member => {
-            fases.push({
-              fase_naam: `Algemeen - ${member.name} (apart)`,
-              medewerkers: [member.name],
-              start_datum: formData.projectHeader.startDatum || formData.projectHeader.datumAanvraag || new Date().toISOString().split('T')[0],
-              duur_dagen: individueleDagen,
-              uren_per_dag: 8,
-              notities: teamAllocatie.toelichting || undefined,
-              medewerkerDetails: [{
-                naam: member.name,
-                inspanning: individueleDagen,
-                eenheid: 'dagen',
-                toelichting: teamAllocatie.toelichting || '',
-                ongeveer: teamAllocatie.ongeveer,
-              }],
-            });
           });
         }
-      });
 
-      // Process individual medewerker allocations
-      formData.algemeen.medewerkerAllocaties.forEach(allocatie => {
-        const employee = employees.find(e => e.id === allocatie.medewerkerId);
-        const employeeName = employee?.name || 'Medewerker';
-        const urenPerDag = allocatie.eenheid === 'uren' ? allocatie.aantalDagen : 8;
-        const dagenCount = allocatie.eenheid === 'uren' ? Math.ceil(allocatie.aantalDagen / 8) : allocatie.aantalDagen;
+        // Voeg presentatie meeting toe
+        const presentatieMedewerkers = presentatie.teamIds.map(id => {
+          const emp = employees.find(e => e.id === id);
+          return emp?.name || '';
+        }).filter(Boolean);
+
         fases.push({
-          fase_naam: `Algemeen - ${employeeName}`,
-          medewerkers: [employeeName],
-          start_datum: formData.projectHeader.startDatum || formData.projectHeader.datumAanvraag || new Date().toISOString().split('T')[0],
-          duur_dagen: dagenCount,
-          uren_per_dag: urenPerDag,
-          notities: allocatie.toelichting || undefined,
-          medewerkerDetails: [{
-            naam: employeeName,
-            inspanning: allocatie.aantalDagen,
-            eenheid: allocatie.eenheid || 'dagen',
-            toelichting: allocatie.toelichting || '',
-            ongeveer: allocatie.ongeveer,
-          }],
+          fase_naam: presentatie.naam,
+          type: 'presentatie',
+          medewerkers: presentatieMedewerkers,
+          start_datum: presentatie.datumType === 'zelf' && presentatie.datum ? presentatie.datum : undefined,
+          tijd: presentatie.tijd || undefined,
+          locatie: presentatie.locatie || undefined,
+          datumType: presentatie.datumType, // 'ellen' of 'zelf'
+          duur_dagen: 1,
+          uren_per_dag: 2, // Standaard 2 uur voor presentatie
         });
       });
+
+      // Als er geen presentaties zijn maar wel een projectteam, maak een standaard fase
+      if (formData.algemeenFases.presentaties.length === 0 && formData.algemeenFases.projectTeamIds.length > 0) {
+        const teamNamen = formData.algemeenFases.projectTeamIds.map(id => {
+          const emp = employees.find(e => e.id === id);
+          return emp?.name || '';
+        }).filter(Boolean);
+
+        fases.push({
+          fase_naam: 'Projectwerk',
+          medewerkers: teamNamen,
+          start_datum: defaultDatum,
+          duur_dagen: 5, // Default 5 dagen
+          uren_per_dag: 8,
+        });
+      }
     } else {
       // For productie: use productie fases
       const productieFases = formData.productieFases.fases;
@@ -461,7 +445,7 @@ export default function NieuwProject() {
     const projectInfo = {
       klant_id: formData.projectHeader.klantId,
       klant_naam: klantNaam,
-      projectnaam: formData.projectHeader.projectomschrijving,
+      projectnaam: formData.projectHeader.projectNaam,
       projectTitel: formData.projectHeader.projectTitel,
       projecttype: formData.projectType,
       isInternProject: formData.isInternProject,
@@ -479,7 +463,7 @@ export default function NieuwProject() {
         await createProjectAndSchedule({
           klant_id: formData.projectHeader.klantId,
           klant_naam: klantNaam,
-          projectnaam: formData.projectHeader.projectomschrijving,
+          projectnaam: formData.projectHeader.projectNaam,
           projectTitel: formData.projectHeader.projectTitel,
           volledigProjectId: formData.projectHeader.volledigProjectId,
           isInternProject: formData.isInternProject,
@@ -515,7 +499,6 @@ export default function NieuwProject() {
   // Check all required fields for enabling submit button
   const canSubmit = () => {
     if (!formData.projectHeader.klantId) return false;
-    if (!formData.projectHeader.projectomschrijving) return false;
     if (!formData.projectHeader.projectNaam?.trim()) return false;
     if (!formData.projectHeader.startDatum) return false;
     if (!formData.projectHeader.deadline) return false;

@@ -24,27 +24,27 @@ const formatDate = (date: Date | undefined): string => {
 
 export interface WorkloadMedewerker {
   medewerkerId: string;
+  aantalDagen: number;
   urenPerDag: number;
 }
 
 export interface Workload {
   medewerkers: WorkloadMedewerker[];
-  aantalDagen?: number;
 }
 
 export interface PresentatieMoment {
   id: string;
   naam: string;
-  datumType: 'ellen' | 'zelf'; // Ellen bepaalt of zelf invullen
+  datumType: 'ellen' | 'zelf';
   datum?: string;
   tijd?: string;
   locatie: 'selmore' | 'klant' | '';
-  teamIds: string[]; // Medewerker IDs voor de presentatie zelf
-  workload: Workload; // Werk dat vooraf aan deze presentatie gedaan moet worden
+  teamIds: string[];
+  workload: Workload;
 }
 
 export interface AlgemeenFasesData {
-  projectTeamIds: string[]; // Basis projectteam
+  projectTeamIds: string[];
   presentaties: PresentatieMoment[];
 }
 
@@ -63,7 +63,7 @@ export function AlgemeenFases({ data, onChange }: AlgemeenFasesProps) {
       ? data.projectTeamIds.filter(id => id !== empId)
       : [...data.projectTeamIds, empId];
 
-    // Update alle presentaties: teamIds en workload medewerkers
+    // Update alle presentaties
     let updatedPresentaties = data.presentaties;
     if (isSelected) {
       // Verwijder uit alle presentaties en workloads
@@ -82,7 +82,7 @@ export function AlgemeenFases({ data, onChange }: AlgemeenFasesProps) {
         teamIds: [...p.teamIds, empId],
         workload: {
           ...p.workload,
-          medewerkers: [...p.workload.medewerkers, { medewerkerId: empId, urenPerDag: 8 }]
+          medewerkers: [...p.workload.medewerkers, { medewerkerId: empId, aantalDagen: 5, urenPerDag: 8 }]
         }
       }));
     }
@@ -98,6 +98,7 @@ export function AlgemeenFases({ data, onChange }: AlgemeenFasesProps) {
   const addPresentatie = () => {
     const workloadMedewerkers: WorkloadMedewerker[] = data.projectTeamIds.map(id => ({
       medewerkerId: id,
+      aantalDagen: 5,
       urenPerDag: 8,
     }));
 
@@ -111,7 +112,6 @@ export function AlgemeenFases({ data, onChange }: AlgemeenFasesProps) {
       teamIds: [...data.projectTeamIds],
       workload: {
         medewerkers: workloadMedewerkers,
-        aantalDagen: undefined,
       },
     };
     onChange({ ...data, presentaties: [...data.presentaties, newPresentatie] });
@@ -149,18 +149,7 @@ export function AlgemeenFases({ data, onChange }: AlgemeenFasesProps) {
   };
 
   // Workload functies
-  const updateWorkloadDagen = (presentatieId: string, dagen: number | undefined) => {
-    onChange({
-      ...data,
-      presentaties: data.presentaties.map(p =>
-        p.id === presentatieId
-          ? { ...p, workload: { ...p.workload, aantalDagen: dagen } }
-          : p
-      )
-    });
-  };
-
-  const updateWorkloadUren = (presentatieId: string, medewerkerId: string, uren: number) => {
+  const updateWorkloadMedewerker = (presentatieId: string, medewerkerId: string, field: 'aantalDagen' | 'urenPerDag', value: number) => {
     onChange({
       ...data,
       presentaties: data.presentaties.map(p =>
@@ -170,7 +159,7 @@ export function AlgemeenFases({ data, onChange }: AlgemeenFasesProps) {
               workload: {
                 ...p.workload,
                 medewerkers: p.workload.medewerkers.map(m =>
-                  m.medewerkerId === medewerkerId ? { ...m, urenPerDag: uren } : m
+                  m.medewerkerId === medewerkerId ? { ...m, [field]: value } : m
                 )
               }
             }
@@ -191,7 +180,7 @@ export function AlgemeenFases({ data, onChange }: AlgemeenFasesProps) {
               ...p,
               workload: {
                 ...p.workload,
-                medewerkers: [...p.workload.medewerkers, { medewerkerId: empId, urenPerDag: 8 }]
+                medewerkers: [...p.workload.medewerkers, { medewerkerId: empId, aantalDagen: 5, urenPerDag: 8 }]
               }
             }
           : p
@@ -366,45 +355,44 @@ export function AlgemeenFases({ data, onChange }: AlgemeenFasesProps) {
           </div>
 
           {/* Workload blok */}
-          <div className="border-t border-border bg-muted/30 p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <Label className="text-sm font-medium">Workload (werk vooraf)</Label>
-              <div className="flex items-center gap-2">
-                <Label className="text-xs text-muted-foreground">Dagen:</Label>
-                <Input
-                  type="number"
-                  min="1"
-                  value={presentatie.workload.aantalDagen || ''}
-                  onChange={(e) => updateWorkloadDagen(presentatie.id, e.target.value ? parseInt(e.target.value) : undefined)}
-                  placeholder="—"
-                  className="w-16 h-8 text-sm"
-                />
-              </div>
-            </div>
+          <div className="border-t border-border bg-muted/30 p-4">
+            <Label className="text-sm font-medium mb-3 block">Workload (werk vooraf)</Label>
 
             <div className="space-y-2">
               {presentatie.workload.medewerkers.map(wm => {
                 const emp = employees.find(e => e.id === wm.medewerkerId);
                 if (!emp) return null;
                 return (
-                  <div key={wm.medewerkerId} className="flex items-center gap-3 bg-background rounded-lg p-2">
-                    <span className="text-sm flex-1">{emp.name}</span>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="number"
-                        min="0.5"
-                        max="8"
-                        step="0.5"
-                        value={wm.urenPerDag}
-                        onChange={(e) => updateWorkloadUren(presentatie.id, wm.medewerkerId, parseFloat(e.target.value) || 0)}
-                        className="w-16 h-8 text-sm"
-                      />
-                      <span className="text-xs text-muted-foreground">u/dag</span>
+                  <div key={wm.medewerkerId} className="flex items-center gap-3 bg-background rounded-lg p-3">
+                    <span className="text-sm font-medium flex-1 min-w-0 truncate">{emp.name}</span>
+                    <div className="flex items-center gap-4 shrink-0">
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          min="1"
+                          value={wm.aantalDagen}
+                          onChange={(e) => updateWorkloadMedewerker(presentatie.id, wm.medewerkerId, 'aantalDagen', parseInt(e.target.value) || 1)}
+                          className="w-16 h-8 text-sm"
+                        />
+                        <span className="text-xs text-muted-foreground whitespace-nowrap">dagen</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          min="0.5"
+                          max="8"
+                          step="0.5"
+                          value={wm.urenPerDag}
+                          onChange={(e) => updateWorkloadMedewerker(presentatie.id, wm.medewerkerId, 'urenPerDag', parseFloat(e.target.value) || 1)}
+                          className="w-16 h-8 text-sm"
+                        />
+                        <span className="text-xs text-muted-foreground whitespace-nowrap">u/dag</span>
+                      </div>
                     </div>
                     <button
                       type="button"
                       onClick={() => removeWorkloadMedewerker(presentatie.id, wm.medewerkerId)}
-                      className="p-1 hover:bg-destructive/10 hover:text-destructive rounded"
+                      className="p-1.5 hover:bg-destructive/10 hover:text-destructive rounded shrink-0"
                     >
                       <X className="h-4 w-4" />
                     </button>
@@ -471,7 +459,7 @@ function MemberAddDropdown({
             className="fixed inset-0 z-10"
             onClick={() => setIsOpen(false)}
           />
-          <div className="absolute top-full left-0 mt-1 z-20 bg-popover border border-border rounded-lg shadow-lg py-1 min-w-[180px] max-h-[200px] overflow-y-auto">
+          <div className="absolute top-full left-0 mt-1 z-20 bg-popover border border-border rounded-lg shadow-lg py-1 min-w-[180px]">
             {availableEmployees.map(emp => (
               <button
                 key={emp.id}

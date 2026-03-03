@@ -381,21 +381,6 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
         </div>
       )}
 
-      {/* Projectomschrijving */}
-      <div>
-        <Label className="text-sm">Projectomschrijving *</Label>
-        <Textarea
-          value={data.projectomschrijving}
-          onChange={(e) => onChange({ ...data, projectomschrijving: e.target.value })}
-          placeholder="Beschrijf het project..."
-          rows={3}
-          className={errors?.projectomschrijving ? 'border-destructive' : ''}
-        />
-        {errors?.projectomschrijving && (
-          <p className="text-xs text-destructive">{errors.projectomschrijving}</p>
-        )}
-      </div>
-
       {/* Startdatum */}
       <div>
         <Label className="text-sm">Startdatum *</Label>
