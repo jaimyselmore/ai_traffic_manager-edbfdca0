@@ -377,12 +377,16 @@ export default function NieuwProject() {
       faseConfig.forEach(({ key, naam, defaultDagen }) => {
         const fase = productieFases[key];
         if (heeftFaseData(fase)) {
+          // Gebruik urenPerDag van de fase als die is ingesteld (bijv. voor PP), anders 8
+          const urenPerDag = (fase as any)?.urenPerDag || 8;
           fases.push({
             fase_naam: naam,
             medewerkers: getMedewerkerNamen(fase?.medewerkers),
+            medewerkerIds: fase?.medewerkers || [], // Ook de IDs meesturen
             start_datum: fase?.startDatum || defaultDatum,
+            eind_datum: fase?.eindDatum || undefined,
             duur_dagen: fase?.dagen || defaultDagen,
-            uren_per_dag: 8,
+            uren_per_dag: urenPerDag,
           });
         }
       });

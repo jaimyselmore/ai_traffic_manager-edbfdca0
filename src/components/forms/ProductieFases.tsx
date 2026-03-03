@@ -25,6 +25,7 @@ export interface FaseData {
   locatie?: 'selmore' | 'klant';
   reistijd?: boolean;
   creatief?: boolean;
+  urenPerDag?: number;  // Uren per dag voor deze fase
   aanwezig?: string[];
   flexibel?: boolean;  // Of er speling is in de planning
 }
@@ -57,7 +58,7 @@ const formatDate = (date: Date | undefined): string => {
 };
 
 const faseLabels: Record<string, { title: string; hint?: string }> = {
-  pp: { title: 'PP (pre-productie)', hint: 'Periode waarin creatief team en producer plannen' },
+  pp: { title: 'PP (pre-productie)' },
   ppm: { title: 'PPM (pre-productie meeting met klant)' },
   shoot: { title: 'Shoot', hint: '1–2 dagen' },
   offlineEdit: { title: 'Offline edit', hint: '2–5 dagen' },
@@ -119,7 +120,27 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
         {faseLabels[fase]?.hint && (
           <p className="text-xs text-muted-foreground">{faseLabels[fase].hint}</p>
         )}
-        {(fase === 'pp' || fase === 'offlineEdit') && (
+        {fase === 'pp' && (
+          <div className="flex items-center gap-3">
+            <Label className="text-sm whitespace-nowrap">Uur per dag:</Label>
+            <Input
+              type="number"
+              min="0.5"
+              max="8"
+              step="0.5"
+              value={data.fases[fase]?.urenPerDag || ''}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === '' || /^\d*\.?\d*$/.test(val)) {
+                  updateFase(fase, 'urenPerDag', val === '' ? '' : parseFloat(val));
+                }
+              }}
+              className="w-20"
+              placeholder="1"
+            />
+          </div>
+        )}
+        {fase === 'offlineEdit' && (
           <div className="flex items-center gap-2">
             <Checkbox
               id={`${fase}-creatief`}
@@ -127,9 +148,7 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
               onCheckedChange={(checked) => updateFase(fase, 'creatief', checked)}
             />
             <Label htmlFor={`${fase}-creatief`} className="text-sm">
-              {fase === 'pp'
-                ? 'Creatief team en producer 1 uur per dag in deze periode'
-                : 'Creatie is bij editors op locatie gedurende deze periode'}
+              Creatie is bij editors op locatie gedurende deze periode
             </Label>
           </div>
         )}
@@ -429,7 +448,7 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
 
 export const emptyProductieFasesData: ProductieFasesData = {
   fases: {
-    pp: { enabled: false, startDatum: '', eindDatum: '', creatief: false, dagen: 2, medewerkers: [], flexibel: false },
+    pp: { enabled: false, startDatum: '', eindDatum: '', urenPerDag: 1, dagen: 2, medewerkers: [], flexibel: false },
     ppm: { enabled: false, datumTijd: '', locatie: 'selmore', reistijd: false },
     shoot: { enabled: false, dagen: 1, startDatum: '', eindDatum: '', aanwezig: [], medewerkers: [], flexibel: false },
     offlineEdit: { enabled: false, dagen: 2, startDatum: '', eindDatum: '', creatief: false, medewerkers: [], flexibel: false },
