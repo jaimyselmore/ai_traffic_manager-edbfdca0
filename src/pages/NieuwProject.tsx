@@ -130,9 +130,10 @@ export default function NieuwProject() {
         ...emptyAlgemeenFasesData,
         ...(parsed.algemeenFases ?? {}),
         projectTeamIds: (parsed.algemeenFases?.projectTeamIds ?? []) as string[],
-        // Ensure presentaties have workload structure
+        // Ensure presentaties have workload structure and datumType
         presentaties: (parsed.algemeenFases?.presentaties ?? []).map((p: any) => ({
           ...p,
+          datumType: p.datumType ?? (p.datum ? 'zelf' : 'ellen'),
           workload: p.workload ?? { medewerkers: [], aantalDagen: undefined },
         })),
       },
@@ -299,7 +300,6 @@ export default function NieuwProject() {
       // Process team allocations
       formData.algemeen.teamAllocaties.forEach(teamAllocatie => {
         const teamMembers = employees.filter(emp => emp.duoTeam === teamAllocatie.teamName);
-        const memberIds = teamMembers.map(m => m.id);
         const memberNames = teamMembers.map(m => m.name);
 
         if (teamAllocatie.planningType === 'samen_met_team') {
