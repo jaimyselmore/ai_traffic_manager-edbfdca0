@@ -1475,13 +1475,51 @@ function generateDefaultVoorstel(info: any): VoorstelTaak[] {
     return day === 0 ? 6 : day - 1; // Mon=0, Fri=4
   };
 
-  for (const fase of info.fases) {
+  // Sorteer fases: eerst werkzaamheden, dan presentaties (zodat werkzaamheden voor presentaties komen)
+  const werkzaamheden = info.fases.filter((f: any) => f.type !== 'presentatie');
+  const presentaties = info.fases.filter((f: any) => f.type === 'presentatie');
+  const sortedFases = [...werkzaamheden, ...presentaties];
+
+  for (const fase of sortedFases) {
     const medewerkers: string[] = fase.medewerkers || [];
     const dagen = fase.duur_dagen || 1;
     const urenPerDag = fase.uren_per_dag || 8;
     const faseStartDatum = fase.start_datum;
 
-    // Determine starting point
+    // PRESENTATIES met vaste datum: plaats op exacte datum/tijd
+    if (fase.type === 'presentatie' && fase.datumType === 'zelf' && faseStartDatum) {
+      const presentatieWeekStart = getWeekStartForDate(faseStartDatum);
+      const presentatieDagIndex = getDayOfWeekFromDate(faseStartDatum);
+      // Parse tijd (format: "16:00" of "16:30")
+      const startUur = fase.tijd ? parseInt(fase.tijd.split(':')[0]) : 14;
+
+      // Voeg presentatie toe voor elke aanwezige medewerker
+      if (medewerkers.length > 0) {
+        for (const mw of medewerkers) {
+          taken.push({
+            werknemer_naam: mw,
+            fase_naam: fase.fase_naam,
+            dag_van_week: presentatieDagIndex,
+            week_start: presentatieWeekStart,
+            start_uur: startUur,
+            duur_uren: urenPerDag, // Meestal 2 uur voor presentaties
+          });
+        }
+      } else {
+        // Geen specifieke medewerkers, maak toch een blok
+        taken.push({
+          werknemer_naam: 'Team',
+          fase_naam: fase.fase_naam,
+          dag_van_week: presentatieDagIndex,
+          week_start: presentatieWeekStart,
+          start_uur: startUur,
+          duur_uren: urenPerDag,
+        });
+      }
+      continue; // Ga naar volgende fase
+    }
+
+    // Determine starting point for werkzaamheden
     let currentWeekStart = faseStartDatum ? getWeekStartForDate(faseStartDatum) : defaultWeekStart;
     let currentDayIndex = faseStartDatum ? getDayOfWeekFromDate(faseStartDatum) : 0;
 
@@ -1492,7 +1530,7 @@ function generateDefaultVoorstel(info: any): VoorstelTaak[] {
         if (md.eenheid === 'uren') {
           medewerkerUren[md.naam] = md.inspanning;
         } else if (md.eenheid === 'dagen') {
-          medewerkerUren[md.naam] = md.inspanning * urenPerDag;
+          medewerkerUren[md.naam] = md.inspanning * (md.urenPerDag || urenPerDag);
         }
       }
     }
