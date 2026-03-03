@@ -1208,69 +1208,73 @@ function buildEllenPrompt(info: any, feedback?: string, vorigVoorstel?: Voorstel
   const werkzaamheden = info.fases?.filter((f: any) => f.type !== 'presentatie') || [];
   const presentaties = info.fases?.filter((f: any) => f.type === 'presentatie') || [];
 
-  // PRESENTATIES/MILESTONES eerst - dit zijn de vaste punten waar naartoe gewerkt wordt
+  // WERKFLOW: Presentaties zijn milestones, workload is het werk NAAR die presentatie toe
   parts.push(``);
-  parts.push(`--- PRESENTATIES & MILESTONES (VASTE MOMENTEN) ---`);
-  parts.push(`⚠️ BELANGRIJK: Presentaties zijn MILESTONES. Werk moet VOOR de presentatie af zijn!`);
+  parts.push(`=== PRESENTATIES & WERKZAAMHEDEN ===`);
+  parts.push(``);
+  parts.push(`⚠️ KRITIEK: Dit project heeft ${presentaties.length} presentatie(s).`);
+  parts.push(`Elke presentatie heeft een WORKLOAD die VOOR de presentatie moet worden afgerond.`);
   parts.push(``);
 
-  if (presentaties.length > 0) {
-    presentaties.forEach((p: any, i: number) => {
-      parts.push(`PRESENTATIE ${i + 1}: "${p.fase_naam}"`);
-      if (p.datumType === 'zelf' && p.start_datum) {
-        parts.push(`  📅 VASTE DATUM: ${p.start_datum}${p.tijd ? ` om ${p.tijd}` : ''}`);
-        parts.push(`  ⚠️ Dit is een HARD moment - plan alle werkzaamheden VOOR deze datum!`);
-      } else {
-        parts.push(`  📅 Datum: Ellen bepaalt (plan op logisch moment voor de deadline)`);
-      }
-      parts.push(`  👥 Aanwezig: ${p.medewerkers?.join(', ') || 'Nog niet bepaald'}`);
-      parts.push(`  📍 Locatie: ${p.locatie === 'klant' ? 'Bij klant' : p.locatie === 'selmore' ? 'Bij Selmore' : 'Nog niet bepaald'}`);
-      parts.push(`  ⏱️ Duur: ${p.uren_per_dag || 2} uur (meeting/presentatie)`);
-      parts.push(``);
-    });
-  } else {
-    parts.push(`Geen presentaties opgegeven - plan werkzaamheden tot aan de deadline`);
+  // Loop door presentaties en hun bijbehorende werkzaamheden
+  presentaties.forEach((p: any, i: number) => {
+    // Zoek de werkzaamheden die bij deze presentatie horen
+    const werkVoorPresentatie = werkzaamheden.find((w: any) =>
+      w.fase_naam?.toLowerCase().includes(p.fase_naam?.toLowerCase()) ||
+      w.fase_naam?.toLowerCase().includes('werkzaamheden')
+    );
+
+    parts.push(`--- PRESENTATIE ${i + 1}: "${p.fase_naam}" ---`);
+
+    // Presentatie details
+    if (p.datumType === 'zelf' && p.start_datum) {
+      parts.push(`📅 EXACTE DATUM: ${p.start_datum}${p.tijd ? ` om ${p.tijd}` : ''}`);
+      parts.push(`🔒 DIT IS EEN HARDE AFSPRAAK - ZET OP PRECIES DEZE DATUM/TIJD!`);
+      parts.push(`🎨 KLEUR: Meeting met klant (extern/paars in legenda)`);
+    } else {
+      parts.push(`📅 Datum: Ellen bepaalt (voor de deadline: ${info.deadline || 'niet opgegeven'})`);
+    }
+    parts.push(`👥 Aanwezig bij presentatie: ${p.medewerkers?.join(', ') || 'Team'}`);
+    parts.push(`📍 Locatie: ${p.locatie === 'klant' ? 'Bij klant' : p.locatie === 'selmore' ? 'Bij Selmore' : 'Nog niet bepaald'}`);
+    parts.push(`⏱️ Duur presentatie: ${p.uren_per_dag || 2} uur`);
     parts.push(``);
-  }
 
-  // WERKZAAMHEDEN - dit is het werk dat VOOR presentaties moet gebeuren
-  parts.push(`--- WERKZAAMHEDEN (WERK DAT VOOR PRESENTATIES MOET) ---`);
-  parts.push(`⚠️ BELANGRIJK: Plan deze werkzaamheden VOOR de bijbehorende presentatie!`);
-  parts.push(``);
-
-  if (werkzaamheden.length > 0) {
-    werkzaamheden.forEach((f: any, i: number) => {
-      parts.push(`WERKZAAMHEDEN ${i + 1}: "${f.fase_naam}"`);
-      parts.push(`  👥 Medewerkers: ${f.medewerkers?.join(', ') || 'GEEN - dit is een probleem!'}`);
-      parts.push(`  📅 Startdatum: ${f.start_datum || 'Bepaal zelf (maar voor de presentatie!)'}`);
-      parts.push(`  ⏱️ Duur: ${f.duur_dagen} dagen, ${f.uren_per_dag || 8} uur per dag`);
-
-      // Medewerker details met exact/ongeveer info
-      if (f.medewerkerDetails?.length > 0) {
-        parts.push(`  📊 INSPANNING PER MEDEWERKER:`);
-        f.medewerkerDetails.forEach((md: any) => {
+    // Werkzaamheden voor deze presentatie
+    if (werkVoorPresentatie) {
+      parts.push(`WORKLOAD VOOR DEZE PRESENTATIE:`);
+      parts.push(`⚠️ Dit werk moet KLAAR zijn VÓÓR ${p.start_datum || 'de presentatiedatum'}!`);
+      if (werkVoorPresentatie.medewerkerDetails?.length > 0) {
+        werkVoorPresentatie.medewerkerDetails.forEach((md: any) => {
           const uren = md.urenPerDag || 8;
           const totaalUren = md.inspanning * uren;
-          parts.push(`    • ${md.naam}: ${md.inspanning} dagen × ${uren}u/dag = ${totaalUren} uur totaal`);
+          parts.push(`  • ${md.naam}: ${md.inspanning} dagen × ${uren}u/dag = ${totaalUren} uur`);
+        });
+      } else {
+        parts.push(`  Medewerkers: ${werkVoorPresentatie.medewerkers?.join(', ') || 'Geen opgegeven'}`);
+        parts.push(`  Duur: ${werkVoorPresentatie.duur_dagen} dagen, ${werkVoorPresentatie.uren_per_dag || 8}u/dag`);
+      }
+    }
+    parts.push(``);
+  });
+
+  // Als er geen presentaties zijn maar wel werkzaamheden
+  if (presentaties.length === 0 && werkzaamheden.length > 0) {
+    parts.push(`--- WERKZAAMHEDEN (geen presentaties) ---`);
+    werkzaamheden.forEach((f: any) => {
+      parts.push(`"${f.fase_naam}"`);
+      parts.push(`  👥 Medewerkers: ${f.medewerkers?.join(', ') || 'Geen'}`);
+      parts.push(`  ⏱️ Duur: ${f.duur_dagen} dagen, ${f.uren_per_dag || 8}u/dag`);
+      if (f.medewerkerDetails?.length > 0) {
+        f.medewerkerDetails.forEach((md: any) => {
+          parts.push(`    • ${md.naam}: ${md.inspanning} dagen × ${md.urenPerDag || 8}u/dag`);
         });
       }
       parts.push(``);
     });
-  } else {
-    parts.push(`Geen specifieke werkzaamheden opgegeven`);
-    parts.push(``);
   }
 
-  // Samenhang uitleggen
-  if (presentaties.length > 0 && werkzaamheden.length > 0) {
-    parts.push(`--- PLANNING LOGICA ---`);
-    parts.push(`De werkzaamheden horen bij de presentaties. Bijvoorbeeld:`);
-    presentaties.forEach((p: any, i: number) => {
-      const bijbehorendeWerk = werkzaamheden.find((w: any) => w.fase_naam?.includes(p.fase_naam));
-      if (bijbehorendeWerk) {
-        parts.push(`• "${bijbehorendeWerk.fase_naam}" moet KLAAR zijn VOOR "${p.fase_naam}"`);
-      }
-    });
+  if (presentaties.length === 0 && werkzaamheden.length === 0) {
+    parts.push(`Geen specifieke fases opgegeven`);
     parts.push(``);
   }
 
@@ -1475,12 +1479,100 @@ function generateDefaultVoorstel(info: any): VoorstelTaak[] {
     return day === 0 ? 6 : day - 1; // Mon=0, Fri=4
   };
 
-  // Sorteer fases: eerst werkzaamheden, dan presentaties (zodat werkzaamheden voor presentaties komen)
+  // Groepeer werkzaamheden met hun presentaties
   const werkzaamheden = info.fases.filter((f: any) => f.type !== 'presentatie');
   const presentaties = info.fases.filter((f: any) => f.type === 'presentatie');
-  const sortedFases = [...werkzaamheden, ...presentaties];
 
-  for (const fase of sortedFases) {
+  // Plan presentaties met vaste datum eerst, dan werkzaamheden daarvoor
+  // Bouw een lijst van presentaties met hun werkzaamheden
+  const presentatieGroepen: Array<{ presentatie: any; werkzaamheden: any }> = [];
+
+  presentaties.forEach((p: any) => {
+    // Zoek de werkzaamheden die bij deze presentatie horen
+    const bijbehorendWerk = werkzaamheden.find((w: any) =>
+      w.fase_naam?.toLowerCase().includes(p.fase_naam?.toLowerCase()) ||
+      (w.fase_naam?.toLowerCase().includes('werkzaamheden') && p.fase_naam)
+    );
+    presentatieGroepen.push({ presentatie: p, werkzaamheden: bijbehorendWerk });
+  });
+
+  // Verwerk elke groep: eerst presentatie plannen (als exacte datum), dan werkzaamheden ervoor
+  for (const groep of presentatieGroepen) {
+    const presentatie = groep.presentatie;
+    const werkFase = groep.werkzaamheden;
+
+    // Plan presentatie eerst als die een vaste datum heeft
+    if (presentatie.datumType === 'zelf' && presentatie.start_datum) {
+      const presentatieWeekStart = getWeekStartForDate(presentatie.start_datum);
+      const presentatieDagIndex = getDayOfWeekFromDate(presentatie.start_datum);
+      const startUur = presentatie.tijd ? parseInt(presentatie.tijd.split(':')[0]) : 14;
+      const medewerkers: string[] = presentatie.medewerkers || [];
+
+      for (const mw of medewerkers.length > 0 ? medewerkers : ['Team']) {
+        taken.push({
+          werknemer_naam: mw,
+          fase_naam: presentatie.fase_naam,
+          dag_van_week: presentatieDagIndex,
+          week_start: presentatieWeekStart,
+          start_uur: startUur,
+          duur_uren: presentatie.uren_per_dag || 2,
+        });
+      }
+
+      // Plan werkzaamheden VOOR deze presentatie
+      if (werkFase) {
+        const presentatieDatum = new Date(presentatie.start_datum + 'T00:00:00');
+        const werkMedewerkers: string[] = werkFase.medewerkers || [];
+        const urenPerDag = werkFase.uren_per_dag || 8;
+
+        // Bereken startdatum voor werkzaamheden (werk achteruit vanaf presentatie)
+        for (const mw of werkMedewerkers) {
+          // Zoek specifieke uren voor deze medewerker
+          const mdDetail = werkFase.medewerkerDetails?.find((md: any) => md.naam === mw);
+          const totaalUren = mdDetail
+            ? mdDetail.inspanning * (mdDetail.urenPerDag || urenPerDag)
+            : (werkFase.duur_dagen || 5) * urenPerDag;
+
+          let restUren = totaalUren;
+          // Start planning vanaf de dag VOOR de presentatie
+          let werkDatum = new Date(presentatieDatum);
+          werkDatum.setDate(werkDatum.getDate() - 1);
+
+          while (restUren > 0) {
+            // Skip weekenden
+            while (werkDatum.getDay() === 0 || werkDatum.getDay() === 6) {
+              werkDatum.setDate(werkDatum.getDate() - 1);
+            }
+
+            const werkWeekStart = getWeekStartForDate(werkDatum.toISOString().split('T')[0]);
+            const werkDagIndex = getDayOfWeekFromDate(werkDatum.toISOString().split('T')[0]);
+            const blokUren = Math.min(restUren, urenPerDag);
+
+            const slot = getNextFreeSlot(mw, werkWeekStart, werkDagIndex, blokUren);
+            if (slot) {
+              taken.push({
+                werknemer_naam: mw,
+                fase_naam: werkFase.fase_naam,
+                dag_van_week: slot.dagVanWeek,
+                week_start: slot.weekStart,
+                start_uur: slot.startUur,
+                duur_uren: blokUren,
+              });
+              restUren -= blokUren;
+            }
+            werkDatum.setDate(werkDatum.getDate() - 1);
+          }
+        }
+      }
+    }
+  }
+
+  // Plan overgebleven fases die niet aan een presentatie gekoppeld zijn
+  const gekoppeldeWerk = presentatieGroepen.map(g => g.werkzaamheden).filter(Boolean);
+  const losseWerkzaamheden = werkzaamheden.filter(w => !gekoppeldeWerk.includes(w));
+  const lossePresentaties = presentaties.filter(p => p.datumType !== 'zelf' || !p.start_datum);
+
+  for (const fase of [...losseWerkzaamheden, ...lossePresentaties]) {
     const medewerkers: string[] = fase.medewerkers || [];
     const dagen = fase.duur_dagen || 1;
     const urenPerDag = fase.uren_per_dag || 8;
