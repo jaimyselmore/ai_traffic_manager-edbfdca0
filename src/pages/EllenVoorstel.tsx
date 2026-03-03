@@ -332,23 +332,39 @@ export default function EllenVoorstel() {
       if (!project?.id) throw new Error('Project aangemaakt maar geen ID terug gekregen');
 
       // 3. Maak taken aan - één voor één
+      // Detecteer presentaties vs werkzaamheden voor juiste kleuren
+      const presentatieNamen = projectInfo.fases
+        ?.filter((f: any) => f.type === 'presentatie')
+        ?.map((f: any) => f.fase_naam?.toLowerCase()) || [];
+
       let aantalGeplaatst = 0;
       const fouten: string[] = [];
       for (const taak of voorstellen) {
+        // Check of dit een presentatie is (match op fase_naam)
+        const isPresentatie = presentatieNamen.some((pn: string) =>
+          taak.fase_naam?.toLowerCase().includes(pn) ||
+          pn?.includes(taak.fase_naam?.toLowerCase() || '')
+        ) || taak.fase_naam?.toLowerCase().includes('presentatie') ||
+           taak.fase_naam?.toLowerCase().includes('meeting');
+
+        // Bepaal werktype: presentaties krijgen 'extern', werkzaamheden de geselecteerde kleur
+        const taakWerktype = isPresentatie ? 'extern' : werktype;
+        const taakFaseLabel = isPresentatie ? 'Meeting met klant' : faseLabel;
+
         const { error: taakErr } = await secureInsert('taken', {
           project_id: project.id,
           werknemer_naam: taak.werknemer_naam,
           klant_naam: projectInfo.klant_naam,
           project_nummer: projectNummer,
-          fase_naam: faseLabel,
-          werktype,
-          discipline: 'Algemeen',
+          fase_naam: taak.fase_naam || taakFaseLabel,
+          werktype: taakWerktype,
+          discipline: isPresentatie ? 'Meeting' : 'Algemeen',
           week_start: taak.week_start,
           dag_van_week: taak.dag_van_week,
           start_uur: taak.start_uur,
           duur_uren: taak.duur_uren,
           plan_status: planStatus,
-          is_hard_lock: false,
+          is_hard_lock: isPresentatie, // Presentaties met vaste datum zijn hard locks
         });
         if (taakErr) {
           console.error('Taak insert fout:', taakErr.message);
@@ -1188,47 +1204,79 @@ function buildEllenPrompt(info: any, feedback?: string, vorigVoorstel?: Voorstel
     parts.push(`Dagen tot deadline: ${diffDays} dagen`);
   }
 
-  // Fases met ALLE details
+  // Fases en presentaties - apart behandelen
+  const werkzaamheden = info.fases?.filter((f: any) => f.type !== 'presentatie') || [];
+  const presentaties = info.fases?.filter((f: any) => f.type === 'presentatie') || [];
+
+  // PRESENTATIES/MILESTONES eerst - dit zijn de vaste punten waar naartoe gewerkt wordt
   parts.push(``);
-  parts.push(`--- FASES & MEDEWERKERS (GESELECTEERD IN TEMPLATE) ---`);
-  if (info.fases?.length > 0) {
-    info.fases.forEach((f: any, i: number) => {
+  parts.push(`--- PRESENTATIES & MILESTONES (VASTE MOMENTEN) ---`);
+  parts.push(`⚠️ BELANGRIJK: Presentaties zijn MILESTONES. Werk moet VOOR de presentatie af zijn!`);
+  parts.push(``);
+
+  if (presentaties.length > 0) {
+    presentaties.forEach((p: any, i: number) => {
+      parts.push(`PRESENTATIE ${i + 1}: "${p.fase_naam}"`);
+      if (p.datumType === 'zelf' && p.start_datum) {
+        parts.push(`  📅 VASTE DATUM: ${p.start_datum}${p.tijd ? ` om ${p.tijd}` : ''}`);
+        parts.push(`  ⚠️ Dit is een HARD moment - plan alle werkzaamheden VOOR deze datum!`);
+      } else {
+        parts.push(`  📅 Datum: Ellen bepaalt (plan op logisch moment voor de deadline)`);
+      }
+      parts.push(`  👥 Aanwezig: ${p.medewerkers?.join(', ') || 'Nog niet bepaald'}`);
+      parts.push(`  📍 Locatie: ${p.locatie === 'klant' ? 'Bij klant' : p.locatie === 'selmore' ? 'Bij Selmore' : 'Nog niet bepaald'}`);
+      parts.push(`  ⏱️ Duur: ${p.uren_per_dag || 2} uur (meeting/presentatie)`);
       parts.push(``);
-      parts.push(`FASE ${i + 1}: ${f.fase_naam || 'Onbenoemd'}`);
-      parts.push(`  → Geselecteerde medewerkers: ${f.medewerkers?.join(', ') || 'GEEN - dit is een probleem!'}`);
-      parts.push(`  → Gewenste startdatum: ${f.start_datum || 'Niet opgegeven'}`);
-      parts.push(`  → Geschatte duur: ${f.duur_dagen} dagen`);
-      parts.push(`  → Uren per dag: ${f.uren_per_dag || 8} uur`);
+    });
+  } else {
+    parts.push(`Geen presentaties opgegeven - plan werkzaamheden tot aan de deadline`);
+    parts.push(``);
+  }
+
+  // WERKZAAMHEDEN - dit is het werk dat VOOR presentaties moet gebeuren
+  parts.push(`--- WERKZAAMHEDEN (WERK DAT VOOR PRESENTATIES MOET) ---`);
+  parts.push(`⚠️ BELANGRIJK: Plan deze werkzaamheden VOOR de bijbehorende presentatie!`);
+  parts.push(``);
+
+  if (werkzaamheden.length > 0) {
+    werkzaamheden.forEach((f: any, i: number) => {
+      parts.push(`WERKZAAMHEDEN ${i + 1}: "${f.fase_naam}"`);
+      parts.push(`  👥 Medewerkers: ${f.medewerkers?.join(', ') || 'GEEN - dit is een probleem!'}`);
+      parts.push(`  📅 Startdatum: ${f.start_datum || 'Bepaal zelf (maar voor de presentatie!)'}`);
+      parts.push(`  ⏱️ Duur: ${f.duur_dagen} dagen, ${f.uren_per_dag || 8} uur per dag`);
 
       // Medewerker details met exact/ongeveer info
       if (f.medewerkerDetails?.length > 0) {
-        parts.push(`  → INSPANNING PER MEDEWERKER:`);
+        parts.push(`  📊 INSPANNING PER MEDEWERKER:`);
         f.medewerkerDetails.forEach((md: any) => {
-          const exactheid = md.ongeveer
-            ? '⚠️ ONGEVEER – je mag ± 20% afwijken van dit aantal'
-            : '🔒 EXACT – je mag NIET afwijken van dit aantal';
-          parts.push(`    • ${md.naam}: ${md.inspanning} ${md.eenheid} (${exactheid})`);
-          if (md.toelichting) {
-            parts.push(`      Toelichting: "${md.toelichting}"`);
-          }
+          const uren = md.urenPerDag || 8;
+          const totaalUren = md.inspanning * uren;
+          parts.push(`    • ${md.naam}: ${md.inspanning} dagen × ${uren}u/dag = ${totaalUren} uur totaal`);
         });
       }
-
-      if (f.notities) {
-        parts.push(`  → TOELICHTING (BELANGRIJK!): "${f.notities}"`);
-        parts.push(`     ^ ANALYSEER DIT! Bevat instructies over verdeling (per week, laatste week, etc.)`);
-      } else {
-        parts.push(`  → Toelichting: Geen - plan aaneengesloten`);
-      }
+      parts.push(``);
     });
   } else {
-    parts.push(`GEEN FASES OPGEGEVEN - dit is een probleem, vraag om verduidelijking`);
+    parts.push(`Geen specifieke werkzaamheden opgegeven`);
+    parts.push(``);
   }
 
-  // Meetings
-  parts.push(``);
-  parts.push(`--- MEETINGS & PRESENTATIES ---`);
+  // Samenhang uitleggen
+  if (presentaties.length > 0 && werkzaamheden.length > 0) {
+    parts.push(`--- PLANNING LOGICA ---`);
+    parts.push(`De werkzaamheden horen bij de presentaties. Bijvoorbeeld:`);
+    presentaties.forEach((p: any, i: number) => {
+      const bijbehorendeWerk = werkzaamheden.find((w: any) => w.fase_naam?.includes(p.fase_naam));
+      if (bijbehorendeWerk) {
+        parts.push(`• "${bijbehorendeWerk.fase_naam}" moet KLAAR zijn VOOR "${p.fase_naam}"`);
+      }
+    });
+    parts.push(``);
+  }
+
+  // Legacy meetings support (oude structuur)
   if (info.meetings?.length > 0) {
+    parts.push(`--- EXTRA MEETINGS ---`);
     info.meetings.forEach((m: any) => {
       const typeLabels: Record<string, string> = {
         'kick-off': 'Kick-off meeting',
@@ -1238,8 +1286,7 @@ function buildEllenPrompt(info: any, feedback?: string, vorigVoorstel?: Voorstel
       };
       parts.push(`- ${typeLabels[m.type] || m.type}: ${m.aantalUren} uur${m.notitie ? ` - "${m.notitie}"` : ''}`);
     });
-  } else {
-    parts.push(`Geen meetings opgegeven in template`);
+    parts.push(``);
   }
 
   // Betrokken personen
