@@ -364,7 +364,7 @@ export function AlgemeenFases({ data, onChange }: AlgemeenFasesProps) {
                 <div className="grid grid-cols-[1fr_80px_80px_32px] gap-2 px-3 py-2 bg-muted/50 border-b border-border text-xs font-medium text-muted-foreground">
                   <span>Medewerker</span>
                   <span className="text-center">Dagen</span>
-                  <span className="text-center">Uren/dag</span>
+                  <span className="text-center">Uren</span>
                   <span></span>
                 </div>
 
