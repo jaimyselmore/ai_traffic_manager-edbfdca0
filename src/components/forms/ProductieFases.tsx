@@ -248,13 +248,13 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
             />
           </div>
           <div>
-            <Label className="text-sm">Uur per dag</Label>
+            <Label className="text-sm">Uren</Label>
             <Input
               type="number"
-              min="0.5"
-              max="8"
+              min="0"
+              max="100"
               step="0.5"
-              value={data.fases[fase]?.urenPerDag || ''}
+              value={data.fases[fase]?.urenPerDag ?? ''}
               onChange={(e) => {
                 const val = e.target.value;
                 if (val === '' || /^\d*\.?\d*$/.test(val)) {
@@ -262,7 +262,7 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
                 }
               }}
               className="w-full"
-              placeholder="8"
+              placeholder="0"
             />
           </div>
         </div>
