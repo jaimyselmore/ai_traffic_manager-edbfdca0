@@ -1,16 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Save, Plus, X } from 'lucide-react';
+import { Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ProjectHeader, ProjectHeaderData, emptyProjectHeaderData } from '@/components/forms/ProjectHeader';
 import { BetrokkenTeam, BetrokkenTeamData, emptyBetrokkenTeamData } from '@/components/forms/BetrokkenTeam';
 import { ProductieFases, ProductieFasesData, emptyProductieFasesData } from '@/components/forms/ProductieFases';
+import { AlgemeenFases, AlgemeenFasesData, emptyAlgemeenFasesData } from '@/components/forms/AlgemeenFases';
 import { toast } from '@/hooks/use-toast';
 import { saveAanvraag } from '@/components/dashboard/MijnAanvragen';
 import { useAuth } from '@/contexts/AuthContext';
@@ -66,6 +63,7 @@ interface NieuwProjectFormData {
   projectType: ProjectType;
   isInternProject: boolean;
   algemeen: AlgemeenProjectData;
+  algemeenFases: AlgemeenFasesData;
   betrokkenTeam: BetrokkenTeamData;
   productieFases: ProductieFasesData;
 }
@@ -75,6 +73,7 @@ const emptyFormData: NieuwProjectFormData = {
   projectType: '',
   isInternProject: false,
   algemeen: emptyAlgemeenData,
+  algemeenFases: emptyAlgemeenFasesData,
   betrokkenTeam: emptyBetrokkenTeamData,
   productieFases: emptyProductieFasesData,
 };
@@ -110,6 +109,12 @@ export default function NieuwProject() {
         teamAllocaties: (parsed.algemeen?.teamAllocaties ?? []) as TeamAllocatie[],
         betrokkenPersonen: (parsed.algemeen?.betrokkenPersonen ?? []) as string[],
         meetings: (parsed.algemeen?.meetings ?? []) as MeetingData[],
+      },
+      algemeenFases: {
+        ...emptyAlgemeenFasesData,
+        ...(parsed.algemeenFases ?? {}),
+        projectTeamIds: (parsed.algemeenFases?.projectTeamIds ?? []) as string[],
+        presentaties: (parsed.algemeenFases?.presentaties ?? []),
       },
       betrokkenTeam: {
         ...emptyBetrokkenTeamData,
@@ -191,27 +196,9 @@ export default function NieuwProject() {
       newErrors.projectType = 'Selecteer een projecttype';
     }
     if (formData.projectType === 'algemeen') {
-      const totalSelections = formData.algemeen.medewerkerAllocaties.length + formData.algemeen.teamAllocaties.length;
-      if (totalSelections === 0) {
-        newErrors.algemeen = 'Selecteer minimaal één medewerker of team';
-      }
-
-      // Check if all selected employees have days > 0
-      const invalidAllocaties = formData.algemeen.medewerkerAllocaties.filter(a => a.aantalDagen <= 0);
-      if (invalidAllocaties.length > 0) {
-        newErrors.aantalDagen = 'Alle medewerkers moeten minimaal 1 dag hebben';
-      }
-
-      // Check if teams have days > 0
-      const invalidTeamAllocaties = formData.algemeen.teamAllocaties.filter(t => t.aantalDagen <= 0);
-      if (invalidTeamAllocaties.length > 0) {
-        newErrors.aantalDagen = 'Alle teams moeten minimaal 1 dag hebben';
-      }
-
-      // Check if teams have planning type selected
-      const teamsWithoutPlanningType = formData.algemeen.teamAllocaties.filter(t => !t.planningType);
-      if (teamsWithoutPlanningType.length > 0) {
-        newErrors.planningType = 'Selecteer voor alle teams hoe ze moeten worden ingepland';
+      // Valideer dat er minimaal 1 teamlid is geselecteerd
+      if (formData.algemeenFases.projectTeamIds.length === 0) {
+        newErrors.projectTeam = 'Selecteer minimaal één teamlid';
       }
     }
 
@@ -228,13 +215,8 @@ export default function NieuwProject() {
     if (!formData.projectHeader.deadline) missing.push('Deadline');
     if (!formData.projectType) missing.push('Projecttype');
     if (formData.projectType === 'algemeen') {
-      const totalSelections = formData.algemeen.medewerkerAllocaties.length + formData.algemeen.teamAllocaties.length;
-      if (totalSelections === 0) missing.push('Medewerkers of teams');
-
-      // Check if teams have planning type selected
-      const teamsWithoutPlanningType = formData.algemeen.teamAllocaties.filter(t => !t.planningType);
-      if (teamsWithoutPlanningType.length > 0) {
-        missing.push('Planning type voor teams');
+      if (formData.algemeenFases.projectTeamIds.length === 0) {
+        missing.push('Projectteam');
       }
     }
     return missing.join(', ');
@@ -503,214 +485,10 @@ export default function NieuwProject() {
     if (!formData.projectHeader.deadline) return false;
     if (!formData.projectType) return false;
     if (formData.projectType === 'algemeen') {
-      const totalSelections = formData.algemeen.medewerkerAllocaties.length + formData.algemeen.teamAllocaties.length;
-      if (totalSelections === 0) return false;
-      // Check if all allocations have valid days
-      if (formData.algemeen.medewerkerAllocaties.some(a => a.aantalDagen <= 0)) return false;
-      if (formData.algemeen.teamAllocaties.some(t => t.aantalDagen <= 0)) return false;
-      // Check if teams have planning type selected
-      if (formData.algemeen.teamAllocaties.some(t => !t.planningType)) return false;
+      // Minimaal 1 teamlid nodig
+      if (formData.algemeenFases.projectTeamIds.length === 0) return false;
     }
     return true;
-  };
-
-  const handleMedewerkerToggle = (id: string) => {
-    setFormData(prev => {
-      const exists = prev.algemeen.medewerkerAllocaties.find(a => a.medewerkerId === id);
-      if (exists) {
-        // Remove employee
-        return {
-          ...prev,
-          algemeen: {
-            ...prev.algemeen,
-            medewerkerAllocaties: prev.algemeen.medewerkerAllocaties.filter(a => a.medewerkerId !== id)
-          }
-        };
-      } else {
-        // Add employee with default values
-        return {
-          ...prev,
-          algemeen: {
-            ...prev.algemeen,
-            medewerkerAllocaties: [
-              ...prev.algemeen.medewerkerAllocaties,
-              {
-                medewerkerId: id,
-                aantalDagen: 5,
-                eenheid: 'dagen',
-                toelichting: '',
-                ongeveer: false,
-              }
-            ]
-          }
-        };
-      }
-    });
-  };
-
-  const handleMedewerkerDagenChange = (id: string, dagen: number) => {
-    setFormData(prev => ({
-      ...prev,
-      algemeen: {
-        ...prev.algemeen,
-        medewerkerAllocaties: prev.algemeen.medewerkerAllocaties.map(a =>
-          a.medewerkerId === id ? { ...a, aantalDagen: dagen } : a
-        )
-      }
-    }));
-  };
-
-  const handleMedewerkerToelichtingChange = (id: string, toelichting: string) => {
-    setFormData(prev => ({
-      ...prev,
-      algemeen: {
-        ...prev.algemeen,
-        medewerkerAllocaties: prev.algemeen.medewerkerAllocaties.map(a =>
-          a.medewerkerId === id ? { ...a, toelichting } : a
-        )
-      }
-    }));
-  };
-
-  const handleMedewerkerEenheidChange = (id: string, eenheid: 'dagen' | 'uren') => {
-    setFormData(prev => ({
-      ...prev,
-      algemeen: {
-        ...prev.algemeen,
-        medewerkerAllocaties: prev.algemeen.medewerkerAllocaties.map(a =>
-          a.medewerkerId === id ? { ...a, eenheid, aantalDagen: eenheid === 'uren' ? 8 : 1 } : a
-        )
-      }
-    }));
-  };
-
-  const handleMedewerkerOngeveerChange = (id: string, ongeveer: boolean) => {
-    setFormData(prev => ({
-      ...prev,
-      algemeen: {
-        ...prev.algemeen,
-        medewerkerAllocaties: prev.algemeen.medewerkerAllocaties.map(a =>
-          a.medewerkerId === id ? { ...a, ongeveer } : a
-        )
-      }
-    }));
-  };
-
-  const handleTeamOngeveerChange = (teamName: string, ongeveer: boolean) => {
-    setFormData(prev => ({
-      ...prev,
-      algemeen: {
-        ...prev.algemeen,
-        teamAllocaties: prev.algemeen.teamAllocaties.map(t =>
-          t.teamName === teamName ? { ...t, ongeveer } : t
-        )
-      }
-    }));
-  };
-
-  const DAGEN_OPTIES = [
-    { value: '0.5', label: '0.5 dag' },
-    { value: '1', label: '1 dag' },
-    { value: '2', label: '2 dagen' },
-    { value: '3', label: '3 dagen' },
-    { value: '4', label: '4 dagen' },
-    { value: '5', label: '5 dagen' },
-    { value: '6', label: '6 dagen' },
-    { value: '7', label: '7 dagen' },
-    { value: '8', label: '8 dagen' },
-    { value: '9', label: '9 dagen' },
-    { value: '10', label: '10 dagen' },
-  ];
-
-  const UREN_OPTIES = [
-    { value: '4', label: '4 uur' },
-    { value: '8', label: '8 uur (1 dag)' },
-    { value: '16', label: '16 uur (2 dagen)' },
-    { value: '24', label: '24 uur (3 dagen)' },
-    { value: '32', label: '32 uur (4 dagen)' },
-    { value: '40', label: '40 uur (5 dagen)' },
-    { value: '48', label: '48 uur (6 dagen)' },
-    { value: '56', label: '56 uur (7 dagen)' },
-    { value: '60', label: '60 uur' },
-    { value: '80', label: '80 uur (10 dagen)' },
-  ];
-
-  // Team selection handlers
-  const handleTeamToggle = (teamName: string, memberIds: string[]) => {
-    setFormData(prev => {
-      const teamExists = prev.algemeen.teamAllocaties.find(t => t.teamName === teamName);
-
-      if (teamExists) {
-        // Remove team selection and all individual members
-        return {
-          ...prev,
-          algemeen: {
-            ...prev.algemeen,
-            teamAllocaties: prev.algemeen.teamAllocaties.filter(t => t.teamName !== teamName),
-            medewerkerAllocaties: prev.algemeen.medewerkerAllocaties.filter(
-              a => !memberIds.includes(a.medewerkerId)
-            )
-          }
-        };
-      } else {
-        // Add team selection (remove individual members if they were selected)
-        return {
-          ...prev,
-          algemeen: {
-            ...prev.algemeen,
-            teamAllocaties: [
-              ...prev.algemeen.teamAllocaties,
-              {
-                teamName,
-                aantalDagen: 5,
-                planningType: '',
-                toelichting: '',
-                ongeveer: false,
-              }
-            ],
-            medewerkerAllocaties: prev.algemeen.medewerkerAllocaties.filter(
-              a => !memberIds.includes(a.medewerkerId)
-            )
-          }
-        };
-      }
-    });
-  };
-
-  const handleTeamDagenChange = (teamName: string, dagen: number) => {
-    setFormData(prev => ({
-      ...prev,
-      algemeen: {
-        ...prev.algemeen,
-        teamAllocaties: prev.algemeen.teamAllocaties.map(t =>
-          t.teamName === teamName ? { ...t, aantalDagen: dagen } : t
-        )
-      }
-    }));
-  };
-
-  const handleTeamPlanningTypeChange = (teamName: string, planningType: 'samen_met_team' | 'beide') => {
-    setFormData(prev => ({
-      ...prev,
-      algemeen: {
-        ...prev.algemeen,
-        teamAllocaties: prev.algemeen.teamAllocaties.map(t =>
-          t.teamName === teamName ? { ...t, planningType } : t
-        )
-      }
-    }));
-  };
-
-  const handleTeamToelichtingChange = (teamName: string, toelichting: string) => {
-    setFormData(prev => ({
-      ...prev,
-      algemeen: {
-        ...prev.algemeen,
-        teamAllocaties: prev.algemeen.teamAllocaties.map(t =>
-          t.teamName === teamName ? { ...t, toelichting } : t
-        )
-      }
-    }));
   };
 
   const isSubmitDisabled = !canSubmit();
@@ -771,8 +549,8 @@ export default function NieuwProject() {
 
         </div>
 
-        {/* Projectteam - voor beide projecttypes */}
-        {formData.projectType && (
+        {/* Projectteam - alleen voor productie projecten */}
+        {formData.projectType === 'productie' && (
           <BetrokkenTeam
             data={formData.betrokkenTeam}
             onChange={(data) => setFormData({ ...formData, betrokkenTeam: data })}
@@ -780,420 +558,17 @@ export default function NieuwProject() {
           />
         )}
 
-        {/* Algemeen Project Form */}
+        {/* Algemeen Project Form - nieuwe fase-gebaseerde structuur */}
         {formData.projectType === 'algemeen' && (
-          <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
-            <h2 className="text-lg font-semibold text-foreground">Planning</h2>
-
-            <div className="space-y-2">
-              <Label className="text-sm">Betrokken medewerkers *</Label>
-              <p className="text-xs text-muted-foreground">
-                Selecteer wie er nodig is voor dit project
-              </p>
-              <div className="space-y-3 mt-3">
-                {(() => {
-                  // Group employees by duo_team
-                  const teamGroups: Record<string, typeof employees> = {};
-                  const individualEmployees: typeof employees = [];
-
-                  employees.forEach(emp => {
-                    if (emp.duoTeam) {
-                      if (!teamGroups[emp.duoTeam]) teamGroups[emp.duoTeam] = [];
-                      teamGroups[emp.duoTeam].push(emp);
-                    } else {
-                      individualEmployees.push(emp);
-                    }
-                  });
-
-                  return (
-                    <>
-                      {/* Creative Teams */}
-                      {Object.entries(teamGroups).map(([teamName, teamMembers]) => {
-                        const teamAllocatie = formData.algemeen.teamAllocaties.find(t => t.teamName === teamName);
-                        const isTeamSelected = !!teamAllocatie;
-                        const memberIds = teamMembers.map(m => m.id);
-
-                        return (
-                          <div key={teamName} className="border border-border rounded-lg p-3 space-y-3">
-                            {/* Team checkbox met namen eerst */}
-                            <div className="space-y-3">
-                              <div className="flex items-center gap-3">
-                                <Checkbox
-                                  id={`team-${teamName}`}
-                                  checked={isTeamSelected}
-                                  onCheckedChange={() => handleTeamToggle(teamName, memberIds)}
-                                />
-                                <Label htmlFor={`team-${teamName}`} className="text-sm font-medium cursor-pointer">
-                                  {teamMembers.map(m => m.name).join(' & ')}
-                                  <span className="text-muted-foreground font-normal ml-1">
-                                    - {teamName}
-                                  </span>
-                                </Label>
-                              </div>
-
-                              {/* Team details - alleen tonen als geselecteerd */}
-                              {isTeamSelected && teamAllocatie && (
-                                <div className="pl-7 space-y-3">
-                                  <div className="flex items-center gap-3">
-                                    <Label className="text-sm whitespace-nowrap">Inspanning:</Label>
-                                    <Input
-                                      type="number"
-                                      min="0"
-                                      step="0.5"
-                                      className="w-28"
-                                      value={teamAllocatie.aantalDagen || ''}
-                                      onChange={(e) => handleTeamDagenChange(teamName, parseFloat(e.target.value) || 0)}
-                                      placeholder="Aantal"
-                                    />
-                                    <span className="text-sm text-muted-foreground">dagen</span>
-                                  </div>
-
-                                  <div className="flex items-center gap-2">
-                                    <Checkbox
-                                      id={`team-ongeveer-${teamName}`}
-                                      checked={teamAllocatie.ongeveer}
-                                      onCheckedChange={(checked) => handleTeamOngeveerChange(teamName, !!checked)}
-                                    />
-                                    <Label htmlFor={`team-ongeveer-${teamName}`} className="text-sm cursor-pointer text-muted-foreground">
-                                      Ongeveer (Ellen mag ± afwijken)
-                                    </Label>
-                                  </div>
-
-                                  <div className="space-y-2">
-                                    <Label className="text-sm">Hoe plannen? *</Label>
-                                    <Select
-                                      value={teamAllocatie.planningType}
-                                      onValueChange={(value: 'samen_met_team' | 'beide') =>
-                                        handleTeamPlanningTypeChange(teamName, value)
-                                      }
-                                    >
-                                      <SelectTrigger>
-                                        <SelectValue placeholder="Selecteer planning type" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        <SelectItem value="samen_met_team">
-                                          Samen als team
-                                        </SelectItem>
-                                        <SelectItem value="beide">
-                                          Beide (eerst samen, dan apart)
-                                        </SelectItem>
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-
-                                  <div className="space-y-2">
-                                    <Label className="text-sm">Toelichting</Label>
-                                    <Textarea
-                                      value={teamAllocatie.toelichting}
-                                      onChange={(e) => handleTeamToelichtingChange(teamName, e.target.value)}
-                                      placeholder="Waarom is dit team nodig? Wat gaan ze doen?"
-                                      rows={2}
-                                      className="text-sm"
-                                    />
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Individual members - altijd tonen met border */}
-                              <div className="pl-7 space-y-2 pt-2 border-t border-border">
-                                {teamMembers.map(emp => {
-                                  const allocatie = formData.algemeen.medewerkerAllocaties.find(a => a.medewerkerId === emp.id);
-                                  const isSelected = !!allocatie;
-
-                                  return (
-                                    <div key={emp.id} className="space-y-2">
-                                      <div className="flex items-center gap-3">
-                                        <Checkbox
-                                          id={`emp-${emp.id}`}
-                                          checked={isSelected}
-                                          onCheckedChange={() => handleMedewerkerToggle(emp.id)}
-                                          disabled={isTeamSelected}
-                                        />
-                                        <Label htmlFor={`emp-${emp.id}`} className={`text-sm cursor-pointer ${isTeamSelected ? 'opacity-50' : ''}`}>
-                                          {emp.name}
-                                          <span className="text-muted-foreground ml-1">
-                                            ({emp.role})
-                                          </span>
-                                          <span className="ml-1">- individueel</span>
-                                        </Label>
-                                      </div>
-
-                                      {/* Individual details - alleen tonen als geselecteerd */}
-                                      {isSelected && !isTeamSelected && allocatie && (
-                                        <div className="pl-7 space-y-2">
-                                          <div className="flex items-center gap-2 flex-wrap">
-                                            <Label className="text-sm whitespace-nowrap">Inspanning:</Label>
-                                            <Select
-                                              value={allocatie.eenheid || 'dagen'}
-                                              onValueChange={(v: 'dagen' | 'uren') => handleMedewerkerEenheidChange(emp.id, v)}
-                                            >
-                                              <SelectTrigger className="w-24">
-                                                <SelectValue />
-                                              </SelectTrigger>
-                                              <SelectContent>
-                                                <SelectItem value="dagen">Dagen</SelectItem>
-                                                <SelectItem value="uren">Uren</SelectItem>
-                                              </SelectContent>
-                                            </Select>
-                                            <Input
-                                              type="number"
-                                              min="0"
-                                              step={allocatie.eenheid === 'uren' ? '1' : '0.5'}
-                                              className="w-28"
-                                              value={allocatie.aantalDagen || ''}
-                                              onChange={(e) => handleMedewerkerDagenChange(emp.id, parseFloat(e.target.value) || 0)}
-                                              placeholder="Aantal"
-                                            />
-                                          </div>
-
-                                          <div className="flex items-center gap-2">
-                                            <Checkbox
-                                              id={`emp-ongeveer-${emp.id}`}
-                                              checked={allocatie.ongeveer}
-                                              onCheckedChange={(checked) => handleMedewerkerOngeveerChange(emp.id, !!checked)}
-                                            />
-                                            <Label htmlFor={`emp-ongeveer-${emp.id}`} className="text-sm cursor-pointer text-muted-foreground">
-                                              Ongeveer (Ellen mag ± afwijken)
-                                            </Label>
-                                          </div>
-                                          <div className="space-y-2">
-                                            <Label className="text-sm">Toelichting</Label>
-                                            <Textarea
-                                              value={allocatie.toelichting}
-                                              onChange={(e) => handleMedewerkerToelichtingChange(emp.id, e.target.value)}
-                                              placeholder="Bijv. '4 uur per dag, 2 dagen' of 'Waarom nodig?'"
-                                              rows={2}
-                                              className="text-sm"
-                                            />
-                                          </div>
-                                        </div>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-
-                      {/* Overige medewerkers - geen header, gewoon onder elkaar */}
-                      {individualEmployees.map(emp => {
-                        const allocatie = formData.algemeen.medewerkerAllocaties.find(a => a.medewerkerId === emp.id);
-                        const isSelected = !!allocatie;
-
-                        return (
-                          <div key={emp.id} className="border border-border rounded-lg p-3 space-y-3">
-                            <div className="flex items-center gap-3">
-                              <Checkbox
-                                id={`emp-${emp.id}`}
-                                checked={isSelected}
-                                onCheckedChange={() => handleMedewerkerToggle(emp.id)}
-                              />
-                              <Label htmlFor={`emp-${emp.id}`} className="text-sm font-medium cursor-pointer">
-                                {emp.name}
-                                <span className="text-muted-foreground font-normal ml-1">
-                                  ({emp.role})
-                                </span>
-                              </Label>
-                            </div>
-
-                            {/* Details - alleen tonen als geselecteerd */}
-                            {isSelected && allocatie && (
-                              <div className="pl-7 space-y-3">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <Label className="text-sm whitespace-nowrap">Inspanning:</Label>
-                                  <Select
-                                    value={allocatie.eenheid || 'dagen'}
-                                    onValueChange={(v: 'dagen' | 'uren') => handleMedewerkerEenheidChange(emp.id, v)}
-                                  >
-                                    <SelectTrigger className="w-24">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="dagen">Dagen</SelectItem>
-                                      <SelectItem value="uren">Uren</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                  <Input
-                                    type="number"
-                                    min="0"
-                                    step={allocatie.eenheid === 'uren' ? '1' : '0.5'}
-                                    className="w-28"
-                                    value={allocatie.aantalDagen || ''}
-                                    onChange={(e) => handleMedewerkerDagenChange(emp.id, parseFloat(e.target.value) || 0)}
-                                    placeholder="Aantal"
-                                  />
-                                </div>
-
-                                <div className="flex items-center gap-2">
-                                  <Checkbox
-                                    id={`emp-ongeveer-standalone-${emp.id}`}
-                                    checked={allocatie.ongeveer}
-                                    onCheckedChange={(checked) => handleMedewerkerOngeveerChange(emp.id, !!checked)}
-                                  />
-                                  <Label htmlFor={`emp-ongeveer-standalone-${emp.id}`} className="text-sm cursor-pointer text-muted-foreground">
-                                    Ongeveer (Ellen mag ± afwijken)
-                                  </Label>
-                                </div>
-
-                                <div className="space-y-2">
-                                  <Label className="text-sm">Toelichting</Label>
-                                  <Textarea
-                                    value={allocatie.toelichting}
-                                    onChange={(e) => handleMedewerkerToelichtingChange(emp.id, e.target.value)}
-                                    placeholder="Bijv. '4 uur per dag, 2 dagen' of 'Waarom nodig?'"
-                                    rows={2}
-                                    className="text-sm"
-                                  />
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </>
-                  );
-                })()}
-              </div>
-              {errors.algemeen && (
-                <p className="text-xs text-destructive mt-1">{errors.algemeen}</p>
-              )}
-              {errors.aantalDagen && (
-                <p className="text-xs text-destructive mt-1">{errors.aantalDagen}</p>
-              )}
-              {errors.planningType && (
-                <p className="text-xs text-destructive mt-1">{errors.planningType}</p>
-              )}
-            </div>
-
-            {/* Meetings/Presentaties */}
-            <div className="space-y-3 pt-4 border-t border-border">
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label className="text-sm">Meetings & Presentaties</Label>
-                  <p className="text-xs text-muted-foreground">
-                    Voeg geplande meetings of presentaties toe (optioneel)
-                  </p>
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    const newMeeting: MeetingData = {
-                      id: crypto.randomUUID(),
-                      type: 'tussentijds',
-                      aantalUren: 2,
-                      notitie: '',
-                    };
-                    setFormData({
-                      ...formData,
-                      algemeen: {
-                        ...formData.algemeen,
-                        meetings: [...(formData.algemeen.meetings || []), newMeeting]
-                      }
-                    });
-                  }}
-                >
-                  <Plus className="h-4 w-4 mr-1" />
-                  Meeting toevoegen
-                </Button>
-              </div>
-
-              {(formData.algemeen.meetings || []).map((meeting, index) => (
-                <div key={meeting.id} className="border border-border rounded-lg p-3 space-y-3 bg-secondary/20">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">Meeting {index + 1}</span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        const updated = formData.algemeen.meetings.filter(m => m.id !== meeting.id);
-                        setFormData({
-                          ...formData,
-                          algemeen: { ...formData.algemeen, meetings: updated }
-                        });
-                      }}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <Label className="text-xs">Type</Label>
-                      <Select
-                        value={meeting.type}
-                        onValueChange={(value: 'tussentijds' | 'eindpresentatie' | 'kick-off' | 'anders') => {
-                          const updated = formData.algemeen.meetings.map(m =>
-                            m.id === meeting.id ? { ...m, type: value } : m
-                          );
-                          setFormData({
-                            ...formData,
-                            algemeen: { ...formData.algemeen, meetings: updated }
-                          });
-                        }}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="kick-off">Kick-off</SelectItem>
-                          <SelectItem value="tussentijds">Tussentijdse presentatie</SelectItem>
-                          <SelectItem value="eindpresentatie">Eindpresentatie</SelectItem>
-                          <SelectItem value="anders">Anders</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label className="text-xs">Duur (uren)</Label>
-                      <Input
-                        type="number"
-                        min="0.5"
-                        step="0.5"
-                        value={meeting.aantalUren}
-                        onChange={(e) => {
-                          const updated = formData.algemeen.meetings.map(m =>
-                            m.id === meeting.id ? { ...m, aantalUren: parseFloat(e.target.value) || 2 } : m
-                          );
-                          setFormData({
-                            ...formData,
-                            algemeen: { ...formData.algemeen, meetings: updated }
-                          });
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <Label className="text-xs">Notitie</Label>
-                    <Input
-                      value={meeting.notitie}
-                      onChange={(e) => {
-                        const updated = formData.algemeen.meetings.map(m =>
-                          m.id === meeting.id ? { ...m, notitie: e.target.value } : m
-                        );
-                        setFormData({
-                          ...formData,
-                          algemeen: { ...formData.algemeen, meetings: updated }
-                        });
-                      }}
-                      placeholder="Bijv. 'Met klant op locatie'"
-                    />
-                  </div>
-                </div>
-              ))}
-
-              {!formData.isInternProject && (formData.algemeen.meetings || []).length === 0 && (
-                <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 p-2 rounded">
-                  💡 Tip: Bij externe projecten is het handig om presentatiemomenten toe te voegen.
-                  Ellen kan deze ook automatisch voorstellen als je er geen toevoegt.
-                </p>
-              )}
-            </div>
-          </div>
+          <>
+            <AlgemeenFases
+              data={formData.algemeenFases}
+              onChange={(data) => setFormData({ ...formData, algemeenFases: data })}
+            />
+            {errors.projectTeam && (
+              <p className="text-xs text-destructive">{errors.projectTeam}</p>
+            )}
+          </>
         )}
 
         {/* Productie Project Form - alleen ProductieFases */}
