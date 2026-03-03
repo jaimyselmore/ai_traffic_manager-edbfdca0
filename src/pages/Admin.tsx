@@ -8,7 +8,8 @@ import { DisciplinesTab } from '@/components/admin/DisciplinesTab';
 import { KlantenTab } from '@/components/admin/KlantenTab';
 import { MicrosoftKoppelingTab } from '@/components/admin/MicrosoftKoppelingTab';
 import { ProjectenTab } from '@/components/admin/ProjectenTab';
-import { Users, Briefcase, Palette, Building2, Calendar, FolderOpen } from 'lucide-react';
+import { PlanningRegelsTab } from '@/components/admin/PlanningRegelsTab';
+import { Users, Briefcase, Palette, Building2, Calendar, FolderOpen, BookOpen } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 type Tab = 'overzicht' | 'planner' | 'agendas' | 'ellen' | 'admin';
@@ -38,7 +39,7 @@ export default function Admin() {
           </div>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full max-w-4xl grid-cols-6">
+          <TabsList className="grid w-full max-w-5xl grid-cols-7">
               <TabsTrigger value="medewerkers" className="flex items-center gap-2">
                 <Users className="h-4 w-4" />
                 Medewerkers
@@ -58,6 +59,10 @@ export default function Admin() {
               <TabsTrigger value="projecten" className="flex items-center gap-2">
                 <FolderOpen className="h-4 w-4" />
                 Projecten
+              </TabsTrigger>
+              <TabsTrigger value="planningregels" className="flex items-center gap-2">
+                <BookOpen className="h-4 w-4" />
+                Ellen Regels
               </TabsTrigger>
               <TabsTrigger value="microsoft" className="flex items-center gap-2">
                 <Calendar className="h-4 w-4" />
@@ -83,6 +88,10 @@ export default function Admin() {
 
             <TabsContent value="projecten" className="mt-6">
               <ProjectenTab />
+            </TabsContent>
+
+            <TabsContent value="planningregels" className="mt-6">
+              <PlanningRegelsTab />
             </TabsContent>
 
             <TabsContent value="microsoft" className="mt-6">

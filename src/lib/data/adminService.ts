@@ -707,3 +707,75 @@ export async function deleteProjecttype(id: string, _userId?: string) {
 
   if (error) throw mapErrorMessage(error);
 }
+
+// ===========================================
+// ELLEN REGELS (PLANNINGREGELS) CRUD
+// ===========================================
+
+export async function getEllenRegels() {
+  const { data, error } = await secureSelect<{
+    id: string;
+    regel: string;
+    categorie: string;
+    prioriteit: number | null;
+    actief: boolean | null;
+    rationale: string | null;
+    created_at: string | null;
+  }>('ellen_regels', {
+    order: { column: 'prioriteit', ascending: true },
+  });
+
+  if (error) throw mapErrorMessage(error);
+  return data || [];
+}
+
+export async function createEllenRegel(
+  regel: {
+    regel: string;
+    categorie: string;
+    prioriteit?: number;
+    actief?: boolean;
+    rationale?: string;
+  },
+  _userId?: string
+) {
+  const { data, error } = await secureInsert<{
+    id: string;
+    regel: string;
+    categorie: string;
+  }>('ellen_regels', {
+    ...regel,
+    actief: regel.actief ?? true,
+  });
+
+  if (error) throw mapErrorMessage(error);
+
+  return data?.[0];
+}
+
+export async function updateEllenRegel(
+  id: string,
+  updates: Partial<{
+    regel: string;
+    categorie: string;
+    prioriteit: number;
+    actief: boolean;
+    rationale: string;
+  }>,
+  _userId?: string
+) {
+  const { data, error } = await secureUpdate<{
+    id: string;
+    regel: string;
+  }>('ellen_regels', updates, [{ column: 'id', operator: 'eq', value: id }]);
+
+  if (error) throw mapErrorMessage(error);
+
+  return data?.[0];
+}
+
+export async function deleteEllenRegel(id: string, _userId?: string) {
+  const { error } = await secureDelete('ellen_regels', [{ column: 'id', operator: 'eq', value: id }]);
+
+  if (error) throw mapErrorMessage(error);
+}
