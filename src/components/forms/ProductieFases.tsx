@@ -54,18 +54,18 @@ const formatDate = (date: Date | undefined): string => {
   return format(date, 'dd-MM-yyyy');
 };
 
-const faseLabels: Record<string, { title: string; hint?: string }> = {
-  pp: { title: 'PP (pre-productie)' },
-  ppm: { title: 'PPM (pre-productie meeting met klant)' },
-  shoot: { title: 'Shoot', hint: '1–2 dagen' },
-  offlineEdit: { title: 'Offline edit', hint: '2–5 dagen' },
-  presentatieOffline: { title: 'Presentatie offline edit' },
-  reEdit: { title: 'Re-edit', hint: '1–2 dagen' },
-  presentatieReEdit: { title: 'Presentatie re-edit' },
-  onlineGrading: { title: 'Online grading', hint: '2–5 dagen' },
-  geluid: { title: 'Geluid', hint: '2–5 dagen' },
-  presentatieFinals: { title: 'Presentatie finals' },
-  deliverables: { title: 'Deliverables', hint: '1–2 dagen' },
+const faseLabels: Record<string, string> = {
+  pp: 'PP (pre-productie)',
+  ppm: 'PPM (pre-productie meeting met klant)',
+  shoot: 'Shoot',
+  offlineEdit: 'Offline edit',
+  presentatieOffline: 'Presentatie offline edit',
+  reEdit: 'Re-edit',
+  presentatieReEdit: 'Presentatie re-edit',
+  onlineGrading: 'Online grading',
+  geluid: 'Geluid',
+  presentatieFinals: 'Presentatie finals',
+  deliverables: 'Deliverables',
 };
 
 export function ProductieFases({ data, onChange }: ProductieFasesProps) {
@@ -226,7 +226,7 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
     );
   };
 
-  const renderPeriodeFase = (fase: string) => {
+  const renderWerkFase = (fase: string) => {
     const dateRange: DateRange | undefined = data.fases[fase]?.startDatum || data.fases[fase]?.eindDatum
       ? {
           from: parseDate(data.fases[fase]?.startDatum),
@@ -236,20 +236,20 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
 
     return (
       <div className="space-y-4 pt-4">
-        <div>
-          <Label className="text-sm">Periode</Label>
-          <DateRangePicker
-            value={dateRange}
-            onChange={(range) => {
-              updateFase(fase, 'startDatum', formatDate(range?.from));
-              updateFase(fase, 'eindDatum', formatDate(range?.to));
-            }}
-            placeholder="Selecteer start- en einddatum"
-          />
-        </div>
-        {fase === 'pp' && (
-          <div className="flex items-center gap-3">
-            <Label className="text-sm whitespace-nowrap">Uur per dag:</Label>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label className="text-sm">Periode</Label>
+            <DateRangePicker
+              value={dateRange}
+              onChange={(range) => {
+                updateFase(fase, 'startDatum', formatDate(range?.from));
+                updateFase(fase, 'eindDatum', formatDate(range?.to));
+              }}
+              placeholder="Start - eind"
+            />
+          </div>
+          <div>
+            <Label className="text-sm">Uur per dag</Label>
             <Input
               type="number"
               min="0.5"
@@ -262,11 +262,11 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
                   updateFase(fase, 'urenPerDag', val === '' ? '' : parseFloat(val));
                 }
               }}
-              className="w-20"
-              placeholder="1"
+              className="w-full"
+              placeholder="8"
             />
           </div>
-        )}
+        </div>
         <MedewerkerSelectie fase={fase} />
       </div>
     );
@@ -314,61 +314,23 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
     </div>
   );
 
-  const renderDagenFase = (fase: string) => {
-    const dateRange: DateRange | undefined = data.fases[fase]?.startDatum || data.fases[fase]?.eindDatum
-      ? {
-          from: parseDate(data.fases[fase]?.startDatum),
-          to: parseDate(data.fases[fase]?.eindDatum),
-        }
-      : undefined;
-
-    return (
-      <div className="space-y-4 pt-4">
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <Label className="text-sm">Aantal dagen</Label>
-            <Input
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              value={data.fases[fase]?.dagen || ''}
-              onChange={(e) => {
-                const val = e.target.value;
-                if (val === '' || /^\d+$/.test(val)) {
-                  updateFase(fase, 'dagen', val === '' ? '' : parseInt(val));
-                }
-              }}
-              className="w-full"
-              placeholder="1"
-            />
-            {faseLabels[fase]?.hint && (
-              <p className="text-xs text-muted-foreground mt-1">{faseLabels[fase].hint}</p>
-            )}
-          </div>
-          <div>
-            <Label className="text-sm">Periode</Label>
-            <DateRangePicker
-              value={dateRange}
-              onChange={(range) => {
-                updateFase(fase, 'startDatum', formatDate(range?.from));
-                updateFase(fase, 'eindDatum', formatDate(range?.to));
-              }}
-              placeholder="Start - eind"
-            />
-          </div>
-        </div>
-        <MedewerkerSelectie fase={fase} />
-      </div>
-    );
-  };
 
   const FaseCollapsible = ({ fase, children }: { fase: string; children: React.ReactNode }) => {
     const isOpen = openFases[fase] || false;
 
+    const handleToggle = (open: boolean) => {
+      const scrollY = window.scrollY;
+      setOpenFases(prev => ({ ...prev, [fase]: open }));
+      // Prevent scroll jumping by restoring position after state update
+      requestAnimationFrame(() => {
+        window.scrollTo(0, scrollY);
+      });
+    };
+
     return (
-      <Collapsible open={isOpen} onOpenChange={(open) => setOpenFases(prev => ({ ...prev, [fase]: open }))}>
-        <CollapsibleTrigger className="w-full flex items-center justify-between py-3 px-4 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors scroll-mt-24">
-          <span className="font-medium text-sm">{faseLabels[fase].title}</span>
+      <Collapsible open={isOpen} onOpenChange={handleToggle}>
+        <CollapsibleTrigger className="w-full flex items-center justify-between py-3 px-4 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors">
+          <span className="font-medium text-sm">{faseLabels[fase]}</span>
           <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
         </CollapsibleTrigger>
         <CollapsibleContent className="px-4 pb-4 overflow-visible">
@@ -391,10 +353,18 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
   }) => {
     const isOpen = openFases[fase] || false;
 
+    const handleToggle = (open: boolean) => {
+      const scrollY = window.scrollY;
+      setOpenFases(prev => ({ ...prev, [fase]: open }));
+      requestAnimationFrame(() => {
+        window.scrollTo(0, scrollY);
+      });
+    };
+
     return (
-      <Collapsible open={isOpen} onOpenChange={(open) => setOpenFases(prev => ({ ...prev, [fase]: open }))}>
-        <CollapsibleTrigger className="w-full flex items-center justify-between py-3 px-4 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors scroll-mt-24">
-          <span className="font-medium text-sm">{faseLabels[fase].title}</span>
+      <Collapsible open={isOpen} onOpenChange={handleToggle}>
+        <CollapsibleTrigger className="w-full flex items-center justify-between py-3 px-4 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors">
+          <span className="font-medium text-sm">{faseLabels[fase]}</span>
           <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
         </CollapsibleTrigger>
         <CollapsibleContent className="px-4 pb-4 overflow-visible">
@@ -498,22 +468,22 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
       <div className="rounded-2xl border border-border bg-card p-6 space-y-2 overflow-visible">
         <h2 className="text-lg font-semibold text-foreground mb-4">Fases</h2>
 
-        <FaseCollapsible fase="pp">{renderPeriodeFase('pp')}</FaseCollapsible>
+        <FaseCollapsible fase="pp">{renderWerkFase('pp')}</FaseCollapsible>
         <FaseCollapsible fase="ppm">{renderMeetingFase('ppm')}</FaseCollapsible>
-        <FaseCollapsible fase="shoot">{renderDagenFase('shoot')}</FaseCollapsible>
-        <FaseCollapsible fase="offlineEdit">{renderDagenFase('offlineEdit')}</FaseCollapsible>
+        <FaseCollapsible fase="shoot">{renderWerkFase('shoot')}</FaseCollapsible>
+        <FaseCollapsible fase="offlineEdit">{renderWerkFase('offlineEdit')}</FaseCollapsible>
         <FaseCollapsible fase="presentatieOffline">{renderMeetingFase('presentatieOffline')}</FaseCollapsible>
-        <FaseCollapsible fase="reEdit">{renderDagenFase('reEdit')}</FaseCollapsible>
+        <FaseCollapsible fase="reEdit">{renderWerkFase('reEdit')}</FaseCollapsible>
         <FaseCollapsible fase="presentatieReEdit">{renderMeetingFase('presentatieReEdit')}</FaseCollapsible>
-        <FaseCollapsible fase="onlineGrading">{renderDagenFase('onlineGrading')}</FaseCollapsible>
-        <FaseCollapsible fase="geluid">{renderDagenFase('geluid')}</FaseCollapsible>
+        <FaseCollapsible fase="onlineGrading">{renderWerkFase('onlineGrading')}</FaseCollapsible>
+        <FaseCollapsible fase="geluid">{renderWerkFase('geluid')}</FaseCollapsible>
         <PresentatieCollapsible
           fase="presentatieFinals"
           extraPresentaties={data.extraPresentaties}
           addExtraPresentatie={addExtraPresentatie}
           renderMeetingFase={renderMeetingFase}
         />
-        <FaseCollapsible fase="deliverables">{renderDagenFase('deliverables')}</FaseCollapsible>
+        <FaseCollapsible fase="deliverables">{renderWerkFase('deliverables')}</FaseCollapsible>
       </div>
     </div>
   );
@@ -522,17 +492,17 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
 export const emptyProductieFasesData: ProductieFasesData = {
   projectTeamIds: [],
   fases: {
-    pp: { enabled: false, startDatum: '', eindDatum: '', urenPerDag: 1, dagen: 2, medewerkers: [], flexibel: false },
+    pp: { enabled: false, dagen: 2, urenPerDag: 1, medewerkers: [] },
     ppm: { enabled: false, datumTijd: '', locatie: 'selmore', reistijd: false, medewerkers: [] },
-    shoot: { enabled: false, dagen: 1, startDatum: '', eindDatum: '', aanwezig: [], medewerkers: [], flexibel: false },
-    offlineEdit: { enabled: false, dagen: 2, startDatum: '', eindDatum: '', creatief: false, medewerkers: [], flexibel: false },
+    shoot: { enabled: false, dagen: 1, urenPerDag: 8, medewerkers: [] },
+    offlineEdit: { enabled: false, dagen: 2, urenPerDag: 8, medewerkers: [] },
     presentatieOffline: { enabled: false, datumTijd: '', locatie: 'selmore', reistijd: false, medewerkers: [] },
-    reEdit: { enabled: false, dagen: 1, startDatum: '', eindDatum: '', medewerkers: [], flexibel: false },
+    reEdit: { enabled: false, dagen: 1, urenPerDag: 8, medewerkers: [] },
     presentatieReEdit: { enabled: false, datumTijd: '', locatie: 'selmore', reistijd: false, medewerkers: [] },
-    onlineGrading: { enabled: false, dagen: 2, startDatum: '', eindDatum: '', medewerkers: [], flexibel: false },
-    geluid: { enabled: false, dagen: 2, startDatum: '', eindDatum: '', medewerkers: [], flexibel: false },
+    onlineGrading: { enabled: false, dagen: 2, urenPerDag: 8, medewerkers: [] },
+    geluid: { enabled: false, dagen: 2, urenPerDag: 8, medewerkers: [] },
     presentatieFinals: { enabled: false, datumTijd: '', locatie: 'selmore', reistijd: false, medewerkers: [] },
-    deliverables: { enabled: false, dagen: 1, startDatum: '', eindDatum: '', medewerkers: [], flexibel: false },
+    deliverables: { enabled: false, dagen: 1, urenPerDag: 8, medewerkers: [] },
   },
   extraPresentaties: [],
   deadlineOplevering: '',
