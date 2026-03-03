@@ -3,7 +3,6 @@ import { ChevronDown, Plus, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Button } from '@/components/ui/button';
 import { useEmployees } from '@/hooks/use-employees';
 import { DatePicker } from '@/components/ui/date-picker';
@@ -318,25 +317,27 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
   const FaseCollapsible = ({ fase, children }: { fase: string; children: React.ReactNode }) => {
     const isOpen = openFases[fase] || false;
 
-    const handleToggle = (open: boolean) => {
-      const scrollY = window.scrollY;
-      setOpenFases(prev => ({ ...prev, [fase]: open }));
-      // Prevent scroll jumping by restoring position after state update
-      requestAnimationFrame(() => {
-        window.scrollTo(0, scrollY);
-      });
+    const handleToggle = (e: React.MouseEvent) => {
+      e.preventDefault();
+      setOpenFases(prev => ({ ...prev, [fase]: !prev[fase] }));
     };
 
     return (
-      <Collapsible open={isOpen} onOpenChange={handleToggle}>
-        <CollapsibleTrigger className="w-full flex items-center justify-between py-3 px-4 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors">
+      <div>
+        <button
+          type="button"
+          onClick={handleToggle}
+          className="w-full flex items-center justify-between py-3 px-4 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
+        >
           <span className="font-medium text-sm">{faseLabels[fase]}</span>
-          <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-        </CollapsibleTrigger>
-        <CollapsibleContent className="px-4 pb-4 overflow-visible">
-          {children}
-        </CollapsibleContent>
-      </Collapsible>
+          <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+        </button>
+        {isOpen && (
+          <div className="px-4 pb-4 overflow-visible">
+            {children}
+          </div>
+        )}
+      </div>
     );
   };
 
@@ -353,21 +354,23 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
   }) => {
     const isOpen = openFases[fase] || false;
 
-    const handleToggle = (open: boolean) => {
-      const scrollY = window.scrollY;
-      setOpenFases(prev => ({ ...prev, [fase]: open }));
-      requestAnimationFrame(() => {
-        window.scrollTo(0, scrollY);
-      });
+    const handleToggle = (e: React.MouseEvent) => {
+      e.preventDefault();
+      setOpenFases(prev => ({ ...prev, [fase]: !prev[fase] }));
     };
 
     return (
-      <Collapsible open={isOpen} onOpenChange={handleToggle}>
-        <CollapsibleTrigger className="w-full flex items-center justify-between py-3 px-4 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors">
+      <div>
+        <button
+          type="button"
+          onClick={handleToggle}
+          className="w-full flex items-center justify-between py-3 px-4 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
+        >
           <span className="font-medium text-sm">{faseLabels[fase]}</span>
-          <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-        </CollapsibleTrigger>
-        <CollapsibleContent className="px-4 pb-4 overflow-visible">
+          <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+        </button>
+        {isOpen && (
+          <div className="px-4 pb-4 overflow-visible">
           {renderMeetingFase(fase)}
 
           {extraPresentaties.map((extra, index) => (
@@ -433,8 +436,9 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
             <Plus className="h-4 w-4 mr-2" />
             Extra presentatie toevoegen
           </Button>
-        </CollapsibleContent>
-      </Collapsible>
+          </div>
+        )}
+      </div>
     );
   };
 
