@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, Send, Clock, Trash2, CheckCircle, XCircle, RefreshCw } from 'lucide-react';
+import { FileText, Send, Clock, Trash2, CheckCircle, XCircle, RefreshCw, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -15,6 +15,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { secureSelect, secureDelete } from '@/lib/data/dataService';
+import { useAuth } from '@/contexts/AuthContext';
+import { toast } from '@/hooks/use-toast';
 
 export interface SavedAanvraag {
   id: string;
@@ -85,8 +88,10 @@ export function removeAanvraag(id: string) {
 
 export function MijnAanvragen() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [aanvragen, setAanvragen] = useState<SavedAanvraag[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<SavedAanvraag | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     setAanvragen(getAanvragenLijst());
@@ -95,10 +100,85 @@ export function MijnAanvragen() {
   const concepten = aanvragen.filter(a => a.status === 'concept');
   const ingediend = aanvragen.filter(a => a.status === 'ingediend' || a.status === 'geplaatst' || a.status === 'mislukt' || a.status === 'wacht_klant');
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
+    const aanvraag = aanvragen.find(a => a.id === id);
+    if (!aanvraag) {
+      removeAanvraag(id);
+      setAanvragen(getAanvragenLijst());
+      setDeleteTarget(null);
+      return;
+    }
+
+    setIsDeleting(true);
+
+    try {
+      // Als de aanvraag is ingediend/geplaatst, verwijder ook de planning uit Supabase
+      if (aanvraag.status !== 'concept' && user?.id) {
+        // Zoek het project op basis van titel en klant
+        const projectTitle = aanvraag.titel;
+        const klantNaam = aanvraag.klant;
+
+        // Eerst proberen project te vinden
+        const { data: projecten } = await secureSelect('projecten', user.id, {
+          filters: [
+            { column: 'omschrijving', operator: 'ilike', value: `%${projectTitle}%` }
+          ]
+        });
+
+        if (projecten && projecten.length > 0) {
+          // Verwijder alle taken van dit project
+          for (const project of projecten) {
+            // Verwijder taken via project_id
+            const { data: taken } = await secureSelect('taken', user.id, {
+              filters: [{ column: 'project_id', operator: 'eq', value: project.id }]
+            });
+
+            if (taken && taken.length > 0) {
+              for (const taak of taken) {
+                await secureDelete('taken', taak.id, user.id);
+              }
+            }
+
+            // Verwijder het project zelf
+            await secureDelete('projecten', project.id, user.id);
+          }
+        }
+
+        // Ook taken zoeken op klant_naam als backup
+        if (klantNaam) {
+          const { data: losTaken } = await secureSelect('taken', user.id, {
+            filters: [
+              { column: 'klant_naam', operator: 'ilike', value: `%${klantNaam}%` },
+              { column: 'project_nummer', operator: 'ilike', value: `%${projectTitle.substring(0, 20)}%` }
+            ]
+          });
+
+          if (losTaken && losTaken.length > 0) {
+            for (const taak of losTaken) {
+              await secureDelete('taken', taak.id, user.id);
+            }
+          }
+        }
+
+        toast({
+          title: 'Template en planning verwijderd',
+          description: 'Alle bijbehorende taken zijn uit de planner verwijderd.',
+        });
+      }
+    } catch (err) {
+      console.error('Fout bij verwijderen planning:', err);
+      toast({
+        title: 'Let op',
+        description: 'Template verwijderd, maar er ging iets mis bij het verwijderen van de planning.',
+        variant: 'destructive',
+      });
+    }
+
+    // Altijd de lokale aanvraag verwijderen
     removeAanvraag(id);
     setAanvragen(getAanvragenLijst());
     setDeleteTarget(null);
+    setIsDeleting(false);
   };
 
   // Bepaal icoon en kleur op basis van status
@@ -265,21 +345,34 @@ export function MijnAanvragen() {
         </TabsContent>
       </Tabs>
 
-      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && !isDeleting && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Template verwijderen?</AlertDialogTitle>
             <AlertDialogDescription>
-              Weet je zeker dat je "{deleteTarget?.titel || 'dit item'}" wilt verwijderen? Dit kan niet ongedaan worden gemaakt.
+              Weet je zeker dat je "{deleteTarget?.titel || 'dit item'}" wilt verwijderen?
+              {deleteTarget?.status !== 'concept' && (
+                <span className="block mt-2 font-medium text-destructive">
+                  Let op: de bijbehorende planning wordt ook uit de planner verwijderd!
+                </span>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annuleren</AlertDialogCancel>
+            <AlertDialogCancel disabled={isDeleting}>Annuleren</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => deleteTarget && handleDelete(deleteTarget.id)}
+              disabled={isDeleting}
             >
-              Verwijderen
+              {isDeleting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Verwijderen...
+                </>
+              ) : (
+                'Verwijderen'
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
