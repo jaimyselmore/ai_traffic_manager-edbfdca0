@@ -373,11 +373,16 @@ export function AlgemeenFases({ data, onChange }: AlgemeenFasesProps) {
                     <div key={wm.medewerkerId} className="grid grid-cols-[1fr_100px_32px] gap-2 px-3 py-2 items-center border-b border-border last:border-b-0">
                       <span className="text-sm font-medium truncate">{emp.name}</span>
                       <Input
-                        type="number"
-                        min="0"
-                        step="0.5"
-                        value={wm.uren}
-                        onChange={(e) => updateWorkloadMedewerker(presentatie.id, wm.medewerkerId, parseFloat(e.target.value) || 0)}
+                        type="text"
+                        inputMode="decimal"
+                        value={wm.uren === 0 ? '' : wm.uren}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === '' || /^\d*\.?\d*$/.test(val)) {
+                            updateWorkloadMedewerker(presentatie.id, wm.medewerkerId, val === '' ? 0 : parseFloat(val));
+                          }
+                        }}
+                        placeholder="0"
                         className="h-8 text-sm text-center"
                       />
                       <button
