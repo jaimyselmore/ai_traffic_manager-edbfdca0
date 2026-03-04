@@ -28,6 +28,7 @@ interface VoorstelTaak {
   week_start: string;
   start_uur: number;
   duur_uren: number;
+  werktype?: string; // concept, uitwerking, productie, extern, review
 }
 
 const DAG_NAMEN = ['Ma', 'Di', 'Wo', 'Do', 'Vr'];
@@ -70,11 +71,23 @@ const WORKFLOW_STEPS = [
   { label: 'Voorstel samenstellen', duration: 800 },
 ];
 
+// Werktype colors - match de planner kleuren
+const WERKTYPE_COLORS: Record<string, string> = {
+  'concept': 'bg-task-concept',
+  'uitwerking': 'bg-task-uitwerking',
+  'productie': 'bg-task-productie',
+  'extern': 'bg-task-extern', // Roze/paars voor meetings/presentaties
+  'review': 'bg-task-review',
+};
+
 const FASE_COLORS: Record<string, string> = {
-  'Conceptontwikkeling': 'bg-[hsl(var(--primary))]',
-  'Conceptuitwerking': 'bg-[hsl(195,60%,50%)]',
-  'Presentatie': 'bg-[hsl(30,80%,55%)]',
-  'Algemeen': 'bg-[hsl(var(--primary))]',
+  'Conceptontwikkeling': 'bg-task-concept',
+  'Conceptuitwerking': 'bg-task-uitwerking',
+  'Meeting met klant': 'bg-task-extern',
+  'Presentatie': 'bg-task-extern',
+  'Productie': 'bg-task-productie',
+  'Interne review': 'bg-task-review',
+  'Algemeen': 'bg-task-concept',
 };
 
 export default function EllenVoorstel() {
@@ -636,7 +649,12 @@ export default function EllenVoorstel() {
     return hour === taak.start_uur;
   };
 
-  const getFaseColor = (faseNaam: string) => {
+  const getFaseColor = (faseNaam: string, werktype?: string) => {
+    // Eerst werktype checken (meest betrouwbaar)
+    if (werktype && WERKTYPE_COLORS[werktype]) {
+      return WERKTYPE_COLORS[werktype];
+    }
+    // Fallback naar fase naam
     return FASE_COLORS[faseNaam] || FASE_COLORS['Algemeen'];
   };
 
@@ -904,7 +922,7 @@ export default function EllenVoorstel() {
                                       key={`voorstel-${ti}`}
                                       className={cn(
                                         'absolute left-0.5 right-0.5 rounded px-1.5 py-0.5 text-xs text-white overflow-hidden opacity-80 border-2 border-dashed border-white/50 z-20',
-                                        getFaseColor(taak.fase_naam)
+                                        getFaseColor(taak.fase_naam, taak.werktype)
                                       )}
                                       style={{
                                         height: `${blockHeight - 2}px`,
@@ -1245,9 +1263,9 @@ function buildEllenPrompt(info: any, feedback?: string, vorigVoorstel?: Voorstel
       parts.push(`⚠️ Dit werk moet KLAAR zijn VÓÓR ${p.start_datum || 'de presentatiedatum'}!`);
       if (werkVoorPresentatie.medewerkerDetails?.length > 0) {
         werkVoorPresentatie.medewerkerDetails.forEach((md: any) => {
-          const uren = md.urenPerDag || 8;
-          const totaalUren = md.inspanning * uren;
-          parts.push(`  • ${md.naam}: ${md.inspanning} dagen × ${uren}u/dag = ${totaalUren} uur`);
+          // md.uren = totaal aantal uren die verdeeld moeten worden
+          const totaalUren = md.uren || 0;
+          parts.push(`  • ${md.naam}: ${totaalUren} uur totaal (VERDEEL over beschikbare dagen)`);
         });
       } else {
         parts.push(`  Medewerkers: ${werkVoorPresentatie.medewerkers?.join(', ') || 'Geen opgegeven'}`);
@@ -1266,7 +1284,8 @@ function buildEllenPrompt(info: any, feedback?: string, vorigVoorstel?: Voorstel
       parts.push(`  ⏱️ Duur: ${f.duur_dagen} dagen, ${f.uren_per_dag || 8}u/dag`);
       if (f.medewerkerDetails?.length > 0) {
         f.medewerkerDetails.forEach((md: any) => {
-          parts.push(`    • ${md.naam}: ${md.inspanning} dagen × ${md.urenPerDag || 8}u/dag`);
+          const totaalUren = md.uren || 0;
+          parts.push(`    • ${md.naam}: ${totaalUren} uur totaal (VERDEEL over beschikbare dagen)`);
         });
       }
       parts.push(``);
@@ -1516,6 +1535,7 @@ function generateDefaultVoorstel(info: any): VoorstelTaak[] {
           week_start: presentatieWeekStart,
           start_uur: startUur,
           duur_uren: presentatie.uren_per_dag || 2,
+          werktype: 'extern', // Presentaties zijn altijd extern (roze)
         });
       }
 
@@ -1527,10 +1547,10 @@ function generateDefaultVoorstel(info: any): VoorstelTaak[] {
 
         // Bereken startdatum voor werkzaamheden (werk achteruit vanaf presentatie)
         for (const mw of werkMedewerkers) {
-          // Zoek specifieke uren voor deze medewerker
+          // Zoek specifieke uren voor deze medewerker (nu als totaal uren)
           const mdDetail = werkFase.medewerkerDetails?.find((md: any) => md.naam === mw);
-          const totaalUren = mdDetail
-            ? mdDetail.inspanning * (mdDetail.urenPerDag || urenPerDag)
+          const totaalUren = mdDetail?.uren
+            ? mdDetail.uren
             : (werkFase.duur_dagen || 5) * urenPerDag;
 
           let restUren = totaalUren;
@@ -1557,6 +1577,7 @@ function generateDefaultVoorstel(info: any): VoorstelTaak[] {
                 week_start: slot.weekStart,
                 start_uur: slot.startUur,
                 duur_uren: blokUren,
+                werktype: 'concept', // Workload is concept werk
               });
               restUren -= blokUren;
             }
@@ -1595,6 +1616,7 @@ function generateDefaultVoorstel(info: any): VoorstelTaak[] {
             week_start: presentatieWeekStart,
             start_uur: startUur,
             duur_uren: urenPerDag, // Meestal 2 uur voor presentaties
+            werktype: 'extern', // Presentaties zijn extern (roze)
           });
         }
       } else {
@@ -1606,6 +1628,7 @@ function generateDefaultVoorstel(info: any): VoorstelTaak[] {
           week_start: presentatieWeekStart,
           start_uur: startUur,
           duur_uren: urenPerDag,
+          werktype: 'extern', // Presentaties zijn extern (roze)
         });
       }
       continue; // Ga naar volgende fase
@@ -1615,15 +1638,12 @@ function generateDefaultVoorstel(info: any): VoorstelTaak[] {
     let currentWeekStart = faseStartDatum ? getWeekStartForDate(faseStartDatum) : defaultWeekStart;
     let currentDayIndex = faseStartDatum ? getDayOfWeekFromDate(faseStartDatum) : 0;
 
-    // Check medewerkerDetails for specific hours per person
+    // Check medewerkerDetails for specific hours per person (nieuwe format: uren totaal)
     const medewerkerUren: Record<string, number> = {};
     if (fase.medewerkerDetails?.length > 0) {
       for (const md of fase.medewerkerDetails) {
-        if (md.eenheid === 'uren') {
-          medewerkerUren[md.naam] = md.inspanning;
-        } else if (md.eenheid === 'dagen') {
-          medewerkerUren[md.naam] = md.inspanning * (md.urenPerDag || urenPerDag);
-        }
+        // Nieuwe format: md.uren = totaal uren
+        medewerkerUren[md.naam] = md.uren || 0;
       }
     }
 
@@ -1638,6 +1658,7 @@ function generateDefaultVoorstel(info: any): VoorstelTaak[] {
           week_start: currentWeekStart,
           start_uur: 9,
           duur_uren: urenPerDag,
+          werktype: 'concept', // Werkzaamheden zijn concept
         });
         currentDayIndex++;
       }
@@ -1663,6 +1684,7 @@ function generateDefaultVoorstel(info: any): VoorstelTaak[] {
               week_start: slot.weekStart,
               start_uur: slot.startUur,
               duur_uren: blokUren,
+              werktype: 'concept', // Werkzaamheden zijn concept
             });
             restUren -= blokUren;
           }
