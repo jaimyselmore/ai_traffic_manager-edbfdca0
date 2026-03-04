@@ -133,7 +133,40 @@ export default function EllenVoorstel() {
   const [, setIsLoadingTaken] = useState(false);
   const [laatsteFeedback, setLaatsteFeedback] = useState<string>('');
   const [ellenUitleg, setEllenUitleg] = useState<string>('');
+  const [workingTooLong, setWorkingTooLong] = useState(false);
+  const [secondsElapsed, setSecondsElapsed] = useState(0);
   const voorstelGenerated = useRef(false);
+
+  // Timeout timer voor als Ellen te lang duurt
+  useEffect(() => {
+    if (flowState !== 'ellen-working') {
+      setWorkingTooLong(false);
+      setSecondsElapsed(0);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setSecondsElapsed(prev => {
+        const newVal = prev + 1;
+        if (newVal >= 30) setWorkingTooLong(true);
+        return newVal;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [flowState]);
+
+  // Retry functie - reset state en probeer opnieuw
+  const retryGeneration = () => {
+    voorstelGenerated.current = false;
+    setFlowState('ellen-working');
+    setWorkingTooLong(false);
+    setSecondsElapsed(0);
+    setActiveStep(0);
+    setCompletedSteps([]);
+    setErrorMessage('');
+    // De useEffect voor generateVoorstel zal opnieuw triggeren
+  };
 
   // Load existing tasks for relevant medewerkers and weeks
   useEffect(() => {
@@ -723,6 +756,43 @@ export default function EllenVoorstel() {
                 );
               })}
             </div>
+
+            {/* Timeout warning en acties */}
+            {workingTooLong && (
+              <Card className="p-4 bg-amber-50 border-amber-200 dark:bg-amber-950/30 dark:border-amber-800">
+                <div className="flex items-start gap-3">
+                  <div className="text-amber-600 dark:text-amber-400 text-lg">⚠️</div>
+                  <div className="space-y-2 flex-1">
+                    <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                      Dit duurt langer dan verwacht ({secondsElapsed}s)
+                    </p>
+                    <p className="text-xs text-amber-700 dark:text-amber-300">
+                      Ellen is mogelijk overbelast. Je kunt opnieuw proberen of teruggaan.
+                    </p>
+                    <div className="flex gap-2 mt-3">
+                      <Button size="sm" variant="outline" onClick={() => navigate('/nieuw-project')}>
+                        Terug
+                      </Button>
+                      <Button size="sm" onClick={retryGeneration}>
+                        Opnieuw proberen
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            )}
+
+            {/* Altijd een annuleren optie */}
+            {!workingTooLong && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground"
+                onClick={() => navigate('/nieuw-project')}
+              >
+                Annuleren
+              </Button>
+            )}
           </div>
         )}
 
@@ -1135,10 +1205,10 @@ export default function EllenVoorstel() {
               <p className="text-muted-foreground text-sm max-w-md">{errorMessage}</p>
             </div>
             <div className="flex gap-3">
-              <Button variant="outline" onClick={() => navigate('/')}>
-                Terug naar dashboard
+              <Button variant="outline" onClick={() => navigate('/nieuw-project')}>
+                Terug naar formulier
               </Button>
-              <Button onClick={() => navigate('/nieuw-project')}>
+              <Button onClick={retryGeneration}>
                 Opnieuw proberen
               </Button>
             </div>
