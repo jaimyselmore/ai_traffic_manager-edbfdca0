@@ -24,8 +24,7 @@ const formatDate = (date: Date | undefined): string => {
 
 export interface WorkloadMedewerker {
   medewerkerId: string;
-  aantalDagen: number;
-  urenPerDag: number;
+  uren: number; // Totaal aantal uren voor deze medewerker
 }
 
 export interface Workload {
@@ -82,7 +81,7 @@ export function AlgemeenFases({ data, onChange }: AlgemeenFasesProps) {
         teamIds: [...p.teamIds, empId],
         workload: {
           ...p.workload,
-          medewerkers: [...p.workload.medewerkers, { medewerkerId: empId, aantalDagen: 5, urenPerDag: 8 }]
+          medewerkers: [...p.workload.medewerkers, { medewerkerId: empId, uren: 16 }]
         }
       }));
     }
@@ -98,8 +97,7 @@ export function AlgemeenFases({ data, onChange }: AlgemeenFasesProps) {
   const addPresentatie = () => {
     const workloadMedewerkers: WorkloadMedewerker[] = data.projectTeamIds.map(id => ({
       medewerkerId: id,
-      aantalDagen: 5,
-      urenPerDag: 8,
+      uren: 16,
     }));
 
     const newPresentatie: PresentatieMoment = {
@@ -149,7 +147,7 @@ export function AlgemeenFases({ data, onChange }: AlgemeenFasesProps) {
   };
 
   // Workload functies
-  const updateWorkloadMedewerker = (presentatieId: string, medewerkerId: string, field: 'aantalDagen' | 'urenPerDag', value: number) => {
+  const updateWorkloadMedewerker = (presentatieId: string, medewerkerId: string, uren: number) => {
     onChange({
       ...data,
       presentaties: data.presentaties.map(p =>
@@ -159,7 +157,7 @@ export function AlgemeenFases({ data, onChange }: AlgemeenFasesProps) {
               workload: {
                 ...p.workload,
                 medewerkers: p.workload.medewerkers.map(m =>
-                  m.medewerkerId === medewerkerId ? { ...m, [field]: value } : m
+                  m.medewerkerId === medewerkerId ? { ...m, uren } : m
                 )
               }
             }
@@ -180,7 +178,7 @@ export function AlgemeenFases({ data, onChange }: AlgemeenFasesProps) {
               ...p,
               workload: {
                 ...p.workload,
-                medewerkers: [...p.workload.medewerkers, { medewerkerId: empId, aantalDagen: 5, urenPerDag: 8 }]
+                medewerkers: [...p.workload.medewerkers, { medewerkerId: empId, uren: 16 }]
               }
             }
           : p
@@ -361,10 +359,9 @@ export function AlgemeenFases({ data, onChange }: AlgemeenFasesProps) {
             {presentatie.workload.medewerkers.length > 0 ? (
               <div className="bg-background rounded-lg border border-border overflow-hidden">
                 {/* Tabel header */}
-                <div className="grid grid-cols-[1fr_80px_80px_32px] gap-2 px-3 py-2 bg-muted/50 border-b border-border text-xs font-medium text-muted-foreground">
+                <div className="grid grid-cols-[1fr_100px_32px] gap-2 px-3 py-2 bg-muted/50 border-b border-border text-xs font-medium text-muted-foreground">
                   <span>Medewerker</span>
-                  <span className="text-center">Dagen</span>
-                  <span className="text-center">Uren</span>
+                  <span className="text-center">Uren (totaal)</span>
                   <span></span>
                 </div>
 
@@ -373,22 +370,14 @@ export function AlgemeenFases({ data, onChange }: AlgemeenFasesProps) {
                   const emp = employees.find(e => e.id === wm.medewerkerId);
                   if (!emp) return null;
                   return (
-                    <div key={wm.medewerkerId} className="grid grid-cols-[1fr_80px_80px_32px] gap-2 px-3 py-2 items-center border-b border-border last:border-b-0">
+                    <div key={wm.medewerkerId} className="grid grid-cols-[1fr_100px_32px] gap-2 px-3 py-2 items-center border-b border-border last:border-b-0">
                       <span className="text-sm font-medium truncate">{emp.name}</span>
                       <Input
                         type="number"
-                        min="1"
-                        value={wm.aantalDagen}
-                        onChange={(e) => updateWorkloadMedewerker(presentatie.id, wm.medewerkerId, 'aantalDagen', parseInt(e.target.value) || 1)}
-                        className="h-8 text-sm text-center"
-                      />
-                      <Input
-                        type="number"
-                        min="0.5"
-                        max="8"
+                        min="0"
                         step="0.5"
-                        value={wm.urenPerDag}
-                        onChange={(e) => updateWorkloadMedewerker(presentatie.id, wm.medewerkerId, 'urenPerDag', parseFloat(e.target.value) || 1)}
+                        value={wm.uren}
+                        onChange={(e) => updateWorkloadMedewerker(presentatie.id, wm.medewerkerId, parseFloat(e.target.value) || 0)}
                         className="h-8 text-sm text-center"
                       />
                       <button

@@ -37,15 +37,14 @@ type ProjectType = 'algemeen' | 'productie' | '';
 
 interface MedewerkerAllocatie {
   medewerkerId: string;
-  aantalDagen: number;
-  eenheid: 'dagen' | 'uren';
+  uren: number; // Totaal aantal uren voor deze medewerker
   toelichting: string;
   ongeveer: boolean;
 }
 
 interface TeamAllocatie {
   teamName: string; // bijv "Creative Team 1"
-  aantalDagen: number;
+  uren: number; // Totaal aantal uren voor dit team
   planningType: 'samen_met_team' | 'beide' | '';
   toelichting: string;
   ongeveer: boolean;
@@ -134,7 +133,7 @@ export default function NieuwProject() {
         presentaties: (parsed.algemeenFases?.presentaties ?? []).map((p: any) => ({
           ...p,
           datumType: p.datumType ?? (p.datum ? 'zelf' : 'ellen'),
-          workload: p.workload ?? { medewerkers: [], aantalDagen: undefined },
+          workload: p.workload ?? { medewerkers: [] },
         })),
       },
       betrokkenTeam: {
@@ -303,8 +302,7 @@ export default function NieuwProject() {
           return {
             naam: emp?.name || 'Medewerker',
             medewerkerId: wm.medewerkerId,
-            aantalDagen: wm.aantalDagen,
-            urenPerDag: wm.urenPerDag,
+            uren: wm.uren || 0, // Totaal aantal uren
           };
         });
 
@@ -312,18 +310,14 @@ export default function NieuwProject() {
 
         // Voeg workload fase toe (werkzaamheden vóór presentatie)
         if (medewerkerDetails.length > 0) {
-          const maxDagen = Math.max(...medewerkerDetails.map(m => m.aantalDagen), 1);
+          // Ellen verdeelt de uren, we geven alleen totaal uren per medewerker door
           fases.push({
             fase_naam: `Werkzaamheden - ${presentatie.naam}`,
             medewerkers: medewerkerNamen,
             start_datum: defaultDatum,
-            duur_dagen: maxDagen,
-            uren_per_dag: 8,
             medewerkerDetails: medewerkerDetails.map(m => ({
               naam: m.naam,
-              inspanning: m.aantalDagen,
-              eenheid: 'dagen',
-              urenPerDag: m.urenPerDag,
+              uren: m.uren, // Totaal uren die Ellen moet verdelen
             })),
           });
         }
