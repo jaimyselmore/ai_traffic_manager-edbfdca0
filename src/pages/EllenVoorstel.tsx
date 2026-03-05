@@ -303,9 +303,20 @@ export default function EllenVoorstel() {
         }
 
         if (data?.voorstel?.type === 'planning_voorstel' && data.voorstel.taken?.length > 0) {
-          // Voeg pre-gegenereerde presentatietaken toe (exacte datum/tijd van formulier)
+          // Pre-genereer presentatietaken met exacte datum/tijd uit het formulier
           const presentatieTaken = buildPresentatieTaken(projectInfo);
-          setVoorstellen([...data.voorstel.taken, ...presentatieTaken]);
+          console.log('[EllenVoorstel] presentatieFases in projectInfo:', projectInfo.fases?.filter((f: any) => f.type === 'presentatie'));
+          console.log('[EllenVoorstel] pre-generated presentatieTaken:', presentatieTaken);
+          const presentatieFaseNamen = new Set(
+            (projectInfo.fases || [])
+              .filter((f: any) => f.type === 'presentatie')
+              .map((f: any) => (f.fase_naam || '').toLowerCase())
+          );
+          // Verwijder Ellen's versie van presentatietaken en gebruik de exacte frontend-versie
+          const ellenTakenZonderPresentaties = presentatieFaseNamen.size > 0
+            ? data.voorstel.taken.filter((t: any) => !presentatieFaseNamen.has((t.fase_naam || '').toLowerCase()))
+            : data.voorstel.taken;
+          setVoorstellen([...ellenTakenZonderPresentaties, ...presentatieTaken]);
           setEllenUitleg(cleanEllenText(data?.antwoord || ''));
           setEllenMessage('');
           setFlowState('voorstel');
