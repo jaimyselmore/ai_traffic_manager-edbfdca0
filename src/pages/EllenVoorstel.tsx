@@ -1276,6 +1276,23 @@ function buildMeetingPrompt(info: any): string {
  * Pre-genereer presentatietaken voor presentaties met een exacte datum/tijd.
  * Deze worden direct vanuit het formulier aangemaakt — Ellen hoeft ze niet te plannen.
  */
+/** Parse datum string in dd-MM-yyyy of YYYY-MM-DD formaat naar losse year/month/day */
+function parseDatumParts(datumStr: string): { year: number; month: number; day: number } | null {
+  if (!datumStr) return null;
+  const parts = datumStr.split('-');
+  if (parts.length !== 3) return null;
+  // dd-MM-yyyy: eerste deel is 2 cijfers en <= 31
+  if (parts[0].length === 2) {
+    return { day: parseInt(parts[0], 10), month: parseInt(parts[1], 10) - 1, year: parseInt(parts[2], 10) };
+  }
+  // YYYY-MM-DD
+  return { year: parseInt(parts[0], 10), month: parseInt(parts[1], 10) - 1, day: parseInt(parts[2], 10) };
+}
+
+/**
+ * Pre-genereer presentatietaken voor presentaties met een exacte datum/tijd.
+ * Deze worden direct vanuit het formulier aangemaakt — Ellen hoeft ze niet te plannen.
+ */
 function buildPresentatieTaken(info: any): VoorstelTaak[] {
   const taken: VoorstelTaak[] = [];
   const presentaties = info.fases?.filter((f: any) => f.type === 'presentatie') || [];
@@ -1283,26 +1300,30 @@ function buildPresentatieTaken(info: any): VoorstelTaak[] {
   for (const p of presentaties) {
     if (p.datumType !== 'zelf' || !p.start_datum) continue;
 
-    const datum = new Date(p.start_datum + 'T00:00:00');
-    const dag = datum.getDay();
-    if (dag === 0 || dag === 6) continue; // geen weekend
+    const parsed = parseDatumParts(p.start_datum);
+    if (!parsed) continue;
 
-    // week_start = maandag van die week
+    // Maak datum zonder timezone issues
+    const datum = new Date(parsed.year, parsed.month, parsed.day);
+    const dagOfWeek = datum.getDay(); // 0=zo, 6=za
+    if (dagOfWeek === 0 || dagOfWeek === 6) continue;
+
+    // week_start = maandag van die week (YYYY-MM-DD)
     const maandag = new Date(datum);
-    const diffToMon = dag === 0 ? -6 : 1 - dag;
-    maandag.setDate(datum.getDate() + diffToMon);
-    const weekStart = maandag.toISOString().split('T')[0];
-    const dagVanWeek = dag === 0 ? 6 : dag - 1; // 0=ma, 4=vr
+    maandag.setDate(datum.getDate() + (1 - dagOfWeek));
+    const weekStart = `${maandag.getFullYear()}-${String(maandag.getMonth() + 1).padStart(2, '0')}-${String(maandag.getDate()).padStart(2, '0')}`;
+    const dagVanWeek = dagOfWeek - 1; // 0=ma, 4=vr
 
     // startuur uit tijd (bijv. "14:00" → 14)
     let startUur = 10;
     if (p.tijd) {
-      const parts = p.tijd.split(':');
-      startUur = parseInt(parts[0], 10) || 10;
+      const tijdParts = (p.tijd as string).split(':');
+      startUur = parseInt(tijdParts[0], 10) || 10;
     }
     const duurUren = p.uren_per_dag || 2;
 
     for (const medewerker of (p.medewerkers || [])) {
+      if (!medewerker) continue;
       taken.push({
         werknemer_naam: medewerker,
         fase_naam: p.fase_naam || 'Presentatie',
