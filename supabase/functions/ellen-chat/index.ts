@@ -1972,6 +1972,14 @@ Deno.serve(async (req) => {
 
         // Add tool results to context
         currentMessages.push({ role: 'user', content: toolResults });
+
+        // Als plan_project is uitgevoerd, stop direct — geen tweede Claude call nodig
+        if (pendingVoorstel && project_data) {
+          if (!assistantMessage) {
+            assistantMessage = 'Hier is mijn planning voorstel. Bekijk het hieronder en laat me weten of je aanpassingen wilt.';
+          }
+          break;
+        }
       } else {
         // Unknown stop reason, extract any text and break
         for (const block of data.content || []) {
