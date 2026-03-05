@@ -1814,7 +1814,8 @@ Deno.serve(async (req) => {
                 .select('week_start, dag_van_week, start_uur, duur_uren, klant_naam, project_nummer')
                 .eq('werknemer_naam', mw)
                 .gte('week_start', start_datum)
-                .lte('week_start', eind_datum),
+                .lte('week_start', eind_datum)
+                .limit(40),
               supabase.from('beschikbaarheid_medewerkers')
                 .select('start_datum, eind_datum, type, reden')
                 .eq('werknemer_naam', mw)
