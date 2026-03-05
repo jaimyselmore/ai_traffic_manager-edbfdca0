@@ -135,6 +135,7 @@ export default function EllenVoorstel() {
   const [ellenUitleg, setEllenUitleg] = useState<string>('');
   const [workingTooLong, setWorkingTooLong] = useState(false);
   const [secondsElapsed, setSecondsElapsed] = useState(0);
+  const [retryCount, setRetryCount] = useState(0); // used in generateVoorstel deps
   const voorstelGenerated = useRef(false);
 
   // Timeout timer voor als Ellen te lang duurt
@@ -165,7 +166,7 @@ export default function EllenVoorstel() {
     setActiveStep(0);
     setCompletedSteps([]);
     setErrorMessage('');
-    // De useEffect voor generateVoorstel zal opnieuw triggeren
+    setRetryCount(prev => prev + 1);
   };
 
   // Load existing tasks for relevant medewerkers and weeks
@@ -267,19 +268,30 @@ export default function EllenVoorstel() {
         const isMeeting = projectInfo.type === 'meeting' || projectInfo.meetingType;
         const prompt = isMeeting ? buildMeetingPrompt(projectInfo) : buildEllenPrompt(projectInfo);
 
-        const { data, error } = await supabase.functions.invoke('ellen-chat', {
-          headers: { Authorization: `Bearer ${sessionToken}` },
-          body: {
-            sessie_id: `${isMeeting ? 'meeting' : 'project'}-${Date.now()}`,
-            bericht: prompt,
-            project_data: {
-              medewerkers: alleMedewerkers,
-              klant_naam: projectInfo.klant_naam || (projectInfo.geenProject ? 'Intern' : 'Onbekend'),
-              start_datum: startDatum,
-              eind_datum: projectInfo.deadline || projectInfo.datum,
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 28000);
+
+        let data: any = null;
+        let error: any = null;
+        try {
+          const result = await supabase.functions.invoke('ellen-chat', {
+            headers: { Authorization: `Bearer ${sessionToken}` },
+            body: {
+              sessie_id: `${isMeeting ? 'meeting' : 'project'}-${Date.now()}`,
+              bericht: prompt,
+              project_data: {
+                medewerkers: alleMedewerkers,
+                klant_naam: projectInfo.klant_naam || (projectInfo.geenProject ? 'Intern' : 'Onbekend'),
+                start_datum: startDatum,
+                eind_datum: projectInfo.deadline || projectInfo.datum,
+              },
             },
-          },
-        });
+          });
+          data = result.data;
+          error = result.error;
+        } finally {
+          clearTimeout(timeoutId);
+        }
 
         if (error) {
           // Check for rate limit
@@ -324,7 +336,7 @@ export default function EllenVoorstel() {
     const totalWorkflowDuration = WORKFLOW_STEPS.reduce((sum, s) => sum + s.duration + 200, 0) + 500;
     const timer = setTimeout(generateVoorstel, totalWorkflowDuration);
     return () => clearTimeout(timer);
-  }, [projectInfo]);
+  }, [projectInfo, retryCount]);
 
   const handleApprove = () => {
     setFlowState('color-select');
