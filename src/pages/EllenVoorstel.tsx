@@ -306,25 +306,25 @@ export default function EllenVoorstel() {
           setVoorstellen(data.voorstel.taken);
           setEllenUitleg(cleanEllenText(data?.antwoord || ''));
           setEllenMessage('');
-        } else if (data?.antwoord) {
-          console.warn('Geen planning_voorstel ontvangen, gebruik fallback. Antwoord:', data.antwoord);
-          const defaultTaken = generateDefaultVoorstel(projectInfo);
-          setVoorstellen(defaultTaken);
-          setEllenUitleg(cleanEllenText(data.antwoord));
-          setEllenMessage('');
+          setFlowState('voorstel');
         } else {
-          console.warn('Leeg antwoord van Ellen, gebruik fallback');
-          const defaultTaken = generateDefaultVoorstel(projectInfo);
-          setVoorstellen(defaultTaken);
-          setEllenMessage('');
+          // Ellen gaf geen voorstel terug — toon foutmelding, geen stille fallback
+          const reden = data?.antwoord ? `Ellen zei: "${cleanEllenText(data.antwoord)}"` : 'Ellen heeft geen voorstel teruggestuurd.';
+          setErrorMessage(`Er is geen planning gemaakt. ${reden}\n\nProbeer opnieuw of ga terug naar het formulier.`);
+          setFlowState('error');
         }
-        setFlowState('voorstel');
-      } catch (err) {
+      } catch (err: any) {
         console.error('Ellen voorstel error:', err);
-        const defaultTaken = generateDefaultVoorstel(projectInfo);
-        setVoorstellen(defaultTaken);
-        setEllenMessage('');
-        setFlowState('voorstel');
+        const isTimeout = err?.message?.includes('timeout') || err?.message?.includes('28 seconden');
+        const isRateLimit = err?.message?.includes('429') || err?.message?.includes('overbelast');
+        if (isTimeout) {
+          setErrorMessage('Ellen heeft te lang nodig gehad (timeout). Er zijn geen tokens verbruikt voor dit verzoek.\n\nProbeer opnieuw — bij een nieuw project met minder medewerkers gaat het sneller.');
+        } else if (isRateLimit) {
+          setErrorMessage('De AI is tijdelijk overbelast. Probeer het over 30 seconden opnieuw.');
+        } else {
+          setErrorMessage(`Er ging iets mis: ${err?.message || 'Onbekende fout'}.\n\nProbeer opnieuw of ga terug naar het formulier.`);
+        }
+        setFlowState('error');
       }
     };
 
