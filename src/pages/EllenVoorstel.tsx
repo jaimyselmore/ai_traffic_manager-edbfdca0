@@ -305,16 +305,13 @@ export default function EllenVoorstel() {
         if (data?.voorstel?.type === 'planning_voorstel' && data.voorstel.taken?.length > 0) {
           // Pre-genereer presentatietaken met exacte datum/tijd uit het formulier
           const presentatieTaken = buildPresentatieTaken(projectInfo);
-          console.log('[EllenVoorstel] presentatieFases in projectInfo:', projectInfo.fases?.filter((f: any) => f.type === 'presentatie'));
-          console.log('[EllenVoorstel] pre-generated presentatieTaken:', presentatieTaken);
-          const presentatieFaseNamen = new Set(
-            (projectInfo.fases || [])
-              .filter((f: any) => f.type === 'presentatie')
-              .map((f: any) => (f.fase_naam || '').toLowerCase())
-          );
-          // Verwijder Ellen's versie van presentatietaken en gebruik de exacte frontend-versie
-          const ellenTakenZonderPresentaties = presentatieFaseNamen.size > 0
-            ? data.voorstel.taken.filter((t: any) => !presentatieFaseNamen.has((t.fase_naam || '').toLowerCase()))
+          // Als we pre-generated presentatietaken hebben: verwijder ALLE van Ellen's taken
+          // die "presentatie" in de naam hebben (Ellen gebruikt soms andere namen)
+          const ellenTakenZonderPresentaties = presentatieTaken.length > 0
+            ? data.voorstel.taken.filter((t: any) => {
+                const naam = (t.fase_naam || '').toLowerCase();
+                return !naam.includes('presentatie') && !naam.includes('presentation');
+              })
             : data.voorstel.taken;
           setVoorstellen([...ellenTakenZonderPresentaties, ...presentatieTaken]);
           setEllenUitleg(cleanEllenText(data?.antwoord || ''));
