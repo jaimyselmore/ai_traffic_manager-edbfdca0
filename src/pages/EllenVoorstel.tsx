@@ -268,30 +268,26 @@ export default function EllenVoorstel() {
         const isMeeting = projectInfo.type === 'meeting' || projectInfo.meetingType;
         const prompt = isMeeting ? buildMeetingPrompt(projectInfo) : buildEllenPrompt(projectInfo);
 
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 28000);
-
-        let data: any = null;
-        let error: any = null;
-        try {
-          const result = await supabase.functions.invoke('ellen-chat', {
-            headers: { Authorization: `Bearer ${sessionToken}` },
-            body: {
-              sessie_id: `${isMeeting ? 'meeting' : 'project'}-${Date.now()}`,
-              bericht: prompt,
-              project_data: {
-                medewerkers: alleMedewerkers,
-                klant_naam: projectInfo.klant_naam || (projectInfo.geenProject ? 'Intern' : 'Onbekend'),
-                start_datum: startDatum,
-                eind_datum: projectInfo.deadline || projectInfo.datum,
-              },
+        const invokePromise = supabase.functions.invoke('ellen-chat', {
+          headers: { Authorization: `Bearer ${sessionToken}` },
+          body: {
+            sessie_id: `${isMeeting ? 'meeting' : 'project'}-${Date.now()}`,
+            bericht: prompt,
+            project_data: {
+              medewerkers: alleMedewerkers,
+              klant_naam: projectInfo.klant_naam || (projectInfo.geenProject ? 'Intern' : 'Onbekend'),
+              start_datum: startDatum,
+              eind_datum: projectInfo.deadline || projectInfo.datum,
             },
-          });
-          data = result.data;
-          error = result.error;
-        } finally {
-          clearTimeout(timeoutId);
-        }
+          },
+        });
+
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Ellen timeout na 28 seconden')), 28000)
+        );
+
+        const result = await Promise.race([invokePromise, timeoutPromise]);
+        const { data, error } = result as { data: any; error: any };
 
         if (error) {
           // Check for rate limit
