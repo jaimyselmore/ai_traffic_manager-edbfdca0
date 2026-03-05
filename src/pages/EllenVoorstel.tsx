@@ -1335,7 +1335,11 @@ function buildEllenPrompt(info: any, feedback?: string, vorigVoorstel?: Voorstel
         werkVoorPresentatie.medewerkerDetails.forEach((md: any) => {
           // md.uren = totaal aantal uren die verdeeld moeten worden
           const totaalUren = md.uren || 0;
-          parts.push(`  • ${md.naam}: ${totaalUren} uur totaal (VERDEEL over beschikbare dagen)`);
+          if (totaalUren > 0) {
+            parts.push(`  • ${md.naam}: ${totaalUren} uur totaal (VERDEEL over beschikbare dagen)`);
+          } else {
+            parts.push(`  • ${md.naam}: uren niet opgegeven — SCHAT zelf hoeveel uur realistisch is voor deze fase op basis van het projecttype en de deadline, en plan dit in`);
+          }
         });
       } else {
         parts.push(`  Medewerkers: ${werkVoorPresentatie.medewerkers?.join(', ') || 'Geen opgegeven'}`);

@@ -1805,10 +1805,10 @@ Deno.serve(async (req) => {
           prefetchParts.push(`\n--- PRE-LOADED: MEDEWERKER INFO ---\n${JSON.stringify(mwData, null, 2)}`);
         }
 
-        // Fetch beschikbaarheid (taken + verlof) for each medewerker
+        // Fetch beschikbaarheid (taken + verlof) for each medewerker — parallel!
         if (start_datum && eind_datum) {
           const beschikbaarheid: Record<string, unknown> = {};
-          for (const mw of mwNames) {
+          await Promise.all(mwNames.map(async (mw: string) => {
             const [takenRes, verlofRes] = await Promise.all([
               supabase.from('taken')
                 .select('week_start, dag_van_week, start_uur, duur_uren, klant_naam, project_nummer')
@@ -1821,14 +1821,14 @@ Deno.serve(async (req) => {
                 .eq('status', 'goedgekeurd')
                 .or(`start_datum.lte.${eind_datum},eind_datum.gte.${start_datum}`),
             ]);
-            
+
             const totaalIngepland = (takenRes.data || []).reduce((sum: number, b: { duur_uren: number }) => sum + b.duur_uren, 0);
             beschikbaarheid[mw] = {
               ingeplande_uren: totaalIngepland,
               bestaande_taken: takenRes.data || [],
               verlof_periodes: verlofRes.data || [],
             };
-          }
+          }));
           prefetchParts.push(`\n--- PRE-LOADED: BESCHIKBAARHEID (${start_datum} t/m ${eind_datum}) ---\n${JSON.stringify(beschikbaarheid, null, 2)}`);
         }
 
@@ -1889,7 +1889,7 @@ Deno.serve(async (req) => {
     // deno-lint-ignore no-explicit-any
     let currentMessages = [...claudeMessages];
 
-    const maxIterations = project_data ? 3 : 5;
+    const maxIterations = project_data ? 2 : 5;
     for (let i = 0; i < maxIterations; i++) {
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -1900,7 +1900,7 @@ Deno.serve(async (req) => {
         },
         body: JSON.stringify({
           model: 'claude-sonnet-4-20250514',
-          max_tokens: 4096,
+          max_tokens: project_data ? 3000 : 4096,
           system: systemPrompt,
           messages: currentMessages,
           tools: CLAUDE_TOOLS,
