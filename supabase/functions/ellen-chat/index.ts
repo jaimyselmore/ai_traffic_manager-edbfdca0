@@ -1699,7 +1699,45 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 3. Chat modus
+    // 3. Direct plan modus — bypast Claude, voert plan_project direct uit vanuit formulierdata
+    if (project_data?.direct_plan_fases?.length) {
+      console.log('Direct plan modus: skip Claude, voer plan_project direct uit');
+      const planningConfig = await loadPlanningConfig(supabase);
+
+      // Verwijder interne _deadline velden voor het tool schema
+      const fases = project_data.direct_plan_fases.map((f: Record<string, unknown>) => {
+        const { _deadline, ...rest } = f;
+        return rest;
+      });
+
+      // Bepaal deadline: eerste presentatiedeadline of eind_datum
+      const deadlines = project_data.direct_plan_fases
+        .map((f: Record<string, unknown>) => f._deadline)
+        .filter(Boolean) as string[];
+      const deadline = deadlines.sort()[0] || project_data.eind_datum;
+
+      const result = await executeTool(supabase, planningConfig, 'plan_project', {
+        klant_naam: project_data.klant_naam || 'Onbekend',
+        project_naam: project_data.project_naam || 'Project',
+        fases,
+        deadline,
+        reasoning: 'Direct plan vanuit template formulier — slot-algoritme bepaalt exacte tijden',
+      });
+
+      let voorstel: Record<string, unknown> | null = null;
+      try { voorstel = JSON.parse(result); } catch { /* ignore */ }
+
+      return new Response(
+        JSON.stringify({
+          antwoord: 'Planning aangemaakt op basis van het template.',
+          voorstel: voorstel?.type === 'planning_voorstel' ? voorstel : null,
+          sessie_id,
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // 4. Chat modus
     if (!bericht) {
       return new Response(
         JSON.stringify({ error: 'bericht is verplicht' }),
@@ -1707,7 +1745,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 4. Laad alles parallel
+    // 5. Laad alles parallel
     const [planningConfig, ellenRegels, recentFeedback, plannerInfo] = await Promise.all([
       loadPlanningConfig(supabase),
       loadEllenRegels(supabase),

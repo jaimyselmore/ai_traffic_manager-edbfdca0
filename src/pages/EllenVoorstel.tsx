@@ -268,6 +268,9 @@ export default function EllenVoorstel() {
         const isMeeting = projectInfo.type === 'meeting' || projectInfo.meetingType;
         const prompt = isMeeting ? buildMeetingPrompt(projectInfo) : buildEllenPrompt(projectInfo);
 
+        // Bouw directe planfases van formulierdata (bypast Claude voor workload)
+        const directPlanFases = isMeeting ? null : buildDirectPlanFases(projectInfo);
+
         const invokePromise = supabase.functions.invoke('ellen-chat', {
           headers: { Authorization: `Bearer ${sessionToken}` },
           body: {
@@ -276,8 +279,10 @@ export default function EllenVoorstel() {
             project_data: {
               medewerkers: alleMedewerkers,
               klant_naam: projectInfo.klant_naam || (projectInfo.geenProject ? 'Intern' : 'Onbekend'),
-              start_datum: startDatum,
-              eind_datum: projectInfo.deadline || projectInfo.datum,
+              project_naam: projectInfo.projectnaam || projectInfo.klant_naam || 'Project',
+              start_datum: toISODate(startDatum) || startDatum,
+              eind_datum: toISODate(projectInfo.deadline || projectInfo.datum),
+              direct_plan_fases: directPlanFases, // null = gebruik Claude, array = skip Claude
             },
           },
         });
@@ -1284,6 +1289,70 @@ function buildMeetingPrompt(info: any): string {
  * Pre-genereer presentatietaken voor presentaties met een exacte datum/tijd.
  * Deze worden direct vanuit het formulier aangemaakt — Ellen hoeft ze niet te plannen.
  */
+/** Converteer dd-MM-yyyy of YYYY-MM-DD naar YYYY-MM-DD */
+function toISODate(dateStr: string | undefined): string | undefined {
+  if (!dateStr) return undefined;
+  const p = parseDatumParts(dateStr);
+  if (!p) return dateStr;
+  return `${p.year}-${String(p.month + 1).padStart(2, '0')}-${String(p.day).padStart(2, '0')}`;
+}
+
+/**
+ * Bouw plan_project fases direct van formulierdata — bypast Claude-beslissing.
+ * Per medewerker een aparte fase zodat uren exact kloppen.
+ */
+function buildDirectPlanFases(info: any): Array<any> | null {
+  const werkzaamheden = (info.fases || []).filter((f: any) => f.type !== 'presentatie');
+  if (!werkzaamheden.length) return null;
+
+  const planFases: Array<any> = [];
+  const presentaties = (info.fases || []).filter((f: any) => f.type === 'presentatie');
+
+  werkzaamheden.forEach((f: any) => {
+    // Zoek bijbehorende presentatiedeadline
+    const faseNaamLower = (f.fase_naam || '').toLowerCase().replace('werkzaamheden - ', '');
+    const bijhorendePresentatie = presentaties.find((p: any) =>
+      (p.fase_naam || '').toLowerCase().includes(faseNaamLower) ||
+      faseNaamLower.includes((p.fase_naam || '').toLowerCase())
+    );
+    const deadline = bijhorendePresentatie?.datumType === 'zelf' && bijhorendePresentatie?.start_datum
+      ? toISODate(bijhorendePresentatie.start_datum)
+      : toISODate(info.deadline);
+
+    const startDatum = toISODate(f.start_datum) || toISODate(info.fases?.[0]?.start_datum) || new Date().toISOString().split('T')[0];
+
+    if (f.medewerkerDetails?.length > 0) {
+      f.medewerkerDetails.forEach((md: any) => {
+        if (!md.naam) return;
+        const totaalUren = md.uren || 0;
+        const urenPerDag = totaalUren > 0 ? Math.min(8, totaalUren) : (f.uren_per_dag || 4);
+        const duurDagen = totaalUren > 0 ? Math.ceil(totaalUren / urenPerDag) : (f.duur_dagen || 1);
+        planFases.push({
+          fase_naam: f.fase_naam,
+          medewerkers: [md.naam],
+          start_datum: startDatum,
+          duur_dagen: Math.max(1, duurDagen),
+          uren_per_dag: urenPerDag,
+          verdeling: 'aaneengesloten',
+          _deadline: deadline, // voor context, niet in tool schema
+        });
+      });
+    } else if (f.medewerkers?.length > 0) {
+      planFases.push({
+        fase_naam: f.fase_naam,
+        medewerkers: f.medewerkers,
+        start_datum: startDatum,
+        duur_dagen: Math.max(1, f.duur_dagen || 1),
+        uren_per_dag: f.uren_per_dag || 8,
+        verdeling: 'aaneengesloten',
+        _deadline: deadline,
+      });
+    }
+  });
+
+  return planFases.length > 0 ? planFases : null;
+}
+
 /** Parse datum string in dd-MM-yyyy of YYYY-MM-DD formaat naar losse year/month/day */
 function parseDatumParts(datumStr: string): { year: number; month: number; day: number } | null {
   if (!datumStr) return null;
