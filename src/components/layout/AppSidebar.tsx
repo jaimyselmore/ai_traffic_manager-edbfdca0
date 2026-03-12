@@ -63,9 +63,10 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
   return (
     <aside
       className={cn(
-        "flex h-full flex-col shrink-0 border-r border-border bg-card overflow-y-auto transition-all duration-300",
+        "flex h-full flex-col shrink-0 border-r border-border overflow-y-auto transition-all duration-300",
         isExpanded ? "w-56" : "w-14"
       )}
+      style={{ background: 'hsl(210 22% 98.5%)' }}
       onMouseEnter={() => setIsExpanded(true)}
       onMouseLeave={() => setIsExpanded(false)}
     >

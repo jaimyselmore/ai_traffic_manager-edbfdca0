@@ -2,47 +2,50 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-
-@import url("https://fonts.googleapis.com/css2?family=Inter&display=swap");
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap');
 
 @layer base {
   :root {
-    --background: 210 20% 98%;
-    --foreground: 215 25% 15%;
+    --background: 210 22% 97%;
+    --foreground: 215 30% 12%;
 
     --card: 0 0% 100%;
-    --card-foreground: 215 25% 15%;
+    --card-foreground: 215 30% 12%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 215 25% 15%;
+    --popover-foreground: 215 30% 12%;
 
-    --primary: 190 70% 40%;
+    --primary: 190 72% 38%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 20% 96%;
-    --secondary-foreground: 215 25% 25%;
+    --secondary: 210 18% 95%;
+    --secondary-foreground: 215 25% 22%;
 
-    --muted: 210 15% 93%;
-    --muted-foreground: 215 15% 50%;
+    --muted: 210 14% 92%;
+    --muted-foreground: 215 14% 48%;
 
-    --accent: 199 70% 94%;
-    --accent-foreground: 190 70% 40%;
+    --accent: 196 72% 92%;
+    --accent-foreground: 190 72% 32%;
 
-    --destructive: 0 84% 60%;
+    --destructive: 0 82% 58%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 142 72% 45%;
+    --success: 142 70% 42%;
     --success-foreground: 0 0% 100%;
 
-    --warning: 38 92% 50%;
+    --warning: 38 90% 48%;
     --warning-foreground: 0 0% 100%;
 
-    --border: 214 20% 88%;
-    --input: 214 20% 88%;
-    --ring: 190 70% 40%;
+    --border: 214 18% 87%;
+    --input: 214 18% 87%;
+    --ring: 190 72% 38%;
 
-    --radius: 0.625rem;
+    --radius: 0.5rem;
+
+    /* Refined shadows */
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.04);
+    --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.04);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.06), 0 2px 4px -2px rgb(0 0 0 / 0.04);
 
     /* Task colors */
     --task-concept: 280 70% 60%;
@@ -115,14 +118,51 @@
   }
 
   body {
-    @apply bg-background text-foreground font-sans antialiased overflow-hidden;
-    font-family: 'Inter', sans-serif;
+    @apply bg-background text-foreground antialiased overflow-hidden;
+    font-family: 'DM Sans', system-ui, sans-serif;
+    font-optical-sizing: auto;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   /* Prevent scroll jumping when content changes */
   main, [data-radix-scroll-area-viewport] {
     overflow-anchor: none;
   }
+}
+
+/* Refined card and surface styles */
+@layer components {
+  .card-elevated {
+    @apply bg-card border border-border rounded-xl;
+    box-shadow: var(--shadow);
+  }
+  .card-flat {
+    @apply bg-card border border-border rounded-xl;
+    box-shadow: var(--shadow-sm);
+  }
+  /* Polished scrollbar */
+  ::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/30;
+  }
+}
+
+@keyframes slide-in-up {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-slide-in-up {
+  animation: slide-in-up 0.25s ease-out both;
 }
 
 @layer utilities {

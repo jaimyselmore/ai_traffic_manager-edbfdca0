@@ -1,6 +1,16 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Loader2, CheckCircle2, XCircle, ArrowLeft, Send, Check, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Loader2, CheckCircle2, XCircle, ArrowLeft, Send, Check, ChevronLeft, ChevronRight, X, Trash2, BookmarkIcon } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
@@ -61,6 +71,34 @@ function cleanEllenText(text: string): string {
   }
   return cleaned;
 }
+function RobotFaceInline({ happy, size = 40 }: { happy?: boolean; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <line x1="32" y1="4" x2="32" y2="13" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+      <circle cx="32" cy="4" r="3" fill="currentColor" />
+      <rect x="10" y="13" width="44" height="36" rx="10" fill="currentColor" fillOpacity="0.12" stroke="currentColor" strokeWidth="2.5" />
+      {happy ? (
+        <>
+          <path d="M20 27 Q24 23 28 27" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+          <path d="M36 27 Q40 23 44 27" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+          <path d="M20 38 Q32 50 44 38" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+          <ellipse cx="18" cy="38" rx="5" ry="3" fill="currentColor" fillOpacity="0.2" />
+          <ellipse cx="46" cy="38" rx="5" ry="3" fill="currentColor" fillOpacity="0.2" />
+        </>
+      ) : (
+        <>
+          <circle cx="24" cy="27" r="4" fill="currentColor" />
+          <circle cx="40" cy="27" r="4" fill="currentColor" />
+          <circle cx="26" cy="25" r="1.5" fill="white" fillOpacity="0.6" />
+          <circle cx="42" cy="25" r="1.5" fill="white" fillOpacity="0.6" />
+          <path d="M23 38 Q32 45 41 38" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+        </>
+      )}
+      <rect x="22" y="49" width="20" height="5" rx="2.5" fill="currentColor" fillOpacity="0.3" />
+    </svg>
+  );
+}
+
 const TIME_SLOTS = [9, 10, 11, 12, 13, 14, 15, 16, 17]; // Werkdag 09:00 tot 18:00, zonder 18:00 rij
 const CELL_HEIGHT = 28; // px per hour cell
 
@@ -136,6 +174,7 @@ export default function EllenVoorstel() {
   const [workingTooLong, setWorkingTooLong] = useState(false);
   const [secondsElapsed, setSecondsElapsed] = useState(0);
   const [retryCount, setRetryCount] = useState(0); // used in generateVoorstel deps
+  const [showExitDialog, setShowExitDialog] = useState(false);
   const voorstelGenerated = useRef(false);
 
   // Timeout timer voor als Ellen te lang duurt
@@ -716,16 +755,87 @@ export default function EllenVoorstel() {
     return FASE_COLORS[faseNaam] || FASE_COLORS['Algemeen'];
   };
 
+  const handleExitClick = () => {
+    // Toon dialog alleen als er een voorstel is, anders gewoon terug
+    if (['voorstel', 'color-select', 'client-check'].includes(flowState)) {
+      setShowExitDialog(true);
+    } else {
+      navigate(-1);
+    }
+  };
+
+  const handleSaveAsConcept = () => {
+    if (projectInfo) {
+      saveAanvraag({
+        id: `concept-${Date.now()}`,
+        type: 'nieuw-project',
+        status: 'concept',
+        titel: projectInfo.projectnaam || projectInfo.klant_naam || 'Naamloos project',
+        klant: projectInfo.klant_naam,
+        datum: new Date().toISOString(),
+        projectType: projectInfo.projecttype,
+        projectInfo,
+      });
+      toast({ title: 'Concept opgeslagen', description: 'Je vindt het terug bij Mijn aanvragen.' });
+    }
+    setShowExitDialog(false);
+    navigate('/');
+  };
+
+  const handleDeleteAndExit = () => {
+    setShowExitDialog(false);
+    navigate(-1);
+  };
+
   return (
     <div className="h-full overflow-y-auto bg-background">
-      <div className="w-full px-6 pt-6 mb-4">
+      {/* Exit dialog */}
+      <AlertDialog open={showExitDialog} onOpenChange={setShowExitDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Voorstel verlaten?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Wat wil je doen met dit planningsvoorstel?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <AlertDialogCancel>Annuleren</AlertDialogCancel>
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={handleSaveAsConcept}
+            >
+              <BookmarkIcon className="h-4 w-4" />
+              Als concept opslaan
+            </Button>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 gap-2"
+              onClick={handleDeleteAndExit}
+            >
+              <Trash2 className="h-4 w-4" />
+              Verwijderen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Header balk */}
+      <div className="sticky top-0 z-10 w-full px-6 h-12 flex items-center justify-between border-b border-border bg-card/80 backdrop-blur-sm">
         <button
           type="button"
-          className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1"
-          onClick={() => navigate('/nieuw-project')}
+          className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1.5 transition-colors"
+          onClick={() => navigate(-1)}
         >
-          <ArrowLeft className="h-3 w-3" />
-          Terug naar formulier
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Terug
+        </button>
+        <button
+          type="button"
+          className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          onClick={handleExitClick}
+          title="Sluiten"
+        >
+          <X className="h-4 w-4" />
         </button>
       </div>
 
@@ -734,8 +844,8 @@ export default function EllenVoorstel() {
         {flowState === 'ellen-working' && (
           <div className="flex flex-col items-center justify-center py-16 space-y-8">
             <div className="relative">
-              <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center">
-                <span className="text-3xl">🤖</span>
+              <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                <RobotFaceInline size={44} />
               </div>
               <div className="absolute -bottom-1 -right-1">
                 <Loader2 className="h-6 w-6 text-primary animate-spin" />
@@ -826,7 +936,7 @@ export default function EllenVoorstel() {
            <div className="space-y-6">
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                <span className="text-lg">🤖</span>
+                <span className="text-primary"><RobotFaceInline size={24} happy /></span>
               </div>
               <div className="space-y-1">
                 <p className="text-sm font-medium text-foreground">Ellen</p>
@@ -1113,7 +1223,7 @@ export default function EllenVoorstel() {
           <div className="space-y-6 py-8">
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                <span className="text-lg">🤖</span>
+                <span className="text-primary"><RobotFaceInline size={24} happy /></span>
               </div>
               <div className="space-y-1">
                 <p className="text-sm font-medium text-foreground">Ellen</p>
@@ -1158,7 +1268,7 @@ export default function EllenVoorstel() {
           <div className="space-y-6 py-8">
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                <span className="text-lg">🤖</span>
+                <span className="text-primary"><RobotFaceInline size={24} happy /></span>
               </div>
               <div className="space-y-1">
                 <p className="text-sm font-medium text-foreground">Ellen</p>
