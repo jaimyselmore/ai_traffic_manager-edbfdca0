@@ -32,7 +32,7 @@ export function TopBar() {
 
   return (
     <>
-      <header className="flex h-12 items-center justify-end border-b border-border bg-card px-6" style={{ boxShadow: '0 1px 0 0 hsl(var(--border))' }}>
+      <header className="flex h-12 items-center justify-end border-b border-border px-6" style={{ background: 'hsl(210 22% 98.5%)' }}>
         <div className="flex items-center gap-3">
           {/* + Nieuw dropdown */}
           <DropdownMenu>

@@ -1,6 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Save } from 'lucide-react';
+import { Save, X, Trash2, BookmarkIcon, ArrowLeft } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -165,6 +175,7 @@ export default function NieuwProject() {
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [showExitDialog, setShowExitDialog] = useState(false);
 
   // Autosave to localStorage on change
   useEffect(() => {
@@ -512,17 +523,53 @@ export default function NieuwProject() {
 
   return (
     <div className="h-full overflow-y-auto bg-background">
-      <div className="w-full px-6 pt-6 mb-4">
+      {/* Exit dialog */}
+      <AlertDialog open={showExitDialog} onOpenChange={setShowExitDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Formulier verlaten?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Wat wil je doen met dit formulier?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <AlertDialogCancel>Annuleren</AlertDialogCancel>
+            <Button variant="outline" className="gap-2" onClick={handleSaveConcept}>
+              <BookmarkIcon className="h-4 w-4" />
+              Als concept opslaan
+            </Button>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 gap-2"
+              onClick={() => { setShowExitDialog(false); navigate('/'); }}
+            >
+              <Trash2 className="h-4 w-4" />
+              Verwijderen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Sticky header */}
+      <div className="sticky top-0 z-10 w-full px-6 h-12 flex items-center justify-between border-b border-border bg-card/80 backdrop-blur-sm">
         <button
           type="button"
-          className="text-sm text-muted-foreground hover:text-foreground"
+          className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1.5 transition-colors"
           onClick={() => navigate('/')}
         >
-          ← Terug naar overzicht
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Terug naar overzicht
+        </button>
+        <button
+          type="button"
+          className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          onClick={() => setShowExitDialog(true)}
+          title="Sluiten"
+        >
+          <X className="h-4 w-4" />
         </button>
       </div>
 
-      <div className="max-w-3xl mx-auto px-6 pb-24 space-y-6">
+      <div className="max-w-3xl mx-auto px-6 pb-24 pt-6 space-y-6">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Nieuw project</h1>
           <p className="text-sm text-muted-foreground mt-1">
