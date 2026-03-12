@@ -1,5 +1,6 @@
-// Ellen AI Chat - Supabase Edge Function (Claude Sonnet 4)
-// Verwerkt chatberichten, zoekt data op via Claude tool use, retourneert antwoorden
+// Ellen AI Chat - Supabase Edge Function
+// Architectuur: OpenRouter API (OpenAI-compatible) + Haiku router + tool-gating per modus
+// VEREISTE SUPABASE SECRET: OPENROUTER_API_KEY (vervang ANTHROPIC_API_KEY)
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.90.1';
 import { verify } from 'https://deno.land/x/djwt@v3.0.2/mod.ts';
 
@@ -8,7 +9,11 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// ---- JWT VERIFICATION ----
+const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const MAIN_MODEL = 'anthropic/claude-sonnet-4-5';
+const ROUTER_MODEL = 'anthropic/claude-haiku-4-5';
+
+// ===== SECTION 1: JWT VERIFICATION =====
 
 interface SessionPayload {
   sub: string;
@@ -45,7 +50,7 @@ async function verifySessionToken(token: string): Promise<SessionPayload | null>
   }
 }
 
-// ---- TYPES ----
+// ===== SECTION 2: TYPES & CONFIG =====
 
 // deno-lint-ignore no-explicit-any
 type SupabaseClient = any;
@@ -75,7 +80,7 @@ interface TimeSlot {
   duurUren: number;
 }
 
-// ---- DEFAULT CONFIG ----
+type Intent = 'CHAT' | 'PLAN' | 'QUERY';
 
 const DEFAULT_CONFIG: PlanningConfig = {
   werkdag_start: 9,
@@ -95,7 +100,7 @@ const DEFAULT_CONFIG: PlanningConfig = {
   ],
 };
 
-// ---- DATA LOADERS ----
+// ===== SECTION 3: DATA LOADERS =====
 
 async function loadPlanningConfig(supabase: SupabaseClient): Promise<PlanningConfig> {
   try {
@@ -104,12 +109,7 @@ async function loadPlanningConfig(supabase: SupabaseClient): Promise<PlanningCon
       .select('*')
       .limit(1)
       .maybeSingle();
-
-    if (error || !data) {
-      console.log('Planning configuratie niet gevonden, gebruik defaults');
-      return DEFAULT_CONFIG;
-    }
-
+    if (error || !data) return DEFAULT_CONFIG;
     return {
       werkdag_start: data.werkdag_start ?? DEFAULT_CONFIG.werkdag_start,
       werkdag_eind: data.werkdag_eind ?? DEFAULT_CONFIG.werkdag_eind,
@@ -122,8 +122,7 @@ async function loadPlanningConfig(supabase: SupabaseClient): Promise<PlanningCon
       fase_templates: data.fase_templates ?? DEFAULT_CONFIG.fase_templates,
       extra_instructies: data.extra_instructies,
     };
-  } catch (e) {
-    console.error('Fout bij laden planning configuratie:', e);
+  } catch {
     return DEFAULT_CONFIG;
   }
 }
@@ -135,14 +134,9 @@ async function loadEllenRegels(supabase: SupabaseClient): Promise<EllenRegel[]> 
       .select('categorie, prioriteit, regel, rationale')
       .eq('actief', true)
       .order('prioriteit', { ascending: true });
-
-    if (error || !data) {
-      console.log('Geen ellen_regels gevonden');
-      return [];
-    }
+    if (error || !data) return [];
     return data;
-  } catch (e) {
-    console.error('Fout bij laden ellen_regels:', e);
+  } catch {
     return [];
   }
 }
@@ -154,7 +148,6 @@ async function loadRecentFeedback(supabase: SupabaseClient): Promise<string[]> {
       .select('feedback_tekst')
       .order('created_at', { ascending: false })
       .limit(5);
-
     if (error || !data) return [];
     return data.map((f: { feedback_tekst: string }) => f.feedback_tekst).filter(Boolean);
   } catch {
@@ -162,7 +155,7 @@ async function loadRecentFeedback(supabase: SupabaseClient): Promise<string[]> {
   }
 }
 
-// ---- SYSTEM PROMPT BUILDER (XML-structured for Claude) ----
+// ===== SECTION 4: PROMPT BUILDERS =====
 
 function formatTime(decimal: number): string {
   const hours = Math.floor(decimal);
@@ -170,425 +163,366 @@ function formatTime(decimal: number): string {
   return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
 }
 
-function buildSystemPrompt(
+// Vaste kern — altijd geladen, kort en scherp
+const CORE_PROMPT = `Je bent Ellen, Traffic Manager AI bij Selmore (creatief video productiebedrijf).
+Spreek informeel, direct en oplossingsgericht. Geen wollige taal, geen emoji's tenzij gevraagd.
+
+HARDE GEDRAGSREGELS (altijd, geen uitzonderingen):
+1. Geen claim of aanname zonder tool-output of meegeleverde data
+2. Mutaties uitsluitend via tools — nooit gissen of verzinnen
+3. Hard-locked taken: alleen eigenaar mag wijzigen
+4. Bij onduidelijkheid: één gerichte vraag stellen, niet raden
+5. Vermeld altijd wat je NIET hebt kunnen checken (bijv. Microsoft agenda's)`;
+
+// CHAT modus — snelle wijzigingen aan bestaande planning
+function buildChatPrompt(config: PlanningConfig, regels: EllenRegel[], plannerNaam: string): string {
+  const hardRegels = regels.filter(r => r.categorie === 'hard');
+  return `${CORE_PROMPT}
+
+MODUS: DIRECTE CHAT WIJZIGINGEN
+Je helpt met snelle aanpassingen aan de bestaande planning.
+
+Werkwijze (volg exact):
+1. Zoek de taak op met zoek_taken
+2. Voer de wijziging direct uit (wijzig_taak / verwijder_taak / voeg_taak_toe)
+3. Bevestig bondig wat je gedaan hebt
+
+Werkuren: ${formatTime(config.werkdag_start)}-${formatTime(config.werkdag_eind)}, lunch ${formatTime(config.lunch_start)}-${formatTime(config.lunch_eind)}
+${hardRegels.length > 0 ? `\nProject-specifieke regels:\n${hardRegels.map(r => `- ${r.regel}`).join('\n')}` : ''}
+
+Je praat met: ${plannerNaam}`;
+}
+
+// PLAN modus — nieuw project inplannen
+function buildPlanPrompt(
   config: PlanningConfig,
   regels: EllenRegel[],
   feedback: string[],
   plannerNaam: string,
   plannerInfo: string
 ): string {
-  // Groepeer regels per categorie
   const hardRegels = regels.filter(r => r.categorie === 'hard');
   const softRegels = regels.filter(r => r.categorie === 'soft');
   const voorkeurRegels = regels.filter(r => r.categorie === 'voorkeur');
-
   const faseList = config.fase_templates
     .map(f => `  - ${f.naam}: ${f.min_dagen}-${f.max_dagen} dagen${f.omschrijving ? ` (${f.omschrijving})` : ''}`)
     .join('\n');
 
-  return `<role>
-Je bent Ellen, Traffic Manager AI voor Selmore - een creatief productiebedrijf gespecialiseerd in video content.
-Je denkt als een ervaren planner: proactief, kritisch, en je ziet dingen die anderen missen.
-Je praat als een collega - informeel, direct, oplossingsgericht.
-</role>
+  return `${CORE_PROMPT}
 
-<tone>
-- Kort en krachtig, geen wollige taal
-- Informeel Nederlands ("Even kijken...", "Top!", "Momentje...")
-- Bij problemen: oplossingsgericht, alternatieven bieden
-- Geen emoji's tenzij echt nodig
-</tone>
+MODUS: PROJECT PLANNING
+Je maakt een planning voorstel voor een nieuw project.
 
-<KRITIEK_toelichting_analyse>
-VOORDAT je plant, MOET je ELKE toelichting analyseren en de verdeling bepalen.
+STAPPENPLAN (volg exact in deze volgorde):
 
-STAP A: Citeer de exacte toelichting uit de input
-STAP B: Bepaal de verdeling volgens deze regels:
+Stap 1 — Toelichtingen analyseren
+Citeer elke toelichting letterlijk en bepaal de verdeling:
+- "1 dag per week" / "wekelijks" / "doorlopend" → verdeling=per_week
+- "laatste week" / "finishing touches" / "afronding" / "vlak voor deadline" → verdeling=laatste_week
+- Leeg / "fulltime" / geen timing → verdeling=aaneengesloten
+Schrijf per fase op: "Fase X: toelichting 'Y' → verdeling=Z, want [reden]"
 
-VERDELING "per_week" - gebruik als toelichting bevat:
-- "1 dag per week" → verdeling=per_week, dagen_per_week=1
-- "2 dagen per week" → verdeling=per_week, dagen_per_week=2
-- "elke week X uur" → verdeling=per_week, uren_per_dag=X
-- "wekelijks" → verdeling=per_week, dagen_per_week=1
-- "doorlopend elke week" → verdeling=per_week
+Stap 2 — PRE-LOADED data gebruiken
+Bekijk de meegeleverde data. Noteer:
+- Welke projecten medewerkers al hebben (deadline-vergelijking)
+- Project met EERDERE deadline heeft voorrang
+- Conflicten: medewerker al vol gepland?
 
-VERDELING "laatste_week" - gebruik als toelichting bevat:
-- "laatste week" → verdeling=laatste_week
-- "finishing touches" → verdeling=laatste_week
-- "afronding" → verdeling=laatste_week
-- "vlak voor deadline" → verdeling=laatste_week
-- "eindfase" → verdeling=laatste_week
+Stap 3 — plan_project aanroepen
+Gebruik ALTIJD plan_project met de correcte verdeling per fase.
+In 'reasoning': leg uit welke keuzes je gemaakt hebt en waarom.
+Feedback/review-fases: plan bij voorkeur op donderdag of vrijdag.
 
-VERDELING "aaneengesloten" - gebruik als:
-- Geen specifieke timing genoemd
-- "fulltime" of "voltijd"
-- "direct achter elkaar"
-- Lege toelichting
+Stap 4 — Risico's melden
+Noem expliciet: deadline te krap? medewerker overbelast? Microsoft agenda niet gekoppeld?
 
-VOORBEELDEN:
-| Toelichting | Verdeling | Parameters |
-|-------------|-----------|------------|
-| "1 dag per week begeleiding" | per_week | dagen_per_week=1 |
-| "Elke week 2 uur feedback" | per_week | dagen_per_week=1, uren_per_dag=2 |
-| "Finishing touches laatste week" | laatste_week | - |
-| "4 dagen edit werk" | aaneengesloten | duur_dagen=4 |
-| "" (leeg) | aaneengesloten | - |
+WERKTIJDEN:
+- Werkdag: ${formatTime(config.werkdag_start)}-${formatTime(config.werkdag_eind)}
+- Lunch: ${formatTime(config.lunch_start)}-${formatTime(config.lunch_eind)} (geen werk)
+- Meetings: bij voorkeur ${formatTime(config.meeting_start)}-${formatTime(config.meeting_eind)}
 
-JE MOET in je reasoning EXPLICIET noemen voor ELKE fase:
-"Fase [naam]: toelichting '[exacte tekst]' → verdeling: [type], want [reden]"
-</KRITIEK_toelichting_analyse>
-
-<redeneer_protocol>
-Bij ELKE planning doorloop je deze stappen IN VOLGORDE:
-
-STAP 1: TOELICHTINGEN ANALYSEREN (VERPLICHT!)
-- Citeer ELKE toelichting letterlijk
-- Bepaal per fase de verdeling volgens <KRITIEK_toelichting_analyse>
-- Schrijf dit expliciet op in je reasoning
-
-STAP 2: BESTAANDE PLANNING ANALYSEREN
-- Bekijk de PRE-LOADED bestaande taken per medewerker
-- Noteer welke projecten ze al hebben en wanneer
-- Check de DEADLINES van bestaande projecten vs het nieuwe project
-- Bepaal prioriteit: project met EERDERE deadline heeft voorrang
-
-STAP 3: CONSTRAINTS EN CONFLICTEN CHECKEN
-- Kijk naar verlof, parttime dagen, bestaande taken
-- Noteer de deadline van het NIEUWE project en reken TERUG
-- Check klant-specifieke instructies uit de PRE-LOADED data
-- Identificeer CONFLICTEN: medewerker al vol gepland?
-
-STAP 4: REGELS TOEPASSEN
-- Hard rules MOETEN gerespecteerd worden - geen uitzonderingen
-- Soft rules zijn belangrijk maar mogen wijken met uitleg
-- Voorkeuren zijn nice-to-have
-
-STAP 5: SLIM PLANNEN
-- Plan PARALLEL: alle medewerkers starten op dezelfde startdatum
-- Verdeel werk EXACT volgens de bepaalde verdeling uit STAP 1
-- Feedback/review = donderdag of vrijdag (niet maandag!)
-- Finishing touches = laatste week voor deadline
-- Plan rondom bestaande taken (vind vrije slots)
-
-STAP 6: SCHUIVEN INDIEN NODIG
-Als er niet genoeg ruimte is:
-- MAG: Tijden schuiven op dezelfde dag (van 9:00 naar 14:00) - geen goedkeuring nodig
-- MOET VRAGEN: Uren aanpassen (8u naar 4u)
-- MOET VRAGEN: Taken naar andere dag verplaatsen
-- MOET VRAGEN: Bestaand project later plannen
-Als schuiven nodig is, meld dit en vraag goedkeuring!
-
-STAP 7: RISICO'S IDENTIFICEREN
-- Te veel werk voor beschikbare tijd?
-- Deadline te krap?
-- Medewerker overbelast (>40u/week)?
-- Conflict met bestaande projecten?
-- Microsoft agenda niet gekoppeld?
-- MELD dit expliciet!
-
-STAP 8: VOORSTEL PRESENTEREN
-- Gebruik ALTIJD de plan_project tool
-- In "reasoning" parameter:
-  * Citeer de toelichtingen en leg uit hoe je ze interpreteert
-  * Noem bestaande projecten die je hebt gezien
-  * Leg uit hoe je conflicten hebt opgelost
-- Noem welke regels je hebt toegepast
-- Noem risico's en wat je niet hebt kunnen checken
-</redeneer_protocol>
-
-<werktijden>
-- Werkdag: ${formatTime(config.werkdag_start)} - ${formatTime(config.werkdag_eind)}
-- Lunch: ${formatTime(config.lunch_start)} - ${formatTime(config.lunch_eind)} (GEEN werk plannen)
-- Meetings: bij voorkeur tussen ${formatTime(config.meeting_start)} en ${formatTime(config.meeting_eind)}
-- Standaard uren per dag: ${config.standaard_uren_per_dag}
-</werktijden>
-
-<fase_richtlijnen>
+FASE-RICHTLIJNEN:
 ${faseList}
-</fase_richtlijnen>
 
-<regels_hard categorie="MOET - geen uitzonderingen">
-${hardRegels.length > 0 ? hardRegels.map(r => `- ${r.regel}${r.rationale ? ` (${r.rationale})` : ''}`).join('\n') : '- Geen hard rules geconfigureerd'}
-</regels_hard>
+REGELS:
+Hard (geen uitzonderingen): ${hardRegels.length > 0 ? hardRegels.map(r => `${r.regel}${r.rationale ? ` (${r.rationale})` : ''}`).join(' | ') : 'geen geconfigureerd'}
+Soft (uitleg bij afwijking): ${softRegels.length > 0 ? softRegels.map(r => r.regel).join(' | ') : 'geen geconfigureerd'}
+Voorkeur: ${voorkeurRegels.length > 0 ? voorkeurRegels.map(r => r.regel).join(' | ') : 'geen geconfigureerd'}
+${feedback.length > 0 ? `\nEerdere feedback van planners:\n${feedback.map(f => `- "${f}"`).join('\n')}` : ''}
+${config.extra_instructies ? `\nExtra instructies:\n${config.extra_instructies}` : ''}
 
-<regels_soft categorie="BELANGRIJK - mag wijken met uitleg">
-${softRegels.length > 0 ? softRegels.map(r => `- ${r.regel}${r.rationale ? ` (${r.rationale})` : ''}`).join('\n') : '- Geen soft rules geconfigureerd'}
-</regels_soft>
-
-<regels_voorkeur categorie="NICE TO HAVE">
-${voorkeurRegels.length > 0 ? voorkeurRegels.map(r => `- ${r.regel}`).join('\n') : '- Geen voorkeuren geconfigureerd'}
-</regels_voorkeur>
-
-${feedback.length > 0 ? `<eerdere_feedback>
-Recente feedback van planners - leer hiervan:
-${feedback.map(f => `- "${f}"`).join('\n')}
-</eerdere_feedback>` : ''}
-
-${config.extra_instructies ? `<extra_instructies>
-${config.extra_instructies}
-</extra_instructies>` : ''}
-
-<huidige_gebruiker>
-Je praat met: ${plannerNaam}
-${plannerInfo}
-</huidige_gebruiker>
-
-<directe_wijzigingen>
-IN DE CHAT kun je DIRECT de planning aanpassen met deze tools:
-- wijzig_taak: Verplaats een taak naar andere dag/tijd, pas uren aan, wijs toe aan andere medewerker
-- verwijder_taak: Verwijder een taak uit de planning
-- voeg_taak_toe: Voeg een losse taak toe aan de planning
-
-WANNEER DIRECT WIJZIGEN:
-- Als de gebruiker vraagt om een specifieke taak te verplaatsen/wijzigen/verwijderen
-- Als de gebruiker vraagt om snel iets toe te voegen aan de planning
-- Bij kleine aanpassingen die geen heel projectvoorstel nodig hebben
-
-WANNEER VOORSTEL (plan_project):
-- Bij nieuwe projecten met meerdere fases en medewerkers
-- Bij grote planningswijzigingen
-- Via het template-formulier (niet de chat)
-
-Let op: Hard-locked taken kunnen niet gewijzigd worden door anderen dan de eigenaar.
-</directe_wijzigingen>
-
-<kritieke_regels>
-1. TOELICHTINGEN ZIJN HEILIG: Citeer ELKE toelichting en bepaal de verdeling VOORDAT je plant!
-2. BESTAANDE PLANNING CHECKEN: Bekijk wat medewerkers al hebben, vergelijk deadlines
-3. DEADLINE PRIORITEIT: Project met eerdere deadline heeft voorrang
-4. Als PRE-LOADED data aanwezig is, gebruik die direct - ga dan DIRECT naar plan_project
-5. Bij plannen: gebruik ALTIJD de plan_project tool met correcte verdeling per fase
-6. SCHUIVEN: Tijden op dezelfde dag mag, uren aanpassen of dagen verplaatsen ALLEEN met goedkeuring
-7. IN DE CHAT: gebruik wijzig_taak/verwijder_taak/voeg_taak_toe voor directe wijzigingen
-8. Vermeld ALTIJD wat je niet hebt kunnen checken (bijv. Microsoft agenda's)
-</kritieke_regels>
-
-<voorbeeld_goede_reasoning>
-"Analyse toelichtingen per fase:
-- Fase 'Edit': toelichting '1 dag per week' → verdeling=per_week, dagen_per_week=1
-- Fase 'Feedback': toelichting 'elke week 2 uur' → verdeling=per_week, uren_per_dag=2
-- Fase 'Finishing': toelichting 'laatste week afronding' → verdeling=laatste_week
-- Fase 'Productie': geen toelichting → verdeling=aaneengesloten
-
-Bestaande planning gecheckt:
-- Jan heeft project 'Nike' (deadline 15 maart) op ma-wo → hier niet plannen
-- Piet is vrij, geen conflicten
-- Marie heeft 'Adidas' (deadline 1 april) op dinsdag → dit project heeft latere deadline, eventueel schuiven mogelijk
-
-Deadline nieuw project: 28 maart → heeft voorrang boven Adidas (1 april)
-
-Startdatum: 10 maart, alle medewerkers starten parallel.
-Planning past rondom bestaande taken.
-
-Let op: Microsoft agenda's zijn niet gekoppeld - handmatige check aanbevolen."
-</voorbeeld_goede_reasoning>`;
+Je praat met: ${plannerNaam}${plannerInfo ? `\n${plannerInfo}` : ''}`;
 }
 
-// ---- CLAUDE TOOLS (andere format dan OpenAI) ----
+// QUERY modus — informatie opvragen
+function buildQueryPrompt(plannerNaam: string): string {
+  return `${CORE_PROMPT}
 
-const CLAUDE_TOOLS = [
+MODUS: INFORMATIE OPVRAGEN
+Je helpt met het zoeken en samenvatten van planningsinformatie.
+
+Werkwijze:
+1. Gebruik de beschikbare zoek-tools om de gevraagde info op te halen
+2. Presenteer het resultaat duidelijk en beknopt
+3. Zie je iets opvallends (conflict, risico, overbelasting)? Meld het proactief.
+
+Je praat met: ${plannerNaam}`;
+}
+
+// ===== SECTION 5: TOOL DEFINITIONS (OpenAI-compatible format) =====
+
+// deno-lint-ignore no-explicit-any
+const ALL_TOOLS: any[] = [
   {
-    name: 'zoek_klanten',
-    description: 'Zoek klanten op naam of klantnummer. Geeft klantgegevens terug inclusief planning_instructies.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        zoekterm: { type: 'string', description: 'Zoekterm voor naam of klantnummer' },
-      },
-      required: ['zoekterm'],
-    },
-  },
-  {
-    name: 'zoek_projecten',
-    description: 'Zoek projecten op projectnummer, omschrijving of status.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        zoekterm: { type: 'string', description: 'Zoekterm voor projectnummer of omschrijving' },
-        status: { type: 'string', description: 'Filter op status', enum: ['concept', 'vast', 'afgerond'] },
-      },
-    },
-  },
-  {
-    name: 'zoek_medewerkers',
-    description: 'Zoek medewerkers op naam, rol of discipline. Geeft info terug over werkuren, beschikbaarheid, rollen.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        zoekterm: { type: 'string', description: 'Naam van de medewerker' },
-        discipline: { type: 'string', description: 'Filter op discipline' },
-      },
-    },
-  },
-  {
-    name: 'zoek_taken',
-    description: 'Zoek ingeplande taken/blokken in de planning. Filter op medewerker, project of week.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        werknemer_naam: { type: 'string', description: 'Naam van de medewerker' },
-        project_nummer: { type: 'string', description: 'Projectnummer' },
-        week_start: { type: 'string', description: 'Maandag van de week (YYYY-MM-DD)' },
-      },
-    },
-  },
-  {
-    name: 'zoek_meetings',
-    description: 'Zoek meetings en presentaties. Filter op datumbereik.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        datum_van: { type: 'string', description: 'Startdatum (YYYY-MM-DD)' },
-        datum_tot: { type: 'string', description: 'Einddatum (YYYY-MM-DD)' },
-      },
-    },
-  },
-  {
-    name: 'zoek_verlof',
-    description: 'Zoek verlof en afwezigheden van medewerkers.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        werknemer_naam: { type: 'string', description: 'Naam van de medewerker' },
-        datum_van: { type: 'string', description: 'Startdatum (YYYY-MM-DD)' },
-        datum_tot: { type: 'string', description: 'Einddatum (YYYY-MM-DD)' },
-      },
-    },
-  },
-  {
-    name: 'check_beschikbaarheid',
-    description: 'Check de beschikbaarheid van medewerkers voor een periode. Geeft terug hoeveel uur ze vrij hebben per dag. Gebruik dit VOORDAT je een planning maakt.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        medewerkers: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'Namen van de medewerkers om te checken'
+    type: 'function',
+    function: {
+      name: 'zoek_klanten',
+      description: 'Zoek klanten op naam of klantnummer. Geeft klantgegevens terug inclusief planning_instructies.',
+      parameters: {
+        type: 'object',
+        properties: {
+          zoekterm: { type: 'string', description: 'Zoekterm voor naam of klantnummer' },
         },
-        start_datum: { type: 'string', description: 'Startdatum (YYYY-MM-DD)' },
-        eind_datum: { type: 'string', description: 'Einddatum (YYYY-MM-DD)' },
+        required: ['zoekterm'],
       },
-      required: ['medewerkers', 'start_datum', 'eind_datum'],
     },
   },
   {
-    name: 'plan_project',
-    description: 'Maak een planning voorstel. VERPLICHT bij elke planning request. Analyseer eerst de toelichtingen om de juiste verdeling te bepalen.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        klant_naam: { type: 'string', description: 'Naam van de klant' },
-        project_naam: { type: 'string', description: 'Naam/omschrijving van het project' },
-        projecttype: { type: 'string', description: 'Type project', enum: ['commercial', 'corporate', 'social', 'branded', 'internal', 'algemeen'] },
-        fases: {
-          type: 'array',
-          description: 'Lijst van fases met medewerkers en planning. ANALYSEER de toelichting om verdeling te bepalen!',
-          items: {
-            type: 'object',
-            properties: {
-              fase_naam: { type: 'string', description: 'Naam van de fase' },
-              medewerkers: { type: 'array', items: { type: 'string' }, description: 'Namen van medewerkers' },
-              start_datum: { type: 'string', description: 'Startdatum (YYYY-MM-DD)' },
-              duur_dagen: { type: 'number', description: 'Totaal aantal werkdagen' },
-              uren_per_dag: { type: 'number', description: 'Uren per dag (default 8)' },
-              verdeling: {
-                type: 'string',
-                description: 'Bepaal dit uit de toelichting: aaneengesloten (default), per_week (X dagen per week), laatste_week (alleen laatste week voor deadline)',
-                enum: ['aaneengesloten', 'per_week', 'laatste_week']
+    type: 'function',
+    function: {
+      name: 'zoek_projecten',
+      description: 'Zoek projecten op projectnummer, omschrijving of status.',
+      parameters: {
+        type: 'object',
+        properties: {
+          zoekterm: { type: 'string', description: 'Zoekterm voor projectnummer of omschrijving' },
+          status: { type: 'string', description: 'Filter op status', enum: ['concept', 'vast', 'afgerond'] },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'zoek_medewerkers',
+      description: 'Zoek medewerkers op naam, rol of discipline. Geeft info over werkuren, rollen en beschikbaarheid.',
+      parameters: {
+        type: 'object',
+        properties: {
+          zoekterm: { type: 'string', description: 'Naam van de medewerker' },
+          discipline: { type: 'string', description: 'Filter op discipline' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'zoek_taken',
+      description: 'Zoek ingeplande taken in de planning. Filter op medewerker, project of week.',
+      parameters: {
+        type: 'object',
+        properties: {
+          werknemer_naam: { type: 'string', description: 'Naam van de medewerker' },
+          project_nummer: { type: 'string', description: 'Projectnummer' },
+          week_start: { type: 'string', description: 'Maandag van de week (YYYY-MM-DD)' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'zoek_meetings',
+      description: 'Zoek meetings en presentaties. Filter op datumbereik.',
+      parameters: {
+        type: 'object',
+        properties: {
+          datum_van: { type: 'string', description: 'Startdatum (YYYY-MM-DD)' },
+          datum_tot: { type: 'string', description: 'Einddatum (YYYY-MM-DD)' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'zoek_verlof',
+      description: 'Zoek verlof en afwezigheden van medewerkers.',
+      parameters: {
+        type: 'object',
+        properties: {
+          werknemer_naam: { type: 'string', description: 'Naam van de medewerker' },
+          datum_van: { type: 'string', description: 'Startdatum (YYYY-MM-DD)' },
+          datum_tot: { type: 'string', description: 'Einddatum (YYYY-MM-DD)' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'check_beschikbaarheid',
+      description: 'Check de beschikbaarheid van medewerkers voor een periode. Geeft ingeplande uren en verlofperiodes terug.',
+      parameters: {
+        type: 'object',
+        properties: {
+          medewerkers: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Namen van de medewerkers om te checken',
+          },
+          start_datum: { type: 'string', description: 'Startdatum (YYYY-MM-DD)' },
+          eind_datum: { type: 'string', description: 'Einddatum (YYYY-MM-DD)' },
+        },
+        required: ['medewerkers', 'start_datum', 'eind_datum'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'plan_project',
+      description: 'Maak een planning voorstel. VERPLICHT bij elke planning request. Analyseer eerst de toelichtingen voor de juiste verdeling.',
+      parameters: {
+        type: 'object',
+        properties: {
+          klant_naam: { type: 'string', description: 'Naam van de klant' },
+          project_naam: { type: 'string', description: 'Naam/omschrijving van het project' },
+          projecttype: { type: 'string', description: 'Type project', enum: ['commercial', 'corporate', 'social', 'branded', 'internal', 'algemeen'] },
+          fases: {
+            type: 'array',
+            description: 'Lijst van fases. Bepaal verdeling uit de toelichting!',
+            items: {
+              type: 'object',
+              properties: {
+                fase_naam: { type: 'string' },
+                medewerkers: { type: 'array', items: { type: 'string' } },
+                start_datum: { type: 'string', description: 'YYYY-MM-DD' },
+                duur_dagen: { type: 'number' },
+                uren_per_dag: { type: 'number', description: 'Uren per dag (default 8)' },
+                verdeling: {
+                  type: 'string',
+                  description: 'Bepaal uit toelichting: aaneengesloten (default), per_week, laatste_week',
+                  enum: ['aaneengesloten', 'per_week', 'laatste_week'],
+                },
+                dagen_per_week: { type: 'number', description: 'Bij per_week: aantal dagen per week' },
               },
-              dagen_per_week: { type: 'number', description: 'Bij per_week: hoeveel dagen per week' },
+              required: ['fase_naam', 'medewerkers', 'start_datum', 'duur_dagen'],
             },
-            required: ['fase_naam', 'medewerkers', 'start_datum', 'duur_dagen'],
           },
+          deadline: { type: 'string', description: 'Deadline (YYYY-MM-DD)' },
+          reasoning: { type: 'string', description: 'Leg uit WAAROM je deze keuzes maakt (toelichtingen, conflicten, regels)' },
         },
-        deadline: { type: 'string', description: 'Deadline (YYYY-MM-DD)' },
-        reasoning: { type: 'string', description: 'Leg uit WAAROM je deze verdeling kiest en welke regels je hebt toegepast' },
+        required: ['klant_naam', 'project_naam', 'fases', 'reasoning'],
       },
-      required: ['klant_naam', 'project_naam', 'fases', 'reasoning'],
     },
   },
   {
-    name: 'stel_wijziging_voor',
-    description: 'Stel een wijziging voor aan bestaande data. De gebruiker moet dit bevestigen.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        tabel: {
-          type: 'string',
-          enum: ['klanten', 'projecten', 'medewerkers', 'taken', 'rolprofielen', 'disciplines', 'projecttypes', 'project_fases', 'beschikbaarheid_medewerkers']
-        },
-        id: { type: 'string', description: 'UUID of nummer van het record' },
-        veld: { type: 'string', description: 'Welk veld aanpassen' },
-        nieuwe_waarde: { type: 'string', description: 'De nieuwe waarde' },
-        beschrijving: { type: 'string', description: 'Uitleg voor de gebruiker' },
-      },
-      required: ['tabel', 'id', 'veld', 'nieuwe_waarde', 'beschrijving'],
-    },
-  },
-  // === DIRECTE PLANNING WIJZIGINGEN (vanuit chat) ===
-  {
-    name: 'wijzig_taak',
-    description: 'Wijzig een bestaande taak in de planning DIRECT (geen voorstel). Gebruik dit vanuit de chat om taken te verplaatsen, uren aan te passen, etc.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        taak_id: { type: 'string', description: 'UUID van de taak' },
-        nieuwe_waarden: {
-          type: 'object',
-          description: 'De velden die je wilt wijzigen',
-          properties: {
-            werknemer_naam: { type: 'string', description: 'Nieuwe medewerker' },
-            week_start: { type: 'string', description: 'Nieuwe week (YYYY-MM-DD, maandag)' },
-            dag_van_week: { type: 'number', description: 'Nieuwe dag (0=ma, 1=di, 2=wo, 3=do, 4=vr)' },
-            start_uur: { type: 'number', description: 'Nieuw startuur (9-18)' },
-            duur_uren: { type: 'number', description: 'Nieuwe duur in uren' },
-            fase_naam: { type: 'string', description: 'Nieuwe fase naam' },
-            plan_status: { type: 'string', description: 'Nieuwe status', enum: ['concept', 'vast', 'wacht_klant'] },
+    type: 'function',
+    function: {
+      name: 'stel_wijziging_voor',
+      description: 'Stel een wijziging voor aan bestaande data. De gebruiker moet dit bevestigen.',
+      parameters: {
+        type: 'object',
+        properties: {
+          tabel: {
+            type: 'string',
+            enum: ['klanten', 'projecten', 'medewerkers', 'taken', 'rolprofielen', 'disciplines', 'projecttypes', 'project_fases', 'beschikbaarheid_medewerkers'],
           },
+          id: { type: 'string', description: 'UUID of nummer van het record' },
+          veld: { type: 'string', description: 'Welk veld aanpassen' },
+          nieuwe_waarde: { type: 'string', description: 'De nieuwe waarde' },
+          beschrijving: { type: 'string', description: 'Uitleg voor de gebruiker' },
         },
-        reden: { type: 'string', description: 'Korte uitleg waarom je dit wijzigt' },
+        required: ['tabel', 'id', 'veld', 'nieuwe_waarde', 'beschrijving'],
       },
-      required: ['taak_id', 'nieuwe_waarden', 'reden'],
     },
   },
   {
-    name: 'verwijder_taak',
-    description: 'Verwijder een taak uit de planning DIRECT (geen voorstel). Gebruik dit vanuit de chat om taken te verwijderen.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        taak_id: { type: 'string', description: 'UUID van de taak' },
-        reden: { type: 'string', description: 'Korte uitleg waarom je dit verwijdert' },
+    type: 'function',
+    function: {
+      name: 'wijzig_taak',
+      description: 'Wijzig een bestaande taak in de planning DIRECT (geen voorstel). Gebruik vanuit chat om taken te verplaatsen of aan te passen.',
+      parameters: {
+        type: 'object',
+        properties: {
+          taak_id: { type: 'string', description: 'UUID van de taak' },
+          nieuwe_waarden: {
+            type: 'object',
+            description: 'De velden die je wilt wijzigen',
+            properties: {
+              werknemer_naam: { type: 'string' },
+              week_start: { type: 'string', description: 'YYYY-MM-DD (maandag)' },
+              dag_van_week: { type: 'number', description: '0=ma, 1=di, 2=wo, 3=do, 4=vr' },
+              start_uur: { type: 'number', description: 'Startuur (9-18)' },
+              duur_uren: { type: 'number' },
+              fase_naam: { type: 'string' },
+              plan_status: { type: 'string', enum: ['concept', 'vast', 'wacht_klant'] },
+            },
+          },
+          reden: { type: 'string', description: 'Korte uitleg waarom' },
+        },
+        required: ['taak_id', 'nieuwe_waarden', 'reden'],
       },
-      required: ['taak_id', 'reden'],
     },
   },
   {
-    name: 'voeg_taak_toe',
-    description: 'Voeg een nieuwe taak toe aan de planning DIRECT (geen voorstel). Gebruik dit vanuit de chat om losse taken toe te voegen.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        werknemer_naam: { type: 'string', description: 'Naam van de medewerker' },
-        klant_naam: { type: 'string', description: 'Naam van de klant' },
-        project_nummer: { type: 'string', description: 'Projectnummer (optioneel, wordt gegenereerd als leeg)' },
-        project_titel: { type: 'string', description: 'Titel/omschrijving van het project' },
-        fase_naam: { type: 'string', description: 'Fase naam (bijv. Concept, Edit, Review)' },
-        werktype: { type: 'string', description: 'Type werk', enum: ['concept', 'uitwerking', 'productie', 'extern', 'review'] },
-        week_start: { type: 'string', description: 'Week maandag (YYYY-MM-DD)' },
-        dag_van_week: { type: 'number', description: 'Dag (0=ma, 1=di, 2=wo, 3=do, 4=vr)' },
-        start_uur: { type: 'number', description: 'Startuur (9-18)' },
-        duur_uren: { type: 'number', description: 'Duur in uren' },
-        plan_status: { type: 'string', description: 'Status', enum: ['concept', 'vast', 'wacht_klant'] },
-        reden: { type: 'string', description: 'Korte uitleg waarom je dit toevoegt' },
+    type: 'function',
+    function: {
+      name: 'verwijder_taak',
+      description: 'Verwijder een taak uit de planning DIRECT (geen voorstel).',
+      parameters: {
+        type: 'object',
+        properties: {
+          taak_id: { type: 'string', description: 'UUID van de taak' },
+          reden: { type: 'string', description: 'Korte uitleg waarom' },
+        },
+        required: ['taak_id', 'reden'],
       },
-      required: ['werknemer_naam', 'klant_naam', 'project_titel', 'fase_naam', 'week_start', 'dag_van_week', 'start_uur', 'duur_uren', 'reden'],
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'voeg_taak_toe',
+      description: 'Voeg een nieuwe taak toe aan de planning DIRECT (geen voorstel).',
+      parameters: {
+        type: 'object',
+        properties: {
+          werknemer_naam: { type: 'string' },
+          klant_naam: { type: 'string' },
+          project_nummer: { type: 'string', description: 'Optioneel, wordt gegenereerd als leeg' },
+          project_titel: { type: 'string' },
+          fase_naam: { type: 'string' },
+          werktype: { type: 'string', enum: ['concept', 'uitwerking', 'productie', 'extern', 'review'] },
+          week_start: { type: 'string', description: 'YYYY-MM-DD (maandag)' },
+          dag_van_week: { type: 'number', description: '0=ma, 1=di, 2=wo, 3=do, 4=vr' },
+          start_uur: { type: 'number', description: 'Startuur (9-18)' },
+          duur_uren: { type: 'number' },
+          plan_status: { type: 'string', enum: ['concept', 'vast', 'wacht_klant'] },
+          reden: { type: 'string' },
+        },
+        required: ['werknemer_naam', 'klant_naam', 'project_titel', 'fase_naam', 'week_start', 'dag_van_week', 'start_uur', 'duur_uren', 'reden'],
+      },
     },
   },
 ];
 
-// ---- DATE HELPERS ----
+// Tool-sets per modus (gating)
+const TOOL_NAMES: Record<Intent, string[]> = {
+  CHAT: ['zoek_klanten', 'zoek_taken', 'wijzig_taak', 'verwijder_taak', 'voeg_taak_toe'],
+  PLAN: ['zoek_klanten', 'zoek_projecten', 'zoek_medewerkers', 'check_beschikbaarheid', 'plan_project', 'stel_wijziging_voor'],
+  QUERY: ['zoek_klanten', 'zoek_projecten', 'zoek_medewerkers', 'zoek_taken', 'zoek_meetings', 'zoek_verlof'],
+};
+
+// deno-lint-ignore no-explicit-any
+function getToolsForIntent(intent: Intent): any[] {
+  const names = TOOL_NAMES[intent];
+  return ALL_TOOLS.filter(t => names.includes(t.function.name));
+}
+
+// ===== SECTION 6: PLANNING ENGINE =====
 
 function getMonday(date: Date): string {
   const d = new Date(date);
@@ -609,35 +543,26 @@ function isWeekend(date: Date): boolean {
 }
 
 function bepaalDiscipline(faseNaam: string): string {
-  const lowerNaam = faseNaam.toLowerCase();
-  if (lowerNaam.includes('concept')) return 'Conceptontwikkeling';
-  if (lowerNaam.includes('strateg')) return 'Strategy';
-  if (lowerNaam.includes('creati')) return 'Creative team';
-  if (lowerNaam.includes('product') || lowerNaam.includes('shoot')) return 'Productie';
-  if (lowerNaam.includes('edit') || lowerNaam.includes('montage')) return 'Studio';
-  if (lowerNaam.includes('vfx') || lowerNaam.includes('online')) return 'Studio';
-  if (lowerNaam.includes('review') || lowerNaam.includes('meeting')) return 'Intern/Review';
+  const n = faseNaam.toLowerCase();
+  if (n.includes('concept')) return 'Conceptontwikkeling';
+  if (n.includes('strateg')) return 'Strategy';
+  if (n.includes('creati')) return 'Creative team';
+  if (n.includes('product') || n.includes('shoot')) return 'Productie';
+  if (n.includes('edit') || n.includes('montage') || n.includes('vfx') || n.includes('online')) return 'Studio';
+  if (n.includes('review') || n.includes('meeting')) return 'Intern/Review';
   return 'Algemeen';
 }
 
 function isMeetingFase(faseNaam: string): boolean {
-  const lowerNaam = faseNaam.toLowerCase();
-  return lowerNaam.includes('presentatie') ||
-         lowerNaam.includes('meeting') ||
-         lowerNaam.includes('kick-off') ||
-         lowerNaam.includes('kick off') ||
-         lowerNaam.includes('klantmeeting') ||
-         lowerNaam.includes('eindpresentatie');
+  const n = faseNaam.toLowerCase();
+  return n.includes('presentatie') || n.includes('meeting') || n.includes('kick-off') ||
+    n.includes('kick off') || n.includes('klantmeeting') || n.includes('eindpresentatie');
 }
 
 function isFeedbackFase(faseNaam: string, urenPerDag?: number): boolean {
-  const lowerNaam = faseNaam.toLowerCase();
-  return lowerNaam.includes('feedback') ||
-         lowerNaam.includes('review') ||
-         (urenPerDag !== undefined && urenPerDag <= 2);
+  const n = faseNaam.toLowerCase();
+  return n.includes('feedback') || n.includes('review') || (urenPerDag !== undefined && urenPerDag <= 2);
 }
-
-// ---- SLOT FINDER (uses config, not hardcoded!) ----
 
 async function getBestaandeBlokken(
   supabase: SupabaseClient,
@@ -646,32 +571,19 @@ async function getBestaandeBlokken(
 ): Promise<Array<{ start_uur: number; duur_uren: number }>> {
   const weekStart = getMonday(datum);
   const dagVanWeek = getDayOfWeekNumber(datum);
-
   const { data, error } = await supabase
     .from('taken')
     .select('start_uur, duur_uren')
     .eq('werknemer_naam', medewerkernaam)
     .eq('week_start', weekStart)
     .eq('dag_van_week', dagVanWeek);
-
-  if (error) {
-    console.error('Error fetching existing blocks:', error);
-    return [];
-  }
-
-  return (data || []).sort((a, b) => a.start_uur - b.start_uur);
+  if (error) return [];
+  return (data || []).sort((a: { start_uur: number }, b: { start_uur: number }) => a.start_uur - b.start_uur);
 }
 
-function heeftConflict(
-  bezet: Array<{ start_uur: number; duur_uren: number }>,
-  startUur: number,
-  duur: number
-): boolean {
+function heeftConflict(bezet: Array<{ start_uur: number; duur_uren: number }>, startUur: number, duur: number): boolean {
   const eindUur = startUur + duur;
-  return bezet.some((blok) => {
-    const blokEind = blok.start_uur + blok.duur_uren;
-    return startUur < blokEind && eindUur > blok.start_uur;
-  });
+  return bezet.some(blok => startUur < blok.start_uur + blok.duur_uren && eindUur > blok.start_uur);
 }
 
 function overlapLunch(startUur: number, eindUur: number, config: PlanningConfig): boolean {
@@ -686,29 +598,22 @@ async function vindEersteVrijeSlot(
   benodigdeUren: number
 ): Promise<TimeSlot | null> {
   const bezet = await getBestaandeBlokken(supabase, medewerkernaam, datum);
-  const werkdagDuur = config.werkdag_eind - config.werkdag_start; // 18-9 = 9 uur
-  const lunchDuur = config.lunch_eind - config.lunch_start; // 13.5-12.5 = 1 uur
-  const maxWerkUren = werkdagDuur - lunchDuur; // 9-1 = 8 effectieve werkuren
+  const werkdagDuur = config.werkdag_eind - config.werkdag_start;
+  const lunchDuur = config.lunch_eind - config.lunch_start;
+  const maxWerkUren = werkdagDuur - lunchDuur;
 
-  // Full day block: als benodigde uren >= effectieve werkuren, plan hele dag (9-18)
   if (benodigdeUren >= maxWerkUren) {
     const ochtendVrij = !heeftConflict(bezet, config.werkdag_start, config.lunch_start - config.werkdag_start);
     const middagVrij = !heeftConflict(bezet, config.lunch_eind, config.werkdag_eind - config.lunch_eind);
-    if (ochtendVrij && middagVrij) {
-      return { startUur: config.werkdag_start, duurUren: werkdagDuur }; // 9:00-18:00 = 9 uur
-    }
+    if (ochtendVrij && middagVrij) return { startUur: config.werkdag_start, duurUren: werkdagDuur };
     return null;
   }
 
-  // Smaller blocks
   for (let uur = config.werkdag_start; uur <= config.werkdag_eind - benodigdeUren; uur++) {
     const eindUur = uur + benodigdeUren;
     if (overlapLunch(uur, eindUur, config)) continue;
-    if (!heeftConflict(bezet, uur, benodigdeUren)) {
-      return { startUur: uur, duurUren: benodigdeUren };
-    }
+    if (!heeftConflict(bezet, uur, benodigdeUren)) return { startUur: uur, duurUren: benodigdeUren };
   }
-
   return null;
 }
 
@@ -720,25 +625,16 @@ async function vindMeetingSlot(
   benodigdeUren: number
 ): Promise<TimeSlot | null> {
   const bezet = await getBestaandeBlokken(supabase, medewerkernaam, datum);
-
   for (let uur = config.meeting_start; uur <= config.meeting_eind - benodigdeUren; uur++) {
     const eindUur = uur + benodigdeUren;
     if (overlapLunch(uur, eindUur, config)) continue;
-    if (!heeftConflict(bezet, uur, benodigdeUren)) {
-      return { startUur: uur, duurUren: benodigdeUren };
-    }
+    if (!heeftConflict(bezet, uur, benodigdeUren)) return { startUur: uur, duurUren: benodigdeUren };
   }
-
   return null;
 }
 
-async function heeftVerlof(
-  supabase: SupabaseClient,
-  medewerkernaam: string,
-  datum: Date
-): Promise<boolean> {
+async function heeftVerlof(supabase: SupabaseClient, medewerkernaam: string, datum: Date): Promise<boolean> {
   const dateStr = datum.toISOString().split('T')[0];
-
   const { data: verlof, error } = await supabase
     .from('beschikbaarheid_medewerkers')
     .select('start_datum, eind_datum')
@@ -746,81 +642,59 @@ async function heeftVerlof(
     .eq('status', 'goedgekeurd')
     .lte('start_datum', dateStr)
     .gte('eind_datum', dateStr);
-
   if (error) return false;
   return (verlof?.length || 0) > 0;
 }
 
-async function isParttimeDag(
-  supabase: SupabaseClient,
-  medewerkernaam: string,
-  datum: Date
-): Promise<boolean> {
+async function isParttimeDag(supabase: SupabaseClient, medewerkernaam: string, datum: Date): Promise<boolean> {
   const dagNamen = ['zondag', 'maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag'];
   const dagNaam = dagNamen[datum.getDay()];
-
   const { data: medewerker, error } = await supabase
     .from('medewerkers')
     .select('parttime_dag')
     .ilike('naam_werknemer', `%${medewerkernaam}%`)
     .limit(1)
     .maybeSingle();
-
   if (error || !medewerker) return false;
-  const parttimeDag = medewerker.parttime_dag?.toLowerCase();
-  return parttimeDag === dagNaam;
+  return medewerker.parttime_dag?.toLowerCase() === dagNaam;
 }
 
-// ---- FUZZY MATCHING ----
-
+// Fuzzy matching
 function levenshteinDistance(a: string, b: string): number {
-  const aLower = a.toLowerCase();
-  const bLower = b.toLowerCase();
-  if (aLower === bLower) return 0;
-  if (aLower.length === 0) return bLower.length;
-  if (bLower.length === 0) return aLower.length;
-
+  const aL = a.toLowerCase(), bL = b.toLowerCase();
+  if (aL === bL) return 0;
   const matrix: number[][] = [];
-  for (let i = 0; i <= bLower.length; i++) matrix[i] = [i];
-  for (let j = 0; j <= aLower.length; j++) matrix[0][j] = j;
-
-  for (let i = 1; i <= bLower.length; i++) {
-    for (let j = 1; j <= aLower.length; j++) {
-      if (bLower.charAt(i - 1) === aLower.charAt(j - 1)) {
-        matrix[i][j] = matrix[i - 1][j - 1];
-      } else {
-        matrix[i][j] = Math.min(matrix[i - 1][j - 1] + 1, matrix[i][j - 1] + 1, matrix[i - 1][j] + 1);
-      }
+  for (let i = 0; i <= bL.length; i++) matrix[i] = [i];
+  for (let j = 0; j <= aL.length; j++) matrix[0][j] = j;
+  for (let i = 1; i <= bL.length; i++) {
+    for (let j = 1; j <= aL.length; j++) {
+      matrix[i][j] = bL[i - 1] === aL[j - 1]
+        ? matrix[i - 1][j - 1]
+        : Math.min(matrix[i - 1][j - 1] + 1, matrix[i][j - 1] + 1, matrix[i - 1][j] + 1);
     }
   }
-  return matrix[bLower.length][aLower.length];
+  return matrix[bL.length][aL.length];
 }
 
 function similarityScore(a: string, b: string): number {
   const distance = levenshteinDistance(a, b);
-  const maxLength = Math.max(a.length, b.length);
-  if (maxLength === 0) return 1;
-  return 1 - (distance / maxLength);
+  const maxLen = Math.max(a.length, b.length);
+  return maxLen === 0 ? 1 : 1 - distance / maxLen;
 }
 
 // deno-lint-ignore no-explicit-any
 function findBestNameMatch(searchTerm: string, medewerkers: any[], threshold = 0.6): any | null {
-  let bestMatch = null;
-  let bestScore = 0;
-
+  let bestMatch = null, bestScore = 0;
   for (const m of medewerkers) {
     const naam = m.naam_werknemer || '';
     const voornaam = naam.split(' ')[0];
     const score = Math.max(similarityScore(searchTerm, naam), similarityScore(searchTerm, voornaam));
-    if (score > bestScore && score >= threshold) {
-      bestScore = score;
-      bestMatch = m;
-    }
+    if (score > bestScore && score >= threshold) { bestScore = score; bestMatch = m; }
   }
   return bestMatch;
 }
 
-// ---- TOOL EXECUTION ----
+// ===== SECTION 7: TOOL EXECUTION =====
 
 function sanitize(term: string): string {
   return term.replace(/[,().\\]/g, '').substring(0, 100);
@@ -852,10 +726,7 @@ async function executeTool(
         let query: any = supabase
           .from('projecten')
           .select('id, projectnummer, omschrijving, projecttype, deadline, status, datum_aanvraag, opmerkingen');
-        if (args.zoekterm) {
-          const term = sanitize(args.zoekterm);
-          query = query.or(`projectnummer.ilike.%${term}%,omschrijving.ilike.%${term}%`);
-        }
+        if (args.zoekterm) query = query.or(`projectnummer.ilike.%${sanitize(args.zoekterm)}%,omschrijving.ilike.%${sanitize(args.zoekterm)}%`);
         if (args.status) query = query.eq('status', args.status);
         const { data, error } = await query.order('deadline', { ascending: true }).limit(10);
         if (error) return `Fout: ${error.message}`;
@@ -871,26 +742,20 @@ async function executeTool(
         const zoekterm = args.zoekterm ? sanitize(args.zoekterm) : '';
         if (zoekterm) query = query.ilike('naam_werknemer', `%${zoekterm}%`);
         if (args.discipline) query = query.ilike('discipline', `%${sanitize(args.discipline)}%`);
-
         const { data, error } = await query.order('naam_werknemer').limit(20);
         if (error) return `Fout: ${error.message}`;
 
-        // Fuzzy matching als geen exacte match
         if ((!data || data.length === 0) && zoekterm) {
-          const { data: alleMedewerkers } = await supabase
+          const { data: allen } = await supabase
             .from('medewerkers')
             .select('werknemer_id, naam_werknemer, primaire_rol, tweede_rol, discipline, werkuren, parttime_dag, duo_team, beschikbaar, notities')
             .order('naam_werknemer');
-
-          if (alleMedewerkers?.length) {
-            const fuzzyMatch = findBestNameMatch(zoekterm, alleMedewerkers, 0.5);
-            if (fuzzyMatch) {
-              return JSON.stringify({ fuzzy_match: true, bedoelde_je: fuzzyMatch.naam_werknemer, resultaat: [fuzzyMatch] }, null, 2);
-            }
+          if (allen?.length) {
+            const fuzzy = findBestNameMatch(zoekterm, allen, 0.5);
+            if (fuzzy) return JSON.stringify({ fuzzy_match: true, bedoelde_je: fuzzy.naam_werknemer, resultaat: [fuzzy] }, null, 2);
           }
           return `Geen medewerker gevonden met naam "${zoekterm}".`;
         }
-
         if (!data?.length) return 'Geen medewerkers gevonden.';
         return JSON.stringify(data, null, 2);
       }
@@ -940,37 +805,23 @@ async function executeTool(
         const medewerkers = args.medewerkers as string[];
         const startDatum = args.start_datum;
         const eindDatum = args.eind_datum;
-
         if (!medewerkers?.length || !startDatum || !eindDatum) {
           return 'Ongeldige parameters: medewerkers, start_datum en eind_datum zijn verplicht.';
         }
-
         const resultaten: Record<string, unknown> = {};
-
         for (const medewerker of medewerkers) {
-          const { data: blokken } = await supabase
-            .from('taken')
-            .select('week_start, dag_van_week, start_uur, duur_uren')
-            .eq('werknemer_naam', medewerker)
-            .gte('week_start', startDatum)
-            .lte('week_start', eindDatum);
-
-          const { data: verlof } = await supabase
-            .from('beschikbaarheid_medewerkers')
-            .select('start_datum, eind_datum, type, reden')
-            .eq('werknemer_naam', medewerker)
-            .eq('status', 'goedgekeurd')
-            .or(`start_datum.lte.${eindDatum},eind_datum.gte.${startDatum}`);
-
-          const totaalIngepland = (blokken || []).reduce((sum, b) => sum + b.duur_uren, 0);
-
+          const { data: blokken } = await supabase.from('taken').select('week_start, dag_van_week, start_uur, duur_uren')
+            .eq('werknemer_naam', medewerker).gte('week_start', startDatum).lte('week_start', eindDatum);
+          const { data: verlof } = await supabase.from('beschikbaarheid_medewerkers')
+            .select('start_datum, eind_datum, type, reden').eq('werknemer_naam', medewerker)
+            .eq('status', 'goedgekeurd').or(`start_datum.lte.${eindDatum},eind_datum.gte.${startDatum}`);
+          const totaalIngepland = (blokken || []).reduce((sum: number, b: { duur_uren: number }) => sum + b.duur_uren, 0);
           resultaten[medewerker] = {
             ingeplande_uren: totaalIngepland,
             verlof_periodes: verlof || [],
             beschikbaar: (verlof?.length || 0) === 0 ? 'Ja, geen verlof' : `Let op: ${verlof?.length} verlofperiode(s)`,
           };
         }
-
         return JSON.stringify({ periode: `${startDatum} t/m ${eindDatum}`, medewerkers: resultaten }, null, 2);
       }
 
@@ -994,56 +845,32 @@ async function executeTool(
           return 'Ongeldige parameters: klant_naam, project_naam en fases zijn verplicht.';
         }
 
-        // Zoek klant
         const { data: klant, error: klantErr } = await supabase
-          .from('klanten')
-          .select('id, naam, planning_instructies')
-          .ilike('naam', `%${klantNaam}%`)
-          .limit(1)
-          .maybeSingle();
+          .from('klanten').select('id, naam, planning_instructies')
+          .ilike('naam', `%${klantNaam}%`).limit(1).maybeSingle();
 
-        if (klantErr || !klant) {
-          return `Kon klant "${klantNaam}" niet vinden.`;
-        }
+        if (klantErr || !klant) return `Kon klant "${klantNaam}" niet vinden.`;
 
         const projectNummer = `P-${Date.now().toString().slice(-6)}`;
         const taken: Array<{
-          werknemer_naam: string;
-          fase_naam: string;
-          discipline: string;
-          werktype: string;
-          week_start: string;
-          dag_van_week: number;
-          start_uur: number;
-          duur_uren: number;
+          werknemer_naam: string; fase_naam: string; discipline: string; werktype: string;
+          week_start: string; dag_van_week: number; start_uur: number; duur_uren: number;
         }> = [];
-
         const samenvattingParts: string[] = [];
         const warnings: string[] = [];
         const firstStartDate = new Date(fases[0].start_datum + 'T00:00:00');
 
-        // Helper: plan een blok
-        async function planBlok(
-          medewerker: string,
-          datum: Date,
-          fase: typeof fases[0],
-          isMeeting: boolean
-        ): Promise<boolean> {
+        async function planBlok(medewerker: string, datum: Date, fase: typeof fases[0], isMeeting: boolean): Promise<boolean> {
           const urenPerDag = fase.uren_per_dag || 8;
           const discipline = bepaalDiscipline(fase.fase_naam);
-
-          const hasVerlof = await heeftVerlof(supabase, medewerker, datum);
-          if (hasVerlof) {
+          if (await heeftVerlof(supabase, medewerker, datum)) {
             warnings.push(`${medewerker} heeft verlof op ${datum.toISOString().split('T')[0]}`);
             return false;
           }
-
-          const isParttime = await isParttimeDag(supabase, medewerker, datum);
-          if (isParttime) {
+          if (await isParttimeDag(supabase, medewerker, datum)) {
             warnings.push(`${medewerker} werkt niet op ${datum.toISOString().split('T')[0]} (parttime)`);
             return false;
           }
-
           const slot = isMeeting
             ? await vindMeetingSlot(supabase, config, medewerker, datum, urenPerDag)
             : await vindEersteVrijeSlot(supabase, config, medewerker, datum, urenPerDag);
@@ -1053,18 +880,7 @@ async function executeTool(
             const dagVanWeek = getDayOfWeekNumber(datum);
             const dagNamen = ['ma', 'di', 'wo', 'do', 'vr'];
             const weekNum = Math.ceil((datum.getTime() - firstStartDate.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
-
-            taken.push({
-              werknemer_naam: medewerker,
-              fase_naam: fase.fase_naam,
-              discipline,
-              werktype: fase.fase_naam,
-              week_start: weekStart,
-              dag_van_week: dagVanWeek,
-              start_uur: slot.startUur,
-              duur_uren: slot.duurUren,
-            });
-
+            taken.push({ werknemer_naam: medewerker, fase_naam: fase.fase_naam, discipline, werktype: fase.fase_naam, week_start: weekStart, dag_van_week: dagVanWeek, start_uur: slot.startUur, duur_uren: slot.duurUren });
             samenvattingParts.push(`  ${medewerker}: wk${weekNum} ${dagNamen[dagVanWeek]} ${slot.startUur}:00-${slot.startUur + slot.duurUren}:00`);
             return true;
           } else {
@@ -1073,124 +889,74 @@ async function executeTool(
           }
         }
 
-        // Process elke fase
         for (const fase of fases) {
           const verdeling = fase.verdeling || 'aaneengesloten';
           const dagenPerWeek = fase.dagen_per_week || 1;
           const isMeeting = isMeetingFase(fase.fase_naam);
           const isFeedback = isFeedbackFase(fase.fase_naam, fase.uren_per_dag);
-
           const faseStart = new Date(fase.start_datum + 'T00:00:00');
           samenvattingParts.push(`\n${fase.fase_naam} (${verdeling}):`);
 
           if (verdeling === 'laatste_week' && deadline) {
-            // Plan in laatste week voor deadline
             const deadlineDate = new Date(deadline + 'T00:00:00');
             const startDate = new Date(deadlineDate);
             startDate.setDate(startDate.getDate() - 7);
-            while (isWeekend(startDate) || getDayOfWeekNumber(startDate) !== 0) {
-              startDate.setDate(startDate.getDate() + 1);
-            }
-
+            while (isWeekend(startDate) || getDayOfWeekNumber(startDate) !== 0) startDate.setDate(startDate.getDate() + 1);
             let dagenGepland = 0;
             let huidigeDatum = new Date(startDate);
-
             while (dagenGepland < fase.duur_dagen && huidigeDatum < deadlineDate) {
               while (isWeekend(huidigeDatum)) huidigeDatum.setDate(huidigeDatum.getDate() + 1);
               if (huidigeDatum >= deadlineDate) break;
-
-              for (const medewerker of fase.medewerkers) {
-                await planBlok(medewerker, huidigeDatum, fase, isMeeting);
-              }
+              for (const medewerker of fase.medewerkers) await planBlok(medewerker, huidigeDatum, fase, isMeeting);
               dagenGepland++;
               huidigeDatum.setDate(huidigeDatum.getDate() + 1);
             }
-
           } else if (verdeling === 'per_week') {
-            // Verspreid over weken
             const totaalWeken = Math.ceil(fase.duur_dagen / dagenPerWeek);
             let huidigeDatum = new Date(faseStart);
             let dagenGepland = 0;
-
             for (let week = 0; week < totaalWeken && dagenGepland < fase.duur_dagen; week++) {
               let dagenDezeWeek = 0;
               const weekStart = new Date(huidigeDatum);
-
-              // Feedback: spring naar donderdag
               if (isFeedback && getDayOfWeekNumber(huidigeDatum) < 3) {
-                while (getDayOfWeekNumber(huidigeDatum) !== 3) {
-                  huidigeDatum.setDate(huidigeDatum.getDate() + 1);
-                }
+                while (getDayOfWeekNumber(huidigeDatum) !== 3) huidigeDatum.setDate(huidigeDatum.getDate() + 1);
               }
-
               while (dagenDezeWeek < dagenPerWeek && dagenGepland < fase.duur_dagen) {
                 while (isWeekend(huidigeDatum)) huidigeDatum.setDate(huidigeDatum.getDate() + 1);
-
-                if (deadline) {
-                  const deadlineDate = new Date(deadline + 'T00:00:00');
-                  if (huidigeDatum >= deadlineDate) break;
-                }
-
-                for (const medewerker of fase.medewerkers) {
-                  await planBlok(medewerker, huidigeDatum, fase, isMeeting);
-                }
-
-                dagenGepland++;
-                dagenDezeWeek++;
+                if (deadline && huidigeDatum >= new Date(deadline + 'T00:00:00')) break;
+                for (const medewerker of fase.medewerkers) await planBlok(medewerker, huidigeDatum, fase, isMeeting);
+                dagenGepland++; dagenDezeWeek++;
                 huidigeDatum.setDate(huidigeDatum.getDate() + 1);
               }
-
-              // Volgende week
               huidigeDatum = new Date(weekStart);
               huidigeDatum.setDate(huidigeDatum.getDate() + 7);
               if (isFeedback) {
-                while (isWeekend(huidigeDatum) || getDayOfWeekNumber(huidigeDatum) !== 3) {
-                  huidigeDatum.setDate(huidigeDatum.getDate() + 1);
-                }
+                while (isWeekend(huidigeDatum) || getDayOfWeekNumber(huidigeDatum) !== 3) huidigeDatum.setDate(huidigeDatum.getDate() + 1);
               } else {
-                while (isWeekend(huidigeDatum) || getDayOfWeekNumber(huidigeDatum) !== 0) {
-                  huidigeDatum.setDate(huidigeDatum.getDate() + 1);
-                }
+                while (isWeekend(huidigeDatum) || getDayOfWeekNumber(huidigeDatum) !== 0) huidigeDatum.setDate(huidigeDatum.getDate() + 1);
               }
             }
-
           } else {
-            // Aaneengesloten
+            // aaneengesloten
             let huidigeDatum = new Date(faseStart);
             let dagenGepland = 0;
-
             while (dagenGepland < fase.duur_dagen) {
               while (isWeekend(huidigeDatum)) huidigeDatum.setDate(huidigeDatum.getDate() + 1);
-
-              if (deadline) {
-                const deadlineDate = new Date(deadline + 'T00:00:00');
-                if (huidigeDatum >= deadlineDate) {
-                  warnings.push(`${fase.fase_naam}: Niet alle dagen passen voor deadline`);
-                  break;
-                }
+              if (deadline && huidigeDatum >= new Date(deadline + 'T00:00:00')) {
+                warnings.push(`${fase.fase_naam}: Niet alle dagen passen voor deadline`);
+                break;
               }
-
-              for (const medewerker of fase.medewerkers) {
-                await planBlok(medewerker, huidigeDatum, fase, isMeeting);
-              }
-
+              for (const medewerker of fase.medewerkers) await planBlok(medewerker, huidigeDatum, fase, isMeeting);
               dagenGepland++;
               huidigeDatum.setDate(huidigeDatum.getDate() + 1);
             }
           }
         }
 
-        // Build samenvatting
         let samenvatting = samenvattingParts.join('\n');
-        if (reasoning) {
-          samenvatting = `Ellen's redenering:\n${reasoning}\n\nPlanning:${samenvatting}`;
-        }
-        if (warnings.length > 0) {
-          samenvatting += '\n\nLet op:\n' + warnings.map(w => `- ${w}`).join('\n');
-        }
-        if (klant.planning_instructies) {
-          samenvatting += `\n\nKlant instructies (${klant.naam}):\n${klant.planning_instructies}`;
-        }
+        if (reasoning) samenvatting = `Ellen's redenering:\n${reasoning}\n\nPlanning:${samenvatting}`;
+        if (warnings.length > 0) samenvatting += '\n\nLet op:\n' + warnings.map(w => `- ${w}`).join('\n');
+        if (klant.planning_instructies) samenvatting += `\n\nKlant instructies (${klant.naam}):\n${klant.planning_instructies}`;
 
         return JSON.stringify({
           type: 'planning_voorstel',
@@ -1226,217 +992,99 @@ async function executeTool(
         });
       }
 
-      // === DIRECTE PLANNING WIJZIGINGEN ===
       case 'wijzig_taak': {
         const taakId = args.taak_id;
         const nieuweWaarden = args.nieuwe_waarden || {};
         const reden = args.reden || '';
+        if (!taakId) return 'Fout: taak_id is verplicht';
 
-        if (!taakId) {
-          return 'Fout: taak_id is verplicht';
-        }
-
-        // Haal huidige taak op om te checken of ie bestaat
-        const { data: huidige, error: fetchErr } = await supabase
-          .from('taken')
+        const { data: huidige, error: fetchErr } = await supabase.from('taken')
           .select('id, werknemer_naam, klant_naam, project_nummer, fase_naam, is_hard_lock, created_by')
-          .eq('id', taakId)
-          .maybeSingle();
+          .eq('id', taakId).maybeSingle();
+        if (fetchErr || !huidige) return `Taak met ID "${taakId}" niet gevonden.`;
+        if (huidige.is_hard_lock) return `Deze taak is vergrendeld en kan alleen worden aangepast door ${huidige.created_by || 'de eigenaar'}.`;
 
-        if (fetchErr || !huidige) {
-          return `Taak met ID "${taakId}" niet gevonden.`;
-        }
-
-        // Check hard lock
-        if (huidige.is_hard_lock) {
-          return `Deze taak is vergrendeld (hard lock) en kan alleen worden aangepast door ${huidige.created_by || 'de eigenaar'}.`;
-        }
-
-        // Filter alleen toegestane velden
         const toegestaneVelden = ['werknemer_naam', 'week_start', 'dag_van_week', 'start_uur', 'duur_uren', 'fase_naam', 'plan_status', 'werktype'];
         const updateData: Record<string, unknown> = {};
         for (const [key, value] of Object.entries(nieuweWaarden)) {
-          if (toegestaneVelden.includes(key) && value !== undefined) {
-            updateData[key] = value;
-          }
+          if (toegestaneVelden.includes(key) && value !== undefined) updateData[key] = value;
         }
+        if (Object.keys(updateData).length === 0) return 'Geen geldige velden om te wijzigen.';
 
-        if (Object.keys(updateData).length === 0) {
-          return 'Geen geldige velden om te wijzigen.';
-        }
+        const { error: updateErr } = await supabase.from('taken').update(updateData).eq('id', taakId);
+        if (updateErr) return `Fout bij wijzigen: ${updateErr.message}`;
 
-        // Update de taak
-        const { error: updateErr } = await supabase
-          .from('taken')
-          .update(updateData)
-          .eq('id', taakId);
-
-        if (updateErr) {
-          return `Fout bij wijzigen: ${updateErr.message}`;
-        }
-
-        const gewijzigdeVelden = Object.keys(updateData).join(', ');
         return JSON.stringify({
           type: 'wijziging_uitgevoerd',
           taak_id: taakId,
           gewijzigd: updateData,
-          oude_waarden: {
-            medewerker: huidige.werknemer_naam,
-            klant: huidige.klant_naam,
-            project: huidige.project_nummer,
-          },
+          oude_waarden: { medewerker: huidige.werknemer_naam, klant: huidige.klant_naam, project: huidige.project_nummer },
           reden,
-          bericht: `Taak succesvol gewijzigd (${gewijzigdeVelden}). De planning is direct bijgewerkt.`,
+          bericht: `Taak succesvol gewijzigd (${Object.keys(updateData).join(', ')}). De planning is direct bijgewerkt.`,
         });
       }
 
       case 'verwijder_taak': {
         const taakId = args.taak_id;
         const reden = args.reden || '';
+        if (!taakId) return 'Fout: taak_id is verplicht';
 
-        if (!taakId) {
-          return 'Fout: taak_id is verplicht';
-        }
-
-        // Haal taak op om te checken
-        const { data: taak, error: fetchErr } = await supabase
-          .from('taken')
+        const { data: taak, error: fetchErr } = await supabase.from('taken')
           .select('id, werknemer_naam, klant_naam, project_nummer, fase_naam, is_hard_lock, created_by')
-          .eq('id', taakId)
-          .maybeSingle();
+          .eq('id', taakId).maybeSingle();
+        if (fetchErr || !taak) return `Taak met ID "${taakId}" niet gevonden.`;
+        if (taak.is_hard_lock) return `Deze taak is vergrendeld en kan alleen worden verwijderd door ${taak.created_by || 'de eigenaar'}.`;
 
-        if (fetchErr || !taak) {
-          return `Taak met ID "${taakId}" niet gevonden.`;
-        }
-
-        // Check hard lock
-        if (taak.is_hard_lock) {
-          return `Deze taak is vergrendeld (hard lock) en kan alleen worden verwijderd door ${taak.created_by || 'de eigenaar'}.`;
-        }
-
-        // Verwijder de taak
-        const { error: deleteErr } = await supabase
-          .from('taken')
-          .delete()
-          .eq('id', taakId);
-
-        if (deleteErr) {
-          return `Fout bij verwijderen: ${deleteErr.message}`;
-        }
+        const { error: deleteErr } = await supabase.from('taken').delete().eq('id', taakId);
+        if (deleteErr) return `Fout bij verwijderen: ${deleteErr.message}`;
 
         return JSON.stringify({
           type: 'taak_verwijderd',
           taak_id: taakId,
-          verwijderde_taak: {
-            medewerker: taak.werknemer_naam,
-            klant: taak.klant_naam,
-            project: taak.project_nummer,
-            fase: taak.fase_naam,
-          },
+          verwijderde_taak: { medewerker: taak.werknemer_naam, klant: taak.klant_naam, project: taak.project_nummer, fase: taak.fase_naam },
           reden,
-          bericht: `Taak voor ${taak.werknemer_naam} (${taak.klant_naam} - ${taak.fase_naam}) is verwijderd uit de planning.`,
+          bericht: `Taak voor ${taak.werknemer_naam} (${taak.klant_naam} - ${taak.fase_naam}) is verwijderd.`,
         });
       }
 
       case 'voeg_taak_toe': {
-        const werknemerNaam = args.werknemer_naam;
-        const klantNaam = args.klant_naam;
-        const projectTitel = args.project_titel;
-        const faseNaam = args.fase_naam;
-        const weekStart = args.week_start;
-        const dagVanWeek = args.dag_van_week;
-        const startUur = args.start_uur;
-        const duurUren = args.duur_uren;
-        const reden = args.reden || '';
-
-        if (!werknemerNaam || !klantNaam || !projectTitel || !faseNaam || !weekStart || dagVanWeek === undefined || !startUur || !duurUren) {
+        const { werknemer_naam, klant_naam, project_titel, fase_naam, week_start, dag_van_week, start_uur, duur_uren, reden } = args;
+        if (!werknemer_naam || !klant_naam || !project_titel || !fase_naam || !week_start || dag_van_week === undefined || !start_uur || !duur_uren) {
           return 'Fout: niet alle verplichte velden zijn ingevuld.';
         }
-
-        // Valideer dag en tijd
-        if (dagVanWeek < 0 || dagVanWeek > 4) {
-          return 'Fout: dag_van_week moet 0-4 zijn (ma-vr).';
-        }
-        if (startUur < config.werkdag_start || startUur > config.werkdag_eind) {
+        if (dag_van_week < 0 || dag_van_week > 4) return 'Fout: dag_van_week moet 0-4 zijn (ma-vr).';
+        if (start_uur < config.werkdag_start || start_uur > config.werkdag_eind) {
           return `Fout: start_uur moet tussen ${config.werkdag_start} en ${config.werkdag_eind} zijn.`;
         }
 
-        // Check of medewerker al iets heeft op die tijd
-        const { data: bestaand } = await supabase
-          .from('taken')
-          .select('id, start_uur, duur_uren')
-          .eq('werknemer_naam', werknemerNaam)
-          .eq('week_start', weekStart)
-          .eq('dag_van_week', dagVanWeek);
+        const { data: bestaand } = await supabase.from('taken').select('id, start_uur, duur_uren')
+          .eq('werknemer_naam', werknemer_naam).eq('week_start', week_start).eq('dag_van_week', dag_van_week);
+        const eindUur = start_uur + duur_uren;
+        const conflict = (bestaand || []).find((t: { id: string; start_uur: number; duur_uren: number }) => start_uur < t.start_uur + t.duur_uren && eindUur > t.start_uur);
+        if (conflict) return `Fout: ${werknemer_naam} heeft al een taak op dat tijdstip.`;
 
-        const eindUur = startUur + duurUren;
-        const conflict = (bestaand || []).find((t: { id: string; start_uur: number; duur_uren: number }) => {
-          const tEind = t.start_uur + t.duur_uren;
-          return startUur < tEind && eindUur > t.start_uur;
-        });
-
-        if (conflict) {
-          return `Fout: ${werknemerNaam} heeft al een taak op dat tijdstip (${conflict.start_uur}:00 - ${conflict.start_uur + conflict.duur_uren}:00).`;
-        }
-
-        // Genereer projectnummer als niet gegeven
         const projectNummer = args.project_nummer || `P-${Date.now().toString().slice(-6)}`;
         const werktype = args.werktype || 'concept';
         const planStatus = args.plan_status || 'concept';
 
-        // Check of project al bestaat (voor koppeling)
         let projectId = null;
-        const { data: bestaandProject } = await supabase
-          .from('projecten')
-          .select('id')
-          .eq('projectnummer', projectNummer)
-          .maybeSingle();
+        const { data: bestaandProject } = await supabase.from('projecten').select('id').eq('projectnummer', projectNummer).maybeSingle();
+        if (bestaandProject) projectId = bestaandProject.id;
 
-        if (bestaandProject) {
-          projectId = bestaandProject.id;
-        }
-
-        // Insert de taak
-        const { data: nieuweTaak, error: insertErr } = await supabase
-          .from('taken')
-          .insert({
-            project_id: projectId,
-            werknemer_naam: werknemerNaam,
-            klant_naam: klantNaam,
-            project_nummer: projectNummer,
-            project_titel: projectTitel,
-            fase_naam: faseNaam,
-            werktype,
-            discipline: bepaalDiscipline(faseNaam),
-            week_start: weekStart,
-            dag_van_week: dagVanWeek,
-            start_uur: startUur,
-            duur_uren: duurUren,
-            plan_status: planStatus,
-            is_hard_lock: false,
-          })
-          .select('id')
-          .single();
-
-        if (insertErr) {
-          return `Fout bij toevoegen: ${insertErr.message}`;
-        }
+        const { data: nieuweTaak, error: insertErr } = await supabase.from('taken').insert({
+          project_id: projectId, werknemer_naam, klant_naam, project_nummer: projectNummer,
+          project_titel, fase_naam, werktype, discipline: bepaalDiscipline(fase_naam),
+          week_start, dag_van_week, start_uur, duur_uren, plan_status: planStatus, is_hard_lock: false,
+        }).select('id').single();
+        if (insertErr) return `Fout bij toevoegen: ${insertErr.message}`;
 
         const dagNamen = ['maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag'];
         return JSON.stringify({
           type: 'taak_toegevoegd',
           taak_id: nieuweTaak?.id,
-          taak: {
-            medewerker: werknemerNaam,
-            klant: klantNaam,
-            project: projectNummer,
-            fase: faseNaam,
-            dag: dagNamen[dagVanWeek],
-            tijd: `${startUur}:00 - ${startUur + duurUren}:00`,
-            uren: duurUren,
-          },
+          taak: { medewerker: werknemer_naam, klant: klant_naam, project: projectNummer, fase: fase_naam, dag: dagNamen[dag_van_week], tijd: `${start_uur}:00-${start_uur + duur_uren}:00`, uren: duur_uren },
           reden,
-          bericht: `Nieuwe taak toegevoegd: ${werknemerNaam} - ${klantNaam} (${faseNaam}) op ${dagNamen[dagVanWeek]} ${startUur}:00-${startUur + duurUren}:00. De planning is direct bijgewerkt.`,
+          bericht: `Nieuwe taak toegevoegd: ${werknemer_naam} - ${klant_naam} (${fase_naam}) op ${dagNamen[dag_van_week]} ${start_uur}:00-${start_uur + duur_uren}:00.`,
         });
       }
 
@@ -1448,7 +1096,7 @@ async function executeTool(
   }
 }
 
-// ---- WIJZIGING UITVOEREN ----
+// ===== SECTION 8: WIJZIGING UITVOEREN =====
 
 const WIJZIG_VELDEN: Record<string, string[]> = {
   klanten: ['naam', 'contactpersoon', 'email', 'telefoon', 'adres', 'beschikbaarheid', 'interne_notities', 'planning_instructies'],
@@ -1463,34 +1111,19 @@ const WIJZIG_VELDEN: Record<string, string[]> = {
 };
 
 const ID_KOLOM: Record<string, string> = {
-  klanten: 'id',
-  projecten: 'id',
-  medewerkers: 'werknemer_id',
-  taken: 'id',
-  rolprofielen: 'rol_nummer',
-  disciplines: 'id',
-  projecttypes: 'id',
-  project_fases: 'id',
-  beschikbaarheid_medewerkers: 'id',
+  klanten: 'id', projecten: 'id', medewerkers: 'werknemer_id', taken: 'id',
+  rolprofielen: 'rol_nummer', disciplines: 'id', projecttypes: 'id',
+  project_fases: 'id', beschikbaarheid_medewerkers: 'id',
 };
 
-async function executeWijziging(
-  supabase: SupabaseClient,
-  tabel: string,
-  id: string,
-  veld: string,
-  waarde: string
-): Promise<{ success: boolean; message: string }> {
+async function executeWijziging(supabase: SupabaseClient, tabel: string, id: string, veld: string, waarde: string): Promise<{ success: boolean; message: string }> {
   if (!WIJZIG_VELDEN[tabel]) return { success: false, message: `Onbekende tabel: ${tabel}` };
   if (!WIJZIG_VELDEN[tabel].includes(veld)) return { success: false, message: `Veld '${veld}' mag niet worden aangepast` };
-
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
   const isNumber = /^\d+$/.test(id);
   if (!isUuid && !isNumber) return { success: false, message: 'Ongeldig ID formaat' };
-
   const idKolom = ID_KOLOM[tabel];
   const idValue = isNumber ? parseInt(id, 10) : id;
-
   try {
     const { error } = await supabase.from(tabel).update({ [veld]: waarde }).eq(idKolom, idValue);
     if (error) return { success: false, message: `Database fout: ${error.message}` };
@@ -1500,63 +1133,97 @@ async function executeWijziging(
   }
 }
 
-// ---- MAIN HANDLER ----
+// ===== SECTION 9: OPENROUTER HELPERS =====
+
+async function callOpenRouter(
+  apiKey: string,
+  model: string,
+  // deno-lint-ignore no-explicit-any
+  messages: any[],
+  // deno-lint-ignore no-explicit-any
+  tools?: any[],
+  maxTokens = 4096
+  // deno-lint-ignore no-explicit-any
+): Promise<any> {
+  // deno-lint-ignore no-explicit-any
+  const body: any = { model, max_tokens: maxTokens, messages };
+  if (tools?.length) body.tools = tools;
+
+  const response = await fetch(OPENROUTER_URL, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': 'https://selmore.nl',
+      'X-Title': 'Ellen AI Traffic Manager',
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    const err = new Error(errText) as Error & { status: number };
+    err.status = response.status;
+    throw err;
+  }
+  return response.json();
+}
+
+async function detectIntent(bericht: string, apiKey: string): Promise<Intent> {
+  try {
+    const data = await callOpenRouter(apiKey, ROUTER_MODEL, [
+      {
+        role: 'system',
+        content: 'Classificeer de intentie van dit bericht. Antwoord ALLEEN met één woord: CHAT, PLAN, of QUERY.\n- PLAN: nieuw project plannen, planning maken voor een klant, fases inplannen\n- QUERY: informatie opvragen, zoeken, beschikbaarheid checken, rapportage (zonder iets te wijzigen)\n- CHAT: taak verplaatsen/wijzigen/verwijderen/toevoegen, of algemene vraag aan Ellen',
+      },
+      { role: 'user', content: bericht },
+    ], undefined, 15);
+
+    const raw = data.choices?.[0]?.message?.content?.trim().toUpperCase() || '';
+    if (raw.includes('PLAN')) return 'PLAN';
+    if (raw.includes('QUERY')) return 'QUERY';
+    return 'CHAT';
+  } catch {
+    return 'CHAT'; // Veilige default
+  }
+}
+
+// ===== SECTION 10: MAIN HANDLER =====
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
-  }
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {
-    // 1. Verify session
+    // Auth
     const authHeader = req.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
-      return new Response(
-        JSON.stringify({ error: 'Niet geautoriseerd' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ error: 'Niet geautoriseerd' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
-
     const session = await verifySessionToken(authHeader.replace('Bearer ', ''));
     if (!session) {
-      return new Response(
-        JSON.stringify({ error: 'Ongeldige of verlopen sessie' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ error: 'Ongeldige of verlopen sessie' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // 2. Parse request
     const body = await req.json();
     const { sessie_id, bericht, actie, tabel, id, veld, nieuwe_waarde, project_data } = body;
     if (!sessie_id) {
-      return new Response(
-        JSON.stringify({ error: 'sessie_id is verplicht' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ error: 'sessie_id is verplicht' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // Create Supabase client
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
       { auth: { persistSession: false } }
     );
 
-    // 2b. Laad-modus
+    // Acties zonder AI
     if (actie === 'laden') {
-      const { data: berichten } = await supabase
-        .from('chat_gesprekken')
-        .select('rol, inhoud, created_at')
-        .eq('sessie_id', sessie_id)
-        .order('created_at', { ascending: true })
-        .limit(50);
-      return new Response(
-        JSON.stringify({ berichten: berichten || [] }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      const { data: berichten } = await supabase.from('chat_gesprekken')
+        .select('rol, inhoud, created_at').eq('sessie_id', sessie_id)
+        .order('created_at', { ascending: true }).limit(50);
+      return new Response(JSON.stringify({ berichten: berichten || [] }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // 2b2. Feedback opslaan
     if (actie === 'feedback_opslaan') {
       const { feedback, context } = body;
       if (feedback) {
@@ -1568,197 +1235,130 @@ Deno.serve(async (req) => {
           });
         } catch { /* ignore */ }
       }
-      return new Response(
-        JSON.stringify({ success: true, message: 'Feedback opgeslagen' }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ success: true, message: 'Feedback opgeslagen' }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // 2c. Uitvoeren wijziging
     if (actie === 'uitvoeren') {
       if (!tabel || !id || !veld || nieuwe_waarde === undefined) {
-        return new Response(
-          JSON.stringify({ error: 'Ontbrekende velden' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        return new Response(JSON.stringify({ error: 'Ontbrekende velden' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
       const result = await executeWijziging(supabase, tabel, id, veld, nieuwe_waarde);
-      return new Response(
-        JSON.stringify(result),
-        { status: result.success ? 200 : 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify(result), { status: result.success ? 200 : 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // 2d. Plannen
     if (actie === 'plannen') {
       const planning = body.planning;
       const gekozenWerktype = body.werktype;
-      const gekozenPlanStatus = body.plan_status || 'concept'; // 'concept' of 'wacht_klant'
+      const gekozenPlanStatus = body.plan_status || 'concept';
 
-      if (!planning || !planning.taken?.length) {
-        return new Response(
-          JSON.stringify({ success: false, message: 'Geen planning data' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+      if (!planning?.taken?.length) {
+        return new Response(JSON.stringify({ success: false, message: 'Geen planning data' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
 
-      // Zoek klant
-      const { data: klant } = await supabase
-        .from('klanten')
-        .select('id')
-        .ilike('naam', `%${planning.klant_naam}%`)
-        .limit(1)
-        .maybeSingle();
-
+      const { data: klant } = await supabase.from('klanten').select('id').ilike('naam', `%${planning.klant_naam}%`).limit(1).maybeSingle();
       if (!klant) {
-        return new Response(
-          JSON.stringify({ success: false, message: `Klant "${planning.klant_naam}" niet gevonden` }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        return new Response(JSON.stringify({ success: false, message: `Klant "${planning.klant_naam}" niet gevonden` }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
 
-      // Maak project
       const projectNummer = planning.project_nummer || `P-${Date.now().toString().slice(-6)}`;
-      const { data: project, error: projectErr } = await supabase
-        .from('projecten')
-        .insert({
-          klant_id: klant.id,
-          projectnummer: projectNummer,
-          omschrijving: planning.project_omschrijving || planning.klant_naam,
-          projecttype: planning.projecttype || 'algemeen',
-          deadline: planning.deadline,
-          status: 'concept',
-          datum_aanvraag: new Date().toISOString().split('T')[0],
-          volgnummer: Date.now() % 10000,
-        })
-        .select('id, projectnummer')
-        .single();
+      const { data: project, error: projectErr } = await supabase.from('projecten').insert({
+        klant_id: klant.id,
+        projectnummer: projectNummer,
+        omschrijving: planning.project_omschrijving || planning.klant_naam,
+        projecttype: planning.projecttype || 'algemeen',
+        deadline: planning.deadline,
+        status: 'concept',
+        datum_aanvraag: new Date().toISOString().split('T')[0],
+        volgnummer: Date.now() % 10000,
+      }).select('id, projectnummer').single();
 
       if (projectErr || !project) {
-        return new Response(
-          JSON.stringify({ success: false, message: `Kon project niet aanmaken` }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        return new Response(JSON.stringify({ success: false, message: 'Kon project niet aanmaken' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
 
-      // Maak taken
-      let aantalGeplaatst = 0;
       const werktype = gekozenWerktype || 'concept';
       const werktypeLabels: Record<string, string> = {
-        concept: 'Conceptontwikkeling',
-        uitwerking: 'Conceptuitwerking',
-        productie: 'Productie',
-        extern: 'Meeting met klant',
-        review: 'Interne review',
+        concept: 'Conceptontwikkeling', uitwerking: 'Conceptuitwerking', productie: 'Productie',
+        extern: 'Meeting met klant', review: 'Interne review',
       };
       const faseLabel = werktypeLabels[werktype] || werktype;
       const projectTitel = planning.project_omschrijving || planning.klant_naam;
+      let aantalGeplaatst = 0;
 
-      // Debug: log de ontvangen taken om te zien of start_uur correct is
       console.log('Planning taken ontvangen:', JSON.stringify(planning.taken, null, 2));
 
       for (const taak of planning.taken) {
-        // Valideer dat start_uur een geldig nummer is
         const startUur = typeof taak.start_uur === 'number' ? taak.start_uur : 9;
         const duurUren = typeof taak.duur_uren === 'number' ? taak.duur_uren : 8;
         const dagVanWeek = typeof taak.dag_van_week === 'number' ? taak.dag_van_week : 0;
 
-        console.log(`Taak insert: ${taak.werknemer_naam} - start_uur=${startUur} (origineel: ${taak.start_uur}), duur=${duurUren}, dag=${dagVanWeek}`);
-
         const { error: taakErr } = await supabase.from('taken').insert({
-          project_id: project.id,
-          werknemer_naam: taak.werknemer_naam,
-          klant_naam: planning.klant_naam,
-          project_nummer: project.projectnummer,
-          fase_naam: faseLabel,
-          werktype,
-          discipline: taak.discipline || 'Algemeen',
-          week_start: taak.week_start,
-          dag_van_week: dagVanWeek,
-          start_uur: startUur,
-          duur_uren: duurUren,
-          plan_status: gekozenPlanStatus, // 'concept' of 'wacht_klant'
-          is_hard_lock: false,
+          project_id: project.id, werknemer_naam: taak.werknemer_naam, klant_naam: planning.klant_naam,
+          project_nummer: project.projectnummer, fase_naam: faseLabel, werktype,
+          discipline: taak.discipline || 'Algemeen', week_start: taak.week_start,
+          dag_van_week: dagVanWeek, start_uur: startUur, duur_uren: duurUren,
+          plan_status: gekozenPlanStatus, is_hard_lock: false,
         });
-        if (taakErr) {
-          console.error('Taak insert error:', taakErr.message);
-        } else {
-          aantalGeplaatst++;
-        }
+        if (taakErr) console.error('Taak insert error:', taakErr.message);
+        else aantalGeplaatst++;
       }
 
-      return new Response(
-        JSON.stringify({
-          success: true,
-          message: `Planning "${project.projectnummer}" aangemaakt met ${aantalGeplaatst} blokken`,
-          project_id: project.id,
-          project_nummer: project.projectnummer,
-          aantal_blokken: aantalGeplaatst,
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({
+        success: true,
+        message: `Planning "${project.projectnummer}" aangemaakt met ${aantalGeplaatst} blokken`,
+        project_id: project.id, project_nummer: project.projectnummer, aantal_blokken: aantalGeplaatst,
+      }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // 3. Direct plan modus — bypast Claude, voert plan_project direct uit vanuit formulierdata
+    // Direct plan modus (vanuit template formulier — bypass AI)
     if (project_data?.direct_plan_fases?.length) {
-      console.log('Direct plan modus: skip Claude, voer plan_project direct uit');
+      console.log('Direct plan modus: skip AI, voer plan_project direct uit');
       const planningConfig = await loadPlanningConfig(supabase);
-
-      // Verwijder interne _deadline velden voor het tool schema
       const fases = project_data.direct_plan_fases.map((f: Record<string, unknown>) => {
         const { _deadline, ...rest } = f;
         return rest;
       });
-
-      // Bepaal deadline: eerste presentatiedeadline of eind_datum
-      const deadlines = project_data.direct_plan_fases
-        .map((f: Record<string, unknown>) => f._deadline)
-        .filter(Boolean) as string[];
+      const deadlines = project_data.direct_plan_fases.map((f: Record<string, unknown>) => f._deadline).filter(Boolean) as string[];
       const deadline = deadlines.sort()[0] || project_data.eind_datum;
 
       const result = await executeTool(supabase, planningConfig, 'plan_project', {
         klant_naam: project_data.klant_naam || 'Onbekend',
         project_naam: project_data.project_naam || 'Project',
-        fases,
-        deadline,
+        fases, deadline,
         reasoning: 'Direct plan vanuit template formulier — slot-algoritme bepaalt exacte tijden',
       });
 
       let voorstel: Record<string, unknown> | null = null;
       try { voorstel = JSON.parse(result); } catch { /* ignore */ }
 
-      return new Response(
-        JSON.stringify({
-          antwoord: 'Planning aangemaakt op basis van het template.',
-          voorstel: voorstel?.type === 'planning_voorstel' ? voorstel : null,
-          sessie_id,
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({
+        antwoord: 'Planning aangemaakt op basis van het template.',
+        voorstel: voorstel?.type === 'planning_voorstel' ? voorstel : null,
+        sessie_id,
+      }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // 4. Chat modus
+    // Chat modus
     if (!bericht) {
-      return new Response(
-        JSON.stringify({ error: 'bericht is verplicht' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ error: 'bericht is verplicht' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // 5. Laad alles parallel
+    // Check API key
+    const openrouterKey = Deno.env.get('OPENROUTER_API_KEY');
+    if (!openrouterKey) {
+      return new Response(JSON.stringify({ error: 'OPENROUTER_API_KEY niet geconfigureerd. Stel dit in als Supabase secret.' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    // Laad data parallel
     const [planningConfig, ellenRegels, recentFeedback, plannerInfo] = await Promise.all([
       loadPlanningConfig(supabase),
       loadEllenRegels(supabase),
       loadRecentFeedback(supabase),
-      supabase
-        .from('medewerkers')
+      supabase.from('medewerkers')
         .select('naam_werknemer, primaire_rol, tweede_rol, discipline, werkuren, parttime_dag')
-        .ilike('naam_werknemer', `%${session.naam}%`)
-        .limit(1)
-        .maybeSingle(),
+        .ilike('naam_werknemer', `%${session.naam}%`).limit(1).maybeSingle(),
     ]);
 
-    // Bouw planner context
     let plannerInfoStr = '';
     const medewerker = plannerInfo.data;
     if (medewerker) {
@@ -1770,290 +1370,184 @@ Deno.serve(async (req) => {
       plannerInfoStr = parts.join('. ');
     }
 
-    // Bouw system prompt
-    const systemPrompt = buildSystemPrompt(
-      planningConfig,
-      ellenRegels,
-      recentFeedback,
-      session.naam,
-      plannerInfoStr
-    );
+    // Detecteer intent (Haiku router) — tenzij project_data aanwezig is
+    const intent: Intent = project_data ? 'PLAN' : await detectIntent(bericht, openrouterKey);
+    console.log(`Intent gedetecteerd: ${intent}`);
 
-    // 5. Load chat history
+    // Kies tools en prompt op basis van intent
+    const tools = getToolsForIntent(intent);
+    const systemContent = intent === 'PLAN'
+      ? buildPlanPrompt(planningConfig, ellenRegels, recentFeedback, session.naam, plannerInfoStr)
+      : intent === 'QUERY'
+        ? buildQueryPrompt(session.naam)
+        : buildChatPrompt(planningConfig, ellenRegels, session.naam);
+
+    // Laad chat history
     let historyMessages: Array<{ rol: string; inhoud: string }> = [];
     try {
-      const { data: history } = await supabase
-        .from('chat_gesprekken')
-        .select('rol, inhoud')
-        .eq('sessie_id', sessie_id)
-        .order('created_at', { ascending: true })
-        .limit(30);
+      const { data: history } = await supabase.from('chat_gesprekken')
+        .select('rol, inhoud').eq('sessie_id', sessie_id)
+        .order('created_at', { ascending: true }).limit(30);
       if (history) historyMessages = history;
     } catch { /* ignore */ }
 
-    // 6. Save user message
+    // Sla user bericht op
     try {
-      await supabase.from('chat_gesprekken').insert({
-        sessie_id,
-        rol: 'user',
-        inhoud: bericht,
-      });
+      await supabase.from('chat_gesprekken').insert({ sessie_id, rol: 'user', inhoud: bericht });
     } catch { /* ignore */ }
 
-    // 7. Build Claude messages
+    // Bouw berichten (OpenAI-compatible: system in messages array)
     // deno-lint-ignore no-explicit-any
-    const claudeMessages: any[] = [];
+    const currentMessages: any[] = [{ role: 'system', content: systemContent }];
+
     for (const msg of historyMessages) {
       const cleanContent = msg.inhoud.replace(/\n*\[VOORSTEL:\{.*?\}\]/gs, '').trim();
-      if (cleanContent) {
-        claudeMessages.push({
-          role: msg.rol === 'user' ? 'user' : 'assistant',
-          content: cleanContent,
-        });
-      }
+      if (cleanContent) currentMessages.push({ role: msg.rol === 'user' ? 'user' : 'assistant', content: cleanContent });
     }
-    // Pre-fetch data for project planning to avoid tool-call timeouts
+
+    // Pre-fetch data voor project planning
     let prefetchedContext = '';
     if (project_data) {
-      console.log('Pre-fetching data for project planning...');
       const { medewerkers: mwNames, klant_naam, start_datum, eind_datum } = project_data;
-      
       const prefetchParts: string[] = [];
-      
-      // Fetch klant info
+
       if (klant_naam) {
-        const { data: klantData } = await supabase
-          .from('klanten')
+        const { data: klantData } = await supabase.from('klanten')
           .select('id, klantnummer, naam, contactpersoon, planning_instructies')
-          .ilike('naam', `%${klant_naam}%`)
-          .limit(1)
-          .maybeSingle();
-        if (klantData) {
-          prefetchParts.push(`\n--- PRE-LOADED: KLANT INFO ---\n${JSON.stringify(klantData, null, 2)}`);
-        }
+          .ilike('naam', `%${klant_naam}%`).limit(1).maybeSingle();
+        if (klantData) prefetchParts.push(`\n--- PRE-LOADED: KLANT INFO ---\n${JSON.stringify(klantData, null, 2)}`);
       }
 
-      // Fetch medewerker info
       if (mwNames?.length) {
-        const { data: mwData } = await supabase
-          .from('medewerkers')
+        const { data: mwData } = await supabase.from('medewerkers')
           .select('werknemer_id, naam_werknemer, primaire_rol, tweede_rol, discipline, werkuren, parttime_dag, duo_team, beschikbaar, notities')
           .in('naam_werknemer', mwNames);
-        if (mwData?.length) {
-          prefetchParts.push(`\n--- PRE-LOADED: MEDEWERKER INFO ---\n${JSON.stringify(mwData, null, 2)}`);
-        }
+        if (mwData?.length) prefetchParts.push(`\n--- PRE-LOADED: MEDEWERKER INFO ---\n${JSON.stringify(mwData, null, 2)}`);
 
-        // Fetch beschikbaarheid (taken + verlof) for each medewerker — parallel!
         if (start_datum && eind_datum) {
           const beschikbaarheid: Record<string, unknown> = {};
           await Promise.all(mwNames.map(async (mw: string) => {
             const [takenRes, verlofRes] = await Promise.all([
-              supabase.from('taken')
-                .select('week_start, dag_van_week, start_uur, duur_uren, klant_naam, project_nummer')
-                .eq('werknemer_naam', mw)
-                .gte('week_start', start_datum)
-                .lte('week_start', eind_datum)
-                .limit(40),
-              supabase.from('beschikbaarheid_medewerkers')
-                .select('start_datum, eind_datum, type, reden')
-                .eq('werknemer_naam', mw)
-                .eq('status', 'goedgekeurd')
-                .or(`start_datum.lte.${eind_datum},eind_datum.gte.${start_datum}`),
+              supabase.from('taken').select('week_start, dag_van_week, start_uur, duur_uren, klant_naam, project_nummer')
+                .eq('werknemer_naam', mw).gte('week_start', start_datum).lte('week_start', eind_datum).limit(40),
+              supabase.from('beschikbaarheid_medewerkers').select('start_datum, eind_datum, type, reden')
+                .eq('werknemer_naam', mw).eq('status', 'goedgekeurd').or(`start_datum.lte.${eind_datum},eind_atum.gte.${start_datum}`),
             ]);
-
             const totaalIngepland = (takenRes.data || []).reduce((sum: number, b: { duur_uren: number }) => sum + b.duur_uren, 0);
-            beschikbaarheid[mw] = {
-              ingeplande_uren: totaalIngepland,
-              bestaande_taken: takenRes.data || [],
-              verlof_periodes: verlofRes.data || [],
-            };
+            beschikbaarheid[mw] = { ingeplande_uren: totaalIngepland, bestaande_taken: takenRes.data || [], verlof_periodes: verlofRes.data || [] };
           }));
           prefetchParts.push(`\n--- PRE-LOADED: BESCHIKBAARHEID (${start_datum} t/m ${eind_datum}) ---\n${JSON.stringify(beschikbaarheid, null, 2)}`);
         }
 
-        // Check Microsoft agenda koppeling per medewerker
-        const mwIds = mwData?.map((m: { werknemer_id: number }) => m.werknemer_id) || [];
+        const mwIds = (mwNames ? await supabase.from('medewerkers').select('werknemer_id, naam_werknemer').in('naam_werknemer', mwNames) : { data: [] }).data?.map((m: { werknemer_id: number }) => m.werknemer_id) || [];
         if (mwIds.length > 0) {
-          const { data: tokenData } = await supabase
-            .from('microsoft_tokens')
-            .select('werknemer_id')
-            .in('werknemer_id', mwIds);
-          
+          const { data: tokenData } = await supabase.from('microsoft_tokens').select('werknemer_id').in('werknemer_id', mwIds);
           const gekoppeldeIds = new Set((tokenData || []).map((t: { werknemer_id: number }) => t.werknemer_id));
-          const nietGekoppeld = (mwData || [])
-            .filter((m: { werknemer_id: number }) => !gekoppeldeIds.has(m.werknemer_id))
-            .map((m: { naam_werknemer: string }) => m.naam_werknemer);
-          const welGekoppeld = (mwData || [])
-            .filter((m: { werknemer_id: number }) => gekoppeldeIds.has(m.werknemer_id))
-            .map((m: { naam_werknemer: string }) => m.naam_werknemer);
-
+          const { data: allMw } = await supabase.from('medewerkers').select('werknemer_id, naam_werknemer').in('naam_werknemer', mwNames);
+          const nietGekoppeld = (allMw || []).filter((m: { werknemer_id: number }) => !gekoppeldeIds.has(m.werknemer_id)).map((m: { naam_werknemer: string }) => m.naam_werknemer);
+          const welGekoppeld = (allMw || []).filter((m: { werknemer_id: number }) => gekoppeldeIds.has(m.werknemer_id)).map((m: { naam_werknemer: string }) => m.naam_werknemer);
           if (nietGekoppeld.length > 0 && welGekoppeld.length > 0) {
-            prefetchParts.push(`\n--- MICROSOFT AGENDA STATUS ---\n` +
-              `Gekoppeld: ${welGekoppeld.join(', ')}\n` +
-              `NIET gekoppeld: ${nietGekoppeld.join(', ')}\n` +
-              `Vermeld in je voorstel dat de agenda's van ${nietGekoppeld.join(', ')} niet gecheckt konden worden.`);
+            prefetchParts.push(`\n--- MICROSOFT AGENDA STATUS ---\nGekoppeld: ${welGekoppeld.join(', ')}\nNIET gekoppeld: ${nietGekoppeld.join(', ')}\nVermeld dit in je voorstel.`);
           } else if (nietGekoppeld.length > 0) {
-            prefetchParts.push(`\n--- MICROSOFT AGENDA STATUS ---\n` +
-              `Geen van de medewerkers heeft een gekoppelde Microsoft agenda (${nietGekoppeld.join(', ')}).\n` +
-              `Vermeld in je voorstel: "Let op: Microsoft agenda's zijn nog niet gekoppeld. Controleer handmatig of medewerkers meetings hebben die conflicteren met deze planning."`);
-          } else {
-            prefetchParts.push(`\n--- MICROSOFT AGENDA STATUS ---\n` +
-              `Alle medewerkers hebben een gekoppelde Microsoft agenda. Agenda-data is meegenomen in de beschikbaarheidscheck.`);
+            prefetchParts.push(`\n--- MICROSOFT AGENDA STATUS ---\nGeen agenda's gekoppeld (${nietGekoppeld.join(', ')}). Vermeld dit expliciet in je voorstel.`);
           }
         }
       }
 
       if (prefetchParts.length > 0) {
-        prefetchedContext = '\n\n=== DATA IS AL OPGEHAALD - GEBRUIK GEEN zoek_taken, check_beschikbaarheid of zoek_klanten TOOLS ===\n' +
-          'Alle benodigde data staat hieronder. Ga DIRECT naar plan_project.\n' +
-          prefetchParts.join('\n');
+        prefetchedContext = '\n\n=== PRE-LOADED DATA — gebruik DIRECT plan_project, geen extra zoek-tools nodig ===\n' + prefetchParts.join('\n');
       }
     }
 
-    claudeMessages.push({ role: 'user', content: bericht + prefetchedContext });
+    currentMessages.push({ role: 'user', content: bericht + prefetchedContext });
 
-    // 8. Check API key
-    const anthropicKey = Deno.env.get('ANTHROPIC_API_KEY');
-    if (!anthropicKey) {
-      return new Response(
-        JSON.stringify({ error: 'ANTHROPIC_API_KEY niet geconfigureerd. Stel dit in als Supabase secret.' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // 9. Call Claude with tool loop
+    // Tool loop (OpenAI-compatible format)
     let assistantMessage = '';
     // deno-lint-ignore no-explicit-any
     let pendingVoorstel: any = null;
-    // deno-lint-ignore no-explicit-any
-    let currentMessages = [...claudeMessages];
+    const maxIterations = project_data ? 2 : 3;
 
-    const maxIterations = project_data ? 2 : 5;
     for (let i = 0; i < maxIterations; i++) {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'x-api-key': anthropicKey,
-          'anthropic-version': '2023-06-01',
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: project_data ? 3000 : 4096,
-          system: systemPrompt,
-          messages: currentMessages,
-          tools: CLAUDE_TOOLS,
-        }),
-      });
+      const data = await callOpenRouter(
+        openrouterKey,
+        MAIN_MODEL,
+        currentMessages,
+        tools,
+        project_data ? 3000 : 4096
+      );
 
-      if (!response.ok) {
-        const errText = await response.text();
-        console.error('Claude API error:', errText);
-        
-        // Check for rate limit error
-        if (response.status === 429 || errText.includes('rate_limit')) {
-          return new Response(
-            JSON.stringify({ 
-              error: 'Even geduld - AI is tijdelijk overbelast. Probeer het over 30 seconden opnieuw.',
-              code: 'RATE_LIMITED'
-            }),
-            { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-        
-        return new Response(
-          JSON.stringify({ error: 'Fout bij communicatie met AI' }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
+      const choice = data.choices?.[0];
+      const message = choice?.message;
+      const finishReason = choice?.finish_reason;
 
-      const data = await response.json();
-
-      // Check stop reason
-      if (data.stop_reason === 'end_turn') {
-        // Extract text from content blocks
-        for (const block of data.content || []) {
-          if (block.type === 'text') {
-            assistantMessage = block.text;
-          }
-        }
+      if (finishReason === 'stop' || finishReason === 'end_turn') {
+        assistantMessage = message?.content || '';
         break;
       }
 
-      // Check for tool use
-      if (data.stop_reason === 'tool_use') {
-        // Add assistant message to context
-        currentMessages.push({ role: 'assistant', content: data.content });
+      if (finishReason === 'tool_calls' || finishReason === 'tool_use') {
+        const toolCalls = message?.tool_calls || [];
+        currentMessages.push({
+          role: 'assistant',
+          content: message?.content || null,
+          tool_calls: toolCalls,
+        });
 
-        // Execute each tool
-        const toolResults = [];
-        for (const block of data.content || []) {
-          if (block.type === 'tool_use') {
-            const result = await executeTool(supabase, planningConfig, block.name, block.input);
+        for (const toolCall of toolCalls) {
+          const toolName = toolCall.function?.name;
+          let toolArgs: Record<string, unknown> = {};
+          try { toolArgs = JSON.parse(toolCall.function?.arguments || '{}'); } catch { /* ignore */ }
 
-            // Check for voorstel
-            if (block.name === 'stel_wijziging_voor' || block.name === 'plan_project') {
-              try {
-                const parsed = JSON.parse(result);
-                if (parsed.type === 'voorstel' || parsed.type === 'planning_voorstel') {
-                  pendingVoorstel = parsed;
-                }
-              } catch { /* ignore */ }
-            }
+          const result = await executeTool(supabase, planningConfig, toolName, toolArgs);
 
-            toolResults.push({
-              type: 'tool_result',
-              tool_use_id: block.id,
-              content: result,
-            });
+          // Voorstel detectie
+          if (toolName === 'stel_wijziging_voor' || toolName === 'plan_project') {
+            try {
+              const parsed = JSON.parse(result);
+              if (parsed.type === 'voorstel' || parsed.type === 'planning_voorstel') pendingVoorstel = parsed;
+            } catch { /* ignore */ }
           }
+
+          currentMessages.push({ role: 'tool', tool_call_id: toolCall.id, content: result });
         }
 
-        // Add tool results to context
-        currentMessages.push({ role: 'user', content: toolResults });
-
-        // Als plan_project is uitgevoerd, stop direct — geen tweede Claude call nodig
+        // Stop na plan_project bij project_data modus
         if (pendingVoorstel && project_data) {
-          if (!assistantMessage) {
-            assistantMessage = 'Hier is mijn planning voorstel. Bekijk het hieronder en laat me weten of je aanpassingen wilt.';
-          }
+          if (!assistantMessage) assistantMessage = 'Planning voorstel is klaar. Bekijk het hieronder en laat me weten of je aanpassingen wilt.';
           break;
         }
       } else {
-        // Unknown stop reason, extract any text and break
-        for (const block of data.content || []) {
-          if (block.type === 'text') {
-            assistantMessage = block.text;
-          }
-        }
+        // Onbekend stop-reason: pak tekst en stop
+        assistantMessage = message?.content || '';
         break;
       }
     }
 
-    // 10. Save assistant response
+    // Sla assistant response op
     const opslaan = pendingVoorstel
       ? `${assistantMessage}\n\n[VOORSTEL:${JSON.stringify(pendingVoorstel)}]`
       : assistantMessage;
     try {
-      await supabase.from('chat_gesprekken').insert({
-        sessie_id,
-        rol: 'assistant',
-        inhoud: opslaan,
-      });
+      await supabase.from('chat_gesprekken').insert({ sessie_id, rol: 'assistant', inhoud: opslaan });
     } catch { /* ignore */ }
 
-    // 11. Return response
     const cleanAntwoord = assistantMessage.replace(/\n*\[VOORSTEL:\{.*?\}\]/gs, '').trim();
     return new Response(
-      JSON.stringify({ antwoord: cleanAntwoord, voorstel: pendingVoorstel }),
+      JSON.stringify({ antwoord: cleanAntwoord, voorstel: pendingVoorstel, intent }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
     console.error('Ellen chat error:', error);
-    return new Response(
-      JSON.stringify({ error: 'Er is een fout opgetreden bij Ellen' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+
+    // Rate limiting
+    if ((error as { status?: number }).status === 429) {
+      return new Response(JSON.stringify({
+        error: 'Even geduld — AI is tijdelijk overbelast. Probeer het over 30 seconden opnieuw.',
+        code: 'RATE_LIMITED',
+      }), { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    return new Response(JSON.stringify({ error: 'Er is een fout opgetreden bij Ellen' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 });
