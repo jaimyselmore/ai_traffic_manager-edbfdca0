@@ -15,7 +15,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { secureSelect, secureDelete } from '@/lib/data/dataService';
+import { secureSelect, secureDelete } from '@/lib/data/secureDataClient';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
 
@@ -119,7 +119,7 @@ export function MijnAanvragen() {
         const klantNaam = aanvraag.klant;
 
         // Eerst proberen project te vinden
-        const { data: projecten } = await secureSelect('projecten', user.id, {
+        const { data: projecten } = await secureSelect('projecten', {
           filters: [
             { column: 'omschrijving', operator: 'ilike', value: `%${projectTitle}%` }
           ]
@@ -127,26 +127,26 @@ export function MijnAanvragen() {
 
         if (projecten && projecten.length > 0) {
           // Verwijder alle taken van dit project
-          for (const project of projecten) {
+          for (const project of (projecten as Array<{ id: string }>) ) {
             // Verwijder taken via project_id
-            const { data: taken } = await secureSelect('taken', user.id, {
+            const { data: taken } = await secureSelect('taken', {
               filters: [{ column: 'project_id', operator: 'eq', value: project.id }]
             });
 
             if (taken && taken.length > 0) {
-              for (const taak of taken) {
-                await secureDelete('taken', taak.id, user.id);
+              for (const taak of (taken as Array<{ id: string }>) ) {
+                await secureDelete('taken', [{ column: 'id', operator: 'eq', value: taak.id }]);
               }
             }
 
             // Verwijder het project zelf
-            await secureDelete('projecten', project.id, user.id);
+            await secureDelete('projecten', [{ column: 'id', operator: 'eq', value: project.id }]);
           }
         }
 
         // Ook taken zoeken op klant_naam als backup
         if (klantNaam) {
-          const { data: losTaken } = await secureSelect('taken', user.id, {
+          const { data: losTaken } = await secureSelect('taken', {
             filters: [
               { column: 'klant_naam', operator: 'ilike', value: `%${klantNaam}%` },
               { column: 'project_nummer', operator: 'ilike', value: `%${projectTitle.substring(0, 20)}%` }
@@ -154,8 +154,8 @@ export function MijnAanvragen() {
           });
 
           if (losTaken && losTaken.length > 0) {
-            for (const taak of losTaken) {
-              await secureDelete('taken', taak.id, user.id);
+            for (const taak of (losTaken as Array<{ id: string }>) ) {
+              await secureDelete('taken', [{ column: 'id', operator: 'eq', value: taak.id }]);
             }
           }
         }
