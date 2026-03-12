@@ -33,17 +33,6 @@ interface AgendasProps {
 export function Agendas({ onNavigate }: AgendasProps) {
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Microsoft agenda's</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Werk met de Microsoft-agenda's van medewerkers: beschikbaarheid ophalen en planning plaatsen.
-        </p>
-        <p className="mt-2 text-xs text-muted-foreground">
-          Microsoft accounts koppelen? Ga naar <span className="font-medium text-foreground">Instellingen → Agenda's</span>.
-        </p>
-      </div>
-
       {/* Cards Grid */}
       <div className="grid gap-6 md:grid-cols-2 max-w-3xl">
         <AgendaCard

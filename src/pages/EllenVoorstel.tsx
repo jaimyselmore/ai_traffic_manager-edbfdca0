@@ -1433,30 +1433,48 @@ function buildDirectPlanFases(info: any): Array<any> | null {
 
     const startDatum = toISODate(f.start_datum) || toISODate(info.fases?.[0]?.start_datum) || new Date().toISOString().split('T')[0];
 
+    // Bepaal verdeling: als werk (duurDagen) veel minder is dan projectduur (weken),
+    // spreid dan 1 dag per week i.p.v. alles aaneengesloten in de eerste paar dagen.
+    function bepaalVerdeling(duurDagen: number, startStr: string, deadlineStr: string | null): { verdeling: string; dagenPerWeek?: number } {
+      if (!deadlineStr) return { verdeling: 'aaneengesloten' };
+      const s = new Date(startStr + 'T00:00:00');
+      const d = new Date(deadlineStr + 'T00:00:00');
+      const projectWeken = Math.round((d.getTime() - s.getTime()) / (7 * 24 * 60 * 60 * 1000));
+      if (projectWeken > 2 && duurDagen < projectWeken) {
+        return { verdeling: 'per_week', dagenPerWeek: Math.max(1, Math.ceil(duurDagen / projectWeken)) };
+      }
+      return { verdeling: 'aaneengesloten' };
+    }
+
     if (f.medewerkerDetails?.length > 0) {
       f.medewerkerDetails.forEach((md: any) => {
         if (!md.naam) return;
         const totaalUren = md.uren || 0;
         const urenPerDag = totaalUren > 0 ? Math.min(8, totaalUren) : (f.uren_per_dag || 4);
         const duurDagen = totaalUren > 0 ? Math.ceil(totaalUren / urenPerDag) : (f.duur_dagen || 1);
+        const { verdeling, dagenPerWeek } = bepaalVerdeling(Math.max(1, duurDagen), startDatum, deadline);
         planFases.push({
           fase_naam: f.fase_naam,
           medewerkers: [md.naam],
           start_datum: startDatum,
           duur_dagen: Math.max(1, duurDagen),
           uren_per_dag: urenPerDag,
-          verdeling: 'aaneengesloten',
-          _deadline: deadline, // voor context, niet in tool schema
+          verdeling,
+          ...(dagenPerWeek !== undefined && { dagen_per_week: dagenPerWeek }),
+          _deadline: deadline,
         });
       });
     } else if (f.medewerkers?.length > 0) {
+      const duurDagen = Math.max(1, f.duur_dagen || 1);
+      const { verdeling, dagenPerWeek } = bepaalVerdeling(duurDagen, startDatum, deadline);
       planFases.push({
         fase_naam: f.fase_naam,
         medewerkers: f.medewerkers,
         start_datum: startDatum,
-        duur_dagen: Math.max(1, f.duur_dagen || 1),
+        duur_dagen: duurDagen,
         uren_per_dag: f.uren_per_dag || 8,
-        verdeling: 'aaneengesloten',
+        verdeling,
+        ...(dagenPerWeek !== undefined && { dagen_per_week: dagenPerWeek }),
         _deadline: deadline,
       });
     }
