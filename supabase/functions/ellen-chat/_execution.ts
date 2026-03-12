@@ -5,8 +5,11 @@ import { PlanningConfig, SupabaseClient } from './_types.ts';
 import {
   getMonday, getDayOfWeekNumber, isWeekend,
   bepaalDiscipline, isMeetingFase, isFeedbackFase,
-  vindEersteVrijeSlot, vindMeetingSlot,
-  heeftVerlof, isParttimeDag, findBestNameMatch,
+  findBestNameMatch,
+  PlanningContext,
+  heeftVerlofSync, isParttimeDagSync,
+  vindEersteVrijeSlotSync, vindMeetingSlotSync,
+  registreerBlokInContext,
 } from './_planning.ts';
 
 function sanitize(term: string): string {
@@ -157,6 +160,55 @@ export async function executeTool(
           .select('id, naam, planning_instructies').ilike('naam', `%${klant_naam}%`).limit(1).maybeSingle();
         if (klantErr || !klant) return `Kon klant "${klant_naam}" niet vinden.`;
 
+        // ── PRE-FETCH: 3 queries in parallel i.p.v. ~150 sequentieel ────────────
+        const alleeMedewerkers = [...new Set(fases.flatMap(f => f.medewerkers))];
+        const startStr = fases[0].start_datum;
+        const endDate = deadline
+          ? new Date(deadline + 'T00:00:00')
+          : new Date(new Date(startStr + 'T00:00:00').getTime() + 90 * 24 * 60 * 60 * 1000);
+        const endStr = endDate.toISOString().split('T')[0];
+
+        const [verlofRes, mwRes, takenRes] = await Promise.all([
+          supabase.from('beschikbaarheid_medewerkers')
+            .select('werknemer_naam, start_datum, eind_datum')
+            .in('werknemer_naam', alleeMedewerkers)
+            .eq('status', 'goedgekeurd')
+            .lte('start_datum', endStr)
+            .gte('eind_datum', startStr),
+          supabase.from('medewerkers')
+            .select('naam_werknemer, parttime_dag')
+            .in('naam_werknemer', alleeMedewerkers),
+          supabase.from('taken')
+            .select('werknemer_naam, week_start, dag_van_week, start_uur, duur_uren')
+            .in('werknemer_naam', alleeMedewerkers)
+            .gte('week_start', startStr)
+            .lte('week_start', endStr),
+        ]);
+
+        // Build in-memory Maps voor O(1) lookups
+        const verlofMap = new Map<string, Array<{ start_datum: string; eind_datum: string }>>();
+        for (const v of verlofRes.data || []) {
+          const lijst = verlofMap.get(v.werknemer_naam) || [];
+          lijst.push({ start_datum: v.start_datum, eind_datum: v.eind_datum });
+          verlofMap.set(v.werknemer_naam, lijst);
+        }
+
+        const parttimeMap = new Map<string, string | null>();
+        for (const m of mwRes.data || []) {
+          parttimeMap.set(m.naam_werknemer, m.parttime_dag || null);
+        }
+
+        const takenMap = new Map<string, Array<{ start_uur: number; duur_uren: number }>>();
+        for (const t of takenRes.data || []) {
+          const key = `${t.werknemer_naam}-${t.week_start}-${t.dag_van_week}`;
+          const lijst = takenMap.get(key) || [];
+          lijst.push({ start_uur: t.start_uur, duur_uren: t.duur_uren });
+          takenMap.set(key, lijst);
+        }
+
+        const planCtx: PlanningContext = { verlofMap, parttimeMap, takenMap };
+        // ── EINDE PRE-FETCH ───────────────────────────────────────────────────
+
         const projectNummer = `P-${Date.now().toString().slice(-6)}`;
         const taken: Array<{
           werknemer_naam: string; fase_naam: string; discipline: string; werktype: string;
@@ -166,14 +218,14 @@ export async function executeTool(
         const warnings: string[] = [];
         const firstStartDate = new Date(fases[0].start_datum + 'T00:00:00');
 
-        async function planBlok(medewerker: string, datum: Date, fase: typeof fases[0], isMeeting: boolean): Promise<boolean> {
+        function planBlok(medewerker: string, datum: Date, fase: typeof fases[0], isMeeting: boolean): boolean {
           const urenPerDag = fase.uren_per_dag || 8;
-          if (await heeftVerlof(supabase, medewerker, datum)) { warnings.push(`${medewerker} heeft verlof op ${datum.toISOString().split('T')[0]}`); return false; }
-          if (await isParttimeDag(supabase, medewerker, datum)) { warnings.push(`${medewerker} werkt niet op ${datum.toISOString().split('T')[0]} (parttime)`); return false; }
+          if (heeftVerlofSync(planCtx, medewerker, datum)) { warnings.push(`${medewerker} heeft verlof op ${datum.toISOString().split('T')[0]}`); return false; }
+          if (isParttimeDagSync(planCtx, medewerker, datum)) { warnings.push(`${medewerker} werkt niet op ${datum.toISOString().split('T')[0]} (parttime)`); return false; }
 
           const slot = isMeeting
-            ? await vindMeetingSlot(supabase, config, medewerker, datum, urenPerDag)
-            : await vindEersteVrijeSlot(supabase, config, medewerker, datum, urenPerDag);
+            ? vindMeetingSlotSync(planCtx, config, medewerker, datum, urenPerDag)
+            : vindEersteVrijeSlotSync(planCtx, config, medewerker, datum, urenPerDag);
 
           if (slot) {
             const dagNamen = ['ma', 'di', 'wo', 'do', 'vr'];
@@ -181,6 +233,8 @@ export async function executeTool(
             const weekNum = Math.ceil((datum.getTime() - firstStartDate.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
             taken.push({ werknemer_naam: medewerker, fase_naam: fase.fase_naam, discipline: bepaalDiscipline(fase.fase_naam), werktype: fase.fase_naam, week_start: getMonday(datum), dag_van_week: dagVanWeek, start_uur: slot.startUur, duur_uren: slot.duurUren });
             samenvattingParts.push(`  ${medewerker}: wk${weekNum} ${dagNamen[dagVanWeek]} ${slot.startUur}:00-${slot.startUur + slot.duurUren}:00`);
+            // Registreer het nieuwe blok zodat volgende slots geen conflict krijgen
+            registreerBlokInContext(planCtx, medewerker, datum, slot.startUur, slot.duurUren);
             return true;
           }
           warnings.push(`Geen slot voor ${medewerker} op ${datum.toISOString().split('T')[0]}`);
@@ -204,7 +258,7 @@ export async function executeTool(
             while (dagenGepland < fase.duur_dagen && huidigeDatum < deadlineDate) {
               while (isWeekend(huidigeDatum)) huidigeDatum.setDate(huidigeDatum.getDate() + 1);
               if (huidigeDatum >= deadlineDate) break;
-              for (const mw of fase.medewerkers) await planBlok(mw, huidigeDatum, fase, isMeeting);
+              for (const mw of fase.medewerkers) planBlok(mw, huidigeDatum, fase, isMeeting);
               dagenGepland++; huidigeDatum.setDate(huidigeDatum.getDate() + 1);
             }
           } else if (verdeling === 'per_week') {
@@ -219,7 +273,7 @@ export async function executeTool(
               while (dagenDezeWeek < dagenPerWeek && dagenGepland < fase.duur_dagen) {
                 while (isWeekend(huidigeDatum)) huidigeDatum.setDate(huidigeDatum.getDate() + 1);
                 if (deadline && huidigeDatum >= new Date(deadline + 'T00:00:00')) break;
-                for (const mw of fase.medewerkers) await planBlok(mw, huidigeDatum, fase, isMeeting);
+                for (const mw of fase.medewerkers) planBlok(mw, huidigeDatum, fase, isMeeting);
                 dagenGepland++; dagenDezeWeek++; huidigeDatum.setDate(huidigeDatum.getDate() + 1);
               }
               huidigeDatum = new Date(weekStart);
@@ -232,7 +286,7 @@ export async function executeTool(
             while (dagenGepland < fase.duur_dagen) {
               while (isWeekend(huidigeDatum)) huidigeDatum.setDate(huidigeDatum.getDate() + 1);
               if (deadline && huidigeDatum >= new Date(deadline + 'T00:00:00')) { warnings.push(`${fase.fase_naam}: Niet alle dagen passen voor deadline`); break; }
-              for (const mw of fase.medewerkers) await planBlok(mw, huidigeDatum, fase, isMeeting);
+              for (const mw of fase.medewerkers) planBlok(mw, huidigeDatum, fase, isMeeting);
               dagenGepland++; huidigeDatum.setDate(huidigeDatum.getDate() + 1);
             }
           }

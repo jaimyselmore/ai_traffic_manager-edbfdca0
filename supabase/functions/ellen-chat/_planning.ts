@@ -4,6 +4,105 @@
 
 import { PlanningConfig, TimeSlot, SupabaseClient } from './_types.ts';
 
+// ── PRE-FETCH CONTEXT (voorkomt N+1 queries) ──────────────────────────────────
+
+export interface PlanningContext {
+  // name → lijst verlofperiodes
+  verlofMap: Map<string, Array<{ start_datum: string; eind_datum: string }>>;
+  // name → parttime_dag (lowercase) of null
+  parttimeMap: Map<string, string | null>;
+  // `${name}-${week_start}-${dag_van_week}` → bestaande blokken die dag
+  takenMap: Map<string, Array<{ start_uur: number; duur_uren: number }>>;
+}
+
+export function heeftVerlofSync(ctx: PlanningContext, medewerkernaam: string, datum: Date): boolean {
+  const dateStr = datum.toISOString().split('T')[0];
+  const verlofLijst = ctx.verlofMap.get(medewerkernaam) || [];
+  return verlofLijst.some(v => v.start_datum <= dateStr && v.eind_datum >= dateStr);
+}
+
+export function isParttimeDagSync(ctx: PlanningContext, medewerkernaam: string, datum: Date): boolean {
+  const dagNamen = ['zondag', 'maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag'];
+  const dagNaam = dagNamen[datum.getDay()];
+  const pt = ctx.parttimeMap.get(medewerkernaam);
+  if (pt !== undefined) return pt?.toLowerCase() === dagNaam;
+  // Fallback: partial name match
+  for (const [key, parttime] of ctx.parttimeMap) {
+    if (key.toLowerCase().includes(medewerkernaam.toLowerCase()) ||
+        medewerkernaam.toLowerCase().includes(key.split(' ')[0].toLowerCase())) {
+      return parttime?.toLowerCase() === dagNaam;
+    }
+  }
+  return false;
+}
+
+export function getBestaandeBlokkenSync(
+  ctx: PlanningContext,
+  medewerkernaam: string,
+  datum: Date
+): Array<{ start_uur: number; duur_uren: number }> {
+  const weekStart = getMonday(datum);
+  const dagVanWeek = getDayOfWeekNumber(datum);
+  const key = `${medewerkernaam}-${weekStart}-${dagVanWeek}`;
+  return (ctx.takenMap.get(key) || []).sort((a, b) => a.start_uur - b.start_uur);
+}
+
+// Voeg een nieuw blok toe aan de in-memory context (na inplannen)
+export function registreerBlokInContext(
+  ctx: PlanningContext,
+  medewerkernaam: string,
+  datum: Date,
+  startUur: number,
+  duurUren: number
+): void {
+  const weekStart = getMonday(datum);
+  const dagVanWeek = getDayOfWeekNumber(datum);
+  const key = `${medewerkernaam}-${weekStart}-${dagVanWeek}`;
+  const bestaand = ctx.takenMap.get(key) || [];
+  ctx.takenMap.set(key, [...bestaand, { start_uur: startUur, duur_uren: duurUren }]);
+}
+
+export function vindEersteVrijeSlotSync(
+  ctx: PlanningContext,
+  config: PlanningConfig,
+  medewerkernaam: string,
+  datum: Date,
+  benodigdeUren: number
+): TimeSlot | null {
+  const bezet = getBestaandeBlokkenSync(ctx, medewerkernaam, datum);
+  const werkdagDuur = config.werkdag_eind - config.werkdag_start;
+  const lunchDuur = config.lunch_eind - config.lunch_start;
+  const maxWerkUren = werkdagDuur - lunchDuur;
+
+  if (benodigdeUren >= maxWerkUren) {
+    const ochtendVrij = !heeftConflict(bezet, config.werkdag_start, config.lunch_start - config.werkdag_start);
+    const middagVrij = !heeftConflict(bezet, config.lunch_eind, config.werkdag_eind - config.lunch_eind);
+    if (ochtendVrij && middagVrij) return { startUur: config.werkdag_start, duurUren: werkdagDuur };
+    return null;
+  }
+
+  for (let uur = config.werkdag_start; uur <= config.werkdag_eind - benodigdeUren; uur++) {
+    if (overlapLunch(uur, uur + benodigdeUren, config)) continue;
+    if (!heeftConflict(bezet, uur, benodigdeUren)) return { startUur: uur, duurUren: benodigdeUren };
+  }
+  return null;
+}
+
+export function vindMeetingSlotSync(
+  ctx: PlanningContext,
+  config: PlanningConfig,
+  medewerkernaam: string,
+  datum: Date,
+  benodigdeUren: number
+): TimeSlot | null {
+  const bezet = getBestaandeBlokkenSync(ctx, medewerkernaam, datum);
+  for (let uur = config.meeting_start; uur <= config.meeting_eind - benodigdeUren; uur++) {
+    if (overlapLunch(uur, uur + benodigdeUren, config)) continue;
+    if (!heeftConflict(bezet, uur, benodigdeUren)) return { startUur: uur, duurUren: benodigdeUren };
+  }
+  return null;
+}
+
 // ── DATUM HELPERS ─────────────────────────────────────────────────────────────
 
 export function getMonday(date: Date): string {
