@@ -531,14 +531,6 @@ export function AgendasFlow() {
   if (!isFeatureReady) {
     return (
       <div className="space-y-8">
-        {/* Header */}
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Microsoft agenda's</h1>
-          <p className="mt-1 text-base text-muted-foreground">
-            Bekijk en beheer Microsoft agenda's van medewerkers
-          </p>
-        </div>
-
         {/* In Development Notice */}
         <div className="max-w-2xl">
           <Alert className="border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30">
@@ -578,14 +570,6 @@ export function AgendasFlow() {
 
   return (
     <div className="space-y-8">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Microsoft agenda's</h1>
-        <p className="mt-1 text-base text-muted-foreground">
-          Week {weekNumber} – {dateRange}
-        </p>
-      </div>
-
       {/* Selection card + Legend row */}
       <div className="flex items-start gap-6 mb-6">
         {/* Week + Medewerker + Options + Toon planner card - LEFT */}
