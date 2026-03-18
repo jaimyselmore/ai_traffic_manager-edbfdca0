@@ -992,10 +992,10 @@ export default function EllenVoorstel() {
                 <div>
                   <p className="text-sm font-semibold text-foreground">
                     {projectInfo?.klant_naam} — {projectInfo?.projectnaam}
+                    {projectInfo?.volledigProjectId && (
+                      <span className="font-normal text-muted-foreground ml-1">· {projectInfo.volledigProjectId}</span>
+                    )}
                   </p>
-                  {projectInfo?.volledigProjectId && (
-                    <p className="text-xs text-muted-foreground font-mono">{projectInfo.volledigProjectId}</p>
-                  )}
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {projectInfo?.startDatum ? `${toDutchDate(projectInfo.startDatum)}` : ''}
                     {projectInfo?.startDatum && projectInfo?.deadline ? ' → ' : ''}
