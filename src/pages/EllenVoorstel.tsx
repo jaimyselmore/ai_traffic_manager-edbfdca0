@@ -1527,6 +1527,24 @@ function buildDirectPlanFases(info: any): Array<any> | null {
     }
   });
 
+  // Voeg 'Ellen bepaalt' presentaties toe als te-plannen blokken.
+  // Ellen plant deze als 2-uurs presentatieblok in de laatste week (bij voorkeur do/vr).
+  const ellenPresentaties = presentaties.filter((p: any) => p.datumType === 'ellen');
+  const projectStartDatum = toISODate(info.startDatum) || toISODate(info.fases?.[0]?.start_datum) || new Date().toISOString().split('T')[0];
+  ellenPresentaties.forEach((p: any) => {
+    const aanwezigen: string[] = p.medewerkers?.length > 0 ? p.medewerkers : [];
+    if (!aanwezigen.length) return;
+    planFases.push({
+      fase_naam: p.fase_naam || 'Presentatie',
+      medewerkers: aanwezigen,
+      start_datum: projectStartDatum,
+      duur_dagen: 1,
+      uren_per_dag: 2,
+      verdeling: 'laatste_week',
+      _deadline: toISODate(info.deadline),
+    });
+  });
+
   return planFases.length > 0 ? planFases : null;
 }
 
