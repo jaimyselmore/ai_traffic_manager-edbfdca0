@@ -769,13 +769,26 @@ export default function EllenVoorstel() {
     return hour === taak.start_uur;
   };
 
+  // Presentatienamen uit het project (voor kleur + subtitle)
+  const presentatieNamenSet = new Set(
+    (projectInfo?.fases || [])
+      .filter((f: any) => f.type === 'presentatie')
+      .map((f: any) => (f.fase_naam || '').toLowerCase())
+  );
+
   const getFaseColor = (faseNaam: string, werktype?: string) => {
-    // Eerst werktype checken (meest betrouwbaar)
-    if (werktype && WERKTYPE_COLORS[werktype]) {
-      return WERKTYPE_COLORS[werktype];
-    }
+    // Presentaties altijd dezelfde kleur (extern/roze)
+    if (presentatieNamenSet.has((faseNaam || '').toLowerCase())) return 'bg-task-extern';
+    // Werktype check
+    if (werktype && WERKTYPE_COLORS[werktype]) return WERKTYPE_COLORS[werktype];
     // Fallback naar fase naam
     return FASE_COLORS[faseNaam] || FASE_COLORS['Algemeen'];
+  };
+
+  // Haal de gekoppelde presentatienaam op uit een werkzaamheden fase_naam
+  const getWorkloadSubtitle = (faseNaam: string): string | null => {
+    const m = faseNaam.match(/^Werkzaamheden\s*[-–]\s*(.+)$/i);
+    return m ? `→ ${m[1]}` : null;
   };
 
   const handleExitClick = () => {
@@ -1189,6 +1202,9 @@ export default function EllenVoorstel() {
                                     >
                                       <div className="truncate font-medium">{projectInfo?.projectTitel || projectInfo?.klant_naam}</div>
                                       <div className="truncate text-[10px] opacity-80">{taak.fase_naam}</div>
+                                      {getWorkloadSubtitle(taak.fase_naam) && (
+                                        <div className="truncate text-[10px] opacity-60 italic">{getWorkloadSubtitle(taak.fase_naam)}</div>
+                                      )}
                                       {taak.duur_uren > 2 && <div className="text-[10px] opacity-70 mt-0.5">{taak.duur_uren}u</div>}
                                     </div>
                                   );
@@ -1521,7 +1537,10 @@ function buildDirectPlanFases(info: any): Array<any> | null {
         }
       }
 
-      // Cascade: volgende werkzaamheden starten na deze presentatie
+      // Cascade: schuif startdatum door NA een vaste presentatie.
+      // Voor 'ellen bepaalt': NIET doorschuiven — de exacte datum is onbekend.
+      // Beide workloadblokken W2 en W3 starten dan vanuit hetzelfde venster;
+      // vindEersteVrijeSlotSync lost conflicten op door de volgende vrije dag te pakken.
       if (f.datumType === 'zelf' && f.start_datum) {
         const presDate = toISODate(f.start_datum);
         if (presDate) {
@@ -1529,10 +1548,8 @@ function buildDirectPlanFases(info: any): Array<any> | null {
           d.setDate(d.getDate() + 1);
           cascadeStart = d.toISOString().split('T')[0];
         }
-      } else {
-        // Ellen bepaalt: gebruik presDeadline als cascade start voor volgende blok
-        cascadeStart = presDeadline ?? cascadeStart;
       }
+      // else: voor 'ellen bepaalt' blijft cascadeStart ongewijzigd
 
     } else {
       // Werkzaamheden of slotfase: zoek deadline = eerstvolgende presentatie

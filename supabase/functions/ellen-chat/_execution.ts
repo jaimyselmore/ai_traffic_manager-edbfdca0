@@ -290,32 +290,68 @@ export async function executeTool(
               }
             }
           } else if (verdeling === 'per_week') {
-            const totaalWeken = Math.ceil(fase.duur_dagen / dagenPerWeek);
+            // Per-week: plan dagenPerWeek dagen per week, gespreid over de beschikbare weken.
+            // FIX: als planBlok faalt (slot bezet), probeer de volgende dag in dezelfde week.
+            // Tel een dag alleen als gepland als er echt een slot gevonden is.
             let huidigeDatum = new Date(faseStart), dagenGepland = 0;
-            for (let week = 0; week < totaalWeken && dagenGepland < fase.duur_dagen; week++) {
-              let dagenDezeWeek = 0;
-              const weekStart = new Date(huidigeDatum);
+            const deadlineDatePW = faseDeadline ? new Date(faseDeadline + 'T00:00:00') : null;
+            let maxIteraties = fase.duur_dagen * 20; // veiligheidsrem
+            let dagenDezeWeek = 0;
+            let weekStartMaandag = new Date(faseStart);
+            // Normaliseer naar maandag
+            while (getDayOfWeekNumber(weekStartMaandag) !== 0) weekStartMaandag.setDate(weekStartMaandag.getDate() - 1);
+
+            while (dagenGepland < fase.duur_dagen && maxIteraties-- > 0) {
+              while (isWeekend(huidigeDatum)) huidigeDatum.setDate(huidigeDatum.getDate() + 1);
+              if (deadlineDatePW && huidigeDatum >= deadlineDatePW) {
+                warnings.push(`${fase.fase_naam}: deadline bereikt (${dagenGepland}/${fase.duur_dagen} dagen gepland)`);
+                break;
+              }
+
+              // Check of we nog in dezelfde week zitten
+              const huidigeMaandag = new Date(huidigeDatum);
+              while (getDayOfWeekNumber(huidigeMaandag) !== 0) huidigeMaandag.setDate(huidigeMaandag.getDate() - 1);
+              const isNieuweWeek = huidigeMaandag.toISOString().split('T')[0] !== weekStartMaandag.toISOString().split('T')[0];
+              if (isNieuweWeek) {
+                dagenDezeWeek = 0;
+                weekStartMaandag = new Date(huidigeMaandag);
+              }
+
+              if (dagenDezeWeek >= dagenPerWeek) {
+                // Al genoeg dagen deze week gepland — spring naar volgende maandag
+                weekStartMaandag.setDate(weekStartMaandag.getDate() + 7);
+                huidigeDatum = new Date(weekStartMaandag);
+                dagenDezeWeek = 0;
+                continue;
+              }
+
+              // Feedback-fases bij voorkeur do/vr
               if (isFeedback && getDayOfWeekNumber(huidigeDatum) < 3) {
-                while (getDayOfWeekNumber(huidigeDatum) !== 3) huidigeDatum.setDate(huidigeDatum.getDate() + 1);
+                huidigeDatum.setDate(huidigeDatum.getDate() + 1);
+                continue;
               }
-              while (dagenDezeWeek < dagenPerWeek && dagenGepland < fase.duur_dagen) {
-                while (isWeekend(huidigeDatum)) huidigeDatum.setDate(huidigeDatum.getDate() + 1);
-                if (faseDeadline && huidigeDatum >= new Date(faseDeadline + 'T00:00:00')) break;
-                for (const mw of fase.medewerkers) planBlok(mw, huidigeDatum, fase, isMeeting);
-                dagenGepland++; dagenDezeWeek++; huidigeDatum.setDate(huidigeDatum.getDate() + 1);
+
+              let geplandDezeRonde = false;
+              for (const mw of fase.medewerkers) {
+                if (planBlok(mw, huidigeDatum, fase, isMeeting)) geplandDezeRonde = true;
               }
-              huidigeDatum = new Date(weekStart);
-              huidigeDatum.setDate(huidigeDatum.getDate() + 7);
-              const targetDay = isFeedback ? 3 : 0;
-              while (isWeekend(huidigeDatum) || getDayOfWeekNumber(huidigeDatum) !== targetDay) huidigeDatum.setDate(huidigeDatum.getDate() + 1);
+              if (geplandDezeRonde) { dagenGepland++; dagenDezeWeek++; }
+              huidigeDatum.setDate(huidigeDatum.getDate() + 1);
             }
           } else {
+            // Aaneengesloten: plan N dagen op rij, sla dag over als slot bezet is.
+            // FIX: tel dag alleen als gepland als planBlok echt succesvol was.
             let huidigeDatum = new Date(faseStart), dagenGepland = 0;
-            while (dagenGepland < fase.duur_dagen) {
+            let maxIteraties = fase.duur_dagen * 20; // veiligheidsrem
+            while (dagenGepland < fase.duur_dagen && maxIteraties-- > 0) {
               while (isWeekend(huidigeDatum)) huidigeDatum.setDate(huidigeDatum.getDate() + 1);
               if (faseDeadline && huidigeDatum >= new Date(faseDeadline + 'T00:00:00')) { warnings.push(`${fase.fase_naam}: Niet alle dagen passen voor deadline`); break; }
-              for (const mw of fase.medewerkers) planBlok(mw, huidigeDatum, fase, isMeeting);
-              dagenGepland++; huidigeDatum.setDate(huidigeDatum.getDate() + 1);
+              let geplandDezeRonde = false;
+              for (const mw of fase.medewerkers) {
+                if (planBlok(mw, huidigeDatum, fase, isMeeting)) geplandDezeRonde = true;
+              }
+              if (geplandDezeRonde) dagenGepland++;
+              huidigeDatum.setDate(huidigeDatum.getDate() + 1);
             }
           }
         }
