@@ -1559,6 +1559,7 @@ function buildDirectPlanFases(info: any): Array<any> | null {
         presentatiesGepland.add(presId);
         planFases.push({
           fase_naam: bijhorendePresentatie.fase_naam || 'Presentatie',
+          type: 'presentatie',
           medewerkers: aanwezigen,
           start_datum: startDatum,
           duur_dagen: 1,
@@ -1582,6 +1583,7 @@ function buildDirectPlanFases(info: any): Array<any> | null {
       if (!aanwezigen.length) return;
       planFases.push({
         fase_naam: p.fase_naam || 'Presentatie',
+        type: 'presentatie',
         medewerkers: aanwezigen,
         start_datum: projectStartDatum,
         duur_dagen: 1,

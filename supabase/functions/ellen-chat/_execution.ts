@@ -151,6 +151,7 @@ export async function executeTool(
           fase_naam: string; medewerkers: string[]; start_datum: string; duur_dagen: number;
           uren_per_dag?: number; verdeling?: 'aaneengesloten' | 'per_week' | 'laatste_week'; dagen_per_week?: number;
           fase_deadline?: string; // Per-fase deadline — overschrijft globale deadline voor deze fase
+          type?: string; // Expliciet type: 'presentatie', 'meeting', etc.
         }>;
 
         if (!klant_naam || !project_naam || !fases?.length) {
@@ -245,7 +246,7 @@ export async function executeTool(
         for (const fase of fases) {
           const verdeling = fase.verdeling || 'aaneengesloten';
           const dagenPerWeek = fase.dagen_per_week || 1;
-          const isMeeting = isMeetingFase(fase.fase_naam);
+          const isMeeting = fase.type === 'presentatie' || fase.type === 'meeting' || isMeetingFase(fase.fase_naam);
           const isFeedback = isFeedbackFase(fase.fase_naam, fase.uren_per_dag);
           const faseStart = new Date(fase.start_datum + 'T00:00:00');
           // Gebruik fase_deadline als die er is, anders de globale deadline
