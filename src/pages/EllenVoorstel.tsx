@@ -1452,147 +1452,134 @@ function toISODate(dateStr: string | undefined): string | undefined {
 
 /**
  * Bouw plan_project fases direct van formulierdata — bypast Claude-beslissing.
- * Per medewerker een aparte fase zodat uren exact kloppen.
+ * Verwerkt blokken in volgorde: [Workload → Presentatie]* → [Slotfase] → Deadline
+ * Cascade: elke workload start NA de vorige presentatie.
  */
 function buildDirectPlanFases(info: any): Array<any> | null {
-  const werkzaamheden = (info.fases || []).filter((f: any) => f.type !== 'presentatie');
-  if (!werkzaamheden.length) return null;
+  const allFases = (info.fases || []) as Array<any>;
+  if (!allFases.length) return null;
 
   const planFases: Array<any> = [];
-  const presentaties = (info.fases || []).filter((f: any) => f.type === 'presentatie');
-  // Track which 'Ellen bepaalt' presentations have been added (avoid duplicates)
-  const presentatiesGepland = new Set<string>();
+  const projectStartDatum = toISODate(info.startDatum)
+    || toISODate(allFases[0]?.start_datum)
+    || new Date().toISOString().split('T')[0];
+  const projectDeadline = toISODate(info.deadline) ?? null;
 
-  // Bouw een lookup: voor elke presentatie zonder vaste datum →
-  // gebruik de startdatum van de EERSTVOLGENDE vaste presentatie als deadline-anker.
-  // Zo wordt presentatie 2 (ellen) gepland vóór presentatie 3 begint, niet vlak voor de projectdeadline.
-  function getVolgendVasteDeadline(presentatie: any): string | undefined {
-    const idx = presentaties.indexOf(presentatie);
-    for (let i = idx + 1; i < presentaties.length; i++) {
-      const volgende = presentaties[i];
-      if (volgende.datumType === 'zelf' && volgende.start_datum) {
-        return toISODate(volgende.start_datum) ?? undefined;
+  // Zoek de eerstvolgende vaste presentatiedatum na index i
+  function getNextFixedDate(fromIndex: number): string | null {
+    for (let j = fromIndex; j < allFases.length; j++) {
+      const f = allFases[j];
+      if (f.type === 'presentatie' && f.datumType === 'zelf' && f.start_datum) {
+        return toISODate(f.start_datum) ?? null;
       }
     }
-    return undefined; // geen volgende vaste presentatie → valt terug op projectdeadline
+    return null;
   }
 
-  werkzaamheden.forEach((f: any) => {
-    // Zoek bijbehorende presentatiedeadline
-    const faseNaamLower = (f.fase_naam || '').toLowerCase().replace('werkzaamheden - ', '');
-    const bijhorendePresentatie = presentaties.find((p: any) =>
-      (p.fase_naam || '').toLowerCase().includes(faseNaamLower) ||
-      faseNaamLower.includes((p.fase_naam || '').toLowerCase())
-    );
-
-    // Deadline voor deze fase:
-    // - Vaste presentatie → die datum zelf
-    // - Ellen bepaalt → eerstvolgende vaste presentatie (zodat werkzaamheden/presentatie vóór P+1 vallen)
-    // - Geen presentatie → projectdeadline
-    const deadline = bijhorendePresentatie?.datumType === 'zelf' && bijhorendePresentatie?.start_datum
-      ? toISODate(bijhorendePresentatie.start_datum)
-      : bijhorendePresentatie?.datumType === 'ellen'
-        ? (getVolgendVasteDeadline(bijhorendePresentatie) ?? toISODate(info.deadline))
-        : toISODate(info.deadline);
-
-    // Gebruik startDatum uit projectInfo (altijd ingevuld in het formulier), val terug op fase start_datum.
-    const startDatum = toISODate(info.startDatum) || toISODate(f.start_datum) || toISODate(info.fases?.[0]?.start_datum) || new Date().toISOString().split('T')[0];
-
-    // Bepaal verdeling: spreidt uren verspreid over beschikbare dagen t/m deadline.
-    // Regel: als er >= 2x zoveel beschikbare werkdagen zijn als benodigd, spreidt dan per week.
-    // Zo wordt 16u (2 dagen) over bijv. 2 weken (10 werkdagen) niet op dag 1+2 gepropt.
-    function bepaalVerdeling(duurDagen: number, startStr: string, deadlineStr: string | null): { verdeling: string; dagenPerWeek?: number } {
-      if (!deadlineStr) return { verdeling: 'aaneengesloten' };
-      const s = new Date(startStr + 'T00:00:00');
-      const d = new Date(deadlineStr + 'T00:00:00');
-      const diffDagen = (d.getTime() - s.getTime()) / (24 * 60 * 60 * 1000);
-      const approxWerkDagen = Math.round(diffDagen * 5 / 7); // weekenden eruit
-      const projectWeken = Math.round(diffDagen / 7);
-      // Spreidt als er minstens 2x zoveel werkdagen beschikbaar zijn als benodigd
-      // én de deadline minstens 1 week weg is
-      if (approxWerkDagen >= duurDagen * 2 && projectWeken >= 1) {
-        return { verdeling: 'per_week', dagenPerWeek: Math.max(1, Math.ceil(duurDagen / Math.max(1, projectWeken))) };
-      }
-      return { verdeling: 'aaneengesloten' };
+  // Hulpfunctie: bepaal verdeling op basis van beschikbare tijd vs benodigde dagen
+  function bepaalVerdeling(duurDagen: number, startStr: string, deadlineStr: string | null): { verdeling: string; dagenPerWeek?: number } {
+    if (!deadlineStr) return { verdeling: 'aaneengesloten' };
+    const s = new Date(startStr + 'T00:00:00');
+    const d = new Date(deadlineStr + 'T00:00:00');
+    const diffDagen = (d.getTime() - s.getTime()) / (24 * 60 * 60 * 1000);
+    if (diffDagen <= 0) return { verdeling: 'aaneengesloten' };
+    const approxWerkDagen = Math.round(diffDagen * 5 / 7);
+    const projectWeken = Math.max(1, Math.round(diffDagen / 7));
+    if (approxWerkDagen >= duurDagen * 2 && projectWeken >= 1) {
+      return { verdeling: 'per_week', dagenPerWeek: Math.max(1, Math.ceil(duurDagen / projectWeken)) };
     }
+    return { verdeling: 'aaneengesloten' };
+  }
 
-    if (f.medewerkerDetails?.length > 0) {
-      f.medewerkerDetails.forEach((md: any) => {
-        if (!md.naam) return;
-        const totaalUren = md.uren || 0;
-        const urenPerDag = totaalUren > 0 ? Math.min(8, totaalUren) : (f.uren_per_dag || 4);
-        const duurDagen = totaalUren > 0 ? Math.ceil(totaalUren / urenPerDag) : (f.duur_dagen || 1);
-        const { verdeling, dagenPerWeek } = bepaalVerdeling(Math.max(1, duurDagen), startDatum, deadline ?? null);
+  // Cascade startdatum: begint op projectstart, schuift op na elke presentatie
+  let cascadeStart = projectStartDatum;
+
+  for (let i = 0; i < allFases.length; i++) {
+    const f = allFases[i];
+
+    if (f.type === 'presentatie') {
+      // Presentatiefase: 'zelf' wordt door buildPresentatieTaken afgehandeld.
+      // 'ellen' → hier inplannen.
+      const presDeadline = f.datumType === 'zelf' && f.start_datum
+        ? toISODate(f.start_datum)
+        : (getNextFixedDate(i + 1) ?? projectDeadline);
+
+      if (f.datumType === 'ellen') {
+        const aanwezigen: string[] = (f.medewerkers || []).filter(Boolean);
+        if (aanwezigen.length > 0) {
+          planFases.push({
+            fase_naam: f.fase_naam || 'Presentatie',
+            type: 'presentatie',
+            medewerkers: aanwezigen,
+            start_datum: cascadeStart,
+            duur_dagen: 1,
+            uren_per_dag: 2,
+            verdeling: 'laatste_week',
+            voorkeur_dagen: ['donderdag', 'vrijdag'],
+            _deadline: presDeadline,
+          });
+        }
+      }
+
+      // Cascade: volgende werkzaamheden starten na deze presentatie
+      if (f.datumType === 'zelf' && f.start_datum) {
+        const presDate = toISODate(f.start_datum);
+        if (presDate) {
+          const d = new Date(presDate + 'T00:00:00');
+          d.setDate(d.getDate() + 1);
+          cascadeStart = d.toISOString().split('T')[0];
+        }
+      } else {
+        // Ellen bepaalt: gebruik presDeadline als cascade start voor volgende blok
+        cascadeStart = presDeadline ?? cascadeStart;
+      }
+
+    } else {
+      // Werkzaamheden of slotfase: zoek deadline = eerstvolgende presentatie
+      const nextPresIndex = allFases.findIndex((f2: any, j: number) => j > i && f2.type === 'presentatie');
+      const nextPres = nextPresIndex >= 0 ? allFases[nextPresIndex] : null;
+
+      const deadline = nextPres?.datumType === 'zelf' && nextPres?.start_datum
+        ? toISODate(nextPres.start_datum)
+        : nextPres?.datumType === 'ellen'
+          ? (getNextFixedDate(nextPresIndex + 1) ?? projectDeadline)
+          : projectDeadline; // slotfase of geen presentatie meer
+
+      if (f.medewerkerDetails?.length > 0) {
+        f.medewerkerDetails.forEach((md: any) => {
+          if (!md.naam) return;
+          const totaalUren = md.uren || 0;
+          if (totaalUren === 0) return; // Geen uren = niet inplannen
+          const urenPerDag = Math.min(8, totaalUren);
+          const duurDagen = Math.max(1, Math.ceil(totaalUren / urenPerDag));
+          const { verdeling, dagenPerWeek } = bepaalVerdeling(duurDagen, cascadeStart, deadline ?? null);
+          planFases.push({
+            fase_naam: f.fase_naam,
+            medewerkers: [md.naam],
+            start_datum: cascadeStart,
+            duur_dagen: duurDagen,
+            uren_per_dag: urenPerDag,
+            verdeling,
+            ...(dagenPerWeek !== undefined && { dagen_per_week: dagenPerWeek }),
+            _deadline: deadline,
+          });
+        });
+      } else if (f.medewerkers?.length > 0) {
+        const duurDagen = Math.max(1, f.duur_dagen || 1);
+        const { verdeling, dagenPerWeek } = bepaalVerdeling(duurDagen, cascadeStart, deadline ?? null);
         planFases.push({
           fase_naam: f.fase_naam,
-          medewerkers: [md.naam],
-          start_datum: startDatum,
-          duur_dagen: Math.max(1, duurDagen),
-          uren_per_dag: urenPerDag,
+          medewerkers: f.medewerkers,
+          start_datum: cascadeStart,
+          duur_dagen: duurDagen,
+          uren_per_dag: f.uren_per_dag || 8,
           verdeling,
           ...(dagenPerWeek !== undefined && { dagen_per_week: dagenPerWeek }),
           _deadline: deadline,
         });
-      });
-    } else if (f.medewerkers?.length > 0) {
-      const duurDagen = Math.max(1, f.duur_dagen || 1);
-      const { verdeling, dagenPerWeek } = bepaalVerdeling(duurDagen, startDatum, deadline ?? null);
-      planFases.push({
-        fase_naam: f.fase_naam,
-        medewerkers: f.medewerkers,
-        start_datum: startDatum,
-        duur_dagen: duurDagen,
-        uren_per_dag: f.uren_per_dag || 8,
-        verdeling,
-        ...(dagenPerWeek !== undefined && { dagen_per_week: dagenPerWeek }),
-        _deadline: deadline,
-      });
-    }
-
-    // Als de bijhorende presentatie 'Ellen bepaalt' is: plan die hier,
-    // zodat ze de fase-specifieke deadline krijgt (niet de project-deadline).
-    if (bijhorendePresentatie?.datumType === 'ellen') {
-      const presId = bijhorendePresentatie.id || bijhorendePresentatie.fase_naam || '';
-      const aanwezigen: string[] = bijhorendePresentatie.medewerkers?.length > 0
-        ? bijhorendePresentatie.medewerkers : [];
-      if (aanwezigen.length > 0 && !presentatiesGepland.has(presId)) {
-        presentatiesGepland.add(presId);
-        planFases.push({
-          fase_naam: bijhorendePresentatie.fase_naam || 'Presentatie',
-          type: 'presentatie',
-          medewerkers: aanwezigen,
-          start_datum: startDatum,
-          duur_dagen: 1,
-          uren_per_dag: 2,
-          verdeling: 'laatste_week',
-          voorkeur_dagen: ['donderdag', 'vrijdag'], // hint voor _execution.ts
-          _deadline: deadline, // fase-deadline, niet project-deadline!
-        });
       }
     }
-  });
-
-  // Fallback: ellen presentaties zonder gekoppelde werkzaamheid
-  const projectStartDatum = toISODate(info.startDatum) || toISODate(info.fases?.[0]?.start_datum) || new Date().toISOString().split('T')[0];
-  presentaties
-    .filter((p: any) => p.datumType === 'ellen')
-    .forEach((p: any) => {
-      const presId = p.id || p.fase_naam || '';
-      if (presentatiesGepland.has(presId)) return;
-      const aanwezigen: string[] = p.medewerkers?.length > 0 ? p.medewerkers : [];
-      if (!aanwezigen.length) return;
-      planFases.push({
-        fase_naam: p.fase_naam || 'Presentatie',
-        type: 'presentatie',
-        medewerkers: aanwezigen,
-        start_datum: projectStartDatum,
-        duur_dagen: 1,
-        uren_per_dag: 2,
-        verdeling: 'laatste_week',
-        voorkeur_dagen: ['donderdag', 'vrijdag'],
-        _deadline: toISODate(info.deadline),
-      });
-    });
+  }
 
   return planFases.length > 0 ? planFases : null;
 }

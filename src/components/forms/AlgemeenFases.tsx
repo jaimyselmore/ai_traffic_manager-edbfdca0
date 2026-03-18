@@ -45,6 +45,7 @@ export interface PresentatieMoment {
 export interface AlgemeenFasesData {
   projectTeamIds: string[];
   presentaties: PresentatieMoment[];
+  slotfase?: { medewerkers: WorkloadMedewerker[] };
 }
 
 interface AlgemeenFasesProps {
@@ -201,6 +202,31 @@ export function AlgemeenFases({ data, onChange }: AlgemeenFasesProps) {
           : p
       )
     });
+  };
+
+  const toggleSlotfase = () => {
+    if (data.slotfase) {
+      onChange({ ...data, slotfase: undefined });
+    } else {
+      const medewerkers: WorkloadMedewerker[] = data.projectTeamIds.map(id => ({ medewerkerId: id, uren: 0 }));
+      onChange({ ...data, slotfase: { medewerkers } });
+    }
+  };
+
+  const updateSlotfaseMedewerker = (medewerkerId: string, uren: number) => {
+    onChange({
+      ...data,
+      slotfase: { medewerkers: (data.slotfase?.medewerkers || []).map(m => m.medewerkerId === medewerkerId ? { ...m, uren } : m) }
+    });
+  };
+
+  const addSlotfaseMedewerker = (empId: string) => {
+    if (data.slotfase?.medewerkers.some(m => m.medewerkerId === empId)) return;
+    onChange({ ...data, slotfase: { medewerkers: [...(data.slotfase?.medewerkers || []), { medewerkerId: empId, uren: 0 }] } });
+  };
+
+  const removeSlotfaseMedewerker = (medewerkerId: string) => {
+    onChange({ ...data, slotfase: { medewerkers: (data.slotfase?.medewerkers || []).filter(m => m.medewerkerId !== medewerkerId) } });
   };
 
   return (
@@ -411,6 +437,76 @@ export function AlgemeenFases({ data, onChange }: AlgemeenFasesProps) {
         </div>
       ))}
 
+      {/* Slotfase: werkzaamheden na laatste presentatie */}
+      <div className="rounded-2xl border border-border bg-card overflow-hidden">
+        <div className="flex items-center justify-between p-4 bg-secondary/30 border-b border-border">
+          <span className="font-semibold text-sm">Werkzaamheden na laatste presentatie</span>
+          <button
+            type="button"
+            onClick={toggleSlotfase}
+            className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+              data.slotfase
+                ? 'bg-primary text-primary-foreground border-primary'
+                : 'bg-secondary/50 text-foreground border-border hover:bg-secondary'
+            }`}
+          >
+            {data.slotfase ? 'Actief' : 'Inschakelen'}
+          </button>
+        </div>
+        {data.slotfase && (
+          <div className="border-t border-border bg-muted/30 p-4">
+            <Label className="text-sm font-medium mb-3 block">Workload (tot deadline)</Label>
+            {data.slotfase.medewerkers.length > 0 ? (
+              <div className="bg-background rounded-lg border border-border overflow-hidden">
+                <div className="grid grid-cols-[1fr_100px_32px] gap-2 px-3 py-2 bg-muted/50 border-b border-border text-xs font-medium text-muted-foreground">
+                  <span>Medewerker</span>
+                  <span className="text-center">Uren (totaal)</span>
+                  <span></span>
+                </div>
+                {data.slotfase.medewerkers.map(wm => {
+                  const emp = employees.find(e => e.id === wm.medewerkerId);
+                  if (!emp) return null;
+                  return (
+                    <div key={wm.medewerkerId} className="grid grid-cols-[1fr_100px_32px] gap-2 px-3 py-2 items-center border-b border-border last:border-b-0">
+                      <span className="text-sm font-medium truncate">{emp.name}</span>
+                      <Input
+                        type="text"
+                        inputMode="decimal"
+                        value={wm.uren === 0 ? '' : wm.uren}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === '' || /^\d*\.?\d*$/.test(val)) {
+                            updateSlotfaseMedewerker(wm.medewerkerId, val === '' ? 0 : parseFloat(val));
+                          }
+                        }}
+                        placeholder="0"
+                        className="h-8 text-sm text-center"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeSlotfaseMedewerker(wm.medewerkerId)}
+                        className="p-1.5 hover:bg-destructive/10 hover:text-destructive rounded"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground mb-3">Nog geen medewerkers toegevoegd</p>
+            )}
+            <div className="mt-3">
+              <MemberAddDropdown
+                currentIds={data.slotfase.medewerkers.map(m => m.medewerkerId)}
+                employees={employees}
+                onAdd={addSlotfaseMedewerker}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Presentatie toevoegen knop */}
       <Button
         type="button"
@@ -498,4 +594,5 @@ function MemberAddDropdown({
 export const emptyAlgemeenFasesData: AlgemeenFasesData = {
   projectTeamIds: [],
   presentaties: [],
+  slotfase: undefined,
 };

@@ -352,6 +352,26 @@ export default function NieuwProject() {
         });
       });
 
+      // Voeg slotfase toe als aanwezig
+      if (formData.algemeenFases.slotfase?.medewerkers?.length) {
+        const slotDetails = formData.algemeenFases.slotfase.medewerkers
+          .map(wm => {
+            const emp = employees.find(e => e.id === wm.medewerkerId);
+            return emp ? { naam: emp.name, medewerkerId: wm.medewerkerId, uren: wm.uren || 0 } : null;
+          })
+          .filter(Boolean) as { naam: string; medewerkerId: string; uren: number }[];
+
+        if (slotDetails.length > 0) {
+          fases.push({
+            fase_naam: 'Finale werkzaamheden',
+            type: 'slotfase',
+            medewerkers: slotDetails.map(m => m.naam),
+            start_datum: defaultDatum,
+            medewerkerDetails: slotDetails.map(m => ({ naam: m.naam, uren: m.uren })),
+          });
+        }
+      }
+
       // Als er geen presentaties zijn maar wel een projectteam, maak een standaard fase
       if (formData.algemeenFases.presentaties.length === 0 && formData.algemeenFases.projectTeamIds.length > 0) {
         const teamNamen = formData.algemeenFases.projectTeamIds.map(id => {
