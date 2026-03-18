@@ -307,21 +307,88 @@ export default function EllenVoorstel() {
         const isMeeting = projectInfo.type === 'meeting' || projectInfo.meetingType;
         const prompt = isMeeting ? buildMeetingPrompt(projectInfo) : buildEllenPrompt(projectInfo);
 
-        // Bouw directe planfases van formulierdata (bypast Claude voor workload)
-        const directPlanFases = isMeeting ? null : buildDirectPlanFases(projectInfo);
+        if (!isMeeting) {
+          // ── PROJECT: Deterministische planning volledig in de frontend ──────────
+          // Workloads worden HIER gepland — geen backend slot-finding meer.
+          // Alleen 'ellen bepaalt' presentaties gaan nog naar de Edge Function.
+          const { workloadTaken, ellenPresentatieFases } = buildFrontendSchedule(projectInfo);
+          const fixedPresentatieTaken = buildPresentatieTaken(projectInfo);
 
+          if (!ellenPresentatieFases) {
+            // Geen 'ellen bepaalt' presentaties → alles deterministisch, geen API-call nodig
+            setVoorstellen([...workloadTaken, ...fixedPresentatieTaken]);
+            setEllenUitleg('');
+            setEllenMessage('');
+            setFlowState('voorstel');
+            return;
+          }
+
+          // Stuur ALLEEN de 'ellen bepaalt' presentaties naar de Edge Function
+          const invokePromise = supabase.functions.invoke('ellen-chat', {
+            headers: { Authorization: `Bearer ${sessionToken}` },
+            body: {
+              sessie_id: `project-${Date.now()}`,
+              bericht: prompt,
+              project_data: {
+                medewerkers: alleMedewerkers,
+                klant_naam: projectInfo.klant_naam || (projectInfo.geenProject ? 'Intern' : 'Onbekend'),
+                project_naam: projectInfo.projectnaam || projectInfo.klant_naam || 'Project',
+                start_datum: toISODate(startDatum) || startDatum,
+                eind_datum: toISODate(projectInfo.deadline),
+                direct_plan_fases: ellenPresentatieFases,
+              },
+            },
+          });
+
+          const timeoutPromise = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('Ellen timeout na 28 seconden')), 28000)
+          );
+
+          try {
+            const result = await Promise.race([invokePromise, timeoutPromise]);
+            const { data, error } = result as { data: any; error: any };
+
+            if (error) {
+              const errorMsg = error.message || '';
+              if (errorMsg.includes('429') || data?.code === 'RATE_LIMITED') {
+                toast({ title: 'Even geduld', description: 'AI is tijdelijk overbelast. Probeer het over 30 seconden opnieuw.', variant: 'destructive' });
+              }
+              // Fallback: toon workload + vaste presentaties zonder Ellen-presentaties
+              setVoorstellen([...workloadTaken, ...fixedPresentatieTaken]);
+              setEllenUitleg('Let op: Ellen kon de presentatiedatum niet automatisch kiezen. Het werkzaamhedenplan staat wel klaar.');
+              setFlowState('voorstel');
+              return;
+            }
+
+            // Voeg Ellen's presentatietaken toe aan de frontend-geplande taken
+            const ellenTaken = data?.voorstel?.taken || [];
+            setVoorstellen([...workloadTaken, ...fixedPresentatieTaken, ...ellenTaken]);
+            setEllenUitleg(cleanEllenText(data?.antwoord || ''));
+            setEllenMessage('');
+            setFlowState('voorstel');
+          } catch (err: any) {
+            console.error('Ellen presentatie error:', err);
+            // Fallback: toon wat we hebben
+            setVoorstellen([...workloadTaken, ...fixedPresentatieTaken]);
+            setEllenUitleg('Let op: Ellen kon de presentatiedatum niet bepalen (timeout). Het werkzaamhedenplan staat klaar.');
+            setFlowState('voorstel');
+          }
+          return;
+        }
+
+        // ── MEETING: bestaande flow ongewijzigd ────────────────────────────────
         const invokePromise = supabase.functions.invoke('ellen-chat', {
           headers: { Authorization: `Bearer ${sessionToken}` },
           body: {
-            sessie_id: `${isMeeting ? 'meeting' : 'project'}-${Date.now()}`,
+            sessie_id: `meeting-${Date.now()}`,
             bericht: prompt,
             project_data: {
               medewerkers: alleMedewerkers,
               klant_naam: projectInfo.klant_naam || (projectInfo.geenProject ? 'Intern' : 'Onbekend'),
               project_naam: projectInfo.projectnaam || projectInfo.klant_naam || 'Project',
               start_datum: toISODate(startDatum) || startDatum,
-              eind_datum: toISODate(projectInfo.deadline || projectInfo.datum),
-              direct_plan_fases: directPlanFases, // null = gebruik Claude, array = skip Claude
+              eind_datum: toISODate(projectInfo.datum),
+              direct_plan_fases: null,
             },
           },
         });
@@ -334,37 +401,19 @@ export default function EllenVoorstel() {
         const { data, error } = result as { data: any; error: any };
 
         if (error) {
-          // Check for rate limit
           const errorMsg = error.message || '';
           if (errorMsg.includes('429') || data?.code === 'RATE_LIMITED') {
-            toast({
-              title: 'Even geduld',
-              description: 'AI is tijdelijk overbelast. Probeer het over 30 seconden opnieuw.',
-              variant: 'destructive',
-            });
+            toast({ title: 'Even geduld', description: 'AI is tijdelijk overbelast. Probeer het over 30 seconden opnieuw.', variant: 'destructive' });
           }
           throw new Error(errorMsg);
         }
 
         if (data?.voorstel?.type === 'planning_voorstel' && data.voorstel.taken?.length > 0) {
-          // Pre-genereer presentatietaken met exacte datum/tijd uit het formulier
-          const presentatieTaken = buildPresentatieTaken(projectInfo);
-          // Verwijder alleen de Ellen-taken waarvan de fase_naam exact overeenkomt
-          // met een van de pre-gebouwde presentatiefasen — niet alles met "presentatie" erin
-          const presentatieFaseNamen = new Set(
-            presentatieTaken.map(t => (t.fase_naam || '').toLowerCase())
-          );
-          const ellenTakenZonderPresentaties = presentatieTaken.length > 0
-            ? data.voorstel.taken.filter((t: any) =>
-                !presentatieFaseNamen.has((t.fase_naam || '').toLowerCase())
-              )
-            : data.voorstel.taken;
-          setVoorstellen([...ellenTakenZonderPresentaties, ...presentatieTaken]);
+          setVoorstellen(data.voorstel.taken);
           setEllenUitleg(cleanEllenText(data?.antwoord || ''));
           setEllenMessage('');
           setFlowState('voorstel');
         } else {
-          // Ellen gaf geen voorstel terug — toon foutmelding, geen stille fallback
           const reden = data?.antwoord ? `Ellen zei: "${cleanEllenText(data.antwoord)}"` : 'Ellen heeft geen voorstel teruggestuurd.';
           setErrorMessage(`Er is geen planning gemaakt. ${reden}\n\nProbeer opnieuw of ga terug naar het formulier.`);
           setFlowState('error');
@@ -1466,64 +1515,137 @@ function toISODate(dateStr: string | undefined): string | undefined {
   return `${p.year}-${String(p.month + 1).padStart(2, '0')}-${String(p.day).padStart(2, '0')}`;
 }
 
-/**
- * Bouw plan_project fases direct van formulierdata — bypast Claude-beslissing.
- * Verwerkt blokken in volgorde: [Workload → Presentatie]* → [Slotfase] → Deadline
- * Cascade: elke workload start NA de vorige presentatie.
- */
-function buildDirectPlanFases(info: any): Array<any> | null {
-  const allFases = (info.fases || []) as Array<any>;
-  if (!allFases.length) return null;
+// ── FRONTEND DETERMINISTIC SCHEDULER ──────────────────────────────────────────
+// Alle workload-planning gebeurt hier — geen backend slot-finding meer nodig.
+// Enige uitzondering: 'ellen bepaalt' presentaties → Edge Function voor datumselectie.
 
-  const planFases: Array<any> = [];
+/** Geeft alle werkdagen (Ma-Vr) van startStr (inclusief) t/m endExclStr (exclusief) */
+function getWorkingDays(startStr: string, endExclStr: string): string[] {
+  const days: string[] = [];
+  const end = new Date(endExclStr + 'T00:00:00');
+  const cur = new Date(startStr + 'T00:00:00');
+  while (cur < end) {
+    const dow = cur.getDay();
+    if (dow >= 1 && dow <= 5) {
+      days.push(`${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`);
+    }
+    cur.setDate(cur.getDate() + 1);
+  }
+  return days;
+}
+
+/** Eerstvolgende werkdag (Ma-Vr) ná dateStr — nooit een weekend */
+function nextWorkDay(dateStr: string): string {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + 1);
+  while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** Maak een VoorstelTaak van een datum-string + uurinfo */
+function dateStrToTask(faseNaam: string, medewerker: string, dateStr: string, startUur: number, duurUren: number): VoorstelTaak {
+  const d = new Date(dateStr + 'T00:00:00');
+  const dow = d.getDay(); // 1=ma..5=vr
+  const dagVanWeek = dow - 1; // 0=ma..4=vr
+  const maandag = new Date(d);
+  maandag.setDate(d.getDate() - (dow - 1));
+  const weekStart = `${maandag.getFullYear()}-${String(maandag.getMonth() + 1).padStart(2, '0')}-${String(maandag.getDate()).padStart(2, '0')}`;
+  return { werknemer_naam: medewerker, fase_naam: faseNaam, dag_van_week: dagVanWeek, week_start: weekStart, start_uur: startUur, duur_uren: duurUren };
+}
+
+/**
+ * Plan totalHours voor één medewerker, aaneengesloten vanaf windowStart.
+ * Slaat dagen over die al bezet zijn (occupiedDays — mutatie in-place).
+ */
+function scheduleInWindow(
+  faseNaam: string,
+  medewerker: string,
+  totalHours: number,
+  windowStart: string,
+  windowEnd: string | null,
+  occupiedDays: Map<string, Set<string>>,
+  maxPerDay = 8
+): VoorstelTaak[] {
+  const taken: VoorstelTaak[] = [];
+  const used = occupiedDays.get(medewerker) || new Set<string>();
+
+  // Kandidaatdagen: werkdagen in het venster (of 90 dagen vooruit als geen deadline)
+  const farFuture = windowEnd ?? (() => {
+    const d = new Date(windowStart + 'T00:00:00');
+    d.setDate(d.getDate() + 90);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  })();
+
+  const candidates = getWorkingDays(windowStart, farFuture).filter(d => !used.has(d));
+
+  let remaining = totalHours;
+  for (const day of candidates) {
+    if (remaining <= 0) break;
+    const uren = Math.min(maxPerDay, remaining);
+    taken.push(dateStrToTask(faseNaam, medewerker, day, 9, uren));
+    used.add(day);
+    remaining -= uren;
+  }
+
+  occupiedDays.set(medewerker, used);
+  return taken;
+}
+
+/**
+ * Bouwt alle workload-VoorstelTaken puur in de frontend.
+ * Vaste presentaties (datumType='zelf') worden apart afgehandeld door buildPresentatieTaken().
+ * 'Ellen bepaalt' presentaties worden als ellenPresentatieFases teruggegeven voor de Edge Function.
+ *
+ * Cascade: na elke vaste presentatie schuift cascadeStart naar de eerstvolgende werkdag.
+ * Conflict-vermijding: per medewerker worden bezette dagen bijgehouden (occupiedDays).
+ */
+function buildFrontendSchedule(info: any): {
+  workloadTaken: VoorstelTaak[];
+  ellenPresentatieFases: any[] | null;
+} {
+  const allFases = (info.fases || []) as Array<any>;
+  if (!allFases.length) return { workloadTaken: [], ellenPresentatieFases: null };
+
   const projectStartDatum = toISODate(info.startDatum)
     || toISODate(allFases[0]?.start_datum)
     || new Date().toISOString().split('T')[0];
   const projectDeadline = toISODate(info.deadline) ?? null;
 
-  // Zoek de eerstvolgende vaste presentatiedatum na index i
-  function getNextFixedDate(fromIndex: number): string | null {
-    for (let j = fromIndex; j < allFases.length; j++) {
+  // Venster-eind voor een workload op positie faseIndex (= datum van de eerstvolgende presentatie)
+  function getWindowEnd(faseIndex: number): string | null {
+    for (let j = faseIndex + 1; j < allFases.length; j++) {
       const f = allFases[j];
-      if (f.type === 'presentatie' && f.datumType === 'zelf' && f.start_datum) {
-        return toISODate(f.start_datum) ?? null;
+      if (f.type === 'presentatie') {
+        if (f.datumType === 'zelf' && f.start_datum) return toISODate(f.start_datum) ?? null;
+        if (f.datumType === 'ellen') {
+          // Voor 'ellen bepaalt': zoek de eerstvolgende vaste datum daarna als deadline
+          for (let k = j + 1; k < allFases.length; k++) {
+            const f2 = allFases[k];
+            if (f2.type === 'presentatie' && f2.datumType === 'zelf' && f2.start_datum) return toISODate(f2.start_datum) ?? null;
+          }
+          return projectDeadline;
+        }
       }
     }
-    return null;
+    return projectDeadline;
   }
 
-  // Hulpfunctie: bepaal verdeling op basis van beschikbare tijd vs benodigde dagen
-  function bepaalVerdeling(duurDagen: number, startStr: string, deadlineStr: string | null): { verdeling: string; dagenPerWeek?: number } {
-    if (!deadlineStr) return { verdeling: 'aaneengesloten' };
-    const s = new Date(startStr + 'T00:00:00');
-    const d = new Date(deadlineStr + 'T00:00:00');
-    const diffDagen = (d.getTime() - s.getTime()) / (24 * 60 * 60 * 1000);
-    if (diffDagen <= 0) return { verdeling: 'aaneengesloten' };
-    const approxWerkDagen = Math.round(diffDagen * 5 / 7);
-    const projectWeken = Math.max(1, Math.round(diffDagen / 7));
-    if (approxWerkDagen >= duurDagen * 2 && projectWeken >= 1) {
-      return { verdeling: 'per_week', dagenPerWeek: Math.max(1, Math.ceil(duurDagen / projectWeken)) };
-    }
-    return { verdeling: 'aaneengesloten' };
-  }
+  const workloadTaken: VoorstelTaak[] = [];
+  const ellenFases: any[] = [];
+  const occupiedDays = new Map<string, Set<string>>(); // per-medewerker bezette dagen
 
-  // Cascade startdatum: begint op projectstart, schuift op na elke presentatie
   let cascadeStart = projectStartDatum;
 
   for (let i = 0; i < allFases.length; i++) {
     const f = allFases[i];
 
     if (f.type === 'presentatie') {
-      // Presentatiefase: 'zelf' wordt door buildPresentatieTaken afgehandeld.
-      // 'ellen' → hier inplannen.
-      const presDeadline = f.datumType === 'zelf' && f.start_datum
-        ? toISODate(f.start_datum)
-        : (getNextFixedDate(i + 1) ?? projectDeadline);
-
       if (f.datumType === 'ellen') {
+        // Ellen kiest de datum — stuur naar Edge Function
+        const windowEnd = getWindowEnd(i);
         const aanwezigen: string[] = (f.medewerkers || []).filter(Boolean);
         if (aanwezigen.length > 0) {
-          planFases.push({
+          ellenFases.push({
             fase_naam: f.fase_naam || 'Presentatie',
             type: 'presentatie',
             medewerkers: aanwezigen,
@@ -1532,73 +1654,40 @@ function buildDirectPlanFases(info: any): Array<any> | null {
             uren_per_dag: 2,
             verdeling: 'laatste_week',
             voorkeur_dagen: ['donderdag', 'vrijdag'],
-            _deadline: presDeadline,
+            _deadline: windowEnd,
           });
         }
+        // cascadeStart ongewijzigd — datum is onbekend totdat Ellen kiest
       }
 
-      // Cascade: schuif startdatum door NA een vaste presentatie.
-      // Voor 'ellen bepaalt': NIET doorschuiven — de exacte datum is onbekend.
-      // Beide workloadblokken W2 en W3 starten dan vanuit hetzelfde venster;
-      // vindEersteVrijeSlotSync lost conflicten op door de volgende vrije dag te pakken.
+      // Cascade: na een vaste presentatie altijd naar eerstvolgende werkdag (nooit zaterdag!)
       if (f.datumType === 'zelf' && f.start_datum) {
         const presDate = toISODate(f.start_datum);
-        if (presDate) {
-          const d = new Date(presDate + 'T00:00:00');
-          d.setDate(d.getDate() + 1);
-          cascadeStart = d.toISOString().split('T')[0];
-        }
+        if (presDate) cascadeStart = nextWorkDay(presDate);
       }
-      // else: voor 'ellen bepaalt' blijft cascadeStart ongewijzigd
 
     } else {
-      // Werkzaamheden of slotfase: zoek deadline = eerstvolgende presentatie
-      const nextPresIndex = allFases.findIndex((f2: any, j: number) => j > i && f2.type === 'presentatie');
-      const nextPres = nextPresIndex >= 0 ? allFases[nextPresIndex] : null;
-
-      const deadline = nextPres?.datumType === 'zelf' && nextPres?.start_datum
-        ? toISODate(nextPres.start_datum)
-        : nextPres?.datumType === 'ellen'
-          ? (getNextFixedDate(nextPresIndex + 1) ?? projectDeadline)
-          : projectDeadline; // slotfase of geen presentatie meer
+      // Werkzaamheden of slotfase
+      const windowEnd = getWindowEnd(i);
 
       if (f.medewerkerDetails?.length > 0) {
-        f.medewerkerDetails.forEach((md: any) => {
-          if (!md.naam) return;
-          const totaalUren = md.uren || 0;
-          if (totaalUren === 0) return; // Geen uren = niet inplannen
-          const urenPerDag = Math.min(8, totaalUren);
-          const duurDagen = Math.max(1, Math.ceil(totaalUren / urenPerDag));
-          const { verdeling, dagenPerWeek } = bepaalVerdeling(duurDagen, cascadeStart, deadline ?? null);
-          planFases.push({
-            fase_naam: f.fase_naam,
-            medewerkers: [md.naam],
-            start_datum: cascadeStart,
-            duur_dagen: duurDagen,
-            uren_per_dag: urenPerDag,
-            verdeling,
-            ...(dagenPerWeek !== undefined && { dagen_per_week: dagenPerWeek }),
-            _deadline: deadline,
-          });
-        });
+        for (const md of f.medewerkerDetails) {
+          if (!md.naam || !md.uren) continue;
+          const taken = scheduleInWindow(f.fase_naam, md.naam, md.uren, cascadeStart, windowEnd, occupiedDays);
+          workloadTaken.push(...taken);
+        }
       } else if (f.medewerkers?.length > 0) {
-        const duurDagen = Math.max(1, f.duur_dagen || 1);
-        const { verdeling, dagenPerWeek } = bepaalVerdeling(duurDagen, cascadeStart, deadline ?? null);
-        planFases.push({
-          fase_naam: f.fase_naam,
-          medewerkers: f.medewerkers,
-          start_datum: cascadeStart,
-          duur_dagen: duurDagen,
-          uren_per_dag: f.uren_per_dag || 8,
-          verdeling,
-          ...(dagenPerWeek !== undefined && { dagen_per_week: dagenPerWeek }),
-          _deadline: deadline,
-        });
+        // Fallback: fase met medewerkers-array maar zonder medewerkerDetails
+        const totalHours = (f.uren_per_dag || 8) * (f.duur_dagen || 1);
+        for (const mwNaam of f.medewerkers) {
+          const taken = scheduleInWindow(f.fase_naam, mwNaam, totalHours, cascadeStart, windowEnd, occupiedDays);
+          workloadTaken.push(...taken);
+        }
       }
     }
   }
 
-  return planFases.length > 0 ? planFases : null;
+  return { workloadTaken, ellenPresentatieFases: ellenFases.length > 0 ? ellenFases : null };
 }
 
 /** Parse datum string in dd-MM-yyyy of YYYY-MM-DD formaat naar losse year/month/day */
