@@ -865,87 +865,120 @@ export default function EllenVoorstel() {
       <div className="max-w-5xl mx-auto px-6 pb-24">
         {/* Ellen Working State with workflow steps */}
         {flowState === 'ellen-working' && (
-          <div className="flex flex-col items-center justify-center py-16 space-y-8">
-            <div className="relative">
-              <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+          <div className="flex flex-col items-center justify-center py-20">
+
+            {/* Avatar with pulsing ring */}
+            <div className="relative mb-8">
+              {/* Outer pulse ring */}
+              <div className="absolute inset-0 rounded-full bg-primary/10 animate-ping" style={{ animationDuration: '2s' }} />
+              {/* Avatar circle */}
+              <div className="relative w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center text-primary ring-1 ring-primary/20">
                 <RobotFaceInline size={44} />
               </div>
-              <div className="absolute -bottom-1 -right-1">
-                <Loader2 className="h-6 w-6 text-primary animate-spin" />
-              </div>
-            </div>
-            <div className="text-center space-y-2">
-              <h2 className="text-xl font-semibold text-foreground">Ellen is aan het werk...</h2>
             </div>
 
-            {/* Workflow steps */}
-            <div className="w-full max-w-sm space-y-3">
+            {/* Title */}
+            <h2 className="text-lg font-semibold text-foreground mb-1">Ellen is aan het werk</h2>
+            <p className="text-sm text-muted-foreground mb-8">
+              Stap {Math.min(completedSteps.length + 1, WORKFLOW_STEPS.length)} van {WORKFLOW_STEPS.length}
+            </p>
+
+            {/* Progress bar */}
+            <div className="w-64 h-1 rounded-full bg-muted mb-8 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-primary transition-all duration-700 ease-out"
+                style={{ width: `${(completedSteps.length / WORKFLOW_STEPS.length) * 100}%` }}
+              />
+            </div>
+
+            {/* Pipeline steps */}
+            <div className="w-72 space-y-0">
               {WORKFLOW_STEPS.map((step, i) => {
                 const isCompleted = completedSteps.includes(i);
                 const isActive = activeStep === i && !isCompleted;
+                const isPending = !isCompleted && !isActive;
+                const isLast = i === WORKFLOW_STEPS.length - 1;
+
                 return (
-                  <div
-                    key={i}
-                    className={cn(
-                      'flex items-center gap-3 p-3 rounded-lg transition-all duration-300',
-                      isActive && 'bg-primary/5 border border-primary/20',
-                      isCompleted && 'bg-muted/50',
-                      !isActive && !isCompleted && 'opacity-40'
-                    )}
-                  >
-                    <div className="flex-shrink-0 w-6 h-6 flex items-center justify-center">
-                      {isCompleted ? (
-                        <Check className="h-4 w-4 text-primary" />
-                      ) : isActive ? (
-                        <Loader2 className="h-4 w-4 text-primary animate-spin" />
-                      ) : (
-                        <div className="w-2 h-2 rounded-full bg-muted-foreground/30" />
+                  <div key={i} className="flex gap-3">
+                    {/* Left: connector track */}
+                    <div className="flex flex-col items-center flex-shrink-0 w-6">
+                      {/* Step dot */}
+                      <div className={cn(
+                        'w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-300 z-10',
+                        isCompleted && 'bg-primary text-primary-foreground',
+                        isActive && 'bg-primary/15 ring-2 ring-primary text-primary',
+                        isPending && 'bg-muted text-muted-foreground'
+                      )}>
+                        {isCompleted ? (
+                          <Check className="h-3 w-3" />
+                        ) : isActive ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <span className="text-[10px] font-semibold">{i + 1}</span>
+                        )}
+                      </div>
+                      {/* Connector line */}
+                      {!isLast && (
+                        <div className={cn(
+                          'w-px flex-1 my-1 min-h-[16px] transition-colors duration-500',
+                          isCompleted ? 'bg-primary/40' : 'bg-border'
+                        )} />
                       )}
                     </div>
-                    <span className={cn(
-                      'text-sm',
-                      isActive && 'text-foreground font-medium',
-                      isCompleted && 'text-muted-foreground',
-                      !isActive && !isCompleted && 'text-muted-foreground'
+
+                    {/* Right: label */}
+                    <div className={cn(
+                      'pb-4 pt-0.5 flex-1 transition-all duration-300',
+                      isLast && 'pb-0'
                     )}>
-                      {step.label}
-                    </span>
+                      <span className={cn(
+                        'text-sm transition-all duration-300',
+                        isActive && 'text-foreground font-medium',
+                        isCompleted && 'text-muted-foreground',
+                        isPending && 'text-muted-foreground/50'
+                      )}>
+                        {step.label}
+                      </span>
+                    </div>
                   </div>
                 );
               })}
             </div>
 
-            {/* Timeout warning en acties */}
+            {/* Timeout warning */}
             {workingTooLong && (
-              <Card className="p-4 bg-amber-50 border-amber-200 dark:bg-amber-950/30 dark:border-amber-800">
-                <div className="flex items-start gap-3">
-                  <div className="text-amber-600 dark:text-amber-400 text-lg">⚠️</div>
-                  <div className="space-y-2 flex-1">
+              <div className="mt-8 w-72 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 px-4 py-3 space-y-3">
+                <div className="flex items-start gap-2.5">
+                  <div className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600 dark:text-amber-400">
+                    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 11.5a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5zm.75-3.25a.75.75 0 0 1-1.5 0v-4a.75.75 0 0 1 1.5 0v4z"/></svg>
+                  </div>
+                  <div className="space-y-1">
                     <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
                       Dit duurt langer dan verwacht ({secondsElapsed}s)
                     </p>
                     <p className="text-xs text-amber-700 dark:text-amber-300">
-                      Ellen is mogelijk overbelast. Je kunt opnieuw proberen of teruggaan.
+                      Ellen is mogelijk overbelast.
                     </p>
-                    <div className="flex gap-2 mt-3">
-                      <Button size="sm" variant="outline" onClick={() => navigate('/nieuw-project')}>
-                        Terug
-                      </Button>
-                      <Button size="sm" onClick={retryGeneration}>
-                        Opnieuw proberen
-                      </Button>
-                    </div>
                   </div>
                 </div>
-              </Card>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" className="flex-1 cursor-pointer" onClick={() => navigate('/nieuw-project')}>
+                    Terug
+                  </Button>
+                  <Button size="sm" className="flex-1 cursor-pointer" onClick={retryGeneration}>
+                    Opnieuw
+                  </Button>
+                </div>
+              </div>
             )}
 
-            {/* Altijd een annuleren optie */}
+            {/* Cancel */}
             {!workingTooLong && (
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-muted-foreground"
+                className="mt-8 text-muted-foreground cursor-pointer"
                 onClick={() => navigate('/nieuw-project')}
               >
                 Annuleren
