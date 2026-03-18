@@ -1463,6 +1463,20 @@ function buildDirectPlanFases(info: any): Array<any> | null {
   // Track which 'Ellen bepaalt' presentations have been added (avoid duplicates)
   const presentatiesGepland = new Set<string>();
 
+  // Bouw een lookup: voor elke presentatie zonder vaste datum →
+  // gebruik de startdatum van de EERSTVOLGENDE vaste presentatie als deadline-anker.
+  // Zo wordt presentatie 2 (ellen) gepland vóór presentatie 3 begint, niet vlak voor de projectdeadline.
+  function getVolgendVasteDeadline(presentatie: any): string | undefined {
+    const idx = presentaties.indexOf(presentatie);
+    for (let i = idx + 1; i < presentaties.length; i++) {
+      const volgende = presentaties[i];
+      if (volgende.datumType === 'zelf' && volgende.start_datum) {
+        return toISODate(volgende.start_datum) ?? undefined;
+      }
+    }
+    return undefined; // geen volgende vaste presentatie → valt terug op projectdeadline
+  }
+
   werkzaamheden.forEach((f: any) => {
     // Zoek bijbehorende presentatiedeadline
     const faseNaamLower = (f.fase_naam || '').toLowerCase().replace('werkzaamheden - ', '');
@@ -1470,9 +1484,16 @@ function buildDirectPlanFases(info: any): Array<any> | null {
       (p.fase_naam || '').toLowerCase().includes(faseNaamLower) ||
       faseNaamLower.includes((p.fase_naam || '').toLowerCase())
     );
+
+    // Deadline voor deze fase:
+    // - Vaste presentatie → die datum zelf
+    // - Ellen bepaalt → eerstvolgende vaste presentatie (zodat werkzaamheden/presentatie vóór P+1 vallen)
+    // - Geen presentatie → projectdeadline
     const deadline = bijhorendePresentatie?.datumType === 'zelf' && bijhorendePresentatie?.start_datum
       ? toISODate(bijhorendePresentatie.start_datum)
-      : toISODate(info.deadline);
+      : bijhorendePresentatie?.datumType === 'ellen'
+        ? (getVolgendVasteDeadline(bijhorendePresentatie) ?? toISODate(info.deadline))
+        : toISODate(info.deadline);
 
     // Gebruik startDatum uit projectInfo (altijd ingevuld in het formulier), val terug op fase start_datum.
     const startDatum = toISODate(info.startDatum) || toISODate(f.start_datum) || toISODate(info.fases?.[0]?.start_datum) || new Date().toISOString().split('T')[0];
