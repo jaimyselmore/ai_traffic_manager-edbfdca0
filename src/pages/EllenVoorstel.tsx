@@ -685,6 +685,20 @@ export default function EllenVoorstel() {
     return lines.join('\n');
   }, [voorstellen]);
 
+  // Totaal ingeplande uren per medewerker (voor blauwe kaart)
+  const urenPerPersoon = useMemo(() => {
+    const result: Record<string, number> = {};
+    voorstellen.forEach(t => {
+      result[t.werknemer_naam] = (result[t.werknemer_naam] || 0) + t.duur_uren;
+    });
+    return result;
+  }, [voorstellen]);
+
+  // Reset naar eerste week zodra er een nieuw voorstel is
+  useEffect(() => {
+    if (voorstellen.length > 0) setSelectedWeekIndex(0);
+  }, [voorstellen]);
+
   const currentWeekStart = allWeeks[selectedWeekIndex] || allWeeks[0];
   // Format as YYYY-MM-DD without timezone conversion (toISOString converts to UTC which shifts dates)
   const currentWeekISO = `${currentWeekStart.getFullYear()}-${String(currentWeekStart.getMonth() + 1).padStart(2, '0')}-${String(currentWeekStart.getDate()).padStart(2, '0')}`;
@@ -962,96 +976,36 @@ export default function EllenVoorstel() {
               </Card>
             )}
 
-            {/* Template overzicht — volledig overzicht van ingevulde data + planningsresultaat */}
+            {/* Project overzicht — compact: naam, data, uren per persoon */}
             <Card className="p-4 bg-accent/30 border-primary/20">
               <div className="space-y-3">
-                {/* Header */}
-                <div className="space-y-0.5">
+                {/* Projectnaam + data */}
+                <div>
                   <p className="text-sm font-semibold text-foreground">
                     {projectInfo?.klant_naam} — {projectInfo?.projectnaam}
                   </p>
-                  <p className="text-xs text-muted-foreground">
-                    {projectInfo?.projecttype}
-                    {projectInfo?.deadline && ` • Deadline: ${projectInfo.deadline}`}
-                    {` • ${voorstellen.length} blokken ingepland`}
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {projectInfo?.startDatum && `Start: ${projectInfo.startDatum}`}
+                    {projectInfo?.startDatum && projectInfo?.deadline && ' · '}
+                    {projectInfo?.deadline && `Deadline: ${projectInfo.deadline}`}
                   </p>
                 </div>
 
-                {/* Per-presentatie sectie (algemeen projecttype) */}
-                {projectInfo?.fases?.filter((f: any) => f.type === 'presentatie').length > 0 &&
-                  projectInfo.fases.filter((f: any) => f.type === 'presentatie').map((p: any, i: number) => {
-                    // Zoek bijbehorende werkzaamheden fase
-                    const pNaamLower = (p.fase_naam || '').toLowerCase();
-                    const werkFase = projectInfo.fases.find((f: any) =>
-                      f.type !== 'presentatie' &&
-                      ((f.fase_naam || '').toLowerCase().replace('werkzaamheden - ', '').includes(pNaamLower) ||
-                       pNaamLower.includes((f.fase_naam || '').toLowerCase().replace('werkzaamheden - ', '')))
-                    );
-                    return (
-                      <div key={i} className="border-t border-border/50 pt-3 space-y-2">
-                        {/* Presentatie header */}
-                        <div className="flex items-start justify-between gap-3">
-                          <p className="text-xs font-semibold text-foreground">{p.fase_naam || `Presentatie ${i + 1}`}</p>
-                          <div className="text-right flex-shrink-0">
-                            {p.datumType === 'zelf' && p.datum ? (
-                              <p className="text-xs text-muted-foreground">
-                                {p.datum}{p.tijd ? ` om ${p.tijd}` : ''}
-                                {p.locatie ? ` · ${p.locatie === 'selmore' ? 'Bij Selmore' : 'Bij klant'}` : ''}
-                              </p>
-                            ) : (
-                              <p className="text-xs text-muted-foreground italic">Ellen bepaalt datum</p>
-                            )}
-                          </div>
-                        </div>
-                        {/* Workload tabel */}
-                        {werkFase?.medewerkerDetails?.length > 0 && (
-                          <div className="rounded border border-border/40 overflow-hidden text-xs">
-                            <div className="grid grid-cols-2 px-3 py-1.5 bg-muted/40 font-medium text-muted-foreground">
-                              <span>Medewerker</span>
-                              <span className="text-right">Workload</span>
-                            </div>
-                            {werkFase.medewerkerDetails.map((md: any, j: number) => (
-                              <div key={j} className="grid grid-cols-2 px-3 py-1.5 border-t border-border/30">
-                                <span className="text-foreground">{md.naam}</span>
-                                <span className="text-right text-muted-foreground">{md.uren}u</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        {/* Aanwezig bij presentatie */}
-                        {p.medewerkers?.length > 0 && (
-                          <p className="text-xs text-muted-foreground">
-                            Aanwezig: {p.medewerkers.join(', ')}
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })
-                }
-
-                {/* Productiefases (productie projecttype) */}
-                {(!projectInfo?.fases?.some((f: any) => f.type === 'presentatie')) &&
-                  projectInfo?.fases?.length > 0 && (
-                  <div className="border-t border-border/50 pt-3 space-y-1">
-                    {projectInfo.fases.map((f: any, i: number) => (
-                      <div key={i} className="flex items-center justify-between text-xs">
-                        <span className="text-foreground">{f.fase_naam}</span>
-                        <span className="text-muted-foreground">
-                          {f.duur_dagen ? `${f.duur_dagen} dag${f.duur_dagen > 1 ? 'en' : ''}` : ''}
-                          {f.medewerkers?.length > 0 ? ` · ${f.medewerkers.join(', ')}` : ''}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Planning resultaat per medewerker */}
-                {planningSamenvatting && (
+                {/* Ingeplande uren per persoon */}
+                {Object.keys(urenPerPersoon).length > 0 && (
                   <div className="border-t border-border/50 pt-3">
-                    <p className="text-xs font-medium text-foreground mb-1.5">Ingepland:</p>
-                    <p className="text-xs text-muted-foreground whitespace-pre-line leading-5">
-                      {planningSamenvatting}
-                    </p>
+                    <div className="rounded border border-border/40 overflow-hidden text-xs">
+                      <div className="grid grid-cols-2 px-3 py-1.5 bg-muted/40 font-medium text-muted-foreground">
+                        <span>Medewerker</span>
+                        <span className="text-right">Ingepland</span>
+                      </div>
+                      {Object.entries(urenPerPersoon).map(([naam, uren]) => (
+                        <div key={naam} className="grid grid-cols-2 px-3 py-1.5 border-t border-border/30">
+                          <span className="text-foreground">{naam}</span>
+                          <span className="text-right text-muted-foreground">{uren}u</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
@@ -1501,7 +1455,11 @@ function buildDirectPlanFases(info: any): Array<any> | null {
       ? toISODate(bijhorendePresentatie.start_datum)
       : toISODate(info.deadline);
 
-    const startDatum = toISODate(f.start_datum) || toISODate(info.fases?.[0]?.start_datum) || new Date().toISOString().split('T')[0];
+    // Gebruik startDatum uit projectInfo (altijd ingevuld in het formulier), val terug op fase start_datum.
+    // Floor op vandaag zodat concepten die weken geleden gemaakt zijn niet in het verleden plannen.
+    const today = new Date().toISOString().split('T')[0];
+    const rawStart = toISODate(info.startDatum) || toISODate(f.start_datum) || toISODate(info.fases?.[0]?.start_datum) || today;
+    const startDatum = rawStart < today ? today : rawStart;
 
     // Bepaal verdeling: spreidt uren verspreid over beschikbare dagen t/m deadline.
     // Regel: als er >= 2x zoveel beschikbare werkdagen zijn als benodigd, spreidt dan per week.
