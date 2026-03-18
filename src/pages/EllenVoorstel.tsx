@@ -956,399 +956,372 @@ export default function EllenVoorstel() {
 
         {/* Voorstel State with mini planner */}
         {flowState === 'voorstel' && (
-           <div className="space-y-6 pt-6">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                <span className="text-primary"><RobotFaceInline size={24} happy /></span>
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-foreground">Ellen</p>
-                <p className="text-sm text-muted-foreground">
-                  {laatsteFeedback ? 'Ik heb je feedback verwerkt. Hier is het aangepaste voorstel:' : 'Hier is mijn voorstel voor de planning:'}
-                </p>
-              </div>
+          <div className="pt-6">
+            {/* Page title */}
+            <div className="mb-5">
+              <h1 className="text-base font-semibold text-foreground leading-snug">
+                {projectInfo?.klant_naam} — {projectInfo?.projectnaam}
+                {projectInfo?.volledigProjectId && (
+                  <span className="font-normal text-muted-foreground ml-2">· {projectInfo.volledigProjectId}</span>
+                )}
+              </h1>
+              <p className="text-xs text-muted-foreground mt-1">
+                Planningsvoorstel
+                {projectInfo?.startDatum && ` · ${toDutchDate(projectInfo.startDatum)}`}
+                {projectInfo?.startDatum && projectInfo?.deadline && ' →'}
+                {projectInfo?.deadline && ` ${toDutchDate(projectInfo.deadline)}`}
+              </p>
             </div>
 
-            {/* Ellen toelichting — alleen bij feedback of echte uitleg, niet bij template-boilerplate */}
+            {/* Ellen feedback banner — alleen tonen bij feedback of echte uitleg */}
             {(laatsteFeedback || (ellenUitleg && ellenUitleg !== 'Planning aangemaakt op basis van het template.')) && (
-              <Card className="p-4 bg-muted/50 border-border">
-                <div className="space-y-2">
-                  {laatsteFeedback && (
-                    <p className="text-xs font-medium text-muted-foreground">
-                      Jouw feedback: <span className="italic text-foreground">"{laatsteFeedback}"</span>
-                    </p>
-                  )}
-                  {ellenUitleg && ellenUitleg !== 'Planning aangemaakt op basis van het template.' && (
-                    <p className="text-sm text-foreground">{ellenUitleg}</p>
-                  )}
+              <div className="mb-5 flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+                <div className="mt-0.5 text-primary flex-shrink-0">
+                  <RobotFaceInline size={16} happy />
                 </div>
-              </Card>
+                <p className="text-sm text-foreground leading-relaxed">
+                  {ellenUitleg && ellenUitleg !== 'Planning aangemaakt op basis van het template.'
+                    ? ellenUitleg
+                    : `Feedback verwerkt: "${laatsteFeedback}"`}
+                </p>
+              </div>
             )}
 
-            {/* Project overzicht — compact: naam, data, uren per persoon */}
-            <Card className="p-4 bg-accent/30 border-primary/20">
-              <div className="space-y-3">
-                {/* Projectnaam + data */}
-                <div>
-                  <p className="text-sm font-semibold text-foreground">
-                    {projectInfo?.klant_naam} — {projectInfo?.projectnaam}
-                    {projectInfo?.volledigProjectId && (
-                      <span className="font-normal text-muted-foreground ml-1">· {projectInfo.volledigProjectId}</span>
-                    )}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {projectInfo?.startDatum ? `${toDutchDate(projectInfo.startDatum)}` : ''}
-                    {projectInfo?.startDatum && projectInfo?.deadline ? ' → ' : ''}
-                    {projectInfo?.deadline ? toDutchDate(projectInfo.deadline) : ''}
-                  </p>
-                </div>
+            {/* Two-column layout */}
+            <div className="flex gap-5 items-start">
+
+              {/* Left sidebar */}
+              <div className="w-60 flex-shrink-0 space-y-4">
 
                 {/* Ingeplande uren per persoon */}
                 {Object.keys(urenPerPersoon).length > 0 && (
-                  <div className="border-t border-border/50 pt-3">
-                    <div className="rounded border border-border/40 overflow-hidden text-xs">
-                      <div className="grid grid-cols-2 px-3 py-1.5 bg-muted/40 font-medium text-muted-foreground">
-                        <span>Medewerker</span>
-                        <span className="text-right">Ingepland</span>
-                      </div>
+                  <div className="rounded-lg border border-border bg-card">
+                    <div className="px-4 py-2.5 border-b border-border">
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Ingepland</p>
+                    </div>
+                    <div className="px-4 py-3 space-y-2">
                       {Object.entries(urenPerPersoon).map(([naam, uren]) => (
-                        <div key={naam} className="grid grid-cols-2 px-3 py-1.5 border-t border-border/30">
-                          <span className="text-foreground">{naam}</span>
-                          <span className="text-right text-muted-foreground">{uren}u</span>
+                        <div key={naam} className="flex items-center justify-between">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-primary/15 text-[10px] font-semibold text-primary">
+                              {naam.split(' ').map((n: string) => n[0]).join('').substring(0, 2)}
+                            </div>
+                            <span className="text-sm text-foreground truncate">{naam}</span>
+                          </div>
+                          <span className="text-sm font-medium text-muted-foreground tabular-nums ml-2 flex-shrink-0">{uren}u</span>
                         </div>
                       ))}
                     </div>
                   </div>
                 )}
-              </div>
-            </Card>
 
-            {/* Mini Planner Grid with week navigation */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-foreground">Voorgestelde planning</h3>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={selectedWeekIndex === 0}
-                    onClick={() => setSelectedWeekIndex(i => i - 1)}
-                  >
-                    <ChevronLeft className="h-4 w-4" />
+                {/* Feedback */}
+                <div className="rounded-lg border border-border bg-card">
+                  <div className="px-4 py-2.5 border-b border-border">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Aanpassen</p>
+                  </div>
+                  <div className="px-4 py-3 space-y-2.5">
+                    <textarea
+                      placeholder="Wat moet er anders? Bijv. 'Verschuif naar volgende week' of 'Voeg Jakko toe'"
+                      className="w-full px-3 py-2 rounded-md border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none placeholder:text-muted-foreground/60"
+                      rows={3}
+                      value={feedbackInput}
+                      onChange={(e) => setFeedbackInput(e.target.value)}
+                      disabled={isRequestingNewProposal}
+                    />
+                    <Button
+                      onClick={handleRequestNewProposal}
+                      disabled={isRequestingNewProposal || !feedbackInput.trim()}
+                      size="sm"
+                      className="w-full"
+                    >
+                      {isRequestingNewProposal ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                      ) : (
+                        <Send className="h-3.5 w-3.5 mr-1.5" />
+                      )}
+                      Nieuw voorstel
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="space-y-2">
+                  <Button onClick={handleApprove} className="w-full">
+                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    Voorstel goedkeuren
                   </Button>
-                  <span className="text-sm font-medium text-foreground min-w-[260px] text-center">
-                    {weekLabel}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={selectedWeekIndex >= allWeeks.length - 1}
-                    onClick={() => setSelectedWeekIndex(i => i + 1)}
-                  >
-                    <ChevronRight className="h-4 w-4" />
+                  <Button variant="outline" onClick={handleReject} className="w-full">
+                    Terug naar formulier
                   </Button>
-                  <span className="text-xs text-muted-foreground ml-2">
-                    {selectedWeekIndex + 1} / {allWeeks.length}
-                  </span>
+                </div>
+
+                {/* Legend */}
+                <div className="flex flex-col gap-1.5 pt-1">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <div className="w-4 h-3 rounded flex-shrink-0 bg-slate-400"></div>
+                    <span>Bestaande planning</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <div className="w-4 h-3 rounded flex-shrink-0 bg-primary/60 border border-dashed border-primary"></div>
+                    <span>Nieuw voorstel</span>
+                  </div>
                 </div>
               </div>
-              {tasksThisWeek.length === 0 && bestaandeThisWeek.length === 0 && (
-                <div className="text-center py-8 text-muted-foreground text-sm border border-border rounded-lg bg-card">
-                  Geen blokken in deze week
+
+              {/* Main: planning grid */}
+              <div className="flex-1 min-w-0 space-y-3">
+                {/* Week navigation */}
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-foreground">Voorgestelde planning</h3>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      disabled={selectedWeekIndex === 0}
+                      onClick={() => setSelectedWeekIndex(i => i - 1)}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <span className="text-sm text-foreground min-w-[230px] text-center px-1">
+                      {weekLabel}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      disabled={selectedWeekIndex >= allWeeks.length - 1}
+                      onClick={() => setSelectedWeekIndex(i => i + 1)}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                    <span className="text-xs text-muted-foreground ml-1 tabular-nums">
+                      {selectedWeekIndex + 1}/{allWeeks.length}
+                    </span>
+                  </div>
                 </div>
-              )}
-              {(tasksThisWeek.length > 0 || bestaandeThisWeek.length > 0) && (
-              <div className="w-full rounded-lg border border-border bg-card overflow-x-auto">
-                <table className="w-full border-collapse table-fixed min-w-[700px]">
-                  <thead>
-                    <tr className="bg-secondary">
-                      <th className="border-b border-r border-border px-4 py-3 text-left text-sm font-medium text-muted-foreground w-44">
-                        Medewerker
-                      </th>
-                      <th className="border-b border-r border-border px-1 py-3 text-center text-xs font-medium text-muted-foreground w-12">
-                        Uur
-                      </th>
-                      {weekDates.map((date, index) => {
-                        const isDeadline = deadlineDate &&
-                          date.getFullYear() === deadlineDate.getFullYear() &&
-                          date.getMonth() === deadlineDate.getMonth() &&
-                          date.getDate() === deadlineDate.getDate();
-                        return (
-                          <th
-                            key={index}
-                            className={cn(
-                              "border-b border-r border-border px-2 py-3 text-center text-sm font-medium",
-                              isDeadline
-                                ? "bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300"
-                                : "text-foreground"
-                            )}
-                          >
-                            <div>{DAG_NAMEN[index]}</div>
-                            <div className="text-xs opacity-70">
-                              {date.getDate()}/{date.getMonth() + 1}
-                            </div>
-                            {isDeadline && (
-                              <div className="text-[10px] font-semibold mt-0.5 text-amber-700 dark:text-amber-400">
-                                Deadline
-                              </div>
-                            )}
-                          </th>
-                        );
-                      })}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {medewerkers.map((medewerker) => (
-                      TIME_SLOTS.map((hour, hourIndex) => (
-                        <tr key={`${medewerker}-${hour}`} className={cn(
-                          hour === 13 && 'bg-muted/30'
-                        )}>
-                          {hourIndex === 0 && (
-                            <td
-                              rowSpan={TIME_SLOTS.length}
-                              className="bg-card border-b border-r border-border px-4 py-2 align-top"
+
+                {tasksThisWeek.length === 0 && bestaandeThisWeek.length === 0 && (
+                  <div className="flex items-center justify-center py-12 text-muted-foreground text-sm border border-border rounded-lg bg-card">
+                    Geen blokken ingepland in deze week
+                  </div>
+                )}
+                {(tasksThisWeek.length > 0 || bestaandeThisWeek.length > 0) && (
+                <div className="w-full rounded-lg border border-border bg-card overflow-x-auto">
+                  <table className="w-full border-collapse table-fixed min-w-[580px]">
+                    <thead>
+                      <tr className="bg-muted/40">
+                        <th className="border-b border-r border-border px-3 py-2.5 text-left text-xs font-semibold text-muted-foreground w-36">
+                          Medewerker
+                        </th>
+                        <th className="border-b border-r border-border px-1 py-2.5 text-center text-[10px] font-semibold text-muted-foreground w-10">
+                          Uur
+                        </th>
+                        {weekDates.map((date, index) => {
+                          const isDeadline = deadlineDate &&
+                            date.getFullYear() === deadlineDate.getFullYear() &&
+                            date.getMonth() === deadlineDate.getMonth() &&
+                            date.getDate() === deadlineDate.getDate();
+                          return (
+                            <th
+                              key={index}
+                              className={cn(
+                                "border-b border-r border-border px-2 py-2.5 text-center text-xs font-semibold",
+                                isDeadline
+                                  ? "bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300"
+                                  : "text-foreground"
+                              )}
                             >
-                              <div className="flex items-center gap-3">
-                                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
-                                  {medewerker.split(' ').map(n => n[0]).join('')}
-                                </div>
-                                <div className="font-medium text-foreground text-sm">{medewerker}</div>
+                              <div>{DAG_NAMEN[index]}</div>
+                              <div className="text-[10px] font-normal opacity-60 mt-0.5">
+                                {date.getDate()}/{date.getMonth() + 1}
                               </div>
-                            </td>
-                          )}
-                          <td className={cn(
-                            "border-b border-r border-border px-1 py-1 text-center text-xs font-medium",
-                            hour === 13 ? 'bg-muted/30 text-muted-foreground' : 'bg-card text-muted-foreground'
+                              {isDeadline && (
+                                <div className="text-[9px] font-bold mt-0.5 text-amber-700 dark:text-amber-400 uppercase tracking-wide">
+                                  Deadline
+                                </div>
+                              )}
+                            </th>
+                          );
+                        })}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {medewerkers.map((medewerker) => (
+                        TIME_SLOTS.map((hour, hourIndex) => (
+                          <tr key={`${medewerker}-${hour}`} className={cn(
+                            hour === 13 && 'bg-muted/20'
                           )}>
-                            {hour === 13 ? '🍽️' : `${hour.toString().padStart(2, '0')}:00`}
-                          </td>
-                          {weekDates.map((date, dayIndex) => {
-                            const voorstelTasks = getVoorstelTasksForCell(medewerker, dayIndex, hour);
-                            const bestaandeTasks = getBestaandeTasksForCell(medewerker, dayIndex, hour);
-                            const isLunch = hour === 13;
-                            const isDeadlineCol = deadlineDate &&
-                              date.getFullYear() === deadlineDate.getFullYear() &&
-                              date.getMonth() === deadlineDate.getMonth() &&
-                              date.getDate() === deadlineDate.getDate();
-
-                            return (
+                            {hourIndex === 0 && (
                               <td
-                                key={dayIndex}
-                                className={cn(
-                                  "border-b border-r border-border p-0 relative",
-                                  isLunch && 'bg-muted/30',
-                                  isDeadlineCol && !isLunch && 'bg-amber-50 dark:bg-amber-950/20'
-                                )}
-                                style={{ height: `${CELL_HEIGHT}px` }}
+                                rowSpan={TIME_SLOTS.length}
+                                className="bg-card border-b border-r border-border px-3 py-2 align-middle"
                               >
-                                {/* Bestaande taken (solid, met grijze kleur) */}
-                                {bestaandeTasks.map((taak, ti) => {
-                                  if (!isTaskStart(taak, hour)) return null;
-                                  // Calculate block height based on duration
-                                  const maxHours = 18 - hour;
-                                  const displayHours = Math.min(taak.duur_uren, maxHours);
-                                  const blockHeight = displayHours * CELL_HEIGHT;
-                                  return (
-                                    <div
-                                      key={`bestaand-${ti}`}
-                                      className="absolute left-0.5 right-0.5 rounded px-1.5 py-0.5 text-xs text-white overflow-hidden bg-slate-400 z-10"
-                                      style={{
-                                        height: `${blockHeight - 2}px`,
-                                        top: '1px'
-                                      }}
-                                      title={`${taak.klant_naam} • ${taak.fase_naam} • ${taak.duur_uren}u (bestaand)`}
-                                    >
-                                      <div className="truncate font-medium">
-                                        {taak.klant_naam}
-                                      </div>
-                                      <div className="truncate text-[10px] opacity-80">
-                                        {taak.fase_naam}
-                                      </div>
-                                      {taak.duur_uren > 2 && (
-                                        <div className="text-[10px] opacity-70 mt-0.5">
-                                          {taak.duur_uren}u
-                                        </div>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                                {/* Voorgestelde taken (semi-transparant, met kleur) */}
-                                {voorstelTasks.map((taak, ti) => {
-                                  if (!isTaskStart(taak, hour)) return null;
-                                  // Calculate block height based on duration
-                                  const maxHours = 18 - hour;
-                                  const displayHours = Math.min(taak.duur_uren, maxHours);
-                                  const blockHeight = displayHours * CELL_HEIGHT;
-                                  return (
-                                    <div
-                                      key={`voorstel-${ti}`}
-                                      className={cn(
-                                        'absolute left-0.5 right-0.5 rounded px-1.5 py-0.5 text-xs text-white overflow-hidden opacity-80 border-2 border-dashed border-white/50 z-20',
-                                        getFaseColor(taak.fase_naam, taak.werktype)
-                                      )}
-                                      style={{
-                                        height: `${blockHeight - 2}px`,
-                                        top: '1px'
-                                      }}
-                                      title={`${projectInfo?.projectTitel || projectInfo?.klant_naam} • ${taak.fase_naam} • ${taak.duur_uren}u (voorstel)`}
-                                    >
-                                      <div className="truncate font-medium">
-                                        {projectInfo?.projectTitel || projectInfo?.klant_naam}
-                                      </div>
-                                      <div className="truncate text-[10px] opacity-80">
-                                        {taak.fase_naam}
-                                      </div>
-                                      {taak.duur_uren > 2 && (
-                                        <div className="text-[10px] opacity-70 mt-0.5">
-                                          {taak.duur_uren}u
-                                        </div>
-                                      )}
-                                    </div>
-                                  );
-                                })}
+                                <div className="flex items-center gap-2">
+                                  <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-primary/15 text-[10px] font-semibold text-primary">
+                                    {medewerker.split(' ').map((n: string) => n[0]).join('').substring(0, 2)}
+                                  </div>
+                                  <div className="font-medium text-foreground text-xs leading-tight">{medewerker}</div>
+                                </div>
                               </td>
-                            );
-                          })}
-                        </tr>
-                      ))
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              )}
-              <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-4 h-3 rounded bg-slate-400"></div>
-                  <span>Bestaande planning</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-4 h-3 rounded bg-primary/60 border border-dashed border-primary"></div>
-                  <span>Nieuw voorstel</span>
-                </div>
-              </div>
-            </div>
+                            )}
+                            <td className={cn(
+                              "border-b border-r border-border px-1 py-0 text-center text-[10px] font-medium",
+                              hour === 13 ? 'bg-muted/20 text-muted-foreground/50' : 'bg-card text-muted-foreground/60'
+                            )}>
+                              {hour === 13 ? '—' : `${hour}:00`}
+                            </td>
+                            {weekDates.map((date, dayIndex) => {
+                              const voorstelTasks = getVoorstelTasksForCell(medewerker, dayIndex, hour);
+                              const bestaandeTasks = getBestaandeTasksForCell(medewerker, dayIndex, hour);
+                              const isLunch = hour === 13;
+                              const isDeadlineCol = deadlineDate &&
+                                date.getFullYear() === deadlineDate.getFullYear() &&
+                                date.getMonth() === deadlineDate.getMonth() &&
+                                date.getDate() === deadlineDate.getDate();
 
-            {/* Feedback section - connected input en knop */}
-            <div className="space-y-3 pt-4 border-t border-border">
-              <p className="text-sm text-muted-foreground">
-                Niet helemaal goed? Geef feedback en genereer een nieuw voorstel.
-              </p>
-              <div className="rounded-lg border border-border bg-secondary/20 p-3 space-y-3">
-                <textarea
-                  placeholder="Wat moet er anders? Bijv. 'Verschuif alles naar volgende week', 'Plan tot 18:00', of 'Ik wil Jakko erbij'"
-                  className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
-                  rows={2}
-                  value={feedbackInput}
-                  onChange={(e) => setFeedbackInput(e.target.value)}
-                  disabled={isRequestingNewProposal}
-                />
-                <Button
-                  onClick={handleRequestNewProposal}
-                  disabled={isRequestingNewProposal || !feedbackInput.trim()}
-                  className="w-full"
-                >
-                  {isRequestingNewProposal ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  ) : (
-                    <Send className="h-4 w-4 mr-2" />
-                  )}
-                  Nieuw voorstel genereren
-                </Button>
-                {!feedbackInput.trim() && (
-                  <p className="text-xs text-muted-foreground text-center">
-                    Vul hierboven in wat je wilt veranderen
-                  </p>
+                              return (
+                                <td
+                                  key={dayIndex}
+                                  className={cn(
+                                    "border-b border-r border-border p-0 relative",
+                                    isLunch && 'bg-muted/20',
+                                    isDeadlineCol && !isLunch && 'bg-amber-50/60 dark:bg-amber-950/15'
+                                  )}
+                                  style={{ height: `${CELL_HEIGHT}px` }}
+                                >
+                                  {/* Bestaande taken */}
+                                  {bestaandeTasks.map((taak, ti) => {
+                                    if (!isTaskStart(taak, hour)) return null;
+                                    const maxHours = 18 - hour;
+                                    const displayHours = Math.min(taak.duur_uren, maxHours);
+                                    const blockHeight = displayHours * CELL_HEIGHT;
+                                    return (
+                                      <div
+                                        key={`bestaand-${ti}`}
+                                        className="absolute left-0.5 right-0.5 rounded px-1.5 py-0.5 text-xs text-white overflow-hidden bg-slate-400 z-10"
+                                        style={{ height: `${blockHeight - 2}px`, top: '1px' }}
+                                        title={`${taak.klant_naam} • ${taak.fase_naam} • ${taak.duur_uren}u (bestaand)`}
+                                      >
+                                        <div className="truncate font-medium">{taak.klant_naam}</div>
+                                        <div className="truncate text-[10px] opacity-80">{taak.fase_naam}</div>
+                                        {taak.duur_uren > 2 && (
+                                          <div className="text-[10px] opacity-70 mt-0.5">{taak.duur_uren}u</div>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                  {/* Voorgestelde taken */}
+                                  {voorstelTasks.map((taak, ti) => {
+                                    if (!isTaskStart(taak, hour)) return null;
+                                    const maxHours = 18 - hour;
+                                    const displayHours = Math.min(taak.duur_uren, maxHours);
+                                    const blockHeight = displayHours * CELL_HEIGHT;
+                                    return (
+                                      <div
+                                        key={`voorstel-${ti}`}
+                                        className={cn(
+                                          'absolute left-0.5 right-0.5 rounded px-1.5 py-0.5 text-xs text-white overflow-hidden opacity-85 border-2 border-dashed border-white/40 z-20',
+                                          getFaseColor(taak.fase_naam, taak.werktype)
+                                        )}
+                                        style={{ height: `${blockHeight - 2}px`, top: '1px' }}
+                                        title={`${projectInfo?.projectTitel || projectInfo?.klant_naam} • ${taak.fase_naam} • ${taak.duur_uren}u (voorstel)`}
+                                      >
+                                        <div className="truncate font-medium">
+                                          {projectInfo?.projectTitel || projectInfo?.klant_naam}
+                                        </div>
+                                        <div className="truncate text-[10px] opacity-80">{taak.fase_naam}</div>
+                                        {taak.duur_uren > 2 && (
+                                          <div className="text-[10px] opacity-70 mt-0.5">{taak.duur_uren}u</div>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
                 )}
               </div>
-            </div>
-
-            {/* Action buttons */}
-            <div className="flex gap-3 pt-4">
-              <Button onClick={handleApprove} className="flex-1">
-                <CheckCircle2 className="h-4 w-4 mr-2" />
-                Voorstel goedkeuren
-              </Button>
-              <Button variant="outline" onClick={handleReject} className="flex-1">
-                Terug naar formulier
-              </Button>
             </div>
           </div>
         )}
 
         {/* Color/Werktype Selection */}
         {flowState === 'color-select' && (
-          <div className="space-y-6 py-8">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                <span className="text-primary"><RobotFaceInline size={24} happy /></span>
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-foreground">Ellen</p>
-                <p className="text-sm text-muted-foreground">
-                  In welke fase zitten we? Dit bepaalt de kleur van de blokken in de planner.
-                </p>
-              </div>
+          <div className="pt-8 max-w-xl mx-auto space-y-6">
+            <div>
+              <h2 className="text-base font-semibold text-foreground">Werktype selecteren</h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                In welke fase zitten we? Dit bepaalt de kleur van de blokken in de planner.
+              </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl mx-auto">
+            <div className="grid grid-cols-1 gap-2">
               {WERKTYPE_OPTIONS.map((option) => (
                 <button
                   key={option.id}
                   onClick={() => setSelectedWerktype(option.id)}
                   className={cn(
-                    'flex items-start gap-3 p-4 rounded-xl border-2 transition-all text-left',
+                    'flex items-center gap-3 px-4 py-3 rounded-lg border transition-all text-left',
                     selectedWerktype === option.id
-                      ? 'border-primary bg-primary/5'
-                      : 'border-border hover:border-muted-foreground/50'
+                      ? 'border-primary bg-primary/5 shadow-sm'
+                      : 'border-border bg-card hover:bg-muted/30'
                   )}
                 >
-                  <div className={cn('w-5 h-5 rounded mt-0.5 flex-shrink-0', option.color)} />
-                  <div>
-                    <p className="font-medium text-foreground text-sm">{option.label}</p>
+                  <div className={cn('w-3 h-3 rounded-full flex-shrink-0', option.color)} />
+                  <div className="flex-1 min-w-0">
+                    <p className={cn(
+                      'text-sm font-medium leading-tight',
+                      selectedWerktype === option.id ? 'text-foreground' : 'text-foreground'
+                    )}>
+                      {option.label}
+                    </p>
                     <p className="text-xs text-muted-foreground mt-0.5">{option.description}</p>
                   </div>
+                  {selectedWerktype === option.id && (
+                    <CheckCircle2 className="h-4 w-4 text-primary flex-shrink-0" />
+                  )}
                 </button>
               ))}
             </div>
 
-            <div className="flex justify-center pt-4">
-              <Button onClick={handleColorSelected} className="min-w-[200px]">
-                <CheckCircle2 className="h-4 w-4 mr-2" />
-                Doorgaan
-              </Button>
-            </div>
+            <Button onClick={handleColorSelected} className="w-full">
+              <CheckCircle2 className="h-4 w-4 mr-2" />
+              Doorgaan
+            </Button>
           </div>
         )}
 
         {/* Client Approval Check */}
         {flowState === 'client-check' && (
-          <div className="space-y-6 py-8">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                <span className="text-primary"><RobotFaceInline size={24} happy /></span>
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-foreground">Ellen</p>
-                <p className="text-sm text-muted-foreground">
-                  Top! Moet dit voorstel eerst nog goedgekeurd worden door de klant?
-                </p>
-              </div>
+          <div className="pt-8 max-w-sm mx-auto space-y-6">
+            <div>
+              <h2 className="text-base font-semibold text-foreground">Klantgoedkeuring vereist?</h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                Moet dit voorstel eerst goedgekeurd worden door de klant?
+              </p>
             </div>
-
-            <div className="flex gap-3 max-w-md mx-auto">
+            <div className="space-y-2">
               <Button
                 variant="outline"
-                className="flex-1"
+                className="w-full justify-start gap-3"
                 onClick={() => handleClientApprovalNeeded(true)}
               >
-                <Send className="h-4 w-4 mr-2" />
+                <Send className="h-4 w-4 text-muted-foreground" />
                 Ja, klant moet goedkeuren
               </Button>
               <Button
-                className="flex-1"
+                className="w-full justify-start gap-3"
                 onClick={() => handleClientApprovalNeeded(false)}
               >
-                <CheckCircle2 className="h-4 w-4 mr-2" />
+                <CheckCircle2 className="h-4 w-4" />
                 Nee, direct inplannen
               </Button>
             </div>
