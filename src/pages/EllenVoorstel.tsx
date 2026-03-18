@@ -933,7 +933,7 @@ export default function EllenVoorstel() {
 
         {/* Voorstel State with mini planner */}
         {flowState === 'voorstel' && (
-           <div className="space-y-6">
+           <div className="space-y-6 pt-6">
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                 <span className="text-primary"><RobotFaceInline size={24} happy /></span>
@@ -946,8 +946,8 @@ export default function EllenVoorstel() {
               </div>
             </div>
 
-            {/* Ellen toelichting - altijd tonen als beschikbaar */}
-            {(ellenUitleg || laatsteFeedback) && (
+            {/* Ellen toelichting — alleen bij feedback of echte uitleg, niet bij template-boilerplate */}
+            {(laatsteFeedback || (ellenUitleg && ellenUitleg !== 'Planning aangemaakt op basis van het template.')) && (
               <Card className="p-4 bg-muted/50 border-border">
                 <div className="space-y-2">
                   {laatsteFeedback && (
@@ -955,31 +955,101 @@ export default function EllenVoorstel() {
                       Jouw feedback: <span className="italic text-foreground">"{laatsteFeedback}"</span>
                     </p>
                   )}
-                  {ellenUitleg && (
-                    <p className="text-sm text-foreground">
-                      {ellenUitleg}
-                    </p>
+                  {ellenUitleg && ellenUitleg !== 'Planning aangemaakt op basis van het template.' && (
+                    <p className="text-sm text-foreground">{ellenUitleg}</p>
                   )}
                 </div>
               </Card>
             )}
 
-            {/* Project summary with generated planning details */}
+            {/* Template overzicht — volledig overzicht van ingevulde data + planningsresultaat */}
             <Card className="p-4 bg-accent/30 border-primary/20">
               <div className="space-y-3">
-                <div className="space-y-1">
-                  <p className="text-sm font-medium text-foreground">
+                {/* Header */}
+                <div className="space-y-0.5">
+                  <p className="text-sm font-semibold text-foreground">
                     {projectInfo?.klant_naam} — {projectInfo?.projectnaam}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {projectInfo?.projecttype} • {voorstellen.length} blokken
+                    {projectInfo?.projecttype}
                     {projectInfo?.deadline && ` • Deadline: ${projectInfo.deadline}`}
+                    {` • ${voorstellen.length} blokken ingepland`}
                   </p>
                 </div>
+
+                {/* Per-presentatie sectie (algemeen projecttype) */}
+                {projectInfo?.fases?.filter((f: any) => f.type === 'presentatie').length > 0 &&
+                  projectInfo.fases.filter((f: any) => f.type === 'presentatie').map((p: any, i: number) => {
+                    // Zoek bijbehorende werkzaamheden fase
+                    const pNaamLower = (p.fase_naam || '').toLowerCase();
+                    const werkFase = projectInfo.fases.find((f: any) =>
+                      f.type !== 'presentatie' &&
+                      ((f.fase_naam || '').toLowerCase().replace('werkzaamheden - ', '').includes(pNaamLower) ||
+                       pNaamLower.includes((f.fase_naam || '').toLowerCase().replace('werkzaamheden - ', '')))
+                    );
+                    return (
+                      <div key={i} className="border-t border-border/50 pt-3 space-y-2">
+                        {/* Presentatie header */}
+                        <div className="flex items-start justify-between gap-3">
+                          <p className="text-xs font-semibold text-foreground">{p.fase_naam || `Presentatie ${i + 1}`}</p>
+                          <div className="text-right flex-shrink-0">
+                            {p.datumType === 'zelf' && p.datum ? (
+                              <p className="text-xs text-muted-foreground">
+                                {p.datum}{p.tijd ? ` om ${p.tijd}` : ''}
+                                {p.locatie ? ` · ${p.locatie === 'selmore' ? 'Bij Selmore' : 'Bij klant'}` : ''}
+                              </p>
+                            ) : (
+                              <p className="text-xs text-muted-foreground italic">Ellen bepaalt datum</p>
+                            )}
+                          </div>
+                        </div>
+                        {/* Workload tabel */}
+                        {werkFase?.medewerkerDetails?.length > 0 && (
+                          <div className="rounded border border-border/40 overflow-hidden text-xs">
+                            <div className="grid grid-cols-2 px-3 py-1.5 bg-muted/40 font-medium text-muted-foreground">
+                              <span>Medewerker</span>
+                              <span className="text-right">Workload</span>
+                            </div>
+                            {werkFase.medewerkerDetails.map((md: any, j: number) => (
+                              <div key={j} className="grid grid-cols-2 px-3 py-1.5 border-t border-border/30">
+                                <span className="text-foreground">{md.naam}</span>
+                                <span className="text-right text-muted-foreground">{md.uren}u</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {/* Aanwezig bij presentatie */}
+                        {p.medewerkers?.length > 0 && (
+                          <p className="text-xs text-muted-foreground">
+                            Aanwezig: {p.medewerkers.join(', ')}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })
+                }
+
+                {/* Productiefases (productie projecttype) */}
+                {(!projectInfo?.fases?.some((f: any) => f.type === 'presentatie')) &&
+                  projectInfo?.fases?.length > 0 && (
+                  <div className="border-t border-border/50 pt-3 space-y-1">
+                    {projectInfo.fases.map((f: any, i: number) => (
+                      <div key={i} className="flex items-center justify-between text-xs">
+                        <span className="text-foreground">{f.fase_naam}</span>
+                        <span className="text-muted-foreground">
+                          {f.duur_dagen ? `${f.duur_dagen} dag${f.duur_dagen > 1 ? 'en' : ''}` : ''}
+                          {f.medewerkers?.length > 0 ? ` · ${f.medewerkers.join(', ')}` : ''}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Planning resultaat per medewerker */}
                 {planningSamenvatting && (
-                  <div className="pt-2 border-t border-border/50">
-                    <p className="text-xs font-medium text-foreground mb-1">Planning overzicht:</p>
-                    <p className="text-xs text-muted-foreground whitespace-pre-line">
+                  <div className="border-t border-border/50 pt-3">
+                    <p className="text-xs font-medium text-foreground mb-1.5">Ingepland:</p>
+                    <p className="text-xs text-muted-foreground whitespace-pre-line leading-5">
                       {planningSamenvatting}
                     </p>
                   </div>
