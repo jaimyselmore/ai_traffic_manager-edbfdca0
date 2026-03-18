@@ -177,9 +177,14 @@ Deno.serve(async (req) => {
     // 4. Direct plan modus (vanuit template formulier — bypass AI)
     if (project_data?.direct_plan_fases?.length) {
       const planningConfig = await loadPlanningConfig(supabase);
-      const fases = project_data.direct_plan_fases.map((f: Record<string, unknown>) => { const { _deadline, ...rest } = f; return rest; });
+      // _deadline per fase omzetten naar fase_deadline zodat execution per fase de juiste deadline gebruikt.
+      // Gebruik de LAATSTE deadline als globale horizon voor resource-loading (niet de vroegste).
+      const fases = project_data.direct_plan_fases.map((f: Record<string, unknown>) => {
+        const { _deadline, ...rest } = f;
+        return _deadline ? { ...rest, fase_deadline: _deadline } : rest;
+      });
       const deadlines = project_data.direct_plan_fases.map((f: Record<string, unknown>) => f._deadline).filter(Boolean) as string[];
-      const deadline = deadlines.sort()[0] || project_data.eind_datum;
+      const deadline = deadlines.sort().reverse()[0] || project_data.eind_datum;
 
       const result = await executeTool(supabase, planningConfig, 'plan_project', {
         klant_naam: project_data.klant_naam || 'Onbekend', project_naam: project_data.project_naam || 'Project',

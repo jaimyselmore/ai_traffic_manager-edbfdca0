@@ -1433,15 +1433,20 @@ function buildDirectPlanFases(info: any): Array<any> | null {
 
     const startDatum = toISODate(f.start_datum) || toISODate(info.fases?.[0]?.start_datum) || new Date().toISOString().split('T')[0];
 
-    // Bepaal verdeling: als werk (duurDagen) veel minder is dan projectduur (weken),
-    // spreid dan 1 dag per week i.p.v. alles aaneengesloten in de eerste paar dagen.
+    // Bepaal verdeling: spreidt uren verspreid over beschikbare dagen t/m deadline.
+    // Regel: als er >= 2x zoveel beschikbare werkdagen zijn als benodigd, spreidt dan per week.
+    // Zo wordt 16u (2 dagen) over bijv. 2 weken (10 werkdagen) niet op dag 1+2 gepropt.
     function bepaalVerdeling(duurDagen: number, startStr: string, deadlineStr: string | null): { verdeling: string; dagenPerWeek?: number } {
       if (!deadlineStr) return { verdeling: 'aaneengesloten' };
       const s = new Date(startStr + 'T00:00:00');
       const d = new Date(deadlineStr + 'T00:00:00');
-      const projectWeken = Math.round((d.getTime() - s.getTime()) / (7 * 24 * 60 * 60 * 1000));
-      if (projectWeken > 2 && duurDagen < projectWeken) {
-        return { verdeling: 'per_week', dagenPerWeek: Math.max(1, Math.ceil(duurDagen / projectWeken)) };
+      const diffDagen = (d.getTime() - s.getTime()) / (24 * 60 * 60 * 1000);
+      const approxWerkDagen = Math.round(diffDagen * 5 / 7); // weekenden eruit
+      const projectWeken = Math.round(diffDagen / 7);
+      // Spreidt als er minstens 2x zoveel werkdagen beschikbaar zijn als benodigd
+      // én de deadline minstens 1 week weg is
+      if (approxWerkDagen >= duurDagen * 2 && projectWeken >= 1) {
+        return { verdeling: 'per_week', dagenPerWeek: Math.max(1, Math.ceil(duurDagen / Math.max(1, projectWeken))) };
       }
       return { verdeling: 'aaneengesloten' };
     }
@@ -1452,7 +1457,7 @@ function buildDirectPlanFases(info: any): Array<any> | null {
         const totaalUren = md.uren || 0;
         const urenPerDag = totaalUren > 0 ? Math.min(8, totaalUren) : (f.uren_per_dag || 4);
         const duurDagen = totaalUren > 0 ? Math.ceil(totaalUren / urenPerDag) : (f.duur_dagen || 1);
-        const { verdeling, dagenPerWeek } = bepaalVerdeling(Math.max(1, duurDagen), startDatum, deadline);
+        const { verdeling, dagenPerWeek } = bepaalVerdeling(Math.max(1, duurDagen), startDatum, deadline ?? null);
         planFases.push({
           fase_naam: f.fase_naam,
           medewerkers: [md.naam],
@@ -1466,7 +1471,7 @@ function buildDirectPlanFases(info: any): Array<any> | null {
       });
     } else if (f.medewerkers?.length > 0) {
       const duurDagen = Math.max(1, f.duur_dagen || 1);
-      const { verdeling, dagenPerWeek } = bepaalVerdeling(duurDagen, startDatum, deadline);
+      const { verdeling, dagenPerWeek } = bepaalVerdeling(duurDagen, startDatum, deadline ?? null);
       planFases.push({
         fase_naam: f.fase_naam,
         medewerkers: f.medewerkers,

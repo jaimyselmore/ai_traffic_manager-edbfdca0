@@ -150,6 +150,7 @@ export async function executeTool(
         const fases = args.fases as Array<{
           fase_naam: string; medewerkers: string[]; start_datum: string; duur_dagen: number;
           uren_per_dag?: number; verdeling?: 'aaneengesloten' | 'per_week' | 'laatste_week'; dagen_per_week?: number;
+          fase_deadline?: string; // Per-fase deadline — overschrijft globale deadline voor deze fase
         }>;
 
         if (!klant_naam || !project_naam || !fases?.length) {
@@ -247,10 +248,12 @@ export async function executeTool(
           const isMeeting = isMeetingFase(fase.fase_naam);
           const isFeedback = isFeedbackFase(fase.fase_naam, fase.uren_per_dag);
           const faseStart = new Date(fase.start_datum + 'T00:00:00');
+          // Gebruik fase_deadline als die er is, anders de globale deadline
+          const faseDeadline = fase.fase_deadline || deadline;
           samenvattingParts.push(`\n${fase.fase_naam} (${verdeling}):`);
 
-          if (verdeling === 'laatste_week' && deadline) {
-            const deadlineDate = new Date(deadline + 'T00:00:00');
+          if (verdeling === 'laatste_week' && faseDeadline) {
+            const deadlineDate = new Date(faseDeadline + 'T00:00:00');
             const startDate = new Date(deadlineDate);
             startDate.setDate(startDate.getDate() - 7);
             while (isWeekend(startDate) || getDayOfWeekNumber(startDate) !== 0) startDate.setDate(startDate.getDate() + 1);
@@ -272,7 +275,7 @@ export async function executeTool(
               }
               while (dagenDezeWeek < dagenPerWeek && dagenGepland < fase.duur_dagen) {
                 while (isWeekend(huidigeDatum)) huidigeDatum.setDate(huidigeDatum.getDate() + 1);
-                if (deadline && huidigeDatum >= new Date(deadline + 'T00:00:00')) break;
+                if (faseDeadline && huidigeDatum >= new Date(faseDeadline + 'T00:00:00')) break;
                 for (const mw of fase.medewerkers) planBlok(mw, huidigeDatum, fase, isMeeting);
                 dagenGepland++; dagenDezeWeek++; huidigeDatum.setDate(huidigeDatum.getDate() + 1);
               }
@@ -285,7 +288,7 @@ export async function executeTool(
             let huidigeDatum = new Date(faseStart), dagenGepland = 0;
             while (dagenGepland < fase.duur_dagen) {
               while (isWeekend(huidigeDatum)) huidigeDatum.setDate(huidigeDatum.getDate() + 1);
-              if (deadline && huidigeDatum >= new Date(deadline + 'T00:00:00')) { warnings.push(`${fase.fase_naam}: Niet alle dagen passen voor deadline`); break; }
+              if (faseDeadline && huidigeDatum >= new Date(faseDeadline + 'T00:00:00')) { warnings.push(`${fase.fase_naam}: Niet alle dagen passen voor deadline`); break; }
               for (const mw of fase.medewerkers) planBlok(mw, huidigeDatum, fase, isMeeting);
               dagenGepland++; huidigeDatum.setDate(huidigeDatum.getDate() + 1);
             }
