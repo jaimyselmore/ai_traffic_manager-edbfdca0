@@ -257,12 +257,36 @@ export async function executeTool(
             const startDate = new Date(deadlineDate);
             startDate.setDate(startDate.getDate() - 7);
             while (isWeekend(startDate) || getDayOfWeekNumber(startDate) !== 0) startDate.setDate(startDate.getDate() + 1);
-            let dagenGepland = 0, huidigeDatum = new Date(startDate);
-            while (dagenGepland < fase.duur_dagen && huidigeDatum < deadlineDate) {
-              while (isWeekend(huidigeDatum)) huidigeDatum.setDate(huidigeDatum.getDate() + 1);
-              if (huidigeDatum >= deadlineDate) break;
-              for (const mw of fase.medewerkers) planBlok(mw, huidigeDatum, fase, isMeeting);
-              dagenGepland++; huidigeDatum.setDate(huidigeDatum.getDate() + 1);
+            let dagenGepland = 0;
+
+            if (isMeeting && fase.duur_dagen <= 2) {
+              // Presentaties: voorkeur donderdag(3) of vrijdag(4), scan de laatste week
+              const kandidaten: Date[] = [];
+              for (let di = 0; di < 5; di++) {
+                const d = new Date(startDate);
+                d.setDate(d.getDate() + di);
+                if (!isWeekend(d) && d < deadlineDate) kandidaten.push(d);
+              }
+              // Sorteer: do(3)/vr(4) eerst, daarna overige dagen — later in de week is beter
+              kandidaten.sort((a, b) => {
+                const aPref = getDayOfWeekNumber(a) >= 3 ? 0 : 1;
+                const bPref = getDayOfWeekNumber(b) >= 3 ? 0 : 1;
+                if (aPref !== bPref) return aPref - bPref;
+                return b.getTime() - a.getTime(); // later = dichter bij deadline
+              });
+              for (const dag of kandidaten) {
+                if (dagenGepland >= fase.duur_dagen) break;
+                for (const mw of fase.medewerkers) planBlok(mw, dag, fase, true);
+                dagenGepland++;
+              }
+            } else {
+              let huidigeDatum = new Date(startDate);
+              while (dagenGepland < fase.duur_dagen && huidigeDatum < deadlineDate) {
+                while (isWeekend(huidigeDatum)) huidigeDatum.setDate(huidigeDatum.getDate() + 1);
+                if (huidigeDatum >= deadlineDate) break;
+                for (const mw of fase.medewerkers) planBlok(mw, huidigeDatum, fase, isMeeting);
+                dagenGepland++; huidigeDatum.setDate(huidigeDatum.getDate() + 1);
+              }
             }
           } else if (verdeling === 'per_week') {
             const totaalWeken = Math.ceil(fase.duur_dagen / dagenPerWeek);

@@ -1460,6 +1460,8 @@ function buildDirectPlanFases(info: any): Array<any> | null {
 
   const planFases: Array<any> = [];
   const presentaties = (info.fases || []).filter((f: any) => f.type === 'presentatie');
+  // Track which 'Ellen bepaalt' presentations have been added (avoid duplicates)
+  const presentatiesGepland = new Set<string>();
 
   werkzaamheden.forEach((f: any) => {
     // Zoek bijbehorende presentatiedeadline
@@ -1525,25 +1527,49 @@ function buildDirectPlanFases(info: any): Array<any> | null {
         _deadline: deadline,
       });
     }
+
+    // Als de bijhorende presentatie 'Ellen bepaalt' is: plan die hier,
+    // zodat ze de fase-specifieke deadline krijgt (niet de project-deadline).
+    if (bijhorendePresentatie?.datumType === 'ellen') {
+      const presId = bijhorendePresentatie.id || bijhorendePresentatie.fase_naam || '';
+      const aanwezigen: string[] = bijhorendePresentatie.medewerkers?.length > 0
+        ? bijhorendePresentatie.medewerkers : [];
+      if (aanwezigen.length > 0 && !presentatiesGepland.has(presId)) {
+        presentatiesGepland.add(presId);
+        planFases.push({
+          fase_naam: bijhorendePresentatie.fase_naam || 'Presentatie',
+          medewerkers: aanwezigen,
+          start_datum: startDatum,
+          duur_dagen: 1,
+          uren_per_dag: 2,
+          verdeling: 'laatste_week',
+          voorkeur_dagen: ['donderdag', 'vrijdag'], // hint voor _execution.ts
+          _deadline: deadline, // fase-deadline, niet project-deadline!
+        });
+      }
+    }
   });
 
-  // Voeg 'Ellen bepaalt' presentaties toe als te-plannen blokken.
-  // Ellen plant deze als 2-uurs presentatieblok in de laatste week (bij voorkeur do/vr).
-  const ellenPresentaties = presentaties.filter((p: any) => p.datumType === 'ellen');
+  // Fallback: ellen presentaties zonder gekoppelde werkzaamheid
   const projectStartDatum = toISODate(info.startDatum) || toISODate(info.fases?.[0]?.start_datum) || new Date().toISOString().split('T')[0];
-  ellenPresentaties.forEach((p: any) => {
-    const aanwezigen: string[] = p.medewerkers?.length > 0 ? p.medewerkers : [];
-    if (!aanwezigen.length) return;
-    planFases.push({
-      fase_naam: p.fase_naam || 'Presentatie',
-      medewerkers: aanwezigen,
-      start_datum: projectStartDatum,
-      duur_dagen: 1,
-      uren_per_dag: 2,
-      verdeling: 'laatste_week',
-      _deadline: toISODate(info.deadline),
+  presentaties
+    .filter((p: any) => p.datumType === 'ellen')
+    .forEach((p: any) => {
+      const presId = p.id || p.fase_naam || '';
+      if (presentatiesGepland.has(presId)) return;
+      const aanwezigen: string[] = p.medewerkers?.length > 0 ? p.medewerkers : [];
+      if (!aanwezigen.length) return;
+      planFases.push({
+        fase_naam: p.fase_naam || 'Presentatie',
+        medewerkers: aanwezigen,
+        start_datum: projectStartDatum,
+        duur_dagen: 1,
+        uren_per_dag: 2,
+        verdeling: 'laatste_week',
+        voorkeur_dagen: ['donderdag', 'vrijdag'],
+        _deadline: toISODate(info.deadline),
+      });
     });
-  });
 
   return planFases.length > 0 ? planFases : null;
 }
