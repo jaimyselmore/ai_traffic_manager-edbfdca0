@@ -456,6 +456,7 @@ export default function NieuwProject() {
       isInternProject: formData.isInternProject,
       startDatum: formData.projectHeader.startDatum,
       deadline: formData.projectHeader.deadline,
+      volledigProjectId: formData.projectHeader.volledigProjectId,
       fases,
       // Nieuwe velden voor meetings
       betrokkenPersonen: betrokkenPersonenNamen,

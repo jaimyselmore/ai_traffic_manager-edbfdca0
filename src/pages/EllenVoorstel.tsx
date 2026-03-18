@@ -685,6 +685,15 @@ export default function EllenVoorstel() {
     return lines.join('\n');
   }, [voorstellen]);
 
+  // Deadline als Date object voor grid-markering
+  const deadlineDate = useMemo(() => {
+    const dl = projectInfo?.deadline;
+    if (!dl) return null;
+    const p = parseDatumParts(dl);
+    if (!p) return null;
+    return new Date(p.year, p.month, p.day);
+  }, [projectInfo?.deadline]);
+
   // Totaal ingeplande uren per medewerker (voor blauwe kaart)
   const urenPerPersoon = useMemo(() => {
     const result: Record<string, number> = {};
@@ -984,10 +993,13 @@ export default function EllenVoorstel() {
                   <p className="text-sm font-semibold text-foreground">
                     {projectInfo?.klant_naam} — {projectInfo?.projectnaam}
                   </p>
+                  {projectInfo?.volledigProjectId && (
+                    <p className="text-xs text-muted-foreground font-mono">{projectInfo.volledigProjectId}</p>
+                  )}
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    {projectInfo?.startDatum && `Start: ${projectInfo.startDatum}`}
-                    {projectInfo?.startDatum && projectInfo?.deadline && ' · '}
-                    {projectInfo?.deadline && `Deadline: ${projectInfo.deadline}`}
+                    {projectInfo?.startDatum ? `${toDutchDate(projectInfo.startDatum)}` : ''}
+                    {projectInfo?.startDatum && projectInfo?.deadline ? ' → ' : ''}
+                    {projectInfo?.deadline ? toDutchDate(projectInfo.deadline) : ''}
                   </p>
                 </div>
 
@@ -1056,17 +1068,33 @@ export default function EllenVoorstel() {
                       <th className="border-b border-r border-border px-1 py-3 text-center text-xs font-medium text-muted-foreground w-12">
                         Uur
                       </th>
-                      {weekDates.map((date, index) => (
-                        <th
-                          key={index}
-                          className="border-b border-r border-border px-2 py-3 text-center text-sm font-medium text-foreground"
-                        >
-                          <div>{DAG_NAMEN[index]}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {date.getDate()}/{date.getMonth() + 1}
-                          </div>
-                        </th>
-                      ))}
+                      {weekDates.map((date, index) => {
+                        const isDeadline = deadlineDate &&
+                          date.getFullYear() === deadlineDate.getFullYear() &&
+                          date.getMonth() === deadlineDate.getMonth() &&
+                          date.getDate() === deadlineDate.getDate();
+                        return (
+                          <th
+                            key={index}
+                            className={cn(
+                              "border-b border-r border-border px-2 py-3 text-center text-sm font-medium",
+                              isDeadline
+                                ? "bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300"
+                                : "text-foreground"
+                            )}
+                          >
+                            <div>{DAG_NAMEN[index]}</div>
+                            <div className="text-xs opacity-70">
+                              {date.getDate()}/{date.getMonth() + 1}
+                            </div>
+                            {isDeadline && (
+                              <div className="text-[10px] font-semibold mt-0.5 text-amber-700 dark:text-amber-400">
+                                Deadline
+                              </div>
+                            )}
+                          </th>
+                        );
+                      })}
                     </tr>
                   </thead>
                   <tbody>
@@ -1094,17 +1122,22 @@ export default function EllenVoorstel() {
                           )}>
                             {hour === 13 ? '🍽️' : `${hour.toString().padStart(2, '0')}:00`}
                           </td>
-                          {weekDates.map((_, dayIndex) => {
+                          {weekDates.map((date, dayIndex) => {
                             const voorstelTasks = getVoorstelTasksForCell(medewerker, dayIndex, hour);
                             const bestaandeTasks = getBestaandeTasksForCell(medewerker, dayIndex, hour);
                             const isLunch = hour === 13;
+                            const isDeadlineCol = deadlineDate &&
+                              date.getFullYear() === deadlineDate.getFullYear() &&
+                              date.getMonth() === deadlineDate.getMonth() &&
+                              date.getDate() === deadlineDate.getDate();
 
                             return (
                               <td
                                 key={dayIndex}
                                 className={cn(
                                   "border-b border-r border-border p-0 relative",
-                                  isLunch && 'bg-muted/30'
+                                  isLunch && 'bg-muted/30',
+                                  isDeadlineCol && !isLunch && 'bg-amber-50 dark:bg-amber-950/20'
                                 )}
                                 style={{ height: `${CELL_HEIGHT}px` }}
                               >
@@ -1456,10 +1489,7 @@ function buildDirectPlanFases(info: any): Array<any> | null {
       : toISODate(info.deadline);
 
     // Gebruik startDatum uit projectInfo (altijd ingevuld in het formulier), val terug op fase start_datum.
-    // Floor op vandaag zodat concepten die weken geleden gemaakt zijn niet in het verleden plannen.
-    const today = new Date().toISOString().split('T')[0];
-    const rawStart = toISODate(info.startDatum) || toISODate(f.start_datum) || toISODate(info.fases?.[0]?.start_datum) || today;
-    const startDatum = rawStart < today ? today : rawStart;
+    const startDatum = toISODate(info.startDatum) || toISODate(f.start_datum) || toISODate(info.fases?.[0]?.start_datum) || new Date().toISOString().split('T')[0];
 
     // Bepaal verdeling: spreidt uren verspreid over beschikbare dagen t/m deadline.
     // Regel: als er >= 2x zoveel beschikbare werkdagen zijn als benodigd, spreidt dan per week.
@@ -1527,6 +1557,15 @@ function parseDatumParts(datumStr: string): { year: number; month: number; day: 
   }
   // YYYY-MM-DD
   return { year: parseInt(parts[0], 10), month: parseInt(parts[1], 10) - 1, day: parseInt(parts[2], 10) };
+}
+
+/** Formatteer datum (dd-MM-yyyy of YYYY-MM-DD) naar Nederlandse notatie: "18 mrt 2026" */
+function toDutchDate(dateStr: string | undefined): string {
+  if (!dateStr) return '';
+  const p = parseDatumParts(dateStr);
+  if (!p) return dateStr;
+  const m = ['jan','feb','mrt','apr','mei','jun','jul','aug','sep','okt','nov','dec'];
+  return `${p.day} ${m[p.month]} ${p.year}`;
 }
 
 /**
