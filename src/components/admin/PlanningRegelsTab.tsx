@@ -151,11 +151,6 @@ export function PlanningRegelsTab() {
     )
     .sort((a, b) => (a.prioriteit ?? 999) - (b.prioriteit ?? 999));
 
-  const grouped = CATEGORIEEN.map((cat) => ({
-    cat,
-    items: filtered.filter((r) => r.categorie === cat),
-  })).filter((g) => g.items.length > 0 || !search);
-
   const openCreate = () => {
     setEditingItem(null);
     setForm(emptyForm);
