@@ -19,8 +19,15 @@ interface DatePickerProps {
 }
 
 export function DatePicker({ value, onChange, placeholder = "Selecteer datum", className }: DatePickerProps) {
+  const [open, setOpen] = React.useState(false);
+
+  const handleSelect = (date: Date | undefined) => {
+    onChange?.(date);
+    setOpen(false);
+  };
+
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -34,12 +41,16 @@ export function DatePicker({ value, onChange, placeholder = "Selecteer datum", c
           {value ? format(value, "dd/MM/yyyy", { locale: nl }) : placeholder}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="start">
+      <PopoverContent
+        className="w-auto p-0"
+        align="start"
+        // Voorkomt dat de pagina scrollt naar de popover bij openen
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
         <Calendar
           mode="single"
           selected={value}
-          onSelect={onChange}
-          initialFocus
+          onSelect={handleSelect}
           locale={nl}
         />
       </PopoverContent>

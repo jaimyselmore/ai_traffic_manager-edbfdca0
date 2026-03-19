@@ -25,8 +25,18 @@ export function DateRangePicker({
   placeholder = "Selecteer periode",
   className
 }: DateRangePickerProps) {
+  const [open, setOpen] = React.useState(false);
+
+  const handleSelect = (range: DateRange | undefined) => {
+    onChange?.(range);
+    // Sluit de popover alleen als beide datums geselecteerd zijn
+    if (range?.from && range?.to) {
+      setOpen(false);
+    }
+  };
+
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -51,13 +61,17 @@ export function DateRangePicker({
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="start">
+      <PopoverContent
+        className="w-auto p-0"
+        align="start"
+        // Voorkomt dat de pagina scrollt naar de popover bij openen
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
         <Calendar
           mode="range"
           selected={value}
-          onSelect={onChange}
+          onSelect={handleSelect}
           numberOfMonths={2}
-          initialFocus
           locale={nl}
         />
       </PopoverContent>
