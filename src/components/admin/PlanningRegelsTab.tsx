@@ -1,18 +1,10 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Pencil, Trash2, Search } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, ChevronDown, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import {
   Dialog,
   DialogContent,
@@ -39,6 +31,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import { cn } from '@/lib/utils';
 import {
   getEllenRegels,
   createEllenRegel,
@@ -66,6 +59,33 @@ const emptyForm = {
   rationale: '',
 };
 
+const categorieConfig = {
+  hard: {
+    label: 'Hard',
+    description: 'Verplichte regels — nooit overrulen',
+    badgeClass: 'bg-red-50 text-red-700 border border-red-200',
+    dotClass: 'bg-red-500',
+    headerClass: 'text-red-700',
+    order: 0,
+  },
+  soft: {
+    label: 'Soft',
+    description: 'Sterk aanbevolen — alleen negeren met reden',
+    badgeClass: 'bg-amber-50 text-amber-700 border border-amber-200',
+    dotClass: 'bg-amber-500',
+    headerClass: 'text-amber-700',
+    order: 1,
+  },
+  voorkeur: {
+    label: 'Voorkeur',
+    description: 'Optioneel — gebruik als het past',
+    badgeClass: 'bg-blue-50 text-blue-700 border border-blue-200',
+    dotClass: 'bg-blue-500',
+    headerClass: 'text-blue-700',
+    order: 2,
+  },
+} as const;
+
 export function PlanningRegelsTab() {
   const [search, setSearch] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -73,6 +93,7 @@ export function PlanningRegelsTab() {
   const [editingItem, setEditingItem] = useState<EllenRegel | null>(null);
   const [deleteItem, setDeleteItem] = useState<EllenRegel | null>(null);
   const [form, setForm] = useState(emptyForm);
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -122,19 +143,18 @@ export function PlanningRegelsTab() {
     onError: () => toast.error('Fout bij verwijderen'),
   });
 
-  // Sorteer op categorie (hard, soft, voorkeur) en dan op prioriteit
-  const categorieOrder = { hard: 0, soft: 1, voorkeur: 2 };
-  const filtered = regels
-    .filter((r: EllenRegel) =>
+  const filtered = (regels as EllenRegel[])
+    .filter((r) =>
       r.regel.toLowerCase().includes(search.toLowerCase()) ||
-      r.categorie.toLowerCase().includes(search.toLowerCase())
+      r.categorie.toLowerCase().includes(search.toLowerCase()) ||
+      (r.rationale ?? '').toLowerCase().includes(search.toLowerCase())
     )
-    .sort((a: EllenRegel, b: EllenRegel) => {
-      const catA = categorieOrder[a.categorie as keyof typeof categorieOrder] ?? 3;
-      const catB = categorieOrder[b.categorie as keyof typeof categorieOrder] ?? 3;
-      if (catA !== catB) return catA - catB;
-      return (a.prioriteit ?? 999) - (b.prioriteit ?? 999);
-    });
+    .sort((a, b) => (a.prioriteit ?? 999) - (b.prioriteit ?? 999));
+
+  const grouped = CATEGORIEEN.map((cat) => ({
+    cat,
+    items: filtered.filter((r) => r.categorie === cat),
+  })).filter((g) => g.items.length > 0 || !search);
 
   const openCreate = () => {
     setEditingItem(null);
@@ -162,14 +182,8 @@ export function PlanningRegelsTab() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.regel.trim()) {
-      toast.error('Regel is verplicht');
-      return;
-    }
-    if (!form.categorie) {
-      toast.error('Categorie is verplicht');
-      return;
-    }
+    if (!form.regel.trim()) { toast.error('Regel is verplicht'); return; }
+    if (!form.categorie) { toast.error('Categorie is verplicht'); return; }
     const formData: RegelDbData = {
       regel: form.regel,
       categorie: form.categorie,
@@ -177,7 +191,6 @@ export function PlanningRegelsTab() {
       actief: form.actief,
       rationale: form.rationale || undefined,
     };
-
     if (editingItem) {
       updateMutation.mutate({ id: editingItem.id, data: formData });
     } else {
@@ -190,6 +203,10 @@ export function PlanningRegelsTab() {
     setIsDeleteOpen(true);
   };
 
+  const toggleCollapse = (cat: string) => {
+    setCollapsed(prev => ({ ...prev, [cat]: !prev[cat] }));
+  };
+
   const getCategorieLabel = (cat: string) => {
     switch (cat) {
       case 'hard': return 'Hard (verplicht)';
@@ -199,154 +216,179 @@ export function PlanningRegelsTab() {
     }
   };
 
-  const getCategorieColor = (cat: string) => {
-    switch (cat) {
-      case 'hard': return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400';
-      case 'soft': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400';
-      case 'voorkeur': return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
+  const totalActive = (regels as EllenRegel[]).filter(r => r.actief).length;
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+    <div className="space-y-4 max-w-4xl">
+      {/* Toolbar */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="relative flex-1 max-w-xs">
+          <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Zoeken..."
+            placeholder="Zoeken in regels..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
+            className="pl-8 h-8 text-sm"
           />
         </div>
-        <Button onClick={openCreate}>
-          <Plus className="mr-2 h-4 w-4" />
-          Toevoegen
-        </Button>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-muted-foreground">{totalActive} actieve regels</span>
+          <Button size="sm" onClick={openCreate} className="h-8 text-xs gap-1.5">
+            <Plus className="h-3.5 w-3.5" />
+            Regel toevoegen
+          </Button>
+        </div>
       </div>
 
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-16">Prio</TableHead>
-              <TableHead className="w-32">Categorie</TableHead>
-              <TableHead>Regel</TableHead>
-              <TableHead className="w-20">Actief</TableHead>
-              <TableHead className="w-24"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              <TableRow>
-                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                  Laden...
-                </TableCell>
-              </TableRow>
-            ) : filtered.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                  Geen planningregels gevonden
-                </TableCell>
-              </TableRow>
-            ) : (
-              filtered.map((r: EllenRegel) => (
-                <TableRow key={r.id} className={!r.actief ? 'opacity-50' : ''}>
-                  <TableCell className="font-mono text-sm">{r.prioriteit ?? '-'}</TableCell>
-                  <TableCell>
-                    <span className={`px-2 py-1 text-xs rounded-full ${getCategorieColor(r.categorie)}`}>
-                      {r.categorie}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <div>
-                      <p className="font-medium">{r.regel}</p>
-                      {r.rationale && (
-                        <p className="text-xs text-muted-foreground mt-0.5">{r.rationale}</p>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <span className={r.actief ? 'text-green-600' : 'text-muted-foreground'}>
-                      {r.actief ? 'Ja' : 'Nee'}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => openEdit(r)}>
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => confirmDelete(r)}>
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      {/* Content */}
+      {isLoading ? (
+        <div className="py-12 text-center text-sm text-muted-foreground">Laden...</div>
+      ) : (
+        <div className="space-y-3">
+          {CATEGORIEEN.map((cat) => {
+            const config = categorieConfig[cat as keyof typeof categorieConfig];
+            const items = filtered.filter((r) => r.categorie === cat);
+            const isCollapsed = collapsed[cat];
 
+            return (
+              <div key={cat} className="rounded-lg border border-border overflow-hidden">
+                {/* Category header */}
+                <button
+                  onClick={() => toggleCollapse(cat)}
+                  className="flex items-center w-full px-4 py-2.5 bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer"
+                >
+                  <div className={cn('w-2 h-2 rounded-full mr-2.5 flex-shrink-0', config.dotClass)} />
+                  <span className={cn('text-xs font-semibold', config.headerClass)}>{config.label}</span>
+                  <span className="ml-2 text-xs text-muted-foreground">{config.description}</span>
+                  <span className="ml-auto mr-2 text-xs font-medium text-muted-foreground">{items.length}</span>
+                  {isCollapsed
+                    ? <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                    : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                  }
+                </button>
+
+                {/* Rows */}
+                {!isCollapsed && (
+                  <div className="divide-y divide-border">
+                    {items.length === 0 ? (
+                      <div className="px-4 py-3 text-xs text-muted-foreground italic">
+                        Geen regels in deze categorie
+                      </div>
+                    ) : (
+                      items.map((r) => (
+                        <div
+                          key={r.id}
+                          className={cn(
+                            'flex items-start gap-3 px-4 py-2.5 group hover:bg-muted/20 transition-colors',
+                            !r.actief && 'opacity-40'
+                          )}
+                        >
+                          {/* Prio */}
+                          <span className="w-5 flex-shrink-0 text-xs font-mono text-muted-foreground mt-0.5 text-right">
+                            {r.prioriteit ?? '—'}
+                          </span>
+
+                          {/* Regel tekst */}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-foreground leading-snug">{r.regel}</p>
+                            {r.rationale && (
+                              <p className="text-xs text-muted-foreground mt-0.5 leading-snug">{r.rationale}</p>
+                            )}
+                          </div>
+
+                          {/* Status */}
+                          {!r.actief && (
+                            <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded flex-shrink-0 mt-0.5">
+                              inactief
+                            </span>
+                          )}
+
+                          {/* Actions */}
+                          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                            <button
+                              onClick={() => openEdit(r)}
+                              className="flex items-center justify-center h-6 w-6 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </button>
+                            <button
+                              onClick={() => confirmDelete(r)}
+                              className="flex items-center justify-center h-6 w-6 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Edit/Create dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>
+            <DialogTitle className="text-base">
               {editingItem ? 'Planningregel bewerken' : 'Nieuwe planningregel'}
             </DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label>Regel *</Label>
+          <form onSubmit={handleSubmit} className="space-y-4 pt-1">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Regel *</Label>
               <Textarea
                 value={form.regel}
                 onChange={(e) => setForm({ ...form, regel: e.target.value })}
                 placeholder="Beschrijf de planningregel..."
                 rows={3}
+                className="text-sm resize-none"
                 required
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Categorie *</Label>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">Categorie *</Label>
                 <Select
                   value={form.categorie}
                   onValueChange={(value) => setForm({ ...form, categorie: value })}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="h-8 text-sm">
                     <SelectValue placeholder="Selecteer categorie" />
                   </SelectTrigger>
                   <SelectContent>
                     {CATEGORIEEN.map((cat) => (
-                      <SelectItem key={cat} value={cat}>
+                      <SelectItem key={cat} value={cat} className="text-sm">
                         {getCategorieLabel(cat)}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label>Prioriteit</Label>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">Prioriteit</Label>
                 <Input
                   type="number"
                   min="1"
                   value={form.prioriteit}
                   onChange={(e) => setForm({ ...form, prioriteit: e.target.value })}
-                  placeholder="bijv. 1, 2, 3..."
+                  placeholder="1, 2, 3..."
+                  className="h-8 text-sm"
                 />
-                <p className="text-xs text-muted-foreground">
-                  Lager = belangrijker
-                </p>
+                <p className="text-[11px] text-muted-foreground">Lager = eerder toegepast</p>
               </div>
             </div>
-            <div className="space-y-2">
-              <Label>Rationale / Toelichting</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Toelichting</Label>
               <Textarea
                 value={form.rationale}
                 onChange={(e) => setForm({ ...form, rationale: e.target.value })}
                 rows={2}
                 placeholder="Waarom deze regel? (optioneel)"
+                className="text-sm resize-none"
               />
             </div>
             <div className="flex items-center gap-2">
@@ -355,15 +397,15 @@ export function PlanningRegelsTab() {
                 checked={form.actief}
                 onCheckedChange={(checked) => setForm({ ...form, actief: checked as boolean })}
               />
-              <Label htmlFor="actief" className="cursor-pointer">
+              <Label htmlFor="actief" className="text-xs cursor-pointer">
                 Regel is actief
               </Label>
             </div>
-            <div className="flex justify-end gap-2 pt-4">
-              <Button type="button" variant="outline" onClick={closeDialog}>
+            <div className="flex justify-end gap-2 pt-2 border-t border-border">
+              <Button type="button" variant="outline" size="sm" onClick={closeDialog}>
                 Annuleren
               </Button>
-              <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
+              <Button type="submit" size="sm" disabled={createMutation.isPending || updateMutation.isPending}>
                 {editingItem ? 'Opslaan' : 'Toevoegen'}
               </Button>
             </div>
@@ -371,13 +413,13 @@ export function PlanningRegelsTab() {
         </DialogContent>
       </Dialog>
 
+      {/* Delete dialog */}
       <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Planningregel verwijderen?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Weet je zeker dat je deze regel wilt verwijderen?
-              Dit kan niet ongedaan worden gemaakt.
+            <AlertDialogDescription className="text-sm">
+              Weet je zeker dat je deze regel wilt verwijderen? Dit kan niet ongedaan worden gemaakt.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
