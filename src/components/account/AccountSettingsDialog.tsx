@@ -8,7 +8,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, User, Lock, CheckCircle, AlertCircle, X, ChevronRight } from 'lucide-react';
+import { Loader2, User, Lock, CheckCircle, AlertCircle, ChevronRight } from 'lucide-react';
 import { z } from 'zod';
 import { cn } from '@/lib/utils';
 
@@ -164,17 +164,9 @@ export function AccountSettingsDialog({ open, onOpenChange }: AccountSettingsDia
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="p-0 gap-0 sm:max-w-[520px] overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-          <div>
-            <h2 className="text-base font-semibold text-foreground">Profiel & Beveiliging</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">Beheer je accountgegevens</p>
-          </div>
-          <button
-            onClick={() => handleOpenChange(false)}
-            className="flex items-center justify-center h-7 w-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
-          >
-            <X className="h-4 w-4" />
-          </button>
+        <div className="px-6 py-4 border-b border-border">
+          <h2 className="text-base font-semibold text-foreground">Profiel & Beveiliging</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">Beheer je accountgegevens</p>
         </div>
 
         <div className="flex min-h-[340px]">
