@@ -4,17 +4,13 @@ import { supabase } from '@/integrations/supabase/client';
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
 } from '@/components/ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, User, Lock, CheckCircle } from 'lucide-react';
+import { Loader2, User, Lock, CheckCircle, AlertCircle, X, ChevronRight } from 'lucide-react';
 import { z } from 'zod';
+import { cn } from '@/lib/utils';
 
 interface AccountSettingsDialogProps {
   open: boolean;
@@ -42,9 +38,16 @@ const passwordSchema = z.object({
   path: ['confirmPassword'],
 });
 
+type Section = 'username' | 'password';
+
+const navItems: { id: Section; label: string; icon: typeof User; description: string }[] = [
+  { id: 'username', label: 'Gebruikersnaam', icon: User, description: 'Wijzig je inlognaam' },
+  { id: 'password', label: 'Wachtwoord', icon: Lock, description: 'Verander je wachtwoord' },
+];
+
 export function AccountSettingsDialog({ open, onOpenChange }: AccountSettingsDialogProps) {
   const { user, sessionToken, signOut } = useAuth();
-  const [activeTab, setActiveTab] = useState('username');
+  const [activeSection, setActiveSection] = useState<Section>('username');
 
   // Username state
   const [newUsername, setNewUsername] = useState('');
@@ -65,7 +68,6 @@ export function AccountSettingsDialog({ open, onOpenChange }: AccountSettingsDia
     setUsernameError(null);
     setUsernameSuccess(false);
 
-    // Validate
     const result = usernameSchema.safeParse({ newUsername });
     if (!result.success) {
       setUsernameError(result.error.errors[0].message);
@@ -90,7 +92,6 @@ export function AccountSettingsDialog({ open, onOpenChange }: AccountSettingsDia
       } else {
         setUsernameSuccess(true);
         setNewUsername('');
-        // User needs to re-login with new username
         setTimeout(async () => {
           await signOut();
           window.location.href = '/login';
@@ -108,7 +109,6 @@ export function AccountSettingsDialog({ open, onOpenChange }: AccountSettingsDia
     setPasswordError(null);
     setPasswordSuccess(false);
 
-    // Validate
     const result = passwordSchema.safeParse({ currentPassword, newPassword, confirmPassword });
     if (!result.success) {
       setPasswordError(result.error.errors[0].message);
@@ -146,7 +146,6 @@ export function AccountSettingsDialog({ open, onOpenChange }: AccountSettingsDia
 
   const handleOpenChange = (open: boolean) => {
     if (!open) {
-      // Reset state when closing
       setNewUsername('');
       setUsernameError(null);
       setUsernameSuccess(false);
@@ -159,149 +158,199 @@ export function AccountSettingsDialog({ open, onOpenChange }: AccountSettingsDia
     onOpenChange(open);
   };
 
+  const initials = user?.naam ? user.naam.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'U';
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Account Instellingen</DialogTitle>
-          <DialogDescription>
-            Wijzig je gebruikersnaam of wachtwoord
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent className="p-0 gap-0 sm:max-w-[520px] overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+          <div>
+            <h2 className="text-base font-semibold text-foreground">Profiel & Beveiliging</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">Beheer je accountgegevens</p>
+          </div>
+          <button
+            onClick={() => handleOpenChange(false)}
+            className="flex items-center justify-center h-7 w-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
 
-        <div className="py-2">
-          <div className="flex items-center gap-3 p-3 bg-muted rounded-lg mb-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-sm font-medium text-primary-foreground">
-              {user?.naam ? user.naam.split(' ').map(n => n[0]).join('') : 'U'}
+        <div className="flex min-h-[340px]">
+          {/* Sidebar nav */}
+          <div className="w-[168px] flex-shrink-0 border-r border-border bg-muted/30 p-2 flex flex-col gap-1">
+            {/* User info */}
+            <div className="flex items-center gap-2.5 px-2 py-2.5 mb-1">
+              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+                {initials}
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-foreground truncate leading-tight">{user?.naam}</p>
+                <p className="text-[10px] text-muted-foreground truncate leading-tight">{user?.email}</p>
+              </div>
             </div>
-            <div>
-              <p className="font-medium">{user?.naam}</p>
-              <p className="text-sm text-muted-foreground">{user?.email}</p>
-            </div>
+
+            <div className="h-px bg-border mx-2 mb-1" />
+
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = activeSection === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveSection(item.id)}
+                  className={cn(
+                    'flex items-center gap-2.5 w-full rounded-md px-2.5 py-2 text-left transition-colors cursor-pointer group',
+                    isActive
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+                  )}
+                >
+                  <Icon className={cn('h-3.5 w-3.5 flex-shrink-0', isActive ? 'text-primary' : '')} />
+                  <span className="text-xs font-medium">{item.label}</span>
+                  {isActive && <ChevronRight className="h-3 w-3 ml-auto text-muted-foreground" />}
+                </button>
+              );
+            })}
           </div>
 
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="username" className="flex items-center gap-2">
-                <User className="h-4 w-4" />
-                Gebruikersnaam
-              </TabsTrigger>
-              <TabsTrigger value="password" className="flex items-center gap-2">
-                <Lock className="h-4 w-4" />
-                Wachtwoord
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="username" className="mt-4">
-              <form onSubmit={handleUsernameSubmit} className="space-y-4">
-                {usernameError && (
-                  <Alert variant="destructive">
-                    <AlertDescription>{usernameError}</AlertDescription>
-                  </Alert>
-                )}
-                {usernameSuccess && (
-                  <Alert className="border-green-500 bg-green-50 text-green-800">
-                    <CheckCircle className="h-4 w-4" />
-                    <AlertDescription>
-                      Gebruikersnaam gewijzigd! Je wordt uitgelogd om opnieuw in te loggen.
-                    </AlertDescription>
-                  </Alert>
-                )}
-
-                <div className="space-y-2">
-                  <Label htmlFor="newUsername">Nieuwe gebruikersnaam</Label>
-                  <Input
-                    id="newUsername"
-                    type="text"
-                    value={newUsername}
-                    onChange={(e) => setNewUsername(e.target.value)}
-                    disabled={usernameLoading || usernameSuccess}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Alleen letters en cijfers, minimaal 3 tekens
+          {/* Content panel */}
+          <div className="flex-1 p-5">
+            {activeSection === 'username' && (
+              <form onSubmit={handleUsernameSubmit} className="space-y-4 h-full flex flex-col">
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground">Gebruikersnaam wijzigen</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Na het wijzigen word je automatisch uitgelogd.
                   </p>
                 </div>
 
-                <Button type="submit" className="w-full" disabled={usernameLoading || usernameSuccess || !newUsername}>
-                  {usernameLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Opslaan...
-                    </>
-                  ) : (
-                    'Gebruikersnaam wijzigen'
-                  )}
-                </Button>
-              </form>
-            </TabsContent>
+                {usernameError && (
+                  <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2.5">
+                    <AlertCircle className="h-3.5 w-3.5 text-destructive mt-0.5 flex-shrink-0" />
+                    <p className="text-xs text-destructive">{usernameError}</p>
+                  </div>
+                )}
+                {usernameSuccess && (
+                  <div className="flex items-start gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2.5">
+                    <CheckCircle className="h-3.5 w-3.5 text-emerald-600 mt-0.5 flex-shrink-0" />
+                    <p className="text-xs text-emerald-700">Gebruikersnaam gewijzigd. Je wordt uitgelogd...</p>
+                  </div>
+                )}
 
-            <TabsContent value="password" className="mt-4">
-              <form onSubmit={handlePasswordSubmit} className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="newUsername" className="text-xs font-medium">Nieuwe gebruikersnaam</Label>
+                  <Input
+                    id="newUsername"
+                    type="text"
+                    placeholder="bijv. jansen"
+                    value={newUsername}
+                    onChange={(e) => setNewUsername(e.target.value)}
+                    disabled={usernameLoading || usernameSuccess}
+                    className="h-8 text-sm"
+                  />
+                  <p className="text-[11px] text-muted-foreground">Alleen letters en cijfers, minimaal 3 tekens</p>
+                </div>
+
+                <div className="mt-auto pt-2">
+                  <Button
+                    type="submit"
+                    size="sm"
+                    className="w-full h-8 text-xs font-medium"
+                    disabled={usernameLoading || usernameSuccess || !newUsername}
+                  >
+                    {usernameLoading ? (
+                      <>
+                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                        Opslaan...
+                      </>
+                    ) : (
+                      'Gebruikersnaam opslaan'
+                    )}
+                  </Button>
+                </div>
+              </form>
+            )}
+
+            {activeSection === 'password' && (
+              <form onSubmit={handlePasswordSubmit} className="space-y-3.5 h-full flex flex-col">
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground">Wachtwoord wijzigen</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Gebruik een sterk wachtwoord van minimaal 8 tekens.
+                  </p>
+                </div>
+
                 {passwordError && (
-                  <Alert variant="destructive">
-                    <AlertDescription>{passwordError}</AlertDescription>
-                  </Alert>
+                  <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2.5">
+                    <AlertCircle className="h-3.5 w-3.5 text-destructive mt-0.5 flex-shrink-0" />
+                    <p className="text-xs text-destructive">{passwordError}</p>
+                  </div>
                 )}
                 {passwordSuccess && (
-                  <Alert className="border-green-500 bg-green-50 text-green-800">
-                    <CheckCircle className="h-4 w-4" />
-                    <AlertDescription>Wachtwoord succesvol gewijzigd!</AlertDescription>
-                  </Alert>
+                  <div className="flex items-start gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2.5">
+                    <CheckCircle className="h-3.5 w-3.5 text-emerald-600 mt-0.5 flex-shrink-0" />
+                    <p className="text-xs text-emerald-700">Wachtwoord succesvol gewijzigd!</p>
+                  </div>
                 )}
 
-                <div className="space-y-2">
-                  <Label htmlFor="currentPassword">Huidig wachtwoord</Label>
+                <div className="space-y-1.5">
+                  <Label htmlFor="currentPassword" className="text-xs font-medium">Huidig wachtwoord</Label>
                   <Input
                     id="currentPassword"
                     type="password"
                     value={currentPassword}
                     onChange={(e) => setCurrentPassword(e.target.value)}
                     disabled={passwordLoading}
+                    className="h-8 text-sm"
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="newPassword">Nieuw wachtwoord</Label>
+                <div className="space-y-1.5">
+                  <Label htmlFor="newPassword" className="text-xs font-medium">Nieuw wachtwoord</Label>
                   <Input
                     id="newPassword"
                     type="password"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     disabled={passwordLoading}
+                    className="h-8 text-sm"
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Minimaal 8 tekens
-                  </p>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="confirmPassword">Bevestig nieuw wachtwoord</Label>
+                <div className="space-y-1.5">
+                  <Label htmlFor="confirmPassword" className="text-xs font-medium">Bevestig nieuw wachtwoord</Label>
                   <Input
                     id="confirmPassword"
                     type="password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     disabled={passwordLoading}
+                    className="h-8 text-sm"
                   />
                 </div>
 
-                <Button 
-                  type="submit" 
-                  className="w-full" 
-                  disabled={passwordLoading || !currentPassword || !newPassword || !confirmPassword}
-                >
-                  {passwordLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Opslaan...
-                    </>
-                  ) : (
-                    'Wachtwoord wijzigen'
-                  )}
-                </Button>
+                <div className="mt-auto pt-1">
+                  <Button
+                    type="submit"
+                    size="sm"
+                    className="w-full h-8 text-xs font-medium"
+                    disabled={passwordLoading || !currentPassword || !newPassword || !confirmPassword}
+                  >
+                    {passwordLoading ? (
+                      <>
+                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                        Opslaan...
+                      </>
+                    ) : (
+                      'Wachtwoord opslaan'
+                    )}
+                  </Button>
+                </div>
               </form>
-            </TabsContent>
-          </Tabs>
+            )}
+          </div>
         </div>
       </DialogContent>
     </Dialog>

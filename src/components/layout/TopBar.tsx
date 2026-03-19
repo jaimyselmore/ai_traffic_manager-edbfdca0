@@ -78,7 +78,7 @@ export function TopBar() {
                 <User className="mr-2 h-4 w-4" />
                 Mijn profiel
               </DropdownMenuItem>
-              {user?.rol === 'admin' && (
+              {user?.rol?.toLowerCase() === 'admin' && (
                 <DropdownMenuItem onClick={() => navigate('/admin')}>
                   <Settings className="mr-2 h-4 w-4" />
                   Instellingen
