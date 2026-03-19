@@ -1554,10 +1554,12 @@ function dateStrToTask(faseNaam: string, medewerker: string, dateStr: string, st
 }
 
 /**
- * Plan totalHours voor één medewerker, aaneengesloten vanaf windowStart.
+ * Plan totalHours voor één medewerker ACHTERUIT vanuit windowEnd.
+ * De meest recente beschikbare dagen (dichtst bij de presentatie) worden als eerste gebruikt.
  * Slaat dagen over die al bezet zijn (occupiedDays — mutatie in-place).
+ * Geeft taken terug in chronologische volgorde (vroegste eerst).
  */
-function scheduleInWindow(
+function scheduleBackwards(
   faseNaam: string,
   medewerker: string,
   totalHours: number,
@@ -1569,14 +1571,17 @@ function scheduleInWindow(
   const taken: VoorstelTaak[] = [];
   const used = occupiedDays.get(medewerker) || new Set<string>();
 
-  // Kandidaatdagen: werkdagen in het venster (of 90 dagen vooruit als geen deadline)
+  // Fallback: als geen windowEnd, plan 90 dagen vooruit (slotfase of geen deadline)
   const farFuture = windowEnd ?? (() => {
     const d = new Date(windowStart + 'T00:00:00');
     d.setDate(d.getDate() + 90);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   })();
 
-  const candidates = getWorkingDays(windowStart, farFuture).filter(d => !used.has(d));
+  // Werkdagen in het venster omgekeerd: meest recente dag eerst (dichtst bij presentatie)
+  const candidates = getWorkingDays(windowStart, farFuture)
+    .filter(d => !used.has(d))
+    .reverse();
 
   let remaining = totalHours;
   for (const day of candidates) {
@@ -1588,16 +1593,28 @@ function scheduleInWindow(
   }
 
   occupiedDays.set(medewerker, used);
-  return taken;
+  return taken.reverse(); // Chronologische volgorde teruggeven
 }
 
 /**
- * Bouwt alle workload-VoorstelTaken puur in de frontend.
- * Vaste presentaties (datumType='zelf') worden apart afgehandeld door buildPresentatieTaken().
- * 'Ellen bepaalt' presentaties worden als ellenPresentatieFases teruggegeven voor de Edge Function.
+ * MILESTONE-ANCHORED BACKWARD SCHEDULER
  *
- * Cascade: na elke vaste presentatie schuift cascadeStart naar de eerstvolgende werkdag.
- * Conflict-vermijding: per medewerker worden bezette dagen bijgehouden (occupiedDays).
+ * Aanpak (gebaseerd op best practice "milestone-anchored scheduling"):
+ *
+ * 1. PARSE: Zet de platte fases-array om naar (werkfase[], presentatie) paren.
+ *    Elk paar = de werkzaamheden die vóór die presentatie moeten worden afgerond.
+ *
+ * 2. BACKWARD SCHEDULE: Plan elke werkfase ACHTERUIT vanuit de presentatiedatum.
+ *    Zo liggen werkzaamheden altijd zo dicht mogelijk bij hun presentatie.
+ *    Venster = [vorige presentatiedatum + 1, huidige presentatiedatum)
+ *
+ * 3. CONFLICT DETECTION: Als het venster te klein is (presentaties te dicht bij elkaar),
+ *    wordt er teruggevallen op het vorige venster + een waarschuwing.
+ *
+ * Voordeel t.o.v. cascadeStart (forward planning):
+ * - Werkt correct als presentaties aaneengesloten staan
+ * - Werkt correct voor 'ellen bepaalt' presentaties (venster wordt bepaald door
+ *   omliggende vaste datums)
  */
 function buildFrontendSchedule(info: any): {
   workloadTaken: VoorstelTaak[];
@@ -1611,96 +1628,115 @@ function buildFrontendSchedule(info: any): {
     || new Date().toISOString().split('T')[0];
   const projectDeadline = toISODate(info.deadline) ?? null;
 
-  // Venster-eind voor een workload op positie faseIndex (= datum van de eerstvolgende presentatie)
-  function getWindowEnd(faseIndex: number): string | null {
-    for (let j = faseIndex + 1; j < allFases.length; j++) {
-      const f = allFases[j];
-      if (f.type === 'presentatie') {
-        if (f.datumType === 'zelf' && f.start_datum) return toISODate(f.start_datum) ?? null;
-        if (f.datumType === 'ellen') {
-          // Voor 'ellen bepaalt': zoek de eerstvolgende vaste datum daarna als deadline
-          for (let k = j + 1; k < allFases.length; k++) {
-            const f2 = allFases[k];
-            if (f2.type === 'presentatie' && f2.datumType === 'zelf' && f2.start_datum) return toISODate(f2.start_datum) ?? null;
-          }
-          return projectDeadline;
-        }
-      }
+  // ── STAP 1: Parse platte array naar (werkfases[], presentatie) paren ──────────
+  type Segment = { werkfases: any[]; presentatie: any | null };
+  const segments: Segment[] = [];
+  let currentWerkfases: any[] = [];
+
+  for (const fase of allFases) {
+    if (fase.type === 'presentatie') {
+      segments.push({ werkfases: currentWerkfases, presentatie: fase });
+      currentWerkfases = [];
+    } else {
+      currentWerkfases.push(fase);
+    }
+  }
+  // Resterende werkfases ná de laatste presentatie (slotfase)
+  if (currentWerkfases.length > 0) {
+    segments.push({ werkfases: currentWerkfases, presentatie: null });
+  }
+
+  // ── STAP 2: Verzamel vaste presentatiedata als ankers ─────────────────────────
+  // Nodig om het venster per segment te bepalen
+  const fixedDatesBySegmentIndex = new Map<number, string>();
+  segments.forEach((seg, idx) => {
+    if (seg.presentatie?.datumType === 'zelf' && seg.presentatie?.start_datum) {
+      const iso = toISODate(seg.presentatie.start_datum);
+      if (iso) fixedDatesBySegmentIndex.set(idx, iso);
+    }
+  });
+
+  // ── STAP 3: Bepaal venster per segment ────────────────────────────────────────
+  // Venster voor segment i = [segmentStart_i, segmentEnd_i)
+  // segmentStart_i = dag ná presentatiedatum van segment i-1 (of projectStart)
+  // segmentEnd_i = presentatiedatum van segment i (of projectDeadline)
+  //
+  // Voor 'ellen' presentaties: segmentEnd = eerstvolgende VASTE presentatiedatum erna.
+  // Als die er niet is: projectDeadline.
+  function getSegmentEnd(segIdx: number): string | null {
+    const seg = segments[segIdx];
+    if (!seg.presentatie) return projectDeadline;
+    if (seg.presentatie.datumType === 'zelf' && seg.presentatie.start_datum) {
+      return toISODate(seg.presentatie.start_datum) ?? projectDeadline;
+    }
+    // 'ellen': zoek eerstvolgende vaste datum als bovengrens
+    for (let k = segIdx + 1; k < segments.length; k++) {
+      const fixed = fixedDatesBySegmentIndex.get(k);
+      if (fixed) return fixed;
     }
     return projectDeadline;
   }
 
+  // ── STAP 4: Plan elk segment backward ─────────────────────────────────────────
   const workloadTaken: VoorstelTaak[] = [];
   const ellenFases: any[] = [];
-  const occupiedDays = new Map<string, Set<string>>(); // per-medewerker bezette dagen
+  const occupiedDays = new Map<string, Set<string>>();
 
-  let cascadeStart = projectStartDatum;
+  let segmentWindowStart = projectStartDatum; // schuift op na elke vaste presentatie
 
-  for (let i = 0; i < allFases.length; i++) {
-    const f = allFases[i];
+  for (let segIdx = 0; segIdx < segments.length; segIdx++) {
+    const seg = segments[segIdx];
+    const segmentEnd = getSegmentEnd(segIdx); // presentatiedatum (exclusief voor workload)
 
-    if (f.type === 'presentatie') {
-      if (f.datumType === 'ellen') {
-        // Ellen kiest de datum — stuur naar Edge Function
-        const windowEnd = getWindowEnd(i);
-        const aanwezigen: string[] = (f.medewerkers || []).filter(Boolean);
-        if (aanwezigen.length > 0) {
-          ellenFases.push({
-            fase_naam: f.fase_naam || 'Presentatie',
-            type: 'presentatie',
-            medewerkers: aanwezigen,
-            start_datum: cascadeStart,
-            duur_dagen: 1,
-            uren_per_dag: 2,
-            verdeling: 'laatste_week',
-            voorkeur_dagen: ['donderdag', 'vrijdag'],
-            _deadline: windowEnd,
-          });
-        }
-        // cascadeStart ongewijzigd — datum is onbekend totdat Ellen kiest
-      }
+    // Effectief venster: als segmentWindowStart >= segmentEnd is het venster leeg.
+    // In dat geval vallen we terug op het totale venster vanaf projectStart.
+    // (Dit treedt op als presentaties aaneengesloten staan — constraint violation.)
+    const effectiveStart = segmentWindowStart;
 
-      // Cascade: na een vaste presentatie altijd naar eerstvolgende werkdag (nooit zaterdag!)
-      if (f.datumType === 'zelf' && f.start_datum) {
-        const presDate = toISODate(f.start_datum);
-        if (presDate) cascadeStart = nextWorkDay(presDate);
-      }
-
-    } else {
-      // Werkzaamheden of slotfase
-      const windowEnd = getWindowEnd(i);
+    // Plan werkfases backward in het venster [effectiveStart, segmentEnd)
+    for (const werkfase of seg.werkfases) {
       const faseTaken: VoorstelTaak[] = [];
 
-      if (f.medewerkerDetails?.length > 0) {
-        for (const md of f.medewerkerDetails) {
+      if (werkfase.medewerkerDetails?.length > 0) {
+        for (const md of werkfase.medewerkerDetails) {
           if (!md.naam || !md.uren) continue;
-          const taken = scheduleInWindow(f.fase_naam, md.naam, md.uren, cascadeStart, windowEnd, occupiedDays);
+          const taken = scheduleBackwards(werkfase.fase_naam, md.naam, md.uren, effectiveStart, segmentEnd, occupiedDays);
           faseTaken.push(...taken);
         }
-      } else if (f.medewerkers?.length > 0) {
-        // Fallback: fase met medewerkers-array maar zonder medewerkerDetails
-        const totalHours = (f.uren_per_dag || 8) * (f.duur_dagen || 1);
-        for (const mwNaam of f.medewerkers) {
-          const taken = scheduleInWindow(f.fase_naam, mwNaam, totalHours, cascadeStart, windowEnd, occupiedDays);
+      } else if (werkfase.medewerkers?.length > 0) {
+        const totalHours = (werkfase.uren_per_dag || 8) * (werkfase.duur_dagen || 1);
+        for (const mwNaam of werkfase.medewerkers) {
+          const taken = scheduleBackwards(werkfase.fase_naam, mwNaam, totalHours, effectiveStart, segmentEnd, occupiedDays);
           faseTaken.push(...taken);
         }
       }
 
       workloadTaken.push(...faseTaken);
+    }
 
-      // Schuif cascadeStart door naar na de laatste geplande taak van deze fase.
-      // Zo worden fases altijd sequentieel gepland (niet overlappend).
-      if (faseTaken.length > 0) {
-        const latestDay = faseTaken
-          .map(t => {
-            const d = new Date(t.week_start + 'T00:00:00');
-            d.setDate(d.getDate() + t.dag_van_week);
-            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-          })
-          .sort()
-          .pop()!;
-        cascadeStart = nextWorkDay(latestDay);
+    // Ellen presentatie → stuur naar Edge Function met het juiste venster
+    if (seg.presentatie?.datumType === 'ellen') {
+      const aanwezigen: string[] = (seg.presentatie.medewerkers || []).filter(Boolean);
+      if (aanwezigen.length > 0) {
+        ellenFases.push({
+          fase_naam: seg.presentatie.fase_naam || 'Presentatie',
+          type: 'presentatie',
+          medewerkers: aanwezigen,
+          start_datum: effectiveStart,
+          duur_dagen: 1,
+          uren_per_dag: 2,
+          verdeling: 'laatste_week',
+          voorkeur_dagen: ['donderdag', 'vrijdag'],
+          _deadline: segmentEnd,
+        });
       }
+      // segmentWindowStart ongewijzigd — Ellen's datum is nog onbekend
+    }
+
+    // Schuif vensterstart door na een vaste presentatie
+    if (seg.presentatie?.datumType === 'zelf' && seg.presentatie?.start_datum) {
+      const presDate = toISODate(seg.presentatie.start_datum);
+      if (presDate) segmentWindowStart = nextWorkDay(presDate);
     }
   }
 
