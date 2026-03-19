@@ -1669,20 +1669,37 @@ function buildFrontendSchedule(info: any): {
     } else {
       // Werkzaamheden of slotfase
       const windowEnd = getWindowEnd(i);
+      const faseTaken: VoorstelTaak[] = [];
 
       if (f.medewerkerDetails?.length > 0) {
         for (const md of f.medewerkerDetails) {
           if (!md.naam || !md.uren) continue;
           const taken = scheduleInWindow(f.fase_naam, md.naam, md.uren, cascadeStart, windowEnd, occupiedDays);
-          workloadTaken.push(...taken);
+          faseTaken.push(...taken);
         }
       } else if (f.medewerkers?.length > 0) {
         // Fallback: fase met medewerkers-array maar zonder medewerkerDetails
         const totalHours = (f.uren_per_dag || 8) * (f.duur_dagen || 1);
         for (const mwNaam of f.medewerkers) {
           const taken = scheduleInWindow(f.fase_naam, mwNaam, totalHours, cascadeStart, windowEnd, occupiedDays);
-          workloadTaken.push(...taken);
+          faseTaken.push(...taken);
         }
+      }
+
+      workloadTaken.push(...faseTaken);
+
+      // Schuif cascadeStart door naar na de laatste geplande taak van deze fase.
+      // Zo worden fases altijd sequentieel gepland (niet overlappend).
+      if (faseTaken.length > 0) {
+        const latestDay = faseTaken
+          .map(t => {
+            const d = new Date(t.week_start + 'T00:00:00');
+            d.setDate(d.getDate() + t.dag_van_week);
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+          })
+          .sort()
+          .pop()!;
+        cascadeStart = nextWorkDay(latestDay);
       }
     }
   }
@@ -2176,8 +2193,8 @@ function generateDefaultVoorstel(info: any): VoorstelTaak[] {
 
   // Plan overgebleven fases die niet aan een presentatie gekoppeld zijn
   const gekoppeldeWerk = presentatieGroepen.map(g => g.werkzaamheden).filter(Boolean);
-  const losseWerkzaamheden = werkzaamheden.filter(w => !gekoppeldeWerk.includes(w));
-  const lossePresentaties = presentaties.filter(p => p.datumType !== 'zelf' || !p.start_datum);
+  const losseWerkzaamheden = werkzaamheden.filter((w: any) => !gekoppeldeWerk.includes(w));
+  const lossePresentaties = presentaties.filter((p: any) => p.datumType !== 'zelf' || !p.start_datum);
 
   for (const fase of [...losseWerkzaamheden, ...lossePresentaties]) {
     const medewerkers: string[] = fase.medewerkers || [];
