@@ -505,30 +505,36 @@ export function AlgemeenFases({ data, onChange }: AlgemeenFasesProps) {
                     <div>
                       <p className="text-[11px] text-muted-foreground mb-1.5">Wie werkt aan de feedback?</p>
                       <div className="flex flex-wrap gap-1.5">
-                        {employees
-                          .filter(e => presentatie.teamIds.includes(e.id))
-                          .map(emp => {
-                            const isSelected = fm.medewerkerIds.includes(emp.id);
-                            return (
+                        {fm.medewerkerIds.map(empId => {
+                          const emp = employees.find(e => e.id === empId);
+                          if (!emp) return null;
+                          return (
+                            <div
+                              key={empId}
+                              className="flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-primary/10 text-primary border border-primary/20"
+                            >
+                              <span>{emp.name}</span>
                               <button
-                                key={emp.id}
                                 type="button"
                                 onClick={() => {
-                                  const newIds = isSelected
-                                    ? fm.medewerkerIds.filter(id => id !== emp.id)
-                                    : [...fm.medewerkerIds, emp.id];
+                                  const newIds = fm.medewerkerIds.filter(id => id !== empId);
                                   updateFeedbackMoment(presentatie.id, fm.id, 'medewerkerIds', newIds);
                                 }}
-                                className={`px-2 py-0.5 text-xs rounded-full border transition-colors ${
-                                  isSelected
-                                    ? 'bg-primary/10 text-primary border-primary/30'
-                                    : 'bg-secondary/50 text-muted-foreground border-border hover:bg-secondary'
-                                }`}
+                                className="ml-0.5 hover:bg-primary/20 rounded-full p-0.5 transition-colors"
                               >
-                                {emp.name}
+                                <X className="h-2.5 w-2.5" />
                               </button>
-                            );
-                          })}
+                            </div>
+                          );
+                        })}
+                        <MemberAddDropdown
+                          currentIds={fm.medewerkerIds}
+                          employees={employees}
+                          onAdd={(empId) => {
+                            const newIds = [...fm.medewerkerIds, empId];
+                            updateFeedbackMoment(presentatie.id, fm.id, 'medewerkerIds', newIds);
+                          }}
+                        />
                       </div>
                     </div>
                   </div>
