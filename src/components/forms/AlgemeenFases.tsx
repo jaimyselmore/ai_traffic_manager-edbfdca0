@@ -456,7 +456,7 @@ export function AlgemeenFases({ data, onChange }: AlgemeenFasesProps) {
             <div className="flex items-center justify-between mb-3">
               <div>
                 <Label className="text-sm font-medium">Feedbackmomenten na presentatie</Label>
-                <p className="text-[11px] text-muted-foreground mt-0.5">Verwerkingstijd na de presentatie — kan meerdere dagen zijn</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">Verwerkingstijd na de presentatie</p>
               </div>
               <button
                 type="button"
