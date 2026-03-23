@@ -31,6 +31,13 @@ export interface Workload {
   medewerkers: WorkloadMedewerker[];
 }
 
+export interface FeedbackMoment {
+  id: string;
+  naam: string;
+  aantalDagen: number;
+  medewerkerIds: string[];
+}
+
 export interface PresentatieMoment {
   id: string;
   naam: string;
@@ -40,6 +47,7 @@ export interface PresentatieMoment {
   locatie: 'selmore' | 'klant' | '';
   teamIds: string[];
   workload: Workload;
+  feedbackMomenten?: FeedbackMoment[];
 }
 
 export interface AlgemeenFasesData {
@@ -52,6 +60,15 @@ interface AlgemeenFasesProps {
   data: AlgemeenFasesData;
   onChange: (data: AlgemeenFasesData) => void;
 }
+
+// Accentkleuren per presentatieblok – zodat je direct ziet waar een blok begint/eindigt
+const BLOCK_ACCENT_COLORS = [
+  { header: 'bg-blue-50/70 dark:bg-blue-950/25 border-l-blue-400',   badge: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' },
+  { header: 'bg-violet-50/70 dark:bg-violet-950/25 border-l-violet-400', badge: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300' },
+  { header: 'bg-emerald-50/70 dark:bg-emerald-950/25 border-l-emerald-400', badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' },
+  { header: 'bg-amber-50/70 dark:bg-amber-950/25 border-l-amber-400',  badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
+  { header: 'bg-rose-50/70 dark:bg-rose-950/25 border-l-rose-400',    badge: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300' },
+];
 
 export function AlgemeenFases({ data, onChange }: AlgemeenFasesProps) {
   const { data: employees = [] } = useEmployees();
@@ -229,6 +246,55 @@ export function AlgemeenFases({ data, onChange }: AlgemeenFasesProps) {
     onChange({ ...data, slotfase: { medewerkers: (data.slotfase?.medewerkers || []).filter(m => m.medewerkerId !== medewerkerId) } });
   };
 
+  const addFeedbackMoment = (presentatieId: string) => {
+    onChange({
+      ...data,
+      presentaties: data.presentaties.map(p =>
+        p.id === presentatieId
+          ? {
+              ...p,
+              feedbackMomenten: [
+                ...(p.feedbackMomenten || []),
+                {
+                  id: crypto.randomUUID(),
+                  naam: 'Feedbackverwerking',
+                  aantalDagen: 2,
+                  medewerkerIds: [...p.teamIds],
+                }
+              ]
+            }
+          : p
+      )
+    });
+  };
+
+  const removeFeedbackMoment = (presentatieId: string, momentId: string) => {
+    onChange({
+      ...data,
+      presentaties: data.presentaties.map(p =>
+        p.id === presentatieId
+          ? { ...p, feedbackMomenten: (p.feedbackMomenten || []).filter(f => f.id !== momentId) }
+          : p
+      )
+    });
+  };
+
+  const updateFeedbackMoment = (presentatieId: string, momentId: string, field: string, value: any) => {
+    onChange({
+      ...data,
+      presentaties: data.presentaties.map(p =>
+        p.id === presentatieId
+          ? {
+              ...p,
+              feedbackMomenten: (p.feedbackMomenten || []).map(f =>
+                f.id === momentId ? { ...f, [field]: value } : f
+              )
+            }
+          : p
+      )
+    });
+  };
+
   return (
     <div className="space-y-4">
       {/* Projectteam */}
@@ -256,13 +322,20 @@ export function AlgemeenFases({ data, onChange }: AlgemeenFasesProps) {
       </div>
 
       {/* Presentaties - elk als apart blok */}
-      {data.presentaties.map((presentatie, index) => (
+      {data.presentaties.map((presentatie, index) => {
+        const accent = BLOCK_ACCENT_COLORS[index % BLOCK_ACCENT_COLORS.length];
+        return (
         <div key={presentatie.id} className="rounded-2xl border border-border bg-card overflow-hidden">
-          {/* Header */}
-          <div className="flex items-center justify-between p-4 bg-secondary/30 border-b border-border">
-            <span className="font-semibold text-sm">
-              {presentatie.naam || `Presentatie ${index + 1}`}
-            </span>
+          {/* Header — licht gekleurd per blok zodat je duidelijk ziet waar elk blok begint/eindigt */}
+          <div className={`flex items-center justify-between p-4 border-b border-border border-l-4 ${accent.header}`}>
+            <div className="flex items-center gap-2">
+              <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${accent.badge}`}>
+                Presentatie {index + 1}
+              </span>
+              <span className="font-semibold text-sm text-foreground">
+                {presentatie.naam || ''}
+              </span>
+            </div>
             <Button
               type="button"
               variant="ghost"
@@ -378,6 +451,92 @@ export function AlgemeenFases({ data, onChange }: AlgemeenFasesProps) {
             </div>
           </div>
 
+          {/* Feedbackmomenten sectie — na de presentatie */}
+          <div className="border-t border-border bg-orange-50/40 dark:bg-orange-950/10 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <Label className="text-sm font-medium">Feedbackmomenten na presentatie</Label>
+                <p className="text-[11px] text-muted-foreground mt-0.5">Verwerkingstijd na de presentatie — kan meerdere dagen zijn</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => addFeedbackMoment(presentatie.id)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-medium"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Feedbackmoment toevoegen
+              </button>
+            </div>
+
+            {(!presentatie.feedbackMomenten || presentatie.feedbackMomenten.length === 0) ? (
+              <div className="flex items-center gap-2 rounded-lg border border-dashed border-border bg-background/60 px-3 py-2.5">
+                <span className="text-xs text-muted-foreground">Nog geen feedbackmomenten — klik op de knop om toe te voegen.</span>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {presentatie.feedbackMomenten.map((fm) => (
+                  <div key={fm.id} className="bg-background rounded-lg border border-border p-3 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={fm.naam}
+                        onChange={(e) => updateFeedbackMoment(presentatie.id, fm.id, 'naam', e.target.value)}
+                        placeholder="Bijv. Feedbackverwerking"
+                        className="h-7 text-sm flex-1"
+                      />
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <Input
+                          type="number"
+                          min="1"
+                          max="30"
+                          value={fm.aantalDagen}
+                          onChange={(e) => updateFeedbackMoment(presentatie.id, fm.id, 'aantalDagen', parseInt(e.target.value) || 1)}
+                          className="h-7 text-sm w-14 text-center"
+                        />
+                        <span className="text-xs text-muted-foreground whitespace-nowrap">dag{fm.aantalDagen !== 1 ? 'en' : ''}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeFeedbackMoment(presentatie.id, fm.id)}
+                        className="p-1 hover:bg-destructive/10 hover:text-destructive rounded transition-colors flex-shrink-0"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                    <div>
+                      <p className="text-[11px] text-muted-foreground mb-1.5">Wie werkt aan de feedback?</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {employees
+                          .filter(e => presentatie.teamIds.includes(e.id))
+                          .map(emp => {
+                            const isSelected = fm.medewerkerIds.includes(emp.id);
+                            return (
+                              <button
+                                key={emp.id}
+                                type="button"
+                                onClick={() => {
+                                  const newIds = isSelected
+                                    ? fm.medewerkerIds.filter(id => id !== emp.id)
+                                    : [...fm.medewerkerIds, emp.id];
+                                  updateFeedbackMoment(presentatie.id, fm.id, 'medewerkerIds', newIds);
+                                }}
+                                className={`px-2 py-0.5 text-xs rounded-full border transition-colors ${
+                                  isSelected
+                                    ? 'bg-primary/10 text-primary border-primary/30'
+                                    : 'bg-secondary/50 text-muted-foreground border-border hover:bg-secondary'
+                                }`}
+                              >
+                                {emp.name}
+                              </button>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* Workload sectie - tabel layout */}
           <div className="border-t border-border bg-muted/30 p-4">
             <Label className="text-sm font-medium mb-3 block">Workload</Label>
@@ -435,7 +594,8 @@ export function AlgemeenFases({ data, onChange }: AlgemeenFasesProps) {
             </div>
           </div>
         </div>
-      ))}
+      );
+      })}
 
       {/* Slotfase: werkzaamheden na laatste presentatie */}
       <div className="rounded-2xl border border-border bg-card overflow-hidden">
@@ -528,7 +688,7 @@ function MemberAddDropdown({
   onAdd,
 }: {
   currentIds: string[];
-  employees: { id: string; name: string; role: string }[];
+  employees: { id: string; name: string; role?: string }[];
   onAdd: (empId: string) => void;
 }) {
   const [isOpen, setIsOpen] = useState(false);

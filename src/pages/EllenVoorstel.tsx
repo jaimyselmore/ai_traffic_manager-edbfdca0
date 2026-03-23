@@ -175,6 +175,10 @@ export default function EllenVoorstel() {
   const [secondsElapsed, setSecondsElapsed] = useState(0);
   const [retryCount, setRetryCount] = useState(0); // used in generateVoorstel deps
   const [showExitDialog, setShowExitDialog] = useState(false);
+  const [draggingTask, setDraggingTask] = useState<{ task: VoorstelTaak; index: number } | null>(null);
+  const [addTaskCell, setAddTaskCell] = useState<{ medewerker: string; dayIndex: number; hour: number } | null>(null);
+  const [newTaskNaam, setNewTaskNaam] = useState('');
+  const [newTaskDuur, setNewTaskDuur] = useState(2);
   const voorstelGenerated = useRef(false);
 
   // Timeout timer voor als Ellen te lang duurt
@@ -840,6 +844,60 @@ export default function EllenVoorstel() {
     return m ? `→ ${m[1]}` : null;
   };
 
+  const handleDragStart = (e: React.DragEvent, task: VoorstelTaak, index: number) => {
+    setDraggingTask({ task, index });
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = (e: React.DragEvent, medewerker: string, dayIndex: number, hour: number) => {
+    e.preventDefault();
+    if (!draggingTask) return;
+    const updated = [...voorstellen];
+    updated[draggingTask.index] = {
+      ...draggingTask.task,
+      werknemer_naam: medewerker,
+      dag_van_week: dayIndex,
+      start_uur: hour,
+      week_start: currentWeekISO,
+    };
+    setVoorstellen(updated);
+    setDraggingTask(null);
+  };
+
+  const handleCellClick = (medewerker: string, dayIndex: number, hour: number) => {
+    const voorstelTasks = getVoorstelTasksForCell(medewerker, dayIndex, hour);
+    const bestaandeTasks = getBestaandeTasksForCell(medewerker, dayIndex, hour);
+    if (voorstelTasks.length === 0 && bestaandeTasks.length === 0 && hour !== 13) {
+      const faseNames = [...new Set(voorstellen.map(t => t.fase_naam))];
+      setNewTaskNaam(faseNames[0] || 'Werkzaamheden');
+      setNewTaskDuur(2);
+      setAddTaskCell({ medewerker, dayIndex, hour });
+    }
+  };
+
+  const handleAddTask = () => {
+    if (!addTaskCell || !newTaskNaam.trim()) return;
+    const newTask: VoorstelTaak = {
+      werknemer_naam: addTaskCell.medewerker,
+      fase_naam: newTaskNaam.trim(),
+      dag_van_week: addTaskCell.dayIndex,
+      week_start: currentWeekISO,
+      start_uur: addTaskCell.hour,
+      duur_uren: newTaskDuur,
+    };
+    setVoorstellen([...voorstellen, newTask]);
+    setAddTaskCell(null);
+  };
+
+  const handleRemoveTask = (index: number) => {
+    setVoorstellen(voorstellen.filter((_, i) => i !== index));
+  };
+
   const handleExitClick = () => {
     // Toon dialog alleen als er een voorstel is, anders gewoon terug
     if (['voorstel', 'color-select', 'client-check'].includes(flowState)) {
@@ -1187,11 +1245,24 @@ export default function EllenVoorstel() {
                               rowSpan={TIME_SLOTS.length}
                               className="bg-card border-b border-r border-border px-3 py-2 align-middle"
                             >
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 group/person">
                                 <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-primary/15 text-[10px] font-semibold text-primary">
                                   {medewerker.split(' ').map((n: string) => n[0]).join('').substring(0, 2)}
                                 </div>
-                                <div className="font-medium text-foreground text-xs leading-tight">{medewerker}</div>
+                                <div className="font-medium text-foreground text-xs leading-tight flex-1 min-w-0">{medewerker}</div>
+                                <button
+                                  type="button"
+                                  title="Taak toevoegen"
+                                  onClick={() => {
+                                    const faseNames = [...new Set(voorstellen.map(t => t.fase_naam))];
+                                    setNewTaskNaam(faseNames[0] || 'Werkzaamheden');
+                                    setNewTaskDuur(2);
+                                    setAddTaskCell({ medewerker, dayIndex: 0, hour: 9 });
+                                  }}
+                                  className="opacity-0 group-hover/person:opacity-100 flex-shrink-0 flex items-center justify-center h-5 w-5 rounded-full bg-primary/10 hover:bg-primary/20 text-primary transition-all"
+                                >
+                                  <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                                </button>
                               </div>
                             </td>
                           )}
@@ -1216,9 +1287,13 @@ export default function EllenVoorstel() {
                                 className={cn(
                                   "border-b border-r border-border p-0 relative",
                                   isLunch && 'bg-muted/20',
-                                  isDeadlineCol && !isLunch && 'bg-amber-50/60 dark:bg-amber-950/15'
+                                  isDeadlineCol && !isLunch && 'bg-amber-50/60 dark:bg-amber-950/15',
+                                  !isLunch && draggingTask && 'hover:bg-primary/5 cursor-crosshair'
                                 )}
                                 style={{ height: `${CELL_HEIGHT}px` }}
+                                onDragOver={!isLunch ? handleDragOver : undefined}
+                                onDrop={!isLunch ? (e) => handleDrop(e, medewerker, dayIndex, hour) : undefined}
+                                onClick={() => handleCellClick(medewerker, dayIndex, hour)}
                               >
                                 {bestaandeTasks.map((taak, ti) => {
                                   if (!isTaskStart(taak, hour)) return null;
@@ -1237,24 +1312,45 @@ export default function EllenVoorstel() {
                                   );
                                 })}
                                 {voorstelTasks.map((taak, ti) => {
+                                  const taskIndex = voorstellen.findIndex(t =>
+                                    t.werknemer_naam === taak.werknemer_naam &&
+                                    t.fase_naam === taak.fase_naam &&
+                                    t.week_start === taak.week_start &&
+                                    t.dag_van_week === taak.dag_van_week &&
+                                    t.start_uur === taak.start_uur
+                                  );
                                   if (!isTaskStart(taak, hour)) return null;
                                   const blockHeight = Math.min(taak.duur_uren, 18 - hour) * CELL_HEIGHT;
+                                  const isPresentatie = presentatieNamenSet.has((taak.fase_naam || '').toLowerCase())
+                                    || taak.fase_naam?.toLowerCase().includes('presentatie')
+                                    || taak.fase_naam?.toLowerCase().includes('meeting');
                                   return (
                                     <div
                                       key={`voorstel-${ti}`}
+                                      draggable
+                                      onDragStart={(e) => handleDragStart(e, taak, taskIndex)}
                                       className={cn(
-                                        'absolute left-0.5 right-0.5 rounded px-1.5 py-0.5 text-xs text-white overflow-hidden opacity-85 border-2 border-dashed border-white/40 z-20',
-                                        getFaseColor(taak.fase_naam, taak.werktype)
+                                        'absolute left-0.5 right-0.5 rounded px-1.5 py-0.5 text-xs overflow-hidden z-20 cursor-grab active:cursor-grabbing group/task',
+                                        isPresentatie
+                                          ? 'border-2 border-task-extern/70 bg-task-extern/20 text-task-extern'
+                                          : cn('text-white opacity-85 border-2 border-dashed border-white/40', getFaseColor(taak.fase_naam, taak.werktype))
                                       )}
                                       style={{ height: `${blockHeight - 2}px`, top: '1px' }}
                                       title={`${projectInfo?.projectTitel || projectInfo?.klant_naam} • ${taak.fase_naam} • ${taak.duur_uren}u (voorstel)`}
                                     >
-                                      <div className="truncate font-medium">{projectInfo?.projectTitel || projectInfo?.klant_naam}</div>
-                                      <div className="truncate text-[10px] opacity-80">{taak.fase_naam}</div>
+                                      <div className="truncate font-medium">{isPresentatie ? taak.fase_naam : (projectInfo?.projectTitel || projectInfo?.klant_naam)}</div>
+                                      {!isPresentatie && <div className="truncate text-[10px] opacity-80">{taak.fase_naam}</div>}
                                       {getWorkloadSubtitle(taak.fase_naam) && (
                                         <div className="truncate text-[10px] opacity-60 italic">{getWorkloadSubtitle(taak.fase_naam)}</div>
                                       )}
                                       {taak.duur_uren > 2 && <div className="text-[10px] opacity-70 mt-0.5">{taak.duur_uren}u</div>}
+                                      <button
+                                        type="button"
+                                        onMouseDown={(e) => { e.stopPropagation(); handleRemoveTask(taskIndex); }}
+                                        className="absolute top-0.5 right-0.5 hidden group-hover/task:flex items-center justify-center h-3.5 w-3.5 rounded-full bg-black/30 hover:bg-black/50 text-white"
+                                      >
+                                        <X className="h-2.5 w-2.5" />
+                                      </button>
                                     </div>
                                   );
                                 })}
@@ -1267,6 +1363,43 @@ export default function EllenVoorstel() {
                   </tbody>
                 </table>
               </div>
+              )}
+
+              {/* Add task panel */}
+              {addTaskCell && (
+                <div className="mt-2 rounded-lg border border-primary/30 bg-card p-3 shadow-sm">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-medium text-foreground">
+                      Taak toevoegen voor {addTaskCell.medewerker} — {DAG_NAMEN[addTaskCell.dayIndex]} {addTaskCell.hour}:00
+                    </p>
+                    <button onClick={() => setAddTaskCell(null)} className="text-muted-foreground hover:text-foreground">
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={newTaskNaam}
+                      onChange={(e) => setNewTaskNaam(e.target.value)}
+                      className="flex-1 h-7 text-xs rounded-md border border-border bg-background px-2 focus:outline-none focus:ring-1 focus:ring-primary"
+                    >
+                      {[...new Set(voorstellen.map(t => t.fase_naam))].map(naam => (
+                        <option key={naam} value={naam}>{naam}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={newTaskDuur}
+                      onChange={(e) => setNewTaskDuur(Number(e.target.value))}
+                      className="w-20 h-7 text-xs rounded-md border border-border bg-background px-2 focus:outline-none focus:ring-1 focus:ring-primary"
+                    >
+                      {[1,2,3,4,5,6,7,8].map(h => (
+                        <option key={h} value={h}>{h}u</option>
+                      ))}
+                    </select>
+                    <Button size="sm" className="h-7 text-xs px-3" onClick={handleAddTask}>
+                      Toevoegen
+                    </Button>
+                  </div>
+                </div>
               )}
             </div>
 
@@ -1281,6 +1414,16 @@ export default function EllenVoorstel() {
                 <div className="flex items-center gap-1.5">
                   <div className="w-3 h-3 rounded bg-primary/60 border border-dashed border-primary flex-shrink-0"></div>
                   <span>Voorstel</span>
+                </div>
+                <div className="text-[11px] text-muted-foreground hidden sm:flex items-center gap-3">
+                  <span className="flex items-center gap-1">
+                    <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4" /></svg>
+                    Sleep om te verplaatsen
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                    Klik lege cel of persoon om toe te voegen
+                  </span>
                 </div>
               </div>
 
@@ -1597,6 +1740,43 @@ function scheduleBackwards(
 }
 
 /**
+ * Plan totalHours voor één medewerker VOORUIT vanuit windowStart.
+ * Gebruikt voor feedback-verwerkingsperiodes ná presentaties.
+ */
+function scheduleForward(
+  faseNaam: string,
+  medewerker: string,
+  totalHours: number,
+  windowStart: string,
+  windowEnd: string | null,
+  occupiedDays: Map<string, Set<string>>,
+  maxPerDay = 8
+): VoorstelTaak[] {
+  const taken: VoorstelTaak[] = [];
+  const used = occupiedDays.get(medewerker) || new Set<string>();
+
+  const farFuture = windowEnd ?? (() => {
+    const d = new Date(windowStart + 'T00:00:00');
+    d.setDate(d.getDate() + 90);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  })();
+
+  const candidates = getWorkingDays(windowStart, farFuture).filter(d => !used.has(d));
+
+  let remaining = totalHours;
+  for (const day of candidates) {
+    if (remaining <= 0) break;
+    const uren = Math.min(maxPerDay, remaining);
+    taken.push(dateStrToTask(faseNaam, medewerker, day, 9, uren));
+    used.add(day);
+    remaining -= uren;
+  }
+
+  occupiedDays.set(medewerker, used);
+  return taken;
+}
+
+/**
  * MILESTONE-ANCHORED BACKWARD SCHEDULER
  *
  * Aanpak (gebaseerd op best practice "milestone-anchored scheduling"):
@@ -1629,21 +1809,24 @@ function buildFrontendSchedule(info: any): {
   const projectDeadline = toISODate(info.deadline) ?? null;
 
   // ── STAP 1: Parse platte array naar (werkfases[], presentatie) paren ──────────
-  type Segment = { werkfases: any[]; presentatie: any | null };
+  type Segment = { werkfases: any[]; presentatie: any | null; feedbackFases: any[] };
   const segments: Segment[] = [];
   let currentWerkfases: any[] = [];
 
   for (const fase of allFases) {
     if (fase.type === 'presentatie') {
-      segments.push({ werkfases: currentWerkfases, presentatie: fase });
+      segments.push({ werkfases: currentWerkfases, presentatie: fase, feedbackFases: [] });
       currentWerkfases = [];
+    } else if (fase.type === 'feedback' && segments.length > 0) {
+      // Feedback hoort bij de vorige presentatie
+      segments[segments.length - 1].feedbackFases.push(fase);
     } else {
       currentWerkfases.push(fase);
     }
   }
   // Resterende werkfases ná de laatste presentatie (slotfase)
   if (currentWerkfases.length > 0) {
-    segments.push({ werkfases: currentWerkfases, presentatie: null });
+    segments.push({ werkfases: currentWerkfases, presentatie: null, feedbackFases: [] });
   }
 
   // ── STAP 2: Verzamel vaste presentatiedata als ankers ─────────────────────────
@@ -1733,10 +1916,43 @@ function buildFrontendSchedule(info: any): {
       // segmentWindowStart ongewijzigd — Ellen's datum is nog onbekend
     }
 
-    // Schuif vensterstart door na een vaste presentatie
+    // Schuif vensterstart door na een vaste presentatie en plan feedbackmomenten
     if (seg.presentatie?.datumType === 'zelf' && seg.presentatie?.start_datum) {
       const presDate = toISODate(seg.presentatie.start_datum);
-      if (presDate) segmentWindowStart = nextWorkDay(presDate);
+      if (presDate) {
+        const feedbackStart = nextWorkDay(presDate);
+        // Plan feedbackfases VOORUIT na de presentatie
+        for (const feedbackFase of seg.feedbackFases) {
+          if (feedbackFase.medewerkerDetails?.length > 0) {
+            for (const md of feedbackFase.medewerkerDetails) {
+              if (!md.naam || !md.uren) continue;
+              const taken = scheduleForward(
+                feedbackFase.fase_naam,
+                md.naam,
+                md.uren,
+                feedbackStart,
+                projectDeadline,
+                occupiedDays
+              );
+              workloadTaken.push(...taken);
+            }
+          } else if (feedbackFase.medewerkers?.length > 0) {
+            const totalHours = (feedbackFase.uren_per_dag || 8) * (feedbackFase.duur_dagen || 1);
+            for (const mwNaam of feedbackFase.medewerkers) {
+              const taken = scheduleForward(
+                feedbackFase.fase_naam,
+                mwNaam,
+                totalHours,
+                feedbackStart,
+                projectDeadline,
+                occupiedDays
+              );
+              workloadTaken.push(...taken);
+            }
+          }
+        }
+        segmentWindowStart = nextWorkDay(presDate);
+      }
     }
   }
 
