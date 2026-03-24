@@ -451,6 +451,63 @@ export function AlgemeenFases({ data, onChange }: AlgemeenFasesProps) {
             </div>
           </div>
 
+          {/* Workload sectie - tabel layout */}
+          <div className="border-t border-border bg-muted/30 p-4">
+            <Label className="text-sm font-medium mb-3 block">Workload</Label>
+
+            {presentatie.workload.medewerkers.length > 0 ? (
+              <div className="bg-background rounded-lg border border-border overflow-hidden">
+                {/* Tabel header */}
+                <div className="grid grid-cols-[1fr_100px_32px] gap-2 px-3 py-2 bg-muted/50 border-b border-border text-xs font-medium text-muted-foreground">
+                  <span>Medewerker</span>
+                  <span className="text-center">Uren (totaal)</span>
+                  <span></span>
+                </div>
+
+                {/* Tabel rows */}
+                {presentatie.workload.medewerkers.map(wm => {
+                  const emp = employees.find(e => e.id === wm.medewerkerId);
+                  if (!emp) return null;
+                  return (
+                    <div key={wm.medewerkerId} className="grid grid-cols-[1fr_100px_32px] gap-2 px-3 py-2 items-center border-b border-border last:border-b-0">
+                      <span className="text-sm font-medium truncate">{emp.name}</span>
+                      <Input
+                        type="text"
+                        inputMode="decimal"
+                        value={wm.uren === 0 ? '' : wm.uren}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === '' || /^\d*\.?\d*$/.test(val)) {
+                            updateWorkloadMedewerker(presentatie.id, wm.medewerkerId, val === '' ? 0 : parseFloat(val));
+                          }
+                        }}
+                        placeholder="0"
+                        className="h-8 text-sm text-center"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeWorkloadMedewerker(presentatie.id, wm.medewerkerId)}
+                        className="p-1.5 hover:bg-destructive/10 hover:text-destructive rounded"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground mb-3">Nog geen medewerkers toegevoegd</p>
+            )}
+
+            <div className="mt-3">
+              <MemberAddDropdown
+                currentIds={presentatie.workload.medewerkers.map(m => m.medewerkerId)}
+                employees={employees}
+                onAdd={(empId) => addWorkloadMedewerker(presentatie.id, empId)}
+              />
+            </div>
+          </div>
+
           {/* Feedbackmomenten sectie — na de presentatie */}
           <div className="border-t border-border bg-orange-50/40 dark:bg-orange-950/10 p-4">
             <div className="flex items-center justify-between mb-3">
@@ -541,63 +598,6 @@ export function AlgemeenFases({ data, onChange }: AlgemeenFasesProps) {
                 ))}
               </div>
             )}
-          </div>
-
-          {/* Workload sectie - tabel layout */}
-          <div className="border-t border-border bg-muted/30 p-4">
-            <Label className="text-sm font-medium mb-3 block">Workload</Label>
-
-            {presentatie.workload.medewerkers.length > 0 ? (
-              <div className="bg-background rounded-lg border border-border overflow-hidden">
-                {/* Tabel header */}
-                <div className="grid grid-cols-[1fr_100px_32px] gap-2 px-3 py-2 bg-muted/50 border-b border-border text-xs font-medium text-muted-foreground">
-                  <span>Medewerker</span>
-                  <span className="text-center">Uren (totaal)</span>
-                  <span></span>
-                </div>
-
-                {/* Tabel rows */}
-                {presentatie.workload.medewerkers.map(wm => {
-                  const emp = employees.find(e => e.id === wm.medewerkerId);
-                  if (!emp) return null;
-                  return (
-                    <div key={wm.medewerkerId} className="grid grid-cols-[1fr_100px_32px] gap-2 px-3 py-2 items-center border-b border-border last:border-b-0">
-                      <span className="text-sm font-medium truncate">{emp.name}</span>
-                      <Input
-                        type="text"
-                        inputMode="decimal"
-                        value={wm.uren === 0 ? '' : wm.uren}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          if (val === '' || /^\d*\.?\d*$/.test(val)) {
-                            updateWorkloadMedewerker(presentatie.id, wm.medewerkerId, val === '' ? 0 : parseFloat(val));
-                          }
-                        }}
-                        placeholder="0"
-                        className="h-8 text-sm text-center"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeWorkloadMedewerker(presentatie.id, wm.medewerkerId)}
-                        className="p-1.5 hover:bg-destructive/10 hover:text-destructive rounded"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground mb-3">Nog geen medewerkers toegevoegd</p>
-            )}
-
-            <div className="mt-3">
-              <MemberAddDropdown
-                currentIds={presentatie.workload.medewerkers.map(m => m.medewerkerId)}
-                employees={employees}
-                onAdd={(empId) => addWorkloadMedewerker(presentatie.id, empId)}
-              />
-            </div>
           </div>
         </div>
       );
