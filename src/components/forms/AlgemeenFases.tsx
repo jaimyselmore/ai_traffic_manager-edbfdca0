@@ -63,11 +63,11 @@ interface AlgemeenFasesProps {
 
 // Kleuren die niet overlappen met sky (presentatie) en amber (feedback)
 const PERSOON_KLEUREN = [
-  { dot: 'bg-indigo-400' },
-  { dot: 'bg-teal-400' },
-  { dot: 'bg-rose-400' },
-  { dot: 'bg-violet-400' },
-  { dot: 'bg-green-500' },
+  { bg: 'bg-indigo-100 dark:bg-indigo-900/40', text: 'text-indigo-700 dark:text-indigo-300', dot: 'bg-indigo-400' },
+  { bg: 'bg-teal-100 dark:bg-teal-900/40', text: 'text-teal-700 dark:text-teal-300', dot: 'bg-teal-400' },
+  { bg: 'bg-rose-100 dark:bg-rose-900/40', text: 'text-rose-700 dark:text-rose-300', dot: 'bg-rose-400' },
+  { bg: 'bg-violet-100 dark:bg-violet-900/40', text: 'text-violet-700 dark:text-violet-300', dot: 'bg-violet-400' },
+  { bg: 'bg-green-100 dark:bg-green-900/40', text: 'text-green-700 dark:text-green-300', dot: 'bg-green-500' },
 ];
 
 // Accentkleuren per presentatieblok – zodat je direct ziet waar een blok begint/eindigt
@@ -83,15 +83,18 @@ const BLOCK_ACCENT_COLORS = [
 function TimelineStripProd({
   medewerkers,
   feedbackMomenten,
+  employees,
+  colorMap,
 }: {
   medewerkers: WorkloadMedewerker[];
   feedbackMomenten?: FeedbackMoment[];
-  employees?: { id: string; name: string }[];
-  colorMap?: Record<string, number>;
+  employees: { id: string; name: string }[];
+  colorMap: Record<string, number>;
 }) {
   const feedbackUren = (feedbackMomenten || []).reduce((s, f) => s + f.aantalDagen * 8, 0);
   const presentatieUren = 2;
-  const workloadUren = medewerkers.reduce((s, m) => s + m.uren, 0);
+  const filtered = medewerkers.filter(m => m.uren > 0);
+  const workloadUren = filtered.reduce((s, m) => s + m.uren, 0);
   const totaalUren = workloadUren + presentatieUren + feedbackUren;
 
   if (workloadUren === 0) return null;
@@ -103,28 +106,39 @@ function TimelineStripProd({
       <p className="text-[10px] font-medium text-muted-foreground mb-1.5 uppercase tracking-wide">
         Tijdlijn — {totaalUren}u totaal
       </p>
-      <div className="flex h-7 w-full rounded-md overflow-hidden border border-border gap-px bg-border">
+      <div className="flex h-8 w-full rounded-md overflow-hidden border border-border gap-px bg-border">
+        {filtered.map((m) => {
+          const ci = colorMap[m.medewerkerId] ?? 0;
+          const c = PERSOON_KLEUREN[ci % PERSOON_KLEUREN.length];
+          const emp = employees.find(e => e.id === m.medewerkerId);
+          return (
+            <div
+              key={m.medewerkerId}
+              className={`flex items-center justify-center overflow-hidden transition-all duration-300 ${c.bg} ${c.text}`}
+              style={{ width: pct(m.uren), minWidth: '1.5rem' }}
+              title={`${emp?.name}: ${m.uren}u`}
+            >
+              <div className="flex flex-col items-center leading-none px-1">
+                <span className="text-[10px] font-semibold truncate">{emp?.name?.split(' ')[0]}</span>
+                <span className="text-[9px] opacity-60">{m.uren}u</span>
+              </div>
+            </div>
+          );
+        })}
         <div
-          className="flex items-center justify-center overflow-hidden bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 transition-all duration-300"
-          style={{ width: pct(workloadUren) }}
-          title={`Workload: ${workloadUren}u`}
-        >
-          <span className="text-[10px] font-medium px-2 truncate">Workload {workloadUren}u</span>
-        </div>
-        <div
-          className="flex items-center justify-center overflow-hidden bg-sky-200 dark:bg-sky-900/60 text-sky-700 dark:text-sky-300 transition-all duration-300"
-          style={{ width: pct(presentatieUren) }}
+          className="flex items-center justify-center overflow-hidden bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300 transition-all duration-300"
+          style={{ width: pct(presentatieUren), minWidth: '1.5rem' }}
           title="Presentatie: 2u"
         >
-          <span className="text-[9px] font-medium px-1 truncate">Pres.</span>
+          <span className="text-[9px] font-semibold px-0.5">Pres.</span>
         </div>
         {feedbackUren > 0 && (
           <div
-            className="flex items-center justify-center overflow-hidden bg-amber-200 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 transition-all duration-300"
-            style={{ width: pct(feedbackUren) }}
+            className="flex items-center justify-center overflow-hidden bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 transition-all duration-300"
+            style={{ width: pct(feedbackUren), minWidth: '2rem' }}
             title={`Feedback: ${feedbackUren}u`}
           >
-            <span className="text-[9px] font-medium px-1 truncate">Feedback {feedbackUren}u</span>
+            <span className="text-[9px] font-semibold px-1 truncate">Feedback</span>
           </div>
         )}
       </div>
@@ -576,6 +590,8 @@ export function AlgemeenFases({ data, onChange }: AlgemeenFasesProps) {
           <TimelineStripProd
             medewerkers={presentatie.workload.medewerkers}
             feedbackMomenten={presentatie.feedbackMomenten}
+            employees={employees}
+            colorMap={colorMap}
           />
 
           {/* ── Blokje 1: Workload (licht grijs) ── */}
