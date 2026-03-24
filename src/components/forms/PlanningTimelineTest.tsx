@@ -3,10 +3,66 @@
  * Bezoek op /test-timeline
  */
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Plus, X, ChevronUp, ChevronDown } from 'lucide-react';
+import { Plus, X, ChevronUp, ChevronDown, ChevronDown as ChevronDownIcon } from 'lucide-react';
+
+// Herbruikbare dropdown voor toevoegen
+function AddDropdown({ personen, onAdd, allowDuplicates = false, current = [] }: {
+  personen: string[];
+  onAdd: (naam: string) => void;
+  allowDuplicates?: boolean;
+  current?: string[];
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const available = allowDuplicates ? personen : personen.filter(n => !current.includes(n));
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    if (open) document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  if (available.length === 0) return null;
+
+  return (
+    <div className="relative inline-block" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-dashed border-primary/50 text-primary hover:bg-primary/5 transition-colors"
+      >
+        <Plus className="h-3.5 w-3.5" />
+        Toevoegen
+        <ChevronDownIcon className={`h-3 w-3 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div
+          className="fixed z-[100] bg-popover border border-border rounded-lg shadow-lg py-1 min-w-[160px] max-h-[220px] overflow-y-auto"
+          style={{
+            top: ref.current ? ref.current.getBoundingClientRect().bottom + 4 : 0,
+            left: ref.current ? ref.current.getBoundingClientRect().left : 0,
+          }}
+        >
+          {available.map((naam, i) => (
+            <button
+              key={`${naam}-${i}`}
+              type="button"
+              onClick={() => { onAdd(naam); if (!allowDuplicates) setOpen(false); }}
+              className="w-full text-left px-3 py-2 text-sm hover:bg-secondary transition-colors"
+            >
+              {naam}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const PERSOON_KLEUREN = [
   { bg: 'bg-blue-100 dark:bg-blue-900/40', text: 'text-blue-700 dark:text-blue-300', border: 'border-blue-200 dark:border-blue-700', dot: 'bg-blue-400' },
@@ -160,99 +216,54 @@ function WorkloadTabel({
     onChange([...entries, { id: crypto.randomUUID(), naam, uren: 8 }]);
   };
 
-  const usedNames = entries.map(e => e.naam);
-  const available = allPersonen.filter(n => !usedNames.includes(n));
-
   return (
     <div>
       {entries.length > 0 && (
         <div className="bg-background rounded-lg border border-border overflow-hidden mb-3">
-          {/* Header */}
-          <div className="grid grid-cols-[28px_1fr_90px_56px] gap-1 px-3 py-2 bg-muted/50 border-b border-border text-xs font-medium text-muted-foreground">
+          <div className="grid grid-cols-[28px_1fr_90px_40px] gap-1 px-3 py-2 bg-muted/50 border-b border-border text-xs font-medium text-muted-foreground">
             <span>#</span>
             <span>Medewerker</span>
             <span className="text-center">Uren</span>
             <span></span>
           </div>
-
           {entries.map((entry, i) => {
             const ci = colorMap[entry.naam] ?? 0;
             const c = PERSOON_KLEUREN[ci % PERSOON_KLEUREN.length];
             return (
-              <div key={entry.id} className="grid grid-cols-[28px_1fr_90px_56px] gap-1 px-3 py-2 items-center border-b border-border last:border-b-0">
-                {/* Volgorde knoppen */}
+              <div key={entry.id} className="grid grid-cols-[28px_1fr_90px_40px] gap-1 px-3 py-2 items-center border-b border-border last:border-b-0">
                 <div className="flex flex-col gap-0.5">
-                  <button
-                    type="button"
-                    onClick={() => moveUp(i)}
-                    disabled={i === 0}
-                    className="p-0.5 rounded hover:bg-muted disabled:opacity-20 transition-colors"
-                  >
+                  <button type="button" onClick={() => moveUp(i)} disabled={i === 0} className="p-0.5 rounded hover:bg-muted disabled:opacity-20 transition-colors">
                     <ChevronUp className="h-3 w-3" />
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => moveDown(i)}
-                    disabled={i === entries.length - 1}
-                    className="p-0.5 rounded hover:bg-muted disabled:opacity-20 transition-colors"
-                  >
+                  <button type="button" onClick={() => moveDown(i)} disabled={i === entries.length - 1} className="p-0.5 rounded hover:bg-muted disabled:opacity-20 transition-colors">
                     <ChevronDown className="h-3 w-3" />
                   </button>
                 </div>
-
-                {/* Naam met kleurpil */}
                 <div className="flex items-center gap-2 min-w-0">
                   <div className={`w-2 h-2 rounded-full shrink-0 ${c.dot}`} />
                   <span className="text-sm font-medium truncate">{entry.naam}</span>
                 </div>
-
-                {/* Uren */}
                 <Input
                   type="text"
                   inputMode="decimal"
                   value={entry.uren === 0 ? '' : entry.uren}
                   onChange={(e) => {
                     const val = e.target.value;
-                    if (val === '' || /^\d*\.?\d*$/.test(val)) {
-                      updateUren(entry.id, val === '' ? 0 : parseFloat(val));
-                    }
+                    if (val === '' || /^\d*\.?\d*$/.test(val)) updateUren(entry.id, val === '' ? 0 : parseFloat(val));
                   }}
                   placeholder="0"
                   className="h-8 text-sm text-center"
                 />
-
-                {/* Verwijder */}
-                <div className="flex justify-end gap-1">
-                  <button
-                    type="button"
-                    onClick={() => remove(entry.id)}
-                    className="p-1.5 hover:bg-destructive/10 hover:text-destructive rounded transition-colors"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </div>
+                <button type="button" onClick={() => remove(entry.id)} className="p-1.5 hover:bg-destructive/10 hover:text-destructive rounded transition-colors">
+                  <X className="h-3.5 w-3.5" />
+                </button>
               </div>
             );
           })}
         </div>
       )}
-
-      {/* Toevoegen dropdown */}
-      {available.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {available.map(naam => (
-            <button
-              key={naam}
-              type="button"
-              onClick={() => add(naam)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-dashed border-primary/50 text-primary hover:bg-primary/5 transition-colors"
-            >
-              <Plus className="h-3 w-3" />
-              {naam}
-            </button>
-          ))}
-        </div>
-      )}
+      {/* Dropdown — duplicaten toegestaan */}
+      <AddDropdown personen={allPersonen} onAdd={add} allowDuplicates />
     </div>
   );
 }
@@ -341,28 +352,15 @@ export default function PlanningTimelineTest() {
             <p className="text-xs font-semibold text-sky-700 dark:text-sky-400 uppercase tracking-wide mb-3">Presentatie</p>
             <Label className="text-sm mb-2 block">Aanwezig bij presentatie</Label>
             <div className="flex items-center gap-2 flex-wrap">
-              {presentatiePersonen.map(naam => (
-                <div key={naam} className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-full bg-primary text-primary-foreground">
+              {presentatiePersonen.map((naam, i) => (
+                <div key={`${naam}-${i}`} className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-full bg-primary text-primary-foreground">
                   <span>{naam}</span>
-                  <button
-                    type="button"
-                    onClick={() => togglePresentatiePersoon(naam)}
-                    className="ml-1 hover:bg-primary-foreground/20 rounded-full p-0.5"
-                  >
+                  <button type="button" onClick={() => togglePresentatiePersoon(naam)} className="ml-1 hover:bg-primary-foreground/20 rounded-full p-0.5">
                     <X className="h-3 w-3" />
                   </button>
                 </div>
               ))}
-              {DEMO_PERSONEN.filter(n => !presentatiePersonen.includes(n)).map(naam => (
-                <button
-                  key={naam}
-                  type="button"
-                  onClick={() => togglePresentatiePersoon(naam)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full border border-dashed border-primary/50 text-primary hover:bg-primary/5 transition-colors"
-                >
-                  <Plus className="h-3 w-3" /> {naam}
-                </button>
-              ))}
+              <AddDropdown personen={DEMO_PERSONEN} onAdd={togglePresentatiePersoon} current={presentatiePersonen} />
             </div>
             <p className="text-xs text-muted-foreground mt-2">Duur: 2u</p>
           </div>
@@ -391,25 +389,14 @@ export default function PlanningTimelineTest() {
                   <p className="text-[11px] text-muted-foreground mb-1.5">Wie werkt aan de feedback?</p>
                   <div className="flex flex-wrap gap-1.5">
                     {fm.personen.map(naam => (
-                      <button
-                        key={naam}
-                        type="button"
-                        onClick={() => toggleFeedbackPersoon(fm.id, naam)}
-                        className="flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-primary/10 text-primary border border-primary/20"
-                      >
-                        {naam} <X className="h-2.5 w-2.5 ml-0.5" />
-                      </button>
+                      <div key={naam} className="flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-primary/10 text-primary border border-primary/20">
+                        <span>{naam}</span>
+                        <button type="button" onClick={() => toggleFeedbackPersoon(fm.id, naam)} className="ml-0.5 hover:bg-primary/20 rounded-full p-0.5">
+                          <X className="h-2.5 w-2.5" />
+                        </button>
+                      </div>
                     ))}
-                    {DEMO_PERSONEN.filter(n => !fm.personen.includes(n)).map(naam => (
-                      <button
-                        key={naam}
-                        type="button"
-                        onClick={() => toggleFeedbackPersoon(fm.id, naam)}
-                        className="flex items-center gap-1 px-2 py-0.5 text-xs rounded-full border border-dashed border-primary/40 text-primary hover:bg-primary/5"
-                      >
-                        <Plus className="h-2.5 w-2.5" /> {naam}
-                      </button>
-                    ))}
+                    <AddDropdown personen={DEMO_PERSONEN} onAdd={(naam) => toggleFeedbackPersoon(fm.id, naam)} current={fm.personen} />
                   </div>
                 </div>
               </div>
