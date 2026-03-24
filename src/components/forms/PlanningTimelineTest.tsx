@@ -266,7 +266,13 @@ export default function PlanningTimelineTest() {
     { id: '2', naam: 'Tom', uren: 8 },
   ]);
 
-  const [presentatiePersonen] = useState(['Ira', 'Tom', 'Jakko']);
+  const [presentatiePersonen, setPresentatiePersonen] = useState(['Ira', 'Tom', 'Jakko']);
+
+  const togglePresentatiePersoon = (naam: string) => {
+    setPresentatiePersonen(prev =>
+      prev.includes(naam) ? prev.filter(n => n !== naam) : [...prev, naam]
+    );
+  };
 
   const [feedback, setFeedback] = useState<FeedbackEntry[]>([
     { id: 'f1', naam: 'Feedbackverwerking', dagen: 2, personen: ['Ira'] },
@@ -333,11 +339,29 @@ export default function PlanningTimelineTest() {
           {/* Presentatie */}
           <div className="bg-sky-50/50 dark:bg-sky-950/15 p-4 border-b border-border">
             <p className="text-xs font-semibold text-sky-700 dark:text-sky-400 uppercase tracking-wide mb-3">Presentatie</p>
+            <Label className="text-sm mb-2 block">Aanwezig bij presentatie</Label>
             <div className="flex items-center gap-2 flex-wrap">
               {presentatiePersonen.map(naam => (
-                <span key={naam} className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-full bg-primary text-primary-foreground">
-                  {naam}
-                </span>
+                <div key={naam} className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-full bg-primary text-primary-foreground">
+                  <span>{naam}</span>
+                  <button
+                    type="button"
+                    onClick={() => togglePresentatiePersoon(naam)}
+                    className="ml-1 hover:bg-primary-foreground/20 rounded-full p-0.5"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+              {DEMO_PERSONEN.filter(n => !presentatiePersonen.includes(n)).map(naam => (
+                <button
+                  key={naam}
+                  type="button"
+                  onClick={() => togglePresentatiePersoon(naam)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full border border-dashed border-primary/50 text-primary hover:bg-primary/5 transition-colors"
+                >
+                  <Plus className="h-3 w-3" /> {naam}
+                </button>
               ))}
             </div>
             <p className="text-xs text-muted-foreground mt-2">Duur: 2u</p>
