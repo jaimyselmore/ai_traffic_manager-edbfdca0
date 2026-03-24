@@ -61,12 +61,13 @@ interface AlgemeenFasesProps {
   onChange: (data: AlgemeenFasesData) => void;
 }
 
+// Kleuren die niet overlappen met sky (presentatie) en amber (feedback)
 const PERSOON_KLEUREN = [
-  { bg: 'bg-blue-100 dark:bg-blue-900/40', text: 'text-blue-700 dark:text-blue-300', dot: 'bg-blue-400' },
-  { bg: 'bg-violet-100 dark:bg-violet-900/40', text: 'text-violet-700 dark:text-violet-300', dot: 'bg-violet-400' },
-  { bg: 'bg-emerald-100 dark:bg-emerald-900/40', text: 'text-emerald-700 dark:text-emerald-300', dot: 'bg-emerald-400' },
-  { bg: 'bg-rose-100 dark:bg-rose-900/40', text: 'text-rose-700 dark:text-rose-300', dot: 'bg-rose-400' },
-  { bg: 'bg-amber-100 dark:bg-amber-900/30', text: 'text-amber-700 dark:text-amber-300', dot: 'bg-amber-400' },
+  { dot: 'bg-indigo-400' },
+  { dot: 'bg-teal-400' },
+  { dot: 'bg-rose-400' },
+  { dot: 'bg-violet-400' },
+  { dot: 'bg-green-500' },
 ];
 
 // Accentkleuren per presentatieblok – zodat je direct ziet waar een blok begint/eindigt
@@ -82,62 +83,48 @@ const BLOCK_ACCENT_COLORS = [
 function TimelineStripProd({
   medewerkers,
   feedbackMomenten,
-  employees,
-  colorMap,
 }: {
   medewerkers: WorkloadMedewerker[];
   feedbackMomenten?: FeedbackMoment[];
-  employees: { id: string; name: string }[];
-  colorMap: Record<string, number>;
+  employees?: { id: string; name: string }[];
+  colorMap?: Record<string, number>;
 }) {
   const feedbackUren = (feedbackMomenten || []).reduce((s, f) => s + f.aantalDagen * 8, 0);
   const presentatieUren = 2;
   const workloadUren = medewerkers.reduce((s, m) => s + m.uren, 0);
   const totaalUren = workloadUren + presentatieUren + feedbackUren;
-  const filtered = medewerkers.filter(m => m.uren > 0);
 
-  if (filtered.length === 0) return null;
+  if (workloadUren === 0) return null;
 
-  const pct = (u: number) => `${Math.max((u / totaalUren) * 100, 4)}%`;
+  const pct = (u: number) => `${Math.max((u / totaalUren) * 100, 3)}%`;
 
   return (
-    <div className="px-4 pt-3 pb-2 border-b border-border">
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">
+    <div className="px-4 pt-3 pb-3 border-b border-border">
+      <p className="text-[10px] font-medium text-muted-foreground mb-1.5 uppercase tracking-wide">
         Tijdlijn — {totaalUren}u totaal
       </p>
-      <div className="flex h-8 w-full rounded-md overflow-hidden border border-border gap-px bg-border">
-        {filtered.map((m) => {
-          const ci = colorMap[m.medewerkerId] ?? 0;
-          const c = PERSOON_KLEUREN[ci % PERSOON_KLEUREN.length];
-          const emp = employees.find(e => e.id === m.medewerkerId);
-          return (
-            <div
-              key={m.medewerkerId}
-              className={`flex items-center justify-center overflow-hidden transition-all duration-300 ${c.bg} ${c.text}`}
-              style={{ width: pct(m.uren), minWidth: '1.5rem' }}
-              title={`${emp?.name}: ${m.uren}u`}
-            >
-              <div className="flex flex-col items-center leading-none px-1">
-                <span className="text-[10px] font-bold truncate">{emp?.name?.split(' ')[0]}</span>
-                <span className="text-[9px] opacity-70">{m.uren}u</span>
-              </div>
-            </div>
-          );
-        })}
+      <div className="flex h-7 w-full rounded-md overflow-hidden border border-border gap-px bg-border">
         <div
-          className="flex items-center justify-center overflow-hidden bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300"
-          style={{ width: pct(presentatieUren), minWidth: '1.5rem' }}
+          className="flex items-center justify-center overflow-hidden bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 transition-all duration-300"
+          style={{ width: pct(workloadUren) }}
+          title={`Workload: ${workloadUren}u`}
+        >
+          <span className="text-[10px] font-medium px-2 truncate">Workload {workloadUren}u</span>
+        </div>
+        <div
+          className="flex items-center justify-center overflow-hidden bg-sky-200 dark:bg-sky-900/60 text-sky-700 dark:text-sky-300 transition-all duration-300"
+          style={{ width: pct(presentatieUren) }}
           title="Presentatie: 2u"
         >
-          <span className="text-[9px] font-bold px-0.5">Pres.</span>
+          <span className="text-[9px] font-medium px-1 truncate">Pres.</span>
         </div>
         {feedbackUren > 0 && (
           <div
-            className="flex items-center justify-center overflow-hidden bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
-            style={{ width: pct(feedbackUren), minWidth: '2rem' }}
+            className="flex items-center justify-center overflow-hidden bg-amber-200 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 transition-all duration-300"
+            style={{ width: pct(feedbackUren) }}
             title={`Feedback: ${feedbackUren}u`}
           >
-            <span className="text-[10px] font-bold px-1">{feedbackUren}u</span>
+            <span className="text-[9px] font-medium px-1 truncate">Feedback {feedbackUren}u</span>
           </div>
         )}
       </div>
@@ -215,7 +202,7 @@ function WorkloadTabelProd({
             const emp = employees.find(e => e.id === wm.medewerkerId);
             if (!emp) return null;
             const ci = colorMap[wm.medewerkerId] ?? 0;
-            const c = PERSOON_KLEUREN[ci % PERSOON_KLEUREN.length];
+            const dotColor = PERSOON_KLEUREN[ci % PERSOON_KLEUREN.length].dot;
             const showTop = dropTarget?.index === i && dropTarget.pos === 'top';
             const showBottom = dropTarget?.index === i && dropTarget.pos === 'bottom';
             return (
@@ -252,7 +239,7 @@ function WorkloadTabelProd({
                     </button>
                   </div>
                   <div className="flex items-center gap-2 min-w-0">
-                    <div className={`w-2 h-2 rounded-full shrink-0 ${c.dot}`} />
+                    <div className={`w-2 h-2 rounded-full shrink-0 ${dotColor}`} />
                     <span className="text-sm font-medium truncate">{emp.name}</span>
                   </div>
                   <Input
@@ -589,8 +576,6 @@ export function AlgemeenFases({ data, onChange }: AlgemeenFasesProps) {
           <TimelineStripProd
             medewerkers={presentatie.workload.medewerkers}
             feedbackMomenten={presentatie.feedbackMomenten}
-            employees={employees}
-            colorMap={colorMap}
           />
 
           {/* ── Blokje 1: Workload (licht grijs) ── */}
