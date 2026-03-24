@@ -209,75 +209,30 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
     <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
       <h2 className="text-base font-semibold text-foreground">Projectgegevens</h2>
 
-      {/* Klant */}
-      <div className="space-y-1.5">
-        <Label className="text-sm">Klant *</Label>
-        <Select
-          value={data.klantId || (isAddingNewClient ? 'new' : '')}
-          onValueChange={handleKlantChange}
-        >
-          <SelectTrigger className={errors?.klantId ? 'border-destructive' : ''}>
-            <SelectValue placeholder="Selecteer klant" />
-          </SelectTrigger>
-          <SelectContent>
-            {clients.map((client) => (
-              <SelectItem key={client.id} value={client.id}>
-                {client.name}
-              </SelectItem>
-            ))}
-            <SelectItem value="new">+ Nieuwe klant toevoegen</SelectItem>
-          </SelectContent>
-        </Select>
-        {errors?.klantId && <p className="text-xs text-destructive">{errors.klantId}</p>}
-        {data.klantIdBasis && (
-          <p className="text-xs text-muted-foreground">
-            Klantnummer: <span className="font-medium text-foreground">{data.klantIdBasis}</span>
-          </p>
-        )}
-
-        {/* New client inline form */}
-        {isAddingNewClient && (
-          <div className="mt-2 p-3 bg-secondary/50 rounded-lg space-y-3">
-            <p className="text-sm font-medium">Nieuwe klant toevoegen</p>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs">Klantnummer *</Label>
-                <Input value={tempNewClient.klantnummer} onChange={(e) => setTempNewClient({ ...tempNewClient, klantnummer: e.target.value })} placeholder="bijv. K001" className="mt-1" disabled={isSavingClient} />
-              </div>
-              <div>
-                <Label className="text-xs">Naam *</Label>
-                <Input value={tempNewClient.naam} onChange={(e) => setTempNewClient({ ...tempNewClient, naam: e.target.value })} placeholder="Naam van de klant" className="mt-1" disabled={isSavingClient} />
-              </div>
-              <div>
-                <Label className="text-xs">Reistijd (min)</Label>
-                <Input type="number" min="0" value={tempNewClient.reistijd_minuten} onChange={(e) => setTempNewClient({ ...tempNewClient, reistijd_minuten: e.target.value })} placeholder="45" className="mt-1" disabled={isSavingClient} />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs">Interne notities</Label>
-                <Textarea value={tempNewClient.interne_notities} onChange={(e) => setTempNewClient({ ...tempNewClient, interne_notities: e.target.value })} rows={2} className="mt-1" disabled={isSavingClient} />
-              </div>
-              <div>
-                <Label className="text-xs">Planning instructies</Label>
-                <Textarea value={tempNewClient.planning_instructies} onChange={(e) => setTempNewClient({ ...tempNewClient, planning_instructies: e.target.value })} placeholder="Klant wil alleen ochtend..." rows={2} className="mt-1" disabled={isSavingClient} />
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Button size="sm" onClick={handleSaveNewClient} disabled={isSavingClient}>
-                {isSavingClient && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Toevoegen
-              </Button>
-              <Button size="sm" variant="ghost" onClick={handleCancelNewClient} disabled={isSavingClient}>Annuleren</Button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Volgnummer + Project-ID */}
-      <div className="grid grid-cols-2 gap-3 items-end">
-        <div>
-          <Label className="text-sm">Volgnummer *</Label>
+      {/* Klant + Volgnummer */}
+      <div className="flex gap-3 items-end">
+        <div className="flex-1 space-y-1.5">
+          <Label className="text-sm">Klant *</Label>
+          <Select
+            value={data.klantId || (isAddingNewClient ? 'new' : '')}
+            onValueChange={handleKlantChange}
+          >
+            <SelectTrigger className={errors?.klantId ? 'border-destructive' : ''}>
+              <SelectValue placeholder="Selecteer klant" />
+            </SelectTrigger>
+            <SelectContent>
+              {clients.map((client) => (
+                <SelectItem key={client.id} value={client.id}>
+                  {client.name}
+                </SelectItem>
+              ))}
+              <SelectItem value="new">+ Nieuwe klant toevoegen</SelectItem>
+            </SelectContent>
+          </Select>
+          {errors?.klantId && <p className="text-xs text-destructive">{errors.klantId}</p>}
+        </div>
+        <div className="w-24 space-y-1.5">
+          <Label className="text-sm">Volgnr. *</Label>
           <Input
             type="text"
             inputMode="numeric"
@@ -285,19 +240,65 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
             value={data.projectVolgnummer}
             onChange={(e) => handleVolgnummerChange(e.target.value)}
             placeholder="1"
-            className={`mt-1 ${errors?.projectVolgnummer ? 'border-destructive' : ''}`}
+            className={errors?.projectVolgnummer ? 'border-destructive' : ''}
           />
-          {errors?.projectVolgnummer && <p className="text-xs text-destructive mt-0.5">{errors.projectVolgnummer}</p>}
+          {errors?.projectVolgnummer && <p className="text-xs text-destructive">{errors.projectVolgnummer}</p>}
         </div>
-        {data.volledigProjectId && (
-          <div className="px-3 py-2.5 bg-secondary/50 rounded-lg">
-            <p className="text-xs text-muted-foreground">Project-ID</p>
-            <p className="text-sm font-semibold text-foreground">{data.volledigProjectId}</p>
-          </div>
-        )}
       </div>
 
-      {/* Projectnaam + Project titel */}
+      {/* New client inline form */}
+      {isAddingNewClient && (
+        <div className="p-3 bg-secondary/50 rounded-lg space-y-3">
+          <p className="text-sm font-medium">Nieuwe klant toevoegen</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs">Klantnummer *</Label>
+              <Input value={tempNewClient.klantnummer} onChange={(e) => setTempNewClient({ ...tempNewClient, klantnummer: e.target.value })} placeholder="bijv. K001" className="mt-1" disabled={isSavingClient} />
+            </div>
+            <div>
+              <Label className="text-xs">Naam *</Label>
+              <Input value={tempNewClient.naam} onChange={(e) => setTempNewClient({ ...tempNewClient, naam: e.target.value })} placeholder="Naam van de klant" className="mt-1" disabled={isSavingClient} />
+            </div>
+            <div>
+              <Label className="text-xs">Reistijd (min)</Label>
+              <Input type="number" min="0" value={tempNewClient.reistijd_minuten} onChange={(e) => setTempNewClient({ ...tempNewClient, reistijd_minuten: e.target.value })} placeholder="45" className="mt-1" disabled={isSavingClient} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs">Interne notities</Label>
+              <Textarea value={tempNewClient.interne_notities} onChange={(e) => setTempNewClient({ ...tempNewClient, interne_notities: e.target.value })} rows={2} className="mt-1" disabled={isSavingClient} />
+            </div>
+            <div>
+              <Label className="text-xs">Planning instructies</Label>
+              <Textarea value={tempNewClient.planning_instructies} onChange={(e) => setTempNewClient({ ...tempNewClient, planning_instructies: e.target.value })} placeholder="Klant wil alleen ochtend..." rows={2} className="mt-1" disabled={isSavingClient} />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button size="sm" onClick={handleSaveNewClient} disabled={isSavingClient}>
+              {isSavingClient && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Toevoegen
+            </Button>
+            <Button size="sm" variant="ghost" onClick={handleCancelNewClient} disabled={isSavingClient}>Annuleren</Button>
+          </div>
+        </div>
+      )}
+
+      {/* Project-ID + Titel (lees-alleen info) */}
+      {data.volledigProjectId && (
+        <div className="flex items-baseline gap-3 px-3 py-2 bg-secondary/40 rounded-lg">
+          <span className="text-xs text-muted-foreground shrink-0">ID</span>
+          <span className="text-sm font-semibold text-foreground shrink-0">{data.volledigProjectId}</span>
+          {data.projectTitel && (
+            <>
+              <span className="text-muted-foreground/40 text-xs">·</span>
+              <span className="text-xs text-muted-foreground truncate">{data.projectTitel}</span>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Projectnaam */}
       {data.volledigProjectId && (
         <div>
           <Label className="text-sm">Projectnaam *</Label>
@@ -308,11 +309,6 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
             className={`mt-1 ${errors?.projectNaam ? 'border-destructive' : ''}`}
           />
           {errors?.projectNaam && <p className="text-xs text-destructive mt-0.5">{errors.projectNaam}</p>}
-          {data.projectTitel && (
-            <p className="text-xs text-muted-foreground mt-1">
-              Projecttitel: <span className="font-medium text-foreground">{data.projectTitel}</span>
-            </p>
-          )}
         </div>
       )}
 

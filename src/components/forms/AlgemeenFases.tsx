@@ -712,10 +712,10 @@ export function AlgemeenFases({ data, onChange }: AlgemeenFasesProps) {
               <button
                 type="button"
                 onClick={() => addFeedbackMoment(presentatie.id)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-medium"
+                className="flex items-center justify-center w-7 h-7 rounded-lg border border-dashed border-amber-400 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/20 transition-colors"
+                title="Feedbackmoment toevoegen"
               >
                 <Plus className="h-3.5 w-3.5" />
-                Toevoegen
               </button>
             </div>
 
