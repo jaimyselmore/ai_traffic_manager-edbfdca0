@@ -190,7 +190,7 @@ function WorkloadTabel({
   allPersonen: string[];
 }) {
   const dragIndex = useRef<number | null>(null);
-  const [dragOver, setDragOver] = useState<number | null>(null);
+  const [dropTarget, setDropTarget] = useState<{ index: number; pos: 'top' | 'bottom' } | null>(null);
 
   const updateUren = (id: string, uren: number) => {
     onChange(entries.map(e => e.id === id ? { ...e, uren } : e));
@@ -205,88 +205,116 @@ function WorkloadTabel({
   };
 
   const move = (from: number, to: number) => {
+    if (to < 0 || to >= entries.length) return;
     const copy = [...entries];
     const [moved] = copy.splice(from, 1);
     copy.splice(to, 0, moved);
     onChange(copy);
   };
 
-  const handleDragStart = (i: number) => { dragIndex.current = i; };
+  const handleDragStart = (e: React.DragEvent, i: number) => {
+    dragIndex.current = i;
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
   const handleDragOver = (e: React.DragEvent, i: number) => {
     e.preventDefault();
-    setDragOver(i);
+    e.dataTransfer.dropEffect = 'move';
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const pos = e.clientY < rect.top + rect.height / 2 ? 'top' : 'bottom';
+    setDropTarget({ index: i, pos });
   };
-  const handleDrop = (i: number) => {
+
+  const handleDrop = (e: React.DragEvent, i: number) => {
+    e.preventDefault();
     const from = dragIndex.current;
-    if (from === null || from === i) { setDragOver(null); return; }
-    move(from, i);
+    if (from === null) { setDropTarget(null); return; }
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const insertAfter = e.clientY >= rect.top + rect.height / 2;
+    let to = insertAfter ? i : i - 1;
+    if (from < i) to = insertAfter ? i : i - 1;
+    else to = insertAfter ? i + 1 : i;
+    move(from, to < 0 ? 0 : to);
     dragIndex.current = null;
-    setDragOver(null);
+    setDropTarget(null);
   };
 
   return (
     <div>
       {entries.length > 0 && (
         <div className="bg-background rounded-lg border border-border overflow-hidden mb-3">
-          <div className="grid grid-cols-[1fr_90px_52px_36px] gap-1 px-3 py-2 bg-muted/50 border-b border-border text-xs font-medium text-muted-foreground">
+          <div className="grid grid-cols-[44px_1fr_90px_36px] px-3 py-2 bg-muted/50 border-b border-border text-xs font-medium text-muted-foreground">
+            <span></span>
             <span>Medewerker</span>
             <span className="text-center">Uren</span>
-            <span></span>
             <span></span>
           </div>
           {entries.map((entry, i) => {
             const ci = colorMap[entry.naam] ?? 0;
             const c = PERSOON_KLEUREN[ci % PERSOON_KLEUREN.length];
+            const showTop = dropTarget?.index === i && dropTarget.pos === 'top';
+            const showBottom = dropTarget?.index === i && dropTarget.pos === 'bottom';
             return (
               <div
                 key={entry.id}
                 draggable
-                onDragStart={() => handleDragStart(i)}
+                onDragStart={(e) => handleDragStart(e, i)}
                 onDragOver={(e) => handleDragOver(e, i)}
-                onDrop={() => handleDrop(i)}
-                onDragEnd={() => setDragOver(null)}
-                className={`grid grid-cols-[1fr_90px_52px_36px] gap-1 px-3 py-2 items-center border-b border-border last:border-b-0 cursor-grab active:cursor-grabbing transition-colors ${
-                  dragOver === i ? 'bg-primary/5' : ''
-                }`}
+                onDrop={(e) => handleDrop(e, i)}
+                onDragEnd={() => setDropTarget(null)}
+                className="relative border-b border-border last:border-b-0"
               >
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className={`w-2 h-2 rounded-full shrink-0 ${c.dot}`} />
-                  <span className="text-sm font-medium truncate">{entry.naam}</span>
-                </div>
-                <Input
-                  type="text"
-                  inputMode="decimal"
-                  value={entry.uren === 0 ? '' : entry.uren}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val === '' || /^\d*\.?\d*$/.test(val)) updateUren(entry.id, val === '' ? 0 : parseFloat(val));
-                  }}
-                  placeholder="0"
-                  className="h-8 text-sm text-center cursor-text"
-                  onClick={(e) => e.stopPropagation()}
-                  onMouseDown={(e) => e.stopPropagation()}
-                />
-                <div className="flex flex-col items-center gap-0">
+                {showTop && <div className="absolute top-0 left-0 right-0 h-0.5 bg-primary z-10 rounded-full" />}
+                {showBottom && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary z-10 rounded-full" />}
+                <div className={`grid grid-cols-[44px_1fr_90px_36px] px-3 py-2 items-center cursor-grab active:cursor-grabbing transition-colors ${
+                  dropTarget?.index === i ? 'bg-primary/5' : ''
+                }`}>
+                  <div className="flex items-center gap-0.5">
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); move(i, i - 1); }}
+                      disabled={i === 0}
+                      className="p-1 hover:bg-muted rounded disabled:opacity-20 transition-colors"
+                      onMouseDown={(e) => e.stopPropagation()}
+                    >
+                      <ChevronUp className="h-3 w-3" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); move(i, i + 1); }}
+                      disabled={i === entries.length - 1}
+                      className="p-1 hover:bg-muted rounded disabled:opacity-20 transition-colors"
+                      onMouseDown={(e) => e.stopPropagation()}
+                    >
+                      <ChevronDown className="h-3 w-3" />
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className={`w-2 h-2 rounded-full shrink-0 ${c.dot}`} />
+                    <span className="text-sm font-medium truncate">{entry.naam}</span>
+                  </div>
+                  <Input
+                    type="text"
+                    inputMode="decimal"
+                    value={entry.uren === 0 ? '' : entry.uren}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '' || /^\d*\.?\d*$/.test(val)) updateUren(entry.id, val === '' ? 0 : parseFloat(val));
+                    }}
+                    placeholder="0"
+                    className="h-8 text-sm text-center cursor-text"
+                    onClick={(e) => e.stopPropagation()}
+                    onMouseDown={(e) => e.stopPropagation()}
+                  />
                   <button
                     type="button"
-                    onClick={(e) => { e.stopPropagation(); move(i, i - 1); }}
-                    disabled={i === 0}
-                    className="p-0.5 hover:bg-muted rounded disabled:opacity-20 transition-colors"
+                    onClick={(e) => { e.stopPropagation(); remove(entry.id); }}
+                    className="p-1.5 hover:bg-destructive/10 hover:text-destructive rounded transition-colors cursor-pointer"
+                    onMouseDown={(e) => e.stopPropagation()}
                   >
-                    <ChevronUp className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); move(i, i + 1); }}
-                    disabled={i === entries.length - 1}
-                    className="p-0.5 hover:bg-muted rounded disabled:opacity-20 transition-colors"
-                  >
-                    <ChevronDown className="h-3.5 w-3.5" />
+                    <X className="h-3.5 w-3.5" />
                   </button>
                 </div>
-                <button type="button" onClick={(e) => { e.stopPropagation(); remove(entry.id); }} className="p-1.5 hover:bg-destructive/10 hover:text-destructive rounded transition-colors cursor-pointer">
-                  <X className="h-3.5 w-3.5" />
-                </button>
               </div>
             );
           })}
