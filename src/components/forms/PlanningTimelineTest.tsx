@@ -6,7 +6,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Plus, X } from 'lucide-react';
+import { Plus, X, ChevronUp, ChevronDown } from 'lucide-react';
 
 // Herbruikbare dropdown voor toevoegen
 function AddDropdown({ personen, onAdd, allowDuplicates = false, current = [] }: {
@@ -204,6 +204,13 @@ function WorkloadTabel({
     onChange([...entries, { id: crypto.randomUUID(), naam, uren: 8 }]);
   };
 
+  const move = (from: number, to: number) => {
+    const copy = [...entries];
+    const [moved] = copy.splice(from, 1);
+    copy.splice(to, 0, moved);
+    onChange(copy);
+  };
+
   const handleDragStart = (i: number) => { dragIndex.current = i; };
   const handleDragOver = (e: React.DragEvent, i: number) => {
     e.preventDefault();
@@ -212,10 +219,7 @@ function WorkloadTabel({
   const handleDrop = (i: number) => {
     const from = dragIndex.current;
     if (from === null || from === i) { setDragOver(null); return; }
-    const copy = [...entries];
-    const [moved] = copy.splice(from, 1);
-    copy.splice(i, 0, moved);
-    onChange(copy);
+    move(from, i);
     dragIndex.current = null;
     setDragOver(null);
   };
@@ -224,10 +228,10 @@ function WorkloadTabel({
     <div>
       {entries.length > 0 && (
         <div className="bg-background rounded-lg border border-border overflow-hidden mb-3">
-          <div className="grid grid-cols-[24px_1fr_90px_36px] gap-1 px-3 py-2 bg-muted/50 border-b border-border text-xs font-medium text-muted-foreground">
-            <span></span>
+          <div className="grid grid-cols-[1fr_90px_52px_36px] gap-1 px-3 py-2 bg-muted/50 border-b border-border text-xs font-medium text-muted-foreground">
             <span>Medewerker</span>
             <span className="text-center">Uren</span>
+            <span></span>
             <span></span>
           </div>
           {entries.map((entry, i) => {
@@ -241,18 +245,10 @@ function WorkloadTabel({
                 onDragOver={(e) => handleDragOver(e, i)}
                 onDrop={() => handleDrop(i)}
                 onDragEnd={() => setDragOver(null)}
-                className={`grid grid-cols-[24px_1fr_90px_36px] gap-1 px-3 py-2 items-center border-b border-border last:border-b-0 transition-colors ${
-                  dragOver === i ? 'bg-primary/5 border-primary/30' : ''
+                className={`grid grid-cols-[1fr_90px_52px_36px] gap-1 px-3 py-2 items-center border-b border-border last:border-b-0 cursor-grab active:cursor-grabbing transition-colors ${
+                  dragOver === i ? 'bg-primary/5' : ''
                 }`}
               >
-                {/* Drag handle */}
-                <div className="flex items-center justify-center cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground transition-colors">
-                  <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
-                    <circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/>
-                    <circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/>
-                    <circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/>
-                  </svg>
-                </div>
                 <div className="flex items-center gap-2 min-w-0">
                   <div className={`w-2 h-2 rounded-full shrink-0 ${c.dot}`} />
                   <span className="text-sm font-medium truncate">{entry.naam}</span>
@@ -266,9 +262,29 @@ function WorkloadTabel({
                     if (val === '' || /^\d*\.?\d*$/.test(val)) updateUren(entry.id, val === '' ? 0 : parseFloat(val));
                   }}
                   placeholder="0"
-                  className="h-8 text-sm text-center"
+                  className="h-8 text-sm text-center cursor-text"
+                  onClick={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
                 />
-                <button type="button" onClick={() => remove(entry.id)} className="p-1.5 hover:bg-destructive/10 hover:text-destructive rounded transition-colors">
+                <div className="flex flex-col items-center gap-0">
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); move(i, i - 1); }}
+                    disabled={i === 0}
+                    className="p-0.5 hover:bg-muted rounded disabled:opacity-20 transition-colors"
+                  >
+                    <ChevronUp className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); move(i, i + 1); }}
+                    disabled={i === entries.length - 1}
+                    className="p-0.5 hover:bg-muted rounded disabled:opacity-20 transition-colors"
+                  >
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                <button type="button" onClick={(e) => { e.stopPropagation(); remove(entry.id); }} className="p-1.5 hover:bg-destructive/10 hover:text-destructive rounded transition-colors cursor-pointer">
                   <X className="h-3.5 w-3.5" />
                 </button>
               </div>
@@ -350,7 +366,7 @@ export default function PlanningTimelineTest() {
           <div className="bg-slate-50/60 dark:bg-slate-900/20 p-4 border-b border-border">
             <Label className="text-sm font-medium mb-1 block">Workload</Label>
             <p className="text-[11px] text-muted-foreground mb-3">
-              Sleep rijen om de volgorde aan te passen — wie werkt er eerst?
+              Sleep of gebruik de pijltjes om de volgorde aan te passen.
             </p>
             <WorkloadTabel
               entries={workload}
