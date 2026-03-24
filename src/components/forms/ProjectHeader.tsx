@@ -284,20 +284,6 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
         </div>
       )}
 
-      {/* Project-ID + Titel (lees-alleen info) */}
-      {data.volledigProjectId && (
-        <div className="flex items-baseline gap-3 px-3 py-2 bg-secondary/40 rounded-lg">
-          <span className="text-xs text-muted-foreground shrink-0">ID</span>
-          <span className="text-sm font-semibold text-foreground shrink-0">{data.volledigProjectId}</span>
-          {data.projectTitel && (
-            <>
-              <span className="text-muted-foreground/40 text-xs">·</span>
-              <span className="text-xs text-muted-foreground truncate">{data.projectTitel}</span>
-            </>
-          )}
-        </div>
-      )}
-
       {/* Projectnaam */}
       {data.volledigProjectId && (
         <div>
@@ -309,6 +295,20 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
             className={`mt-1 ${errors?.projectNaam ? 'border-destructive' : ''}`}
           />
           {errors?.projectNaam && <p className="text-xs text-destructive mt-0.5">{errors.projectNaam}</p>}
+        </div>
+      )}
+
+      {/* Project-ID + Titel (lees-alleen info) */}
+      {data.volledigProjectId && (
+        <div className="flex items-baseline gap-3 px-3 py-2 bg-secondary/40 rounded-lg">
+          <span className="text-xs text-muted-foreground shrink-0">ID</span>
+          <span className="text-sm font-semibold text-foreground shrink-0">{data.volledigProjectId}</span>
+          {data.projectTitel && (
+            <>
+              <span className="text-muted-foreground/40 text-xs">·</span>
+              <span className="text-xs text-muted-foreground truncate">{data.projectTitel}</span>
+            </>
+          )}
         </div>
       )}
 
