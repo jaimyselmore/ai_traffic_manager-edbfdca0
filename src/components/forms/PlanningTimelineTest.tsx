@@ -6,7 +6,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Plus, X, ChevronUp, ChevronDown, ChevronDown as ChevronDownIcon } from 'lucide-react';
+import { Plus, X } from 'lucide-react';
 
 // Herbruikbare dropdown voor toevoegen
 function AddDropdown({ personen, onAdd, allowDuplicates = false, current = [] }: {
@@ -34,11 +34,10 @@ function AddDropdown({ personen, onAdd, allowDuplicates = false, current = [] }:
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-dashed border-primary/50 text-primary hover:bg-primary/5 transition-colors"
+        className="flex items-center justify-center w-7 h-7 rounded-lg border border-dashed border-primary/50 text-primary hover:bg-primary/5 transition-colors"
+        title="Toevoegen"
       >
         <Plus className="h-3.5 w-3.5" />
-        Toevoegen
-        <ChevronDownIcon className={`h-3 w-3 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
         <div
@@ -178,7 +177,7 @@ function TimelineStrip({
   );
 }
 
-// ── Workload tabel met volgorde ──────────────────────────────────────────────
+// ── Workload tabel met drag & drop volgorde ─────────────────────────────────
 function WorkloadTabel({
   entries,
   onChange,
@@ -190,19 +189,8 @@ function WorkloadTabel({
   colorMap: Record<string, number>;
   allPersonen: string[];
 }) {
-  const moveUp = (i: number) => {
-    if (i === 0) return;
-    const copy = [...entries];
-    [copy[i - 1], copy[i]] = [copy[i], copy[i - 1]];
-    onChange(copy);
-  };
-
-  const moveDown = (i: number) => {
-    if (i === entries.length - 1) return;
-    const copy = [...entries];
-    [copy[i], copy[i + 1]] = [copy[i + 1], copy[i]];
-    onChange(copy);
-  };
+  const dragIndex = useRef<number | null>(null);
+  const [dragOver, setDragOver] = useState<number | null>(null);
 
   const updateUren = (id: string, uren: number) => {
     onChange(entries.map(e => e.id === id ? { ...e, uren } : e));
@@ -216,12 +204,28 @@ function WorkloadTabel({
     onChange([...entries, { id: crypto.randomUUID(), naam, uren: 8 }]);
   };
 
+  const handleDragStart = (i: number) => { dragIndex.current = i; };
+  const handleDragOver = (e: React.DragEvent, i: number) => {
+    e.preventDefault();
+    setDragOver(i);
+  };
+  const handleDrop = (i: number) => {
+    const from = dragIndex.current;
+    if (from === null || from === i) { setDragOver(null); return; }
+    const copy = [...entries];
+    const [moved] = copy.splice(from, 1);
+    copy.splice(i, 0, moved);
+    onChange(copy);
+    dragIndex.current = null;
+    setDragOver(null);
+  };
+
   return (
     <div>
       {entries.length > 0 && (
         <div className="bg-background rounded-lg border border-border overflow-hidden mb-3">
-          <div className="grid grid-cols-[28px_1fr_90px_40px] gap-1 px-3 py-2 bg-muted/50 border-b border-border text-xs font-medium text-muted-foreground">
-            <span>#</span>
+          <div className="grid grid-cols-[24px_1fr_90px_36px] gap-1 px-3 py-2 bg-muted/50 border-b border-border text-xs font-medium text-muted-foreground">
+            <span></span>
             <span>Medewerker</span>
             <span className="text-center">Uren</span>
             <span></span>
@@ -230,14 +234,24 @@ function WorkloadTabel({
             const ci = colorMap[entry.naam] ?? 0;
             const c = PERSOON_KLEUREN[ci % PERSOON_KLEUREN.length];
             return (
-              <div key={entry.id} className="grid grid-cols-[28px_1fr_90px_40px] gap-1 px-3 py-2 items-center border-b border-border last:border-b-0">
-                <div className="flex flex-col gap-0.5">
-                  <button type="button" onClick={() => moveUp(i)} disabled={i === 0} className="p-0.5 rounded hover:bg-muted disabled:opacity-20 transition-colors">
-                    <ChevronUp className="h-3 w-3" />
-                  </button>
-                  <button type="button" onClick={() => moveDown(i)} disabled={i === entries.length - 1} className="p-0.5 rounded hover:bg-muted disabled:opacity-20 transition-colors">
-                    <ChevronDown className="h-3 w-3" />
-                  </button>
+              <div
+                key={entry.id}
+                draggable
+                onDragStart={() => handleDragStart(i)}
+                onDragOver={(e) => handleDragOver(e, i)}
+                onDrop={() => handleDrop(i)}
+                onDragEnd={() => setDragOver(null)}
+                className={`grid grid-cols-[24px_1fr_90px_36px] gap-1 px-3 py-2 items-center border-b border-border last:border-b-0 transition-colors ${
+                  dragOver === i ? 'bg-primary/5 border-primary/30' : ''
+                }`}
+              >
+                {/* Drag handle */}
+                <div className="flex items-center justify-center cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground transition-colors">
+                  <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+                    <circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/>
+                    <circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/>
+                    <circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/>
+                  </svg>
                 </div>
                 <div className="flex items-center gap-2 min-w-0">
                   <div className={`w-2 h-2 rounded-full shrink-0 ${c.dot}`} />
@@ -262,7 +276,6 @@ function WorkloadTabel({
           })}
         </div>
       )}
-      {/* Dropdown — duplicaten toegestaan */}
       <AddDropdown personen={allPersonen} onAdd={add} allowDuplicates />
     </div>
   );
@@ -337,7 +350,7 @@ export default function PlanningTimelineTest() {
           <div className="bg-slate-50/60 dark:bg-slate-900/20 p-4 border-b border-border">
             <Label className="text-sm font-medium mb-1 block">Workload</Label>
             <p className="text-[11px] text-muted-foreground mb-3">
-              Gebruik de pijltjes om de volgorde in te stellen — wie werkt er eerst?
+              Sleep rijen om de volgorde aan te passen — wie werkt er eerst?
             </p>
             <WorkloadTabel
               entries={workload}
