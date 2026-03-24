@@ -18,6 +18,7 @@ import AgendaResultaat from "./pages/AgendaResultaat";
 import EllenVoorstel from "./pages/EllenVoorstel";
 import MicrosoftKoppelen from "./pages/MicrosoftKoppelen";
 import NotFound from "./pages/NotFound";
+import PlanningTimelineTest from "./components/forms/PlanningTimelineTest";
 
 const queryClient = new QueryClient();
 
@@ -40,6 +41,7 @@ const App = () => (
             <Route path="/verlof" element={<ProtectedRoute><Verlof /></ProtectedRoute>} />
             <Route path="/agenda-resultaat" element={<ProtectedRoute><AgendaResultaat /></ProtectedRoute>} />
             <Route path="/ellen-voorstel" element={<ProtectedRoute><EllenVoorstel /></ProtectedRoute>} />
+            <Route path="/test-timeline" element={<PlanningTimelineTest />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
