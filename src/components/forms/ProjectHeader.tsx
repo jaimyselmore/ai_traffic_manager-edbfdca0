@@ -206,11 +206,11 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
   const selectedClientName = clients.find(c => c.id === data.klantId)?.name;
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
-      <h2 className="text-lg font-semibold text-foreground">Projectgegevens</h2>
+    <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
+      <h2 className="text-base font-semibold text-foreground">Projectgegevens</h2>
 
       {/* Klant */}
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         <Label className="text-sm">Klant *</Label>
         <Select
           value={data.klantId || (isAddingNewClient ? 'new' : '')}
@@ -228,132 +228,76 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
             <SelectItem value="new">+ Nieuwe klant toevoegen</SelectItem>
           </SelectContent>
         </Select>
-        {errors?.klantId && (
-          <p className="text-xs text-destructive">{errors.klantId}</p>
+        {errors?.klantId && <p className="text-xs text-destructive">{errors.klantId}</p>}
+        {data.klantIdBasis && (
+          <p className="text-xs text-muted-foreground">
+            Klantnummer: <span className="font-medium text-foreground">{data.klantIdBasis}</span>
+          </p>
         )}
 
         {/* New client inline form */}
         {isAddingNewClient && (
-          <div className="mt-3 p-4 bg-secondary/50 rounded-lg space-y-3">
-            <p className="text-sm font-medium text-foreground">Nieuwe klant toevoegen</p>
+          <div className="mt-2 p-3 bg-secondary/50 rounded-lg space-y-3">
+            <p className="text-sm font-medium">Nieuwe klant toevoegen</p>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs">Klantnummer *</Label>
-                <Input
-                  value={tempNewClient.klantnummer}
-                  onChange={(e) => setTempNewClient({ ...tempNewClient, klantnummer: e.target.value })}
-                  placeholder="bijv. K001 of ABC123"
-                  className="mt-1"
-                  disabled={isSavingClient}
-                />
+                <Input value={tempNewClient.klantnummer} onChange={(e) => setTempNewClient({ ...tempNewClient, klantnummer: e.target.value })} placeholder="bijv. K001" className="mt-1" disabled={isSavingClient} />
               </div>
               <div>
                 <Label className="text-xs">Naam *</Label>
-                <Input
-                  value={tempNewClient.naam}
-                  onChange={(e) => setTempNewClient({ ...tempNewClient, naam: e.target.value })}
-                  placeholder="Naam van de klant"
-                  className="mt-1"
-                  disabled={isSavingClient}
-                />
+                <Input value={tempNewClient.naam} onChange={(e) => setTempNewClient({ ...tempNewClient, naam: e.target.value })} placeholder="Naam van de klant" className="mt-1" disabled={isSavingClient} />
               </div>
               <div>
-                <Label className="text-xs">Reistijd (minuten)</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  value={tempNewClient.reistijd_minuten}
-                  onChange={(e) => setTempNewClient({ ...tempNewClient, reistijd_minuten: e.target.value })}
-                  placeholder="bijv. 45"
-                  className="mt-1"
-                  disabled={isSavingClient}
-                />
+                <Label className="text-xs">Reistijd (min)</Label>
+                <Input type="number" min="0" value={tempNewClient.reistijd_minuten} onChange={(e) => setTempNewClient({ ...tempNewClient, reistijd_minuten: e.target.value })} placeholder="45" className="mt-1" disabled={isSavingClient} />
               </div>
             </div>
-            <div>
-              <Label className="text-xs">Interne notities</Label>
-              <Textarea
-                value={tempNewClient.interne_notities}
-                onChange={(e) => setTempNewClient({ ...tempNewClient, interne_notities: e.target.value })}
-                placeholder="Algemene opmerkingen over de klant"
-                rows={2}
-                className="mt-1"
-                disabled={isSavingClient}
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Interne notities</Label>
+                <Textarea value={tempNewClient.interne_notities} onChange={(e) => setTempNewClient({ ...tempNewClient, interne_notities: e.target.value })} rows={2} className="mt-1" disabled={isSavingClient} />
+              </div>
+              <div>
+                <Label className="text-xs">Planning instructies</Label>
+                <Textarea value={tempNewClient.planning_instructies} onChange={(e) => setTempNewClient({ ...tempNewClient, planning_instructies: e.target.value })} placeholder="Klant wil alleen ochtend..." rows={2} className="mt-1" disabled={isSavingClient} />
+              </div>
             </div>
-            <div>
-              <Label className="text-xs">Planning instructies</Label>
-              <Textarea
-                value={tempNewClient.planning_instructies}
-                onChange={(e) => setTempNewClient({ ...tempNewClient, planning_instructies: e.target.value })}
-                placeholder="bijv. 'Klant wil alleen ochtend vergaderen'"
-                rows={2}
-                className="mt-1"
-                disabled={isSavingClient}
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Instructies die Ellen gebruikt bij het plannen.
-              </p>
-            </div>
-            <div className="flex gap-2 pt-2">
+            <div className="flex gap-2">
               <Button size="sm" onClick={handleSaveNewClient} disabled={isSavingClient}>
                 {isSavingClient && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Toevoegen
               </Button>
-              <Button size="sm" variant="ghost" onClick={handleCancelNewClient} disabled={isSavingClient}>
-                Annuleren
-              </Button>
+              <Button size="sm" variant="ghost" onClick={handleCancelNewClient} disabled={isSavingClient}>Annuleren</Button>
             </div>
           </div>
         )}
-
-        {/* Show selected client info */}
-        {selectedClientName && !isAddingNewClient && data.nieuweKlantNaam && (
-          <p className="text-sm text-muted-foreground">
-            Nieuwe klant: <span className="font-medium text-foreground">{selectedClientName}</span>
-          </p>
-        )}
       </div>
 
-      {/* Klantnummer (read-only) */}
-      {data.klantIdBasis && (
+      {/* Volgnummer + Project-ID */}
+      <div className="grid grid-cols-2 gap-3 items-end">
         <div>
-          <p className="text-sm text-muted-foreground">
-            Klantnummer: <span className="font-medium text-foreground">{data.klantIdBasis}</span>
-          </p>
+          <Label className="text-sm">Volgnummer *</Label>
+          <Input
+            type="text"
+            inputMode="numeric"
+            maxLength={2}
+            value={data.projectVolgnummer}
+            onChange={(e) => handleVolgnummerChange(e.target.value)}
+            placeholder="1"
+            className={`mt-1 ${errors?.projectVolgnummer ? 'border-destructive' : ''}`}
+          />
+          {errors?.projectVolgnummer && <p className="text-xs text-destructive mt-0.5">{errors.projectVolgnummer}</p>}
         </div>
-      )}
-
-      {/* Project volgnummer */}
-      <div>
-        <Label className="text-sm">Project volgnummer *</Label>
-        <Input
-          type="text"
-          inputMode="numeric"
-          maxLength={2}
-          value={data.projectVolgnummer}
-          onChange={(e) => handleVolgnummerChange(e.target.value)}
-          placeholder="1"
-          className={`w-20 ${errors?.projectVolgnummer ? 'border-destructive' : ''}`}
-        />
-        <p className="text-xs text-muted-foreground mt-1">
-          Volgnummer van dit project bij deze klant (1–99).
-        </p>
-        {errors?.projectVolgnummer && (
-          <p className="text-xs text-destructive">{errors.projectVolgnummer}</p>
+        {data.volledigProjectId && (
+          <div className="px-3 py-2.5 bg-secondary/50 rounded-lg">
+            <p className="text-xs text-muted-foreground">Project-ID</p>
+            <p className="text-sm font-semibold text-foreground">{data.volledigProjectId}</p>
+          </div>
         )}
       </div>
 
-      {/* Volledig project-ID (read-only) */}
-      {data.volledigProjectId && (
-        <div className="p-3 bg-secondary/50 rounded-lg">
-          <p className="text-sm text-muted-foreground">
-            Volledig project-ID: <span className="font-semibold text-foreground">{data.volledigProjectId}</span>
-          </p>
-        </div>
-      )}
-
-      {/* Project naam */}
+      {/* Projectnaam + Project titel */}
       {data.volledigProjectId && (
         <div>
           <Label className="text-sm">Projectnaam *</Label>
@@ -363,48 +307,39 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
             placeholder="bijv. Zomercampagne"
             className={`mt-1 ${errors?.projectNaam ? 'border-destructive' : ''}`}
           />
-          {errors?.projectNaam && (
-            <p className="text-xs text-destructive">{errors.projectNaam}</p>
+          {errors?.projectNaam && <p className="text-xs text-destructive mt-0.5">{errors.projectNaam}</p>}
+          {data.projectTitel && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Projecttitel: <span className="font-medium text-foreground">{data.projectTitel}</span>
+            </p>
           )}
         </div>
       )}
 
-      {/* Project titel (read-only) */}
-      {data.projectTitel && (
-        <div className="p-3 bg-primary/10 rounded-lg border border-primary/20">
-          <p className="text-sm text-muted-foreground">
-            Project titel: <span className="font-semibold text-foreground">{data.projectTitel}</span>
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            Deze titel wordt gebruikt in de planner en planning communicatie.
-          </p>
+      {/* Startdatum + Deadline */}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <Label className="text-sm">Startdatum *</Label>
+          <div className="mt-1">
+            <DatePicker
+              value={parseDate(data.startDatum)}
+              onChange={(date) => onChange({ ...data, startDatum: formatDateISO(date) })}
+              placeholder="Selecteer datum"
+            />
+          </div>
+          {errors?.startDatum && <p className="text-xs text-destructive mt-0.5">{errors.startDatum}</p>}
         </div>
-      )}
-
-      {/* Startdatum */}
-      <div>
-        <Label className="text-sm">Startdatum *</Label>
-        <DatePicker
-          value={parseDate(data.startDatum)}
-          onChange={(date) => onChange({ ...data, startDatum: formatDateISO(date) })}
-          placeholder="Selecteer startdatum"
-        />
-        {errors?.startDatum && (
-          <p className="text-xs text-destructive">{errors.startDatum}</p>
-        )}
-      </div>
-
-      {/* Deadline */}
-      <div>
-        <Label className="text-sm">Deadline *</Label>
-        <DatePicker
-          value={parseDate(data.deadline)}
-          onChange={(date) => onChange({ ...data, deadline: formatDateISO(date) })}
-          placeholder="Selecteer deadline"
-        />
-        {errors?.deadline && (
-          <p className="text-xs text-destructive">{errors.deadline}</p>
-        )}
+        <div>
+          <Label className="text-sm">Deadline *</Label>
+          <div className="mt-1">
+            <DatePicker
+              value={parseDate(data.deadline)}
+              onChange={(date) => onChange({ ...data, deadline: formatDateISO(date) })}
+              placeholder="Selecteer datum"
+            />
+          </div>
+          {errors?.deadline && <p className="text-xs text-destructive mt-0.5">{errors.deadline}</p>}
+        </div>
       </div>
 
       {/* Opmerkingen */}
@@ -415,6 +350,7 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
           onChange={(e) => onChange({ ...data, opmerkingen: e.target.value })}
           placeholder="Extra opmerkingen (optioneel)..."
           rows={2}
+          className="mt-1"
         />
       </div>
     </div>
