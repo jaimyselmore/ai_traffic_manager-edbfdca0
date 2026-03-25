@@ -5,7 +5,7 @@
  */
 
 import { secureInsert } from '@/lib/data/secureDataClient';
-import { vindEersteVrijeSlot, heeftVerlof, vindVolgendeVrijeDag } from '@/lib/helpers/slotFinder';
+import { vindEersteVrijeSlot, vindGemeenschappelijkeSlot, heeftVerlof } from '@/lib/helpers/slotFinder';
 import { getMonday, getDayOfWeekNumber, isWeekend } from '@/lib/helpers/dateHelpers';
 
 interface ProjectFaseInput {
@@ -169,61 +169,57 @@ async function scheduleFaseBlocks(config: ScheduleFaseBlocksConfig): Promise<Rec
       huidigeDatum.setDate(huidigeDatum.getDate() + 1);
     }
 
-    // For each employee
+    // Filter out medewerkers with verlof on this day
+    const beschikbaar: string[] = [];
     for (const medewerker of config.medewerkers) {
-      // Check verlof
       const heeftMedewerkerVerlof = await heeftVerlof(medewerker, huidigeDatum);
       if (heeftMedewerkerVerlof) {
         console.warn(`${medewerker} heeft verlof op ${huidigeDatum.toISOString().split('T')[0]}`);
-        continue;
+      } else {
+        beschikbaar.push(medewerker);
       }
+    }
 
-      // Find first available slot
-      const vrijeSlot = await vindEersteVrijeSlot(
-        medewerker,
-        huidigeDatum,
-        config.urenPerDag
-      );
+    if (beschikbaar.length === 0) {
+      huidigeDatum.setDate(huidigeDatum.getDate() + 1);
+      continue;
+    }
 
-      if (!vrijeSlot) {
-        console.warn(`Geen vrije slot voor ${medewerker} op ${huidigeDatum.toISOString().split('T')[0]}`);
-        // Try next working day
-        const volgendeVrijeDag = await vindVolgendeVrijeDag(medewerker, huidigeDatum, config.urenPerDag, 5);
-        if (volgendeVrijeDag) {
-          console.log(`Blok verplaatst naar ${volgendeVrijeDag.datum.toISOString().split('T')[0]}`);
-          huidigeDatum = volgendeVrijeDag.datum;
-        } else {
-          continue; // Skip this block
-        }
-      }
+    // Find a shared time slot so all medewerkers get the same start time
+    const gedeeldSlot = beschikbaar.length === 1
+      ? await vindEersteVrijeSlot(beschikbaar[0], huidigeDatum, config.urenPerDag)
+      : await vindGemeenschappelijkeSlot(beschikbaar, huidigeDatum, config.urenPerDag);
 
-      const slot = vrijeSlot || (await vindEersteVrijeSlot(medewerker, huidigeDatum, config.urenPerDag));
+    if (!gedeeldSlot) {
+      console.warn(`Geen gezamenlijk slot voor ${beschikbaar.join(', ')} op ${huidigeDatum.toISOString().split('T')[0]}`);
+      huidigeDatum.setDate(huidigeDatum.getDate() + 1);
+      continue;
+    }
 
-      if (slot) {
-        // Place block via secure edge function
-        const { data: blokArr, error } = await secureInsert<Record<string, unknown>>('taken', {
-          project_id: config.projectId,
-          fase_id: config.faseId,
-          werknemer_naam: medewerker,
-          klant_naam: config.klantNaam,
-          project_nummer: config.projectNummer,
-          fase_naam: config.faseNaam,
-          werktype: config.faseNaam,
-          discipline: discipline,
-          week_start: getMonday(huidigeDatum),
-          dag_van_week: getDayOfWeekNumber(huidigeDatum),
-          start_uur: slot.startUur,
-          duur_uren: slot.duurUren,
-          plan_status: 'concept',
-          is_hard_lock: false,
-        });
+    // Place block for each medewerker at the same slot
+    for (const medewerker of beschikbaar) {
+      const { data: blokArr, error } = await secureInsert<Record<string, unknown>>('taken', {
+        project_id: config.projectId,
+        fase_id: config.faseId,
+        werknemer_naam: medewerker,
+        klant_naam: config.klantNaam,
+        project_nummer: config.projectNummer,
+        fase_naam: config.faseNaam,
+        werktype: config.faseNaam,
+        discipline: discipline,
+        week_start: getMonday(huidigeDatum),
+        dag_van_week: getDayOfWeekNumber(huidigeDatum),
+        start_uur: gedeeldSlot.startUur,
+        duur_uren: gedeeldSlot.duurUren,
+        plan_status: 'concept',
+        is_hard_lock: false,
+      });
 
-        if (error) {
-          console.error('Error placing block:', error);
-        } else {
-          const blok = Array.isArray(blokArr) ? blokArr[0] : null;
-          if (blok) geplaatsteBlokken.push(blok);
-        }
+      if (error) {
+        console.error('Error placing block:', error);
+      } else {
+        const blok = Array.isArray(blokArr) ? blokArr[0] : null;
+        if (blok) geplaatsteBlokken.push(blok);
       }
     }
 
