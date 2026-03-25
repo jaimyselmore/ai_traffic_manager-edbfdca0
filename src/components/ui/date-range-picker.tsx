@@ -26,17 +26,27 @@ export function DateRangePicker({
   className
 }: DateRangePickerProps) {
   const [open, setOpen] = React.useState(false);
+  const [selecting, setSelecting] = React.useState(false);
 
   const handleSelect = (range: DateRange | undefined) => {
     onChange?.(range);
-    // Sluit de popover alleen als beide datums geselecteerd zijn
-    if (range?.from && range?.to) {
-      setOpen(false);
+    if (range?.from && !range?.to) {
+      setSelecting(true);
+    } else {
+      setSelecting(false);
+      if (range?.from && range?.to) setOpen(false);
     }
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(newOpen) => {
+        if (!newOpen && selecting) return;
+        setOpen(newOpen);
+        if (!newOpen) setSelecting(false);
+      }}
+    >
       <PopoverTrigger asChild>
         <Button
           variant="outline"
