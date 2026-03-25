@@ -480,6 +480,10 @@ export function AlgemeenFases({ data, onChange }: AlgemeenFasesProps) {
     onChange({ ...data, slotfase: { medewerkers: (data.slotfase?.medewerkers || []).filter(m => m.medewerkerId !== medewerkerId) } });
   };
 
+  const reorderSlotfaseMedewerkers = (medewerkers: WorkloadMedewerker[]) => {
+    onChange({ ...data, slotfase: { medewerkers } });
+  };
+
   const addFeedbackMoment = (presentatieId: string) => {
     onChange({
       ...data,
@@ -803,55 +807,18 @@ export function AlgemeenFases({ data, onChange }: AlgemeenFasesProps) {
           </button>
         </div>
         {data.slotfase && (
-          <div className="border-t border-border bg-muted/30 p-4">
-            <Label className="text-sm font-medium mb-3 block">Workload (tot deadline)</Label>
-            {data.slotfase.medewerkers.length > 0 ? (
-              <div className="bg-background rounded-lg border border-border overflow-hidden">
-                <div className="grid grid-cols-[1fr_100px_32px] gap-2 px-3 py-2 bg-muted/50 border-b border-border text-xs font-medium text-muted-foreground">
-                  <span>Medewerker</span>
-                  <span className="text-center">Uren (totaal)</span>
-                  <span></span>
-                </div>
-                {data.slotfase.medewerkers.map(wm => {
-                  const emp = employees.find(e => e.id === wm.medewerkerId);
-                  if (!emp) return null;
-                  return (
-                    <div key={wm.medewerkerId} className="grid grid-cols-[1fr_100px_32px] gap-2 px-3 py-2 items-center border-b border-border last:border-b-0">
-                      <span className="text-sm font-medium truncate">{emp.name}</span>
-                      <Input
-                        type="text"
-                        inputMode="decimal"
-                        value={wm.uren === 0 ? '' : wm.uren}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          if (val === '' || /^\d*\.?\d*$/.test(val)) {
-                            updateSlotfaseMedewerker(wm.medewerkerId, val === '' ? 0 : parseFloat(val));
-                          }
-                        }}
-                        placeholder="0"
-                        className="h-8 text-sm text-center"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeSlotfaseMedewerker(wm.medewerkerId)}
-                        className="p-1.5 hover:bg-destructive/10 hover:text-destructive rounded"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground mb-3">Nog geen medewerkers toegevoegd</p>
-            )}
-            <div className="mt-3">
-              <MemberAddDropdown
-                currentIds={data.slotfase.medewerkers.map(m => m.medewerkerId)}
-                employees={employees}
-                onAdd={addSlotfaseMedewerker}
-              />
-            </div>
+          <div className="p-4">
+            <p className="text-[11px] text-muted-foreground mb-3">Sleep of gebruik de pijltjes om de volgorde aan te passen.</p>
+            <WorkloadTabelProd
+              medewerkers={data.slotfase.medewerkers}
+              employees={employees}
+              colorMap={colorMap}
+              allEmployees={employees}
+              onReorder={reorderSlotfaseMedewerkers}
+              onUpdate={(empId, uren) => updateSlotfaseMedewerker(empId, uren)}
+              onRemove={removeSlotfaseMedewerker}
+              onAdd={addSlotfaseMedewerker}
+            />
           </div>
         )}
       </div>

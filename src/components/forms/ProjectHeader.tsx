@@ -265,7 +265,7 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
             </div>
             <div>
               <Label className="text-xs">Planning instructies</Label>
-              <Textarea value={tempNewClient.planning_instructies} onChange={(e) => setTempNewClient({ ...tempNewClient, planning_instructies: e.target.value })} placeholder="Klant wil alleen ochtend..." rows={2} className="mt-1" disabled={isSavingClient} />
+              <Input value={tempNewClient.planning_instructies} onChange={(e) => setTempNewClient({ ...tempNewClient, planning_instructies: e.target.value })} placeholder="Klant wil alleen ochtend..." className="mt-1" disabled={isSavingClient} />
             </div>
           </div>
           <div className="flex gap-2">
