@@ -85,14 +85,16 @@ function TimelineStripProd({
   feedbackMomenten,
   employees,
   colorMap,
+  showPresentatie = true,
 }: {
   medewerkers: WorkloadMedewerker[];
   feedbackMomenten?: FeedbackMoment[];
   employees: { id: string; name: string }[];
   colorMap: Record<string, number>;
+  showPresentatie?: boolean;
 }) {
   const feedbackUren = (feedbackMomenten || []).reduce((s, f) => s + f.aantalDagen * 8, 0);
-  const presentatieUren = 2;
+  const presentatieUren = showPresentatie ? 2 : 0;
   const filtered = medewerkers.filter(m => m.uren > 0);
   const workloadUren = filtered.reduce((s, m) => s + m.uren, 0);
   const totaalUren = workloadUren + presentatieUren + feedbackUren;
@@ -125,13 +127,15 @@ function TimelineStripProd({
             </div>
           );
         })}
-        <div
-          className="flex items-center justify-center overflow-hidden bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300 transition-all duration-300"
-          style={{ width: pct(presentatieUren), minWidth: '1.5rem' }}
-          title="Presentatie: 2u"
-        >
-          <span className="text-[9px] font-semibold px-0.5">Pres.</span>
-        </div>
+        {showPresentatie && (
+          <div
+            className="flex items-center justify-center overflow-hidden bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300 transition-all duration-300"
+            style={{ width: pct(presentatieUren), minWidth: '1.5rem' }}
+            title="Presentatie: 2u"
+          >
+            <span className="text-[9px] font-semibold px-0.5">Pres.</span>
+          </div>
+        )}
         {feedbackUren > 0 && (
           <div
             className="flex items-center justify-center overflow-hidden bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 transition-all duration-300"
@@ -807,6 +811,13 @@ export function AlgemeenFases({ data, onChange }: AlgemeenFasesProps) {
           </button>
         </div>
         {data.slotfase && (
+          <div>
+            <TimelineStripProd
+              medewerkers={data.slotfase.medewerkers}
+              employees={employees}
+              colorMap={colorMap}
+              showPresentatie={false}
+            />
           <div className="p-4">
             <p className="text-[11px] text-muted-foreground mb-3">Sleep of gebruik de pijltjes om de volgorde aan te passen.</p>
             <WorkloadTabelProd
@@ -819,6 +830,7 @@ export function AlgemeenFases({ data, onChange }: AlgemeenFasesProps) {
               onRemove={removeSlotfaseMedewerker}
               onAdd={addSlotfaseMedewerker}
             />
+          </div>
           </div>
         )}
       </div>
