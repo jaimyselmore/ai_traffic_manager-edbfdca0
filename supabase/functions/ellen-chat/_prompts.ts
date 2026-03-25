@@ -61,52 +61,35 @@ export function buildPlanPrompt(
   const hardRegels = regels.filter(r => r.categorie === 'hard');
   const softRegels = regels.filter(r => r.categorie === 'soft');
   const voorkeurRegels = regels.filter(r => r.categorie === 'voorkeur');
-  const faseList = config.fase_templates
-    .map(f => `  - ${f.naam}: ${f.min_dagen}-${f.max_dagen} dagen${f.omschrijving ? ` (${f.omschrijving})` : ''}`)
-    .join('\n');
 
   return `${CORE_PROMPT}
 
 MODUS: PROJECT PLANNING
-Je maakt een planning voorstel voor een nieuw project.
+Roep plan_project aan met de fases in de juiste volgorde.
 
-STAPPENPLAN (volg exact in deze volgorde):
+STAP 1 — Capaciteit beoordelen
+Kijk naar de PRE-LOADED data: bestaande taken per medewerker, verlofperiodes, deadlines van andere projecten. Medewerker met veel bestaande taken of een eerdere deadline heeft voorrang. Noteer conflicten.
 
-Stap 1 — Toelichtingen analyseren
-Citeer elke toelichting letterlijk en bepaal de verdeling:
-- "1 dag per week" / "wekelijks" / "doorlopend" → verdeling=per_week
-- "laatste week" / "finishing touches" / "afronding" / "vlak voor deadline" → verdeling=laatste_week
-- Leeg / "fulltime" / geen timing → verdeling=aaneengesloten
-Schrijf per fase: "Fase X: toelichting 'Y' → verdeling=Z, want [reden]"
+STAP 2 — plan_project aanroepen
+Fases komen in volgorde — de engine ketent ze automatisch:
+- Laat start_datum weg tenzij de gebruiker een vaste datum heeft opgegeven.
+- Eerste fase: geef start_datum mee (startdatum van het project).
+- Presentaties met datumType='ellen': engine kiest automatisch donderdag/vrijdag. start_datum weglaten, verdeling='laatste_week', duur_dagen=1.
+- Werkfases: duur_dagen = max(uren per medewerker) ÷ uren_per_dag, afgerond omhoog.
+- Verdeling: aaneengesloten (blokken op rij), per_week (verspreid), laatste_week (vlak voor deadline).
+- In 'reasoning': beschrijf kort je capaciteitskeuzes.
 
-Stap 2 — PRE-LOADED data gebruiken
-Bekijk de meegeleverde data. Noteer:
-- Bestaande projecten per medewerker + deadlines
-- Project met EERDERE deadline heeft voorrang
-- Conflicten: medewerker al vol gepland?
+STAP 3 — Risico's melden
+Deadline te krap? Medewerker overbelast? Microsoft agenda niet gekoppeld? Noem het in één zin per risico.
 
-Stap 3 — plan_project aanroepen
-Gebruik ALTIJD plan_project met correcte verdeling per fase.
-In 'reasoning': leg uit welke keuzes je gemaakt hebt en waarom.
-Feedback/review-fases: plan bij voorkeur op donderdag of vrijdag.
-
-Stap 4 — Risico's melden
-Noem expliciet: deadline te krap? medewerker overbelast? Microsoft agenda niet gekoppeld?
-
-WERKTIJDEN:
-- Werkdag: ${formatTime(config.werkdag_start)}-${formatTime(config.werkdag_eind)}
-- Lunch: ${formatTime(config.lunch_start)}-${formatTime(config.lunch_eind)} (geen werk)
-- Meetings: bij voorkeur ${formatTime(config.meeting_start)}-${formatTime(config.meeting_eind)}
-
-FASE-RICHTLIJNEN:
-${faseList}
+WERKTIJDEN: ${formatTime(config.werkdag_start)}-${formatTime(config.werkdag_eind)}, lunch ${formatTime(config.lunch_start)}-${formatTime(config.lunch_eind)}
+Meetings: ${formatTime(config.meeting_start)}-${formatTime(config.meeting_eind)}
 
 REGELS:
-Hard (geen uitzonderingen): ${hardRegels.length > 0 ? hardRegels.map(r => `${r.regel}${r.rationale ? ` (${r.rationale})` : ''}`).join(' | ') : 'geen geconfigureerd'}
-Soft (uitleg bij afwijking): ${softRegels.length > 0 ? softRegels.map(r => r.regel).join(' | ') : 'geen geconfigureerd'}
-Voorkeur: ${voorkeurRegels.length > 0 ? voorkeurRegels.map(r => r.regel).join(' | ') : 'geen geconfigureerd'}
-${feedback.length > 0 ? `\nEerdere feedback van planners:\n${feedback.map(f => `- "${f}"`).join('\n')}` : ''}
-${config.extra_instructies ? `\nExtra instructies:\n${config.extra_instructies}` : ''}
+Hard: ${hardRegels.length > 0 ? hardRegels.map(r => `${r.regel}${r.rationale ? ` (${r.rationale})` : ''}`).join(' | ') : 'geen'}
+Soft: ${softRegels.length > 0 ? softRegels.map(r => r.regel).join(' | ') : 'geen'}
+Voorkeur: ${voorkeurRegels.length > 0 ? voorkeurRegels.map(r => r.regel).join(' | ') : 'geen'}
+${feedback.length > 0 ? `\nEerdere feedback:\n${feedback.map(f => `- "${f}"`).join('\n')}` : ''}${config.extra_instructies ? `\nExtra:\n${config.extra_instructies}` : ''}
 Je praat met: ${plannerNaam}${plannerInfo ? `\n${plannerInfo}` : ''}`;
 }
 

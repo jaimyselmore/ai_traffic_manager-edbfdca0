@@ -148,10 +148,11 @@ export async function executeTool(
       case 'plan_project': {
         const { klant_naam, project_naam, projecttype = 'algemeen', reasoning = '', deadline } = args;
         const fases = args.fases as Array<{
-          fase_naam: string; medewerkers: string[]; start_datum: string; duur_dagen: number;
+          fase_naam: string; medewerkers: string[]; start_datum?: string; duur_dagen: number;
           uren_per_dag?: number; verdeling?: 'aaneengesloten' | 'per_week' | 'laatste_week'; dagen_per_week?: number;
-          fase_deadline?: string; // Per-fase deadline — overschrijft globale deadline voor deze fase
-          type?: string; // Expliciet type: 'presentatie', 'meeting', etc.
+          fase_deadline?: string;
+          type?: string;
+          datumType?: 'zelf' | 'ellen'; // Voor presentaties: ellen = engine kiest automatisch
         }>;
 
         if (!klant_naam || !project_naam || !fases?.length) {
@@ -164,7 +165,7 @@ export async function executeTool(
 
         // ── PRE-FETCH: 3 queries in parallel i.p.v. ~150 sequentieel ────────────
         const alleeMedewerkers = [...new Set(fases.flatMap(f => f.medewerkers))];
-        const startStr = fases[0].start_datum;
+        const startStr = fases[0].start_datum || new Date().toISOString().split('T')[0];
         const endDate = deadline
           ? new Date(deadline + 'T00:00:00')
           : new Date(new Date(startStr + 'T00:00:00').getTime() + 90 * 24 * 60 * 60 * 1000);
@@ -218,7 +219,21 @@ export async function executeTool(
         }> = [];
         const samenvattingParts: string[] = [];
         const warnings: string[] = [];
-        const firstStartDate = new Date(fases[0].start_datum + 'T00:00:00');
+        const firstStartDate = new Date(startStr + 'T00:00:00');
+
+        // Helper: tel N werkdagen op vanuit een datum (voor cursor-update)
+        function addWorkDays(start: Date, days: number): Date {
+          const result = new Date(start);
+          let added = 0;
+          while (added < days) {
+            result.setDate(result.getDate() + 1);
+            if (!isWeekend(result)) added++;
+          }
+          return result;
+        }
+
+        // Cursor bijhouden: start van de volgende fase als geen start_datum opgegeven
+        let planningCursor = new Date(startStr + 'T00:00:00');
 
         function planBlok(medewerker: string, datum: Date, fase: typeof fases[0], isMeeting: boolean): boolean {
           const urenPerDag = fase.uren_per_dag || 8;
@@ -246,9 +261,13 @@ export async function executeTool(
         for (const fase of fases) {
           const verdeling = fase.verdeling || 'aaneengesloten';
           const dagenPerWeek = fase.dagen_per_week || 1;
-          const isMeeting = fase.type === 'presentatie' || fase.type === 'meeting' || isMeetingFase(fase.fase_naam);
+          const isMeeting = (fase.datumType === 'ellen') || fase.type === 'presentatie' || fase.type === 'meeting' || isMeetingFase(fase.fase_naam);
           const isFeedback = isFeedbackFase(fase.fase_naam, fase.uren_per_dag);
-          const faseStart = new Date(fase.start_datum + 'T00:00:00');
+          // start_datum is optioneel: ontbreekt → automatisch ketenen van vorige fase via planningCursor
+          const faseStart = fase.start_datum
+            ? new Date(fase.start_datum + 'T00:00:00')
+            : new Date(planningCursor);
+          while (isWeekend(faseStart)) faseStart.setDate(faseStart.getDate() + 1);
           // Gebruik fase_deadline als die er is, anders de globale deadline
           const faseDeadline = fase.fase_deadline || deadline;
           samenvattingParts.push(`\n${fase.fase_naam} (${verdeling}):`);
@@ -338,6 +357,8 @@ export async function executeTool(
               if (geplandDezeRonde) { dagenGepland++; dagenDezeWeek++; }
               huidigeDatum.setDate(huidigeDatum.getDate() + 1);
             }
+            // Cursor vooruit voor per_week
+            planningCursor = new Date(huidigeDatum);
           } else {
             // Aaneengesloten: plan N dagen op rij, sla dag over als slot bezet is.
             // FIX: tel dag alleen als gepland als planBlok echt succesvol was.
@@ -353,6 +374,15 @@ export async function executeTool(
               if (geplandDezeRonde) dagenGepland++;
               huidigeDatum.setDate(huidigeDatum.getDate() + 1);
             }
+            // Cursor vooruit zetten zodat de volgende fase hier verder gaat
+            planningCursor = new Date(huidigeDatum);
+          }
+
+          // Voor laatste_week fases (presentaties): cursor naar dag ná deadline
+          if (verdeling === 'laatste_week' && faseDeadline) {
+            const dlDate = new Date(faseDeadline + 'T00:00:00');
+            dlDate.setDate(dlDate.getDate() + 1);
+            if (dlDate > planningCursor) planningCursor = dlDate;
           }
         }
 

@@ -315,7 +315,26 @@ export default function EllenVoorstel() {
           // ── PROJECT: Deterministische planning volledig in de frontend ──────────
           // Workloads worden HIER gepland — geen backend slot-finding meer.
           // Alleen 'ellen bepaalt' presentaties gaan nog naar de Edge Function.
-          const { workloadTaken, ellenPresentatieFases } = buildFrontendSchedule(projectInfo);
+
+          // Pre-fetch bestaande taken voor alle betrokken medewerkers in de projectperiode
+          // zodat de scheduler geen conflict maakt met andere lopende projecten
+          let bestaandeTaken: Array<{ werknemer_naam: string; week_start: string; dag_van_week: number }> = [];
+          if (alleMedewerkers.length > 0) {
+            const eindDatumFetch = toISODate(projectInfo.deadline) || (() => {
+              const d = new Date();
+              d.setDate(d.getDate() + 120);
+              return d.toISOString().split('T')[0];
+            })();
+            const { data: takenData } = await supabase
+              .from('taken')
+              .select('werknemer_naam, week_start, dag_van_week')
+              .in('werknemer_naam', alleMedewerkers)
+              .gte('week_start', toISODate(startDatum) || startDatum)
+              .lte('week_start', eindDatumFetch);
+            bestaandeTaken = takenData || [];
+          }
+
+          const { workloadTaken, ellenPresentatieFases } = buildFrontendSchedule(projectInfo, bestaandeTaken);
           const fixedPresentatieTaken = buildPresentatieTaken(projectInfo);
 
           if (!ellenPresentatieFases) {
@@ -1796,7 +1815,17 @@ function scheduleForward(
  * - Werkt correct voor 'ellen bepaalt' presentaties (venster wordt bepaald door
  *   omliggende vaste datums)
  */
-function buildFrontendSchedule(info: any): {
+// Converteert week_start (YYYY-MM-DD maandag) + dag_van_week (0=ma..4=vr) naar datum string
+function weekStartDagToDateStr(weekStart: string, dagVanWeek: number): string {
+  const d = new Date(weekStart + 'T00:00:00');
+  d.setDate(d.getDate() + dagVanWeek);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function buildFrontendSchedule(
+  info: any,
+  bestaandeTaken?: Array<{ werknemer_naam: string; week_start: string; dag_van_week: number }>
+): {
   workloadTaken: VoorstelTaak[];
   ellenPresentatieFases: any[] | null;
 } {
@@ -1863,7 +1892,16 @@ function buildFrontendSchedule(info: any): {
   // ── STAP 4: Plan elk segment backward ─────────────────────────────────────────
   const workloadTaken: VoorstelTaak[] = [];
   const ellenFases: any[] = [];
+  // Seed occupiedDays met bestaande taken van andere projecten
   const occupiedDays = new Map<string, Set<string>>();
+  if (bestaandeTaken?.length) {
+    for (const taak of bestaandeTaken) {
+      const dateStr = weekStartDagToDateStr(taak.week_start, taak.dag_van_week);
+      const used = occupiedDays.get(taak.werknemer_naam) || new Set<string>();
+      used.add(dateStr);
+      occupiedDays.set(taak.werknemer_naam, used);
+    }
+  }
 
   let segmentWindowStart = projectStartDatum; // schuift op na elke vaste presentatie
 
