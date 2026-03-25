@@ -95,21 +95,28 @@ function TimelineStripProd({
 }) {
   const feedbackUren = (feedbackMomenten || []).reduce((s, f) => s + f.aantalDagen * 8, 0);
   const presentatieUren = showPresentatie ? 2 : 0;
+  const allEntries = medewerkers;
   const filtered = medewerkers.filter(m => m.uren > 0);
   const workloadUren = filtered.reduce((s, m) => s + m.uren, 0);
   const totaalUren = workloadUren + presentatieUren + feedbackUren;
 
-  if (workloadUren === 0) return null;
+  if (allEntries.length === 0) return null;
 
-  const pct = (u: number) => `${Math.max((u / totaalUren) * 100, 3)}%`;
+  // Als nog geen uren ingevuld: toon gelijke placeholder blokken
+  const useEqual = workloadUren === 0;
+  const displayEntries = useEqual ? allEntries : filtered;
+  const pct = (u: number) =>
+    useEqual
+      ? `${100 / allEntries.length}%`
+      : `${Math.max((u / totaalUren) * 100, 3)}%`;
 
   return (
     <div className="px-4 pt-3 pb-3 border-b border-border">
       <p className="text-[10px] font-medium text-muted-foreground mb-1.5 uppercase tracking-wide">
-        Tijdlijn — {totaalUren}u totaal
+        {useEqual ? 'Tijdlijn — vul uren in' : `Tijdlijn — ${totaalUren}u totaal`}
       </p>
       <div className="flex h-8 w-full rounded-md overflow-hidden border border-border gap-px bg-border">
-        {filtered.map((m) => {
+        {displayEntries.map((m) => {
           const ci = colorMap[m.medewerkerId] ?? 0;
           const c = PERSOON_KLEUREN[ci % PERSOON_KLEUREN.length];
           const emp = employees.find(e => e.id === m.medewerkerId);
@@ -122,7 +129,7 @@ function TimelineStripProd({
             >
               <div className="flex flex-col items-center leading-none px-1">
                 <span className="text-[10px] font-semibold truncate">{emp?.name?.split(' ')[0]}</span>
-                <span className="text-[9px] opacity-60">{m.uren}u</span>
+                {!useEqual && <span className="text-[9px] opacity-60">{m.uren}u</span>}
               </div>
             </div>
           );
