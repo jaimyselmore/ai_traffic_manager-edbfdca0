@@ -252,22 +252,16 @@ export function ProjectHeader({ data, onChange, errors }: ProjectHeaderProps) {
           <p className="text-sm font-medium">Nieuwe klant toevoegen</p>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label className="text-xs">Klantnummer *</Label>
-              <Input value={tempNewClient.klantnummer} onChange={(e) => setTempNewClient({ ...tempNewClient, klantnummer: e.target.value })} placeholder="bijv. K001" className="mt-1" disabled={isSavingClient} />
-            </div>
-            <div>
               <Label className="text-xs">Naam *</Label>
               <Input value={tempNewClient.naam} onChange={(e) => setTempNewClient({ ...tempNewClient, naam: e.target.value })} placeholder="Naam van de klant" className="mt-1" disabled={isSavingClient} />
             </div>
             <div>
+              <Label className="text-xs">Klantnummer *</Label>
+              <Input value={tempNewClient.klantnummer} onChange={(e) => setTempNewClient({ ...tempNewClient, klantnummer: e.target.value })} placeholder="bijv. K001" className="mt-1" disabled={isSavingClient} />
+            </div>
+            <div>
               <Label className="text-xs">Reistijd (min)</Label>
               <Input type="number" min="0" value={tempNewClient.reistijd_minuten} onChange={(e) => setTempNewClient({ ...tempNewClient, reistijd_minuten: e.target.value })} placeholder="45" className="mt-1" disabled={isSavingClient} />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label className="text-xs">Interne notities</Label>
-              <Textarea value={tempNewClient.interne_notities} onChange={(e) => setTempNewClient({ ...tempNewClient, interne_notities: e.target.value })} rows={2} className="mt-1" disabled={isSavingClient} />
             </div>
             <div>
               <Label className="text-xs">Planning instructies</Label>
