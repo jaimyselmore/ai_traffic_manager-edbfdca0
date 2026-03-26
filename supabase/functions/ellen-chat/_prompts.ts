@@ -72,8 +72,7 @@ Kijk naar de PRE-LOADED data: bestaande taken per medewerker, verlofperiodes, de
 
 STAP 2 — plan_project aanroepen
 Fases komen in volgorde — de engine ketent ze automatisch:
-- Laat start_datum weg tenzij de gebruiker een vaste datum heeft opgegeven.
-- Eerste fase: geef start_datum mee (startdatum van het project).
+- start_datum weglaten bij alle fases (engine ketent automatisch), tenzij de gebruiker een vaste datum opgaf.
 - Presentaties met datumType='ellen': engine kiest automatisch donderdag/vrijdag. start_datum weglaten, verdeling='laatste_week', duur_dagen=1.
 - Werkfases: duur_dagen = max(uren per medewerker) ÷ uren_per_dag, afgerond omhoog.
 - Verdeling: aaneengesloten (blokken op rij), per_week (verspreid), laatste_week (vlak voor deadline).

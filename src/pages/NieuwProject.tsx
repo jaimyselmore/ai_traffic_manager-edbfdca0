@@ -350,6 +350,26 @@ export default function NieuwProject() {
           duur_dagen: 1,
           uren_per_dag: 2, // Standaard 2 uur voor presentatie
         });
+
+        // Voeg feedbackmomenten toe na de presentatie
+        if (presentatie.feedbackMomenten?.length) {
+          presentatie.feedbackMomenten.forEach(fm => {
+            const fmMedewerkers = fm.medewerkerIds.map((id: string) => {
+              const emp = employees.find(e => e.id === id);
+              return emp?.name || '';
+            }).filter(Boolean);
+            if (fmMedewerkers.length > 0 && fm.aantalDagen > 0) {
+              fases.push({
+                fase_naam: fm.naam || 'Feedbackverwerking',
+                type: 'feedback',
+                medewerkers: fmMedewerkers,
+                medewerkerDetails: fmMedewerkers.map((naam: string) => ({ naam, uren: fm.aantalDagen * 8 })),
+                start_datum: defaultDatum,
+                duur_dagen: fm.aantalDagen,
+              });
+            }
+          });
+        }
       });
 
       // Voeg slotfase toe als aanwezig
