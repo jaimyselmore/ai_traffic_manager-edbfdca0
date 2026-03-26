@@ -336,7 +336,7 @@ export default function EllenVoorstel() {
             bestaandeTaken = takenData || [];
           }
 
-          const { workloadTaken, ellenPresentatieFases } = buildFrontendSchedule(projectInfo, bestaandeTaken);
+          const { workloadTaken, ellenPresentatieFases } = buildFrontendSchedule(projectInfo, selectedWerktype, bestaandeTaken);
           const fixedPresentatieTaken = buildPresentatieTaken(projectInfo);
 
           if (!ellenPresentatieFases) {
@@ -1839,6 +1839,7 @@ function scheduleForward(
 
 function buildFrontendSchedule(
   info: any,
+  werktype?: string,
   bestaandeTaken?: Array<{ werknemer_naam: string; week_start: string; dag_van_week: number }>
 ): {
   workloadTaken: VoorstelTaak[];
@@ -1922,6 +1923,33 @@ function buildFrontendSchedule(
     }
   }
 
+  // ── PRE-PASS: schat 'ellen' presentatiedagen in + blokkeer ze in occupiedDays ─
+  // Dit voorkomt dat werkzaamheden van latere segmenten op de presentatiedag van een
+  // 'ellen' segment landen (want die exacte datum is nog onbekend).
+  const ellenEstimatedDates = new Map<number, string>(); // segIdx → geschatte datum
+  for (let segIdx = 0; segIdx < segments.length; segIdx++) {
+    const seg = segments[segIdx];
+    if (seg.presentatie?.datumType !== 'ellen') continue;
+    const segEnd = getSegmentEnd(segIdx);
+    if (!segEnd) continue;
+    // Ellen kiest de laatste do of vr in de laatste 5 werkdagen voor de deadline
+    const presWindowStart = subtractWorkDays(segEnd, 5);
+    const presWindowDays = getWorkingDays(presWindowStart, segEnd);
+    const estimatedDate = [...presWindowDays].reverse().find(d => {
+      const dow = new Date(d + 'T00:00:00').getDay();
+      return dow === 4 || dow === 5; // 4=do, 5=vr
+    }) || presWindowDays[presWindowDays.length - 1];
+    if (!estimatedDate) continue;
+    ellenEstimatedDates.set(segIdx, estimatedDate);
+    // Blokkeer de geschatte datum voor alle aanwezigen
+    const aanwezigen: string[] = (seg.presentatie.medewerkers || []).filter(Boolean);
+    for (const mw of aanwezigen) {
+      const used = occupiedDays.get(mw) || new Set<string>();
+      used.add(estimatedDate);
+      occupiedDays.set(mw, used);
+    }
+  }
+
   let segmentWindowStart = projectStartDatum; // schuift op na elke vaste presentatie
 
   for (let segIdx = 0; segIdx < segments.length; segIdx++) {
@@ -1943,16 +1971,19 @@ function buildFrontendSchedule(
     for (const werkfase of seg.werkfases) {
       const faseTaken: VoorstelTaak[] = [];
 
+      const wt = werktype || 'concept';
       if (werkfase.medewerkerDetails?.length > 0) {
         for (const md of werkfase.medewerkerDetails) {
           if (!md.naam || !md.uren) continue;
-          const taken = scheduleBackwards(werkfase.fase_naam, md.naam, md.uren, effectiveStart, workloadEnd, occupiedDays);
+          const taken = scheduleBackwards(werkfase.fase_naam, md.naam, md.uren, effectiveStart, workloadEnd, occupiedDays)
+            .map(t => ({ ...t, werktype: wt }));
           faseTaken.push(...taken);
         }
       } else if (werkfase.medewerkers?.length > 0) {
         const totalHours = (werkfase.uren_per_dag || 8) * (werkfase.duur_dagen || 1);
         for (const mwNaam of werkfase.medewerkers) {
-          const taken = scheduleBackwards(werkfase.fase_naam, mwNaam, totalHours, effectiveStart, workloadEnd, occupiedDays);
+          const taken = scheduleBackwards(werkfase.fase_naam, mwNaam, totalHours, effectiveStart, workloadEnd, occupiedDays)
+            .map(t => ({ ...t, werktype: wt }));
           faseTaken.push(...taken);
         }
       }
@@ -1976,8 +2007,11 @@ function buildFrontendSchedule(
           _deadline: segmentEnd,
         });
       }
-      // Schuif vensterstart door: gebruik segmentEnd als proxy (we weten de exacte datum nog niet)
-      if (segmentEnd) segmentWindowStart = nextWorkDay(segmentEnd);
+      // Schuif vensterstart door: gebruik geschatte presentatiedatum (berekend in pre-pass)
+      // Dit voorkomt dat latere segmenten op de presentatiedag plannen
+      const estimatedEllenDate = ellenEstimatedDates.get(segIdx);
+      const ellenAnchor = estimatedEllenDate ?? segmentEnd;
+      if (ellenAnchor) segmentWindowStart = nextWorkDay(ellenAnchor);
     }
 
     // Schuif vensterstart door na een vaste presentatie en plan feedbackmomenten
@@ -1991,10 +2025,10 @@ function buildFrontendSchedule(
           if (presHour >= 13) {
             const aanwezigen: string[] = (seg.presentatie.medewerkers || []).filter(Boolean);
             for (const mw of aanwezigen) {
-              workloadTaken.push(dateStrToTask(
-                `Voorbereiding ${seg.presentatie.fase_naam || 'presentatie'}`,
-                mw, presDate, 9, 2
-              ));
+              workloadTaken.push({
+                ...dateStrToTask(`Voorbereiding ${seg.presentatie.fase_naam || 'presentatie'}`, mw, presDate, 9, 2),
+                werktype: 'extern',
+              });
             }
           }
         }
@@ -2002,30 +2036,21 @@ function buildFrontendSchedule(
         const feedbackStart = nextWorkDay(presDate);
         // Plan feedbackfases VOORUIT na de presentatie
         for (const feedbackFase of seg.feedbackFases) {
+          const fbWt = werktype || 'concept';
           if (feedbackFase.medewerkerDetails?.length > 0) {
             for (const md of feedbackFase.medewerkerDetails) {
               if (!md.naam || !md.uren) continue;
               const taken = scheduleForward(
-                feedbackFase.fase_naam,
-                md.naam,
-                md.uren,
-                feedbackStart,
-                projectDeadline,
-                occupiedDays
-              );
+                feedbackFase.fase_naam, md.naam, md.uren, feedbackStart, projectDeadline, occupiedDays
+              ).map(t => ({ ...t, werktype: fbWt }));
               workloadTaken.push(...taken);
             }
           } else if (feedbackFase.medewerkers?.length > 0) {
             const totalHours = (feedbackFase.uren_per_dag || 8) * (feedbackFase.duur_dagen || 1);
             for (const mwNaam of feedbackFase.medewerkers) {
               const taken = scheduleForward(
-                feedbackFase.fase_naam,
-                mwNaam,
-                totalHours,
-                feedbackStart,
-                projectDeadline,
-                occupiedDays
-              );
+                feedbackFase.fase_naam, mwNaam, totalHours, feedbackStart, projectDeadline, occupiedDays
+              ).map(t => ({ ...t, werktype: fbWt }));
               workloadTaken.push(...taken);
             }
           }
