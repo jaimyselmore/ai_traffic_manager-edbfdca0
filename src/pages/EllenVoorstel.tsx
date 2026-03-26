@@ -1696,6 +1696,17 @@ function getWorkingDays(startStr: string, endExclStr: string): string[] {
   return days;
 }
 
+/** Trek N werkdagen af van een datum (voor presentatie-buffer) */
+function subtractWorkDays(dateStr: string, days: number): string {
+  const d = new Date(dateStr + 'T00:00:00');
+  let subtracted = 0;
+  while (subtracted < days) {
+    d.setDate(d.getDate() - 1);
+    if (d.getDay() >= 1 && d.getDay() <= 5) subtracted++;
+  }
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 /** Eerstvolgende werkdag (Ma-Vr) ná dateStr — nooit een weekend */
 function nextWorkDay(dateStr: string): string {
   const d = new Date(dateStr + 'T00:00:00');
@@ -1914,20 +1925,26 @@ function buildFrontendSchedule(
     // (Dit treedt op als presentaties aaneengesloten staan — constraint violation.)
     const effectiveStart = segmentWindowStart;
 
-    // Plan werkfases backward in het venster [effectiveStart, segmentEnd)
+    // Voor 'ellen' presentaties: reserveer de laatste 5 werkdagen voor de presentatie zelf.
+    // Werkzaamheden eindigen vóór de presentatieweek zodat ze niet overlappen.
+    const workloadEnd = (seg.presentatie?.datumType === 'ellen' && segmentEnd)
+      ? subtractWorkDays(segmentEnd, 5)
+      : segmentEnd;
+
+    // Plan werkfases backward in het venster [effectiveStart, workloadEnd)
     for (const werkfase of seg.werkfases) {
       const faseTaken: VoorstelTaak[] = [];
 
       if (werkfase.medewerkerDetails?.length > 0) {
         for (const md of werkfase.medewerkerDetails) {
           if (!md.naam || !md.uren) continue;
-          const taken = scheduleBackwards(werkfase.fase_naam, md.naam, md.uren, effectiveStart, segmentEnd, occupiedDays);
+          const taken = scheduleBackwards(werkfase.fase_naam, md.naam, md.uren, effectiveStart, workloadEnd, occupiedDays);
           faseTaken.push(...taken);
         }
       } else if (werkfase.medewerkers?.length > 0) {
         const totalHours = (werkfase.uren_per_dag || 8) * (werkfase.duur_dagen || 1);
         for (const mwNaam of werkfase.medewerkers) {
-          const taken = scheduleBackwards(werkfase.fase_naam, mwNaam, totalHours, effectiveStart, segmentEnd, occupiedDays);
+          const taken = scheduleBackwards(werkfase.fase_naam, mwNaam, totalHours, effectiveStart, workloadEnd, occupiedDays);
           faseTaken.push(...taken);
         }
       }
@@ -1951,7 +1968,8 @@ function buildFrontendSchedule(
           _deadline: segmentEnd,
         });
       }
-      // segmentWindowStart ongewijzigd — Ellen's datum is nog onbekend
+      // Schuif vensterstart door: gebruik segmentEnd als proxy (we weten de exacte datum nog niet)
+      if (segmentEnd) segmentWindowStart = nextWorkDay(segmentEnd);
     }
 
     // Schuif vensterstart door na een vaste presentatie en plan feedbackmomenten
