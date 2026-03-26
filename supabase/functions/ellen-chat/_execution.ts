@@ -152,7 +152,8 @@ export async function executeTool(
           uren_per_dag?: number; verdeling?: 'aaneengesloten' | 'per_week' | 'laatste_week'; dagen_per_week?: number;
           fase_deadline?: string;
           type?: string;
-          datumType?: 'zelf' | 'ellen'; // Voor presentaties: ellen = engine kiest automatisch
+          datumType?: 'zelf' | 'ellen';
+          fixed_time?: string; // Tijdstip presentatie HH:MM — engine injecteert ochtend-prep bij >= 13:00
         }>;
 
         if (!klant_naam || !project_naam || !fases?.length) {
@@ -360,9 +361,36 @@ export async function executeTool(
             // Cursor vooruit voor per_week
             planningCursor = new Date(huidigeDatum);
           } else {
-            // Aaneengesloten: plan N dagen op rij, sla dag over als slot bezet is.
-            // FIX: tel dag alleen als gepland als planBlok echt succesvol was.
-            let huidigeDatum = new Date(faseStart), dagenGepland = 0;
+            // Aaneengesloten: plan N dagen op rij, zo laat mogelijk vóór de deadline.
+            // Als geen start_datum en er is een deadline: bereken latest start = deadline - duur_dagen werkdagen.
+            let huidigeDatum = new Date(faseStart);
+            if (!fase.start_datum && faseDeadline) {
+              const deadlineDate = new Date(faseDeadline + 'T00:00:00');
+              const latestStart = new Date(deadlineDate);
+              let workDaysBack = fase.duur_dagen;
+              while (workDaysBack > 0) {
+                latestStart.setDate(latestStart.getDate() - 1);
+                if (!isWeekend(latestStart)) workDaysBack--;
+              }
+              // Gebruik latestStart als die later is dan de cursor
+              if (latestStart > huidigeDatum) huidigeDatum = latestStart;
+            }
+            // Voeg ochtend-prep toe voor middag-presentaties (fixed_time >= 13:00 met vaste datum)
+            if (fase.fixed_time && fase.start_datum) {
+              const fixedHour = parseInt(fase.fixed_time.split(':')[0], 10);
+              if (fixedHour >= 13) {
+                const presDate = new Date(fase.start_datum + 'T00:00:00');
+                const prepWeekStart = getMonday(presDate);
+                const prepDagVanWeek = getDayOfWeekNumber(presDate);
+                const prepFaseNaam = `Voorbereiding ${fase.fase_naam}`;
+                for (const mw of fase.medewerkers) {
+                  taken.push({ werknemer_naam: mw, fase_naam: prepFaseNaam, discipline: 'Intern/Review', werktype: prepFaseNaam, week_start: prepWeekStart, dag_van_week: prepDagVanWeek, start_uur: 9, duur_uren: 2 });
+                  registreerBlokInContext(planCtx, mw, presDate, 9, 2);
+                  samenvattingParts.push(`  ${mw}: voorbereiding ${prepWeekStart} dag${prepDagVanWeek} 09:00-11:00`);
+                }
+              }
+            }
+            let dagenGepland = 0;
             let maxIteraties = fase.duur_dagen * 20; // veiligheidsrem
             while (dagenGepland < fase.duur_dagen && maxIteraties-- > 0) {
               while (isWeekend(huidigeDatum)) huidigeDatum.setDate(huidigeDatum.getDate() + 1);

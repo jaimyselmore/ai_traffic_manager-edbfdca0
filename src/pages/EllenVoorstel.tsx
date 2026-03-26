@@ -1976,6 +1976,21 @@ function buildFrontendSchedule(
     if (seg.presentatie?.datumType === 'zelf' && seg.presentatie?.start_datum) {
       const presDate = toISODate(seg.presentatie.start_datum);
       if (presDate) {
+        // Voeg ochtend-voorbereiding toe als de presentatie in de middag is (tijd >= 13:00)
+        const presTijd = seg.presentatie.tijd as string | undefined;
+        if (presTijd) {
+          const presHour = parseInt(presTijd.split(':')[0], 10);
+          if (presHour >= 13) {
+            const aanwezigen: string[] = (seg.presentatie.medewerkers || []).filter(Boolean);
+            for (const mw of aanwezigen) {
+              workloadTaken.push(dateStrToTask(
+                `Voorbereiding ${seg.presentatie.fase_naam || 'presentatie'}`,
+                mw, presDate, 9, 2
+              ));
+            }
+          }
+        }
+
         const feedbackStart = nextWorkDay(presDate);
         // Plan feedbackfases VOORUIT na de presentatie
         for (const feedbackFase of seg.feedbackFases) {
