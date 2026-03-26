@@ -1751,8 +1751,16 @@ function scheduleBackwards(
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   })();
 
+  // Breid het venster tot 4 werkweken terug zodat overflow-uren altijd een plek vinden.
+  // Dit voorkomt dat uren stilletjes worden weggegooid als het venster te krap is.
+  const extendedStart = (() => {
+    const d = new Date(windowStart + 'T00:00:00');
+    d.setDate(d.getDate() - 28);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  })();
+
   // Werkdagen in het venster omgekeerd: meest recente dag eerst (dichtst bij presentatie)
-  const candidates = getWorkingDays(windowStart, farFuture)
+  const candidates = getWorkingDays(extendedStart, farFuture)
     .filter(d => !used.has(d))
     .reverse();
 
@@ -1826,16 +1834,10 @@ function scheduleForward(
  * - Werkt correct voor 'ellen bepaalt' presentaties (venster wordt bepaald door
  *   omliggende vaste datums)
  */
-// Converteert week_start (YYYY-MM-DD maandag) + dag_van_week (0=ma..4=vr) naar datum string
-function weekStartDagToDateStr(weekStart: string, dagVanWeek: number): string {
-  const d = new Date(weekStart + 'T00:00:00');
-  d.setDate(d.getDate() + dagVanWeek);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
 
 function buildFrontendSchedule(
   info: any,
-  bestaandeTaken?: Array<{ werknemer_naam: string; week_start: string; dag_van_week: number }>
+  _bestaandeTaken?: Array<{ werknemer_naam: string; week_start: string; dag_van_week: number }>
 ): {
   workloadTaken: VoorstelTaak[];
   ellenPresentatieFases: any[] | null;
@@ -1903,16 +1905,10 @@ function buildFrontendSchedule(
   // ── STAP 4: Plan elk segment backward ─────────────────────────────────────────
   const workloadTaken: VoorstelTaak[] = [];
   const ellenFases: any[] = [];
-  // Seed occupiedDays met bestaande taken van andere projecten
+  // occupiedDays bijhoudt alleen intra-project conflicten (zelfde persoon, meerdere fases).
+  // bestaandeTaken wordt NIET gebruikt om dagen te blokkeren: de preview toont het ideale rooster.
+  // Conflicten met andere projecten zijn zichtbaar in de planner-weergave.
   const occupiedDays = new Map<string, Set<string>>();
-  if (bestaandeTaken?.length) {
-    for (const taak of bestaandeTaken) {
-      const dateStr = weekStartDagToDateStr(taak.week_start, taak.dag_van_week);
-      const used = occupiedDays.get(taak.werknemer_naam) || new Set<string>();
-      used.add(dateStr);
-      occupiedDays.set(taak.werknemer_naam, used);
-    }
-  }
 
   let segmentWindowStart = projectStartDatum; // schuift op na elke vaste presentatie
 
