@@ -28,6 +28,9 @@ export async function loadPlanningConfig(supabase: SupabaseClient): Promise<Plan
   }
 }
 
+// Max per categorie om prompt-bloat te voorkomen (LLM reliability cliff bij >25 regels totaal)
+const MAX_PER_CATEGORIE = 7; // Max 7×3 = 21 regels totaal — ruim onder de LLM reliability cliff van ~25
+
 export async function loadEllenRegels(supabase: SupabaseClient): Promise<EllenRegel[]> {
   try {
     const { data, error } = await supabase
@@ -36,7 +39,16 @@ export async function loadEllenRegels(supabase: SupabaseClient): Promise<EllenRe
       .eq('actief', true)
       .order('prioriteit', { ascending: true });
     if (error || !data) return [];
-    return data;
+    // Begrens per categorie zodat prompt compact blijft
+    const perCategorie: Record<string, EllenRegel[]> = {};
+    for (const regel of data) {
+      const lijst = perCategorie[regel.categorie] || [];
+      if (lijst.length < MAX_PER_CATEGORIE) {
+        lijst.push(regel);
+        perCategorie[regel.categorie] = lijst;
+      }
+    }
+    return Object.values(perCategorie).flat();
   } catch {
     return [];
   }

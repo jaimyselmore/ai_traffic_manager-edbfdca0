@@ -62,6 +62,11 @@ export function buildPlanPrompt(
   const softRegels = regels.filter(r => r.categorie === 'soft');
   const voorkeurRegels = regels.filter(r => r.categorie === 'voorkeur');
 
+  const formatRegels = (lijst: EllenRegel[], label: string, note: string) => {
+    if (lijst.length === 0) return '';
+    return `${label} (${note}):\n${lijst.map((r, i) => `${i + 1}. ${r.regel}`).join('\n')}`;
+  };
+
   return `${CORE_PROMPT}
 
 MODUS: PROJECT PLANNING
@@ -76,7 +81,7 @@ Fases komen in volgorde — de engine ketent ze automatisch:
 - Presentaties met datumType='ellen': engine kiest automatisch donderdag/vrijdag. start_datum weglaten, verdeling='laatste_week', duur_dagen=1.
 - Presentaties met datumType='zelf': geef start_datum mee. Heeft de presentatie een tijdstip in de middag (bijv. "14:00")? Geef dan ook fixed_time="14:00" mee — engine voegt automatisch een voorbereidingsblok in de ochtend toe.
 - Werkfases: duur_dagen = max(uren per medewerker) ÷ uren_per_dag, afgerond omhoog.
-- Verdeling: laat weg als de gebruiker geen voorkeur noemt — engine plant dan automatisch zo laat mogelijk vóór de deadline. Gebruik verdeling alleen als de gebruiker expliciet spreiding vraagt: per_week (verspreid over weken) of laatste_week (specifiek de laatste week).
+- Verdeling: laat weg als de gebruiker geen voorkeur noemt — engine plant zo laat mogelijk vóór de deadline. Gebruik alleen bij expliciete voorkeur: per_week (verspreid) of laatste_week (specifiek de laatste week).
 - In 'reasoning': beschrijf kort je capaciteitskeuzes.
 
 STAP 3 — Risico's melden
@@ -85,10 +90,12 @@ Deadline te krap? Medewerker overbelast? Microsoft agenda niet gekoppeld? Noem h
 WERKTIJDEN: ${formatTime(config.werkdag_start)}-${formatTime(config.werkdag_eind)}, lunch ${formatTime(config.lunch_start)}-${formatTime(config.lunch_eind)}
 Meetings: ${formatTime(config.meeting_start)}-${formatTime(config.meeting_eind)}
 
-REGELS:
-Hard: ${hardRegels.length > 0 ? hardRegels.map(r => `${r.regel}${r.rationale ? ` (${r.rationale})` : ''}`).join(' | ') : 'geen'}
-Soft: ${softRegels.length > 0 ? softRegels.map(r => r.regel).join(' | ') : 'geen'}
-Voorkeur: ${voorkeurRegels.length > 0 ? voorkeurRegels.map(r => r.regel).join(' | ') : 'geen'}
+REGELS (werktijden/verlof/locks zijn al gevalideerd door engine — behandel die als gegeven):
+${[
+  formatRegels(hardRegels, 'HARD', 'nooit overtreden'),
+  formatRegels(softRegels, 'SOFT', 'volg tenzij conflict met HARD'),
+  formatRegels(voorkeurRegels, 'VOORKEUR', 'best-effort'),
+].filter(Boolean).join('\n\n')}
 ${feedback.length > 0 ? `\nEerdere feedback:\n${feedback.map(f => `- "${f}"`).join('\n')}` : ''}${config.extra_instructies ? `\nExtra:\n${config.extra_instructies}` : ''}
 Je praat met: ${plannerNaam}${plannerInfo ? `\n${plannerInfo}` : ''}`;
 }
