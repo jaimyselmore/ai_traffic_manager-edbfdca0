@@ -325,12 +325,14 @@ export default function EllenVoorstel() {
               d.setDate(d.getDate() + 120);
               return d.toISOString().split('T')[0];
             })();
+            // Alleen 'vast' en 'wacht_klant' tellen als bezet — concepts/templates worden genegeerd
             const { data: takenData } = await supabase
               .from('taken')
               .select('werknemer_naam, week_start, dag_van_week')
               .in('werknemer_naam', alleMedewerkers)
               .gte('week_start', toISODate(startDatum) || startDatum)
-              .lte('week_start', eindDatumFetch);
+              .lte('week_start', eindDatumFetch)
+              .in('plan_status', ['vast', 'wacht_klant']);
             bestaandeTaken = takenData || [];
           }
 
@@ -1837,7 +1839,7 @@ function scheduleForward(
 
 function buildFrontendSchedule(
   info: any,
-  _bestaandeTaken?: Array<{ werknemer_naam: string; week_start: string; dag_van_week: number }>
+  bestaandeTaken?: Array<{ werknemer_naam: string; week_start: string; dag_van_week: number }>
 ): {
   workloadTaken: VoorstelTaak[];
   ellenPresentatieFases: any[] | null;
@@ -1905,10 +1907,20 @@ function buildFrontendSchedule(
   // ── STAP 4: Plan elk segment backward ─────────────────────────────────────────
   const workloadTaken: VoorstelTaak[] = [];
   const ellenFases: any[] = [];
-  // occupiedDays bijhoudt alleen intra-project conflicten (zelfde persoon, meerdere fases).
-  // bestaandeTaken wordt NIET gebruikt om dagen te blokkeren: de preview toont het ideale rooster.
-  // Conflicten met andere projecten zijn zichtbaar in de planner-weergave.
+  // occupiedDays: seed met BEVESTIGDE taken (vast/wacht_klant) van andere projecten.
+  // Concept-taken worden genegeerd — die zijn nog niet echt ingepland.
   const occupiedDays = new Map<string, Set<string>>();
+  if (bestaandeTaken?.length) {
+    for (const taak of bestaandeTaken) {
+      // weekStartDagToDateStr inline: week_start + dag_van_week → datum string
+      const d = new Date(taak.week_start + 'T00:00:00');
+      d.setDate(d.getDate() + taak.dag_van_week);
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const used = occupiedDays.get(taak.werknemer_naam) || new Set<string>();
+      used.add(dateStr);
+      occupiedDays.set(taak.werknemer_naam, used);
+    }
+  }
 
   let segmentWindowStart = projectStartDatum; // schuift op na elke vaste presentatie
 
