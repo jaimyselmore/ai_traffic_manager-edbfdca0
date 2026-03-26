@@ -1889,20 +1889,41 @@ function buildFrontendSchedule(
   // segmentStart_i = dag ná presentatiedatum van segment i-1 (of projectStart)
   // segmentEnd_i = presentatiedatum van segment i (of projectDeadline)
   //
-  // Voor 'ellen' presentaties: segmentEnd = eerstvolgende VASTE presentatiedatum erna.
-  // Als die er niet is: projectDeadline.
+  // Voor 'ellen' presentaties: gebruik een PROPORTIONELE datum gebaseerd op
+  // segmentpositie in het project. Dit voorkomt dat tussentijdse presentaties
+  // vlak voor de einddatum worden gepland (en er geen ruimte is voor latere werkzaamheden).
+  // De proportionele datum wordt begrensd door de volgende vaste datum.
+  const allProjectWorkDays = (projectDeadline && projectStartDatum)
+    ? getWorkingDays(projectStartDatum, projectDeadline)
+    : [];
+
   function getSegmentEnd(segIdx: number): string | null {
     const seg = segments[segIdx];
     if (!seg.presentatie) return projectDeadline;
     if (seg.presentatie.datumType === 'zelf' && seg.presentatie.start_datum) {
       return toISODate(seg.presentatie.start_datum) ?? projectDeadline;
     }
-    // 'ellen': zoek eerstvolgende vaste datum als bovengrens
-    for (let k = segIdx + 1; k < segments.length; k++) {
-      const fixed = fixedDatesBySegmentIndex.get(k);
-      if (fixed) return fixed;
+    // 'ellen': proportionele datum = segIdx+1 / totalSegments van de projecttijdlijn
+    const nextFixedDate = (() => {
+      for (let k = segIdx + 1; k < segments.length; k++) {
+        const fixed = fixedDatesBySegmentIndex.get(k);
+        if (fixed) return fixed;
+      }
+      return projectDeadline;
+    })();
+    if (allProjectWorkDays.length > 0) {
+      const fraction = (segIdx + 1) / segments.length;
+      const dayIndex = Math.min(
+        Math.round(allProjectWorkDays.length * fraction) - 1,
+        allProjectWorkDays.length - 1
+      );
+      const proportionalDate = allProjectWorkDays[dayIndex];
+      // Gebruik proportionele datum, maar nooit later dan de volgende vaste datum
+      if (proportionalDate && (!nextFixedDate || proportionalDate < nextFixedDate)) {
+        return proportionalDate;
+      }
     }
-    return projectDeadline;
+    return nextFixedDate;
   }
 
   // ── STAP 4: Plan elk segment backward ─────────────────────────────────────────
