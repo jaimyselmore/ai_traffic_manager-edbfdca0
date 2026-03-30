@@ -179,6 +179,8 @@ export default function EllenVoorstel() {
   const [addTaskCell, setAddTaskCell] = useState<{ medewerker: string; dayIndex: number; hour: number } | null>(null);
   const [newTaskNaam, setNewTaskNaam] = useState('');
   const [newTaskDuur, setNewTaskDuur] = useState(2);
+  /** Locked = finish-to-start ketening (templatevolgorde), unlocked = onafhankelijke workback */
+  const [schedulingMode, setSchedulingMode] = useState<'locked' | 'unlocked'>('locked');
   const voorstelGenerated = useRef(false);
 
   // Timeout timer voor als Ellen te lang duurt
@@ -336,7 +338,7 @@ export default function EllenVoorstel() {
             bestaandeTaken = takenData || [];
           }
 
-          const { workloadTaken, ellenPresentatieFases } = buildFrontendSchedule(projectInfo, selectedWerktype, bestaandeTaken);
+          const { workloadTaken, ellenPresentatieFases } = buildFrontendSchedule(projectInfo, selectedWerktype, bestaandeTaken, schedulingMode);
           const fixedPresentatieTaken = buildPresentatieTaken(projectInfo);
 
           if (!ellenPresentatieFases) {
@@ -1182,8 +1184,58 @@ export default function EllenVoorstel() {
             {/* ── Planning grid — full width ── */}
             <div className="space-y-3">
               {/* Week navigation */}
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-foreground">Voorgestelde planning</h3>
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-semibold text-foreground">Voorgestelde planning</h3>
+                  {/* Edit-mode toggle: locked = templatevolgorde, unlocked = vrij schuiven */}
+                  <button
+                    onClick={() => {
+                      const newMode = schedulingMode === 'locked' ? 'unlocked' : 'locked';
+                      setSchedulingMode(newMode);
+                      // Her-run de scheduler met het nieuwe mode zonder API-call
+                      if (projectInfo && !projectInfo.meetingType && projectInfo.type !== 'meeting') {
+                        (async () => {
+                          const { workloadTaken, ellenPresentatieFases } = buildFrontendSchedule(
+                            projectInfo, selectedWerktype, bestaandeTaken, newMode
+                          );
+                          if (!ellenPresentatieFases) {
+                            setVoorstellen([...workloadTaken, ...buildPresentatieTaken(projectInfo)]);
+                          } else {
+                            // Bewaar huidige ellen-presentatietaken en vervang alleen workload
+                            const presNamen = (projectInfo.fases || [])
+                              .filter((f: any) => f.type === 'presentatie')
+                              .map((f: any) => (f.fase_naam || '').toLowerCase());
+                            const huidigeEllenTaken = voorstellen.filter(t =>
+                              presNamen.some((pn: string) => t.fase_naam?.toLowerCase().includes(pn))
+                            );
+                            setVoorstellen([...workloadTaken, ...buildPresentatieTaken(projectInfo), ...huidigeEllenTaken]);
+                          }
+                        })();
+                      }
+                    }}
+                    title={schedulingMode === 'locked'
+                      ? 'Volgorde uit tijdlijn wordt strikt gevolgd — klik om los te koppelen'
+                      : 'Taken mogen los gepland worden — klik om terug naar templatevolgorde'}
+                    className={[
+                      'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-medium transition-colors',
+                      schedulingMode === 'locked'
+                        ? 'border-primary/30 bg-primary/10 text-primary hover:bg-primary/20'
+                        : 'border-amber-300/50 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-950/30 dark:text-amber-400',
+                    ].join(' ')}
+                  >
+                    {schedulingMode === 'locked' ? (
+                      <>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                        Volgorde vergrendeld
+                      </>
+                    ) : (
+                      <>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
+                        Vrij schuiven
+                      </>
+                    )}
+                  </button>
+                </div>
                 <div className="flex items-center gap-1">
                   <Button
                     variant="ghost"
@@ -1698,6 +1750,13 @@ function getWorkingDays(startStr: string, endExclStr: string): string[] {
   return days;
 }
 
+/** Geeft de dag vóór dateStr als YYYY-MM-DD string */
+function dayBeforeStr(dateStr: string): string {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() - 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 /** Trek N werkdagen af van een datum (voor presentatie-buffer) */
 function subtractWorkDays(dateStr: string, days: number): string {
   const d = new Date(dateStr + 'T00:00:00');
@@ -1840,7 +1899,13 @@ function scheduleForward(
 function buildFrontendSchedule(
   info: any,
   werktype?: string,
-  bestaandeTaken?: Array<{ werknemer_naam: string; week_start: string; dag_van_week: number }>
+  bestaandeTaken?: Array<{ werknemer_naam: string; week_start: string; dag_van_week: number }>,
+  /**
+   * locked = finish-to-start ketening: werkfases worden in omgekeerde volgorde gepland
+   *          zodat de laatste fase het dichtst bij de presentatie zit.
+   * unlocked = onafhankelijke workback per fase (huidige standaard voor vrij schuiven).
+   */
+  mode: 'locked' | 'unlocked' = 'locked'
 ): {
   workloadTaken: VoorstelTaak[];
   ellenPresentatieFases: any[] | null;
@@ -1989,27 +2054,56 @@ function buildFrontendSchedule(
       : segmentEnd;
 
     // Plan werkfases backward in het venster [effectiveStart, workloadEnd)
-    for (const werkfase of seg.werkfases) {
+    //
+    // locked mode:  verwerk in OMGEKEERDE volgorde zodat de LAATSTE fase de dagen
+    //               krijgt die het dichtst bij de presentatie liggen. Na het plannen
+    //               van fase i wordt workloadEnd verschoven naar de dag vóór de
+    //               vroegste start van fase i (finish-to-start keten).
+    // unlocked mode: verwerk in template-volgorde; elke fase plant onafhankelijk
+    //               terug vanuit dezelfde workloadEnd.
+    const fasesOrdered = mode === 'locked'
+      ? [...seg.werkfases].reverse()
+      : seg.werkfases;
+
+    let chainEnd = workloadEnd; // schuift op in locked mode
+
+    for (const werkfase of fasesOrdered) {
       const faseTaken: VoorstelTaak[] = [];
 
       const wt = werktype || 'concept';
       if (werkfase.medewerkerDetails?.length > 0) {
         for (const md of werkfase.medewerkerDetails) {
           if (!md.naam || !md.uren) continue;
-          const taken = scheduleBackwards(werkfase.fase_naam, md.naam, md.uren, effectiveStart, workloadEnd, occupiedDays)
+          const taken = scheduleBackwards(werkfase.fase_naam, md.naam, md.uren, effectiveStart, chainEnd, occupiedDays)
             .map(t => ({ ...t, werktype: wt }));
           faseTaken.push(...taken);
         }
       } else if (werkfase.medewerkers?.length > 0) {
         const totalHours = (werkfase.uren_per_dag || 8) * (werkfase.duur_dagen || 1);
         for (const mwNaam of werkfase.medewerkers) {
-          const taken = scheduleBackwards(werkfase.fase_naam, mwNaam, totalHours, effectiveStart, workloadEnd, occupiedDays)
+          const taken = scheduleBackwards(werkfase.fase_naam, mwNaam, totalHours, effectiveStart, chainEnd, occupiedDays)
             .map(t => ({ ...t, werktype: wt }));
           faseTaken.push(...taken);
         }
       }
 
       workloadTaken.push(...faseTaken);
+
+      // Locked: bereken de vroegste startdatum van deze fase en gebruik die als
+      // nieuwe eindgrens voor de volgende (eerder) fase.
+      if (mode === 'locked' && faseTaken.length > 0) {
+        const earliestDate = faseTaken
+          .map(t => {
+            // Reconstitueer volledige datum vanuit week_start + dag_van_week
+            const d = new Date(t.week_start + 'T00:00:00');
+            d.setDate(d.getDate() + t.dag_van_week);
+            return d.toISOString().split('T')[0];
+          })
+          .sort()[0]; // vroegste datum
+        if (earliestDate) {
+          chainEnd = dayBeforeStr(earliestDate);
+        }
+      }
     }
 
     // Ellen presentatie → stuur naar Edge Function met het juiste venster
@@ -2039,20 +2133,8 @@ function buildFrontendSchedule(
     if (seg.presentatie?.datumType === 'zelf' && seg.presentatie?.start_datum) {
       const presDate = toISODate(seg.presentatie.start_datum);
       if (presDate) {
-        // Voeg ochtend-voorbereiding toe als de presentatie in de middag is (tijd >= 13:00)
-        const presTijd = seg.presentatie.tijd as string | undefined;
-        if (presTijd) {
-          const presHour = parseInt(presTijd.split(':')[0], 10);
-          if (presHour >= 13) {
-            const aanwezigen: string[] = (seg.presentatie.medewerkers || []).filter(Boolean);
-            for (const mw of aanwezigen) {
-              workloadTaken.push({
-                ...dateStrToTask(`Voorbereiding ${seg.presentatie.fase_naam || 'presentatie'}`, mw, presDate, 9, 2),
-                werktype: 'extern',
-              });
-            }
-          }
-        }
+        // NB: voorbereiding-blokken worden NIET meer aangemaakt.
+        // De buffer-invariant (workload eindigt vóór presentatiedag) vervangt deze rule.
 
         const feedbackStart = nextWorkDay(presDate);
         // Plan feedbackfases VOORUIT na de presentatie

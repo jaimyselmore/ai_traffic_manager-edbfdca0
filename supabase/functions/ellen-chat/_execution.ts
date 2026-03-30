@@ -375,21 +375,8 @@ export async function executeTool(
               // Gebruik latestStart als die later is dan de cursor
               if (latestStart > huidigeDatum) huidigeDatum = latestStart;
             }
-            // Voeg ochtend-prep toe voor middag-presentaties (fixed_time >= 13:00 met vaste datum)
-            if (fase.fixed_time && fase.start_datum) {
-              const fixedHour = parseInt(fase.fixed_time.split(':')[0], 10);
-              if (fixedHour >= 13) {
-                const presDate = new Date(fase.start_datum + 'T00:00:00');
-                const prepWeekStart = getMonday(presDate);
-                const prepDagVanWeek = getDayOfWeekNumber(presDate);
-                const prepFaseNaam = `Voorbereiding ${fase.fase_naam}`;
-                for (const mw of fase.medewerkers) {
-                  taken.push({ werknemer_naam: mw, fase_naam: prepFaseNaam, discipline: 'Intern/Review', werktype: prepFaseNaam, week_start: prepWeekStart, dag_van_week: prepDagVanWeek, start_uur: 9, duur_uren: 2 });
-                  registreerBlokInContext(planCtx, mw, presDate, 9, 2);
-                  samenvattingParts.push(`  ${mw}: voorbereiding ${prepWeekStart} dag${prepDagVanWeek} 09:00-11:00`);
-                }
-              }
-            }
+            // Geen voorbereiding-blokken meer: buffer-invariant (workload eindigt vóór
+            // presentatiedag) vervangt de prep-rule. Zie workbackScheduler.ts.
             let dagenGepland = 0;
             let maxIteraties = fase.duur_dagen * 20; // veiligheidsrem
             while (dagenGepland < fase.duur_dagen && maxIteraties-- > 0) {

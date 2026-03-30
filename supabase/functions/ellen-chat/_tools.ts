@@ -132,7 +132,7 @@ const ALL_TOOLS: any[] = [
                 verdeling: { type: 'string', enum: ['aaneengesloten', 'per_week', 'laatste_week'], description: 'aaneengesloten=blokken op rij, per_week=verspreid, laatste_week=vlak voor deadline' },
                 dagen_per_week: { type: 'number', description: 'Bij per_week: aantal dagen per week' },
                 datumType: { type: 'string', enum: ['zelf', 'ellen'], description: 'Voor presentaties: zelf=vaste datum in start_datum, ellen=engine kiest automatisch donderdag/vrijdag' },
-                fixed_time: { type: 'string', description: 'Tijdstip van presentatie in HH:MM, bijv. "14:00". Engine voegt automatisch een voorbereidingsblok in de ochtend toe voor middag-presentaties.' },
+                fixed_time: { type: 'string', description: 'Tijdstip van presentatie in HH:MM, bijv. "14:00". Informatief — de engine plant geen extra voorbereiding-blokken; alle workload eindigt altijd vóór de presentatiedag.' },
               },
               required: ['fase_naam', 'medewerkers', 'duur_dagen'],
             },

@@ -79,7 +79,7 @@ STAP 2 — plan_project aanroepen
 Fases komen in volgorde — de engine ketent ze automatisch:
 - start_datum weglaten bij alle fases (engine ketent automatisch), tenzij de gebruiker een vaste datum opgaf.
 - Presentaties met datumType='ellen': engine kiest automatisch donderdag/vrijdag. start_datum weglaten, verdeling='laatste_week', duur_dagen=1.
-- Presentaties met datumType='zelf': geef start_datum mee. Heeft de presentatie een tijdstip in de middag (bijv. "14:00")? Geef dan ook fixed_time="14:00" mee — engine voegt automatisch een voorbereidingsblok in de ochtend toe.
+- Presentaties met datumType='zelf': geef start_datum mee. Het presentatietijdstip (fixed_time) is optioneel — de engine plant géén extra voorbereiding-blok; de buffer-invariant zorgt dat alle workload vóór de presentatiedag eindigt.
 - Werkfases: duur_dagen = max(uren per medewerker) ÷ uren_per_dag, afgerond omhoog.
 - Verdeling: laat weg als de gebruiker geen voorkeur noemt — engine plant zo laat mogelijk vóór de deadline. Gebruik alleen bij expliciete voorkeur: per_week (verspreid) of laatste_week (specifiek de laatste week).
 - In 'reasoning': beschrijf kort je capaciteitskeuzes.
