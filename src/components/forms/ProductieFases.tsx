@@ -178,57 +178,67 @@ const faseLabelKort: Record<string, string> = {
 };
 
 /**
- * Tijdlijnbalk voor productiefases: toont alle ingeschakelde fases in volgorde
- * met breedte proportioneel aan het aantal uren.
+ * Tijdlijnbalk voor productiefases.
+ * Alle fases altijd zichtbaar: grijs = nog geen data, gekleurd = data ingevoerd.
+ * Breedte proportioneel aan werkelijke uren (afgeleid van datumbereik × uren/dag).
  */
 function ProductieTimeline({ fases }: { fases: Record<string, FaseData> }) {
-  const items = FASE_VOLGORDE
-    .filter(k => fases[k]?.enabled)
-    .map(k => {
-      const fase = fases[k];
-      const isMeeting = MEETING_FASES.has(k);
-      const uren = isMeeting ? 2 : (fase.dagen || 1) * (fase.urenPerDag || 8);
-      return { key: k, uren, isMeeting };
-    });
+  const calcUren = (key: string, fase: FaseData | undefined): number => {
+    if (!fase) return 0;
+    const isMeeting = MEETING_FASES.has(key);
+    if (isMeeting) {
+      // Meeting: toon als 2u representatief blok als datum bekend, anders 0
+      return fase.startDatum ? 2 : 0;
+    }
+    // Werkfase: bereken uit datumbereik × uren/dag
+    if (fase.startDatum && fase.eindDatum) {
+      const start = parseDate(fase.startDatum);
+      const end = parseDate(fase.eindDatum);
+      if (start && end && end >= start) {
+        const diffDays = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        return Math.max(1, diffDays) * (fase.urenPerDag || 8);
+      }
+    }
+    if (fase.dagen) return fase.dagen * (fase.urenPerDag || 8);
+    if (fase.urenPerDag) return fase.urenPerDag;
+    return 0;
+  };
 
-  const totaalUren = items.reduce((s, f) => s + f.uren, 0);
-  const pct = (u: number) => `${Math.max((u / totaalUren) * 100, 2.5)}%`;
+  const items = FASE_VOLGORDE.map(k => ({
+    key: k,
+    uren: calcUren(k, fases[k]),
+    isMeeting: MEETING_FASES.has(k),
+  }));
+
+  const totaalUren = items.reduce((s, i) => s + i.uren, 0);
+  // Fases zonder data krijgen een klein placeholder-gewicht zodat ze zichtbaar blijven
+  const placeholder = totaalUren > 0 ? Math.max(totaalUren / items.length / 4, 2) : 1;
+  const displayUren = (u: number) => u > 0 ? u : placeholder;
+  const totalDisplay = items.reduce((s, i) => s + displayUren(i.uren), 0);
+  const pct = (u: number) => `${Math.max((displayUren(u) / totalDisplay) * 100, 0.5)}%`;
 
   return (
     <div className="pb-4 border-b border-border mb-4">
-      <p className="text-[10px] font-medium text-muted-foreground mb-1.5 uppercase tracking-wide">
-        {items.length === 0 ? 'Tijdlijn — schakel fases in' : `Tijdlijn — ${totaalUren}u totaal`}
-      </p>
       <div className="flex h-8 w-full rounded-md overflow-hidden border border-border gap-px bg-border">
-        {items.length === 0 ? (
-          // Placeholder: alle fases gelijk breed in licht grijs
-          FASE_VOLGORDE.map(k => {
-            const isMeeting = MEETING_FASES.has(k);
-            return (
-              <div
-                key={k}
-                className={`flex flex-1 items-center justify-center overflow-hidden ${isMeeting ? 'bg-pink-50 text-pink-400' : 'bg-violet-50 text-violet-400'}`}
-                title={faseLabels[k]}
-              >
-                <span className="text-[8px] font-semibold truncate px-0.5">{faseLabelKort[k]}</span>
-              </div>
-            );
-          })
-        ) : (
-          items.map(({ key, uren, isMeeting }) => (
+        {items.map(({ key, uren, isMeeting }) => {
+          const hasData = uren > 0;
+          return (
             <div
               key={key}
-              className={`flex items-center justify-center overflow-hidden transition-all duration-300 ${isMeeting ? 'bg-pink-200 text-pink-800 dark:bg-pink-900/50 dark:text-pink-300' : 'bg-violet-200 text-violet-800 dark:bg-violet-900/50 dark:text-violet-300'}`}
-              style={{ width: pct(uren), minWidth: '1.5rem' }}
-              title={`${faseLabels[key]}: ${uren}u`}
+              className={`flex items-center justify-center overflow-hidden transition-all duration-300 ${
+                hasData
+                  ? isMeeting
+                    ? 'bg-pink-200 text-pink-800 dark:bg-pink-900/50 dark:text-pink-300'
+                    : 'bg-violet-200 text-violet-800 dark:bg-violet-900/50 dark:text-violet-300'
+                  : 'bg-muted/30 text-muted-foreground/30'
+              }`}
+              style={{ width: pct(uren) }}
+              title={hasData ? `${faseLabels[key]}: ${uren}u` : faseLabels[key]}
             >
-              <div className="flex flex-col items-center leading-none px-1">
-                <span className="text-[9px] font-semibold truncate">{faseLabelKort[key]}</span>
-                <span className="text-[8px] opacity-60">{uren}u</span>
-              </div>
+              <span className="text-[8px] font-semibold truncate px-0.5">{faseLabelKort[key]}</span>
             </div>
-          ))
-        )}
+          );
+        })}
       </div>
     </div>
   );
