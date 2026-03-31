@@ -166,6 +166,74 @@ function MedewerkerSelectie({ selectedIds, employees, onToggleMedewerker, onAddM
   );
 }
 
+// Volgorde van fases in de tijdlijn
+const FASE_VOLGORDE = ['pp', 'ppm', 'shoot', 'offlineEdit', 'presentatieOffline', 'reEdit', 'presentatieReEdit', 'onlineGrading', 'geluid', 'presentatieFinals', 'deliverables'] as const;
+const MEETING_FASES = new Set(['ppm', 'presentatieOffline', 'presentatieReEdit', 'presentatieFinals']);
+
+// Korte labels voor in de tijdlijnbalk
+const faseLabelKort: Record<string, string> = {
+  pp: 'PP', ppm: 'PPM', shoot: 'Shoot', offlineEdit: 'Offline', presentatieOffline: 'Pres. OE',
+  reEdit: 'Re-edit', presentatieReEdit: 'Pres. RE', onlineGrading: 'Grading', geluid: 'Geluid',
+  presentatieFinals: 'Pres. Finals', deliverables: 'Deliverables',
+};
+
+/**
+ * Tijdlijnbalk voor productiefases: toont alle ingeschakelde fases in volgorde
+ * met breedte proportioneel aan het aantal uren.
+ */
+function ProductieTimeline({ fases }: { fases: Record<string, FaseData> }) {
+  const items = FASE_VOLGORDE
+    .filter(k => fases[k]?.enabled)
+    .map(k => {
+      const fase = fases[k];
+      const isMeeting = MEETING_FASES.has(k);
+      const uren = isMeeting ? 2 : (fase.dagen || 1) * (fase.urenPerDag || 8);
+      return { key: k, uren, isMeeting };
+    });
+
+  const totaalUren = items.reduce((s, f) => s + f.uren, 0);
+  const pct = (u: number) => `${Math.max((u / totaalUren) * 100, 2.5)}%`;
+
+  return (
+    <div className="pb-4 border-b border-border mb-4">
+      <p className="text-[10px] font-medium text-muted-foreground mb-1.5 uppercase tracking-wide">
+        {items.length === 0 ? 'Tijdlijn — schakel fases in' : `Tijdlijn — ${totaalUren}u totaal`}
+      </p>
+      <div className="flex h-8 w-full rounded-md overflow-hidden border border-border gap-px bg-border">
+        {items.length === 0 ? (
+          // Placeholder: alle fases gelijk breed in licht grijs
+          FASE_VOLGORDE.map(k => {
+            const isMeeting = MEETING_FASES.has(k);
+            return (
+              <div
+                key={k}
+                className={`flex flex-1 items-center justify-center overflow-hidden ${isMeeting ? 'bg-pink-50 text-pink-400' : 'bg-violet-50 text-violet-400'}`}
+                title={faseLabels[k]}
+              >
+                <span className="text-[8px] font-semibold truncate px-0.5">{faseLabelKort[k]}</span>
+              </div>
+            );
+          })
+        ) : (
+          items.map(({ key, uren, isMeeting }) => (
+            <div
+              key={key}
+              className={`flex items-center justify-center overflow-hidden transition-all duration-300 ${isMeeting ? 'bg-pink-200 text-pink-800 dark:bg-pink-900/50 dark:text-pink-300' : 'bg-violet-200 text-violet-800 dark:bg-violet-900/50 dark:text-violet-300'}`}
+              style={{ width: pct(uren), minWidth: '1.5rem' }}
+              title={`${faseLabels[key]}: ${uren}u`}
+            >
+              <div className="flex flex-col items-center leading-none px-1">
+                <span className="text-[9px] font-semibold truncate">{faseLabelKort[key]}</span>
+                <span className="text-[8px] opacity-60">{uren}u</span>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
 interface FaseCollapsibleProps {
   fase: string;
   isOpen: boolean;
@@ -499,6 +567,8 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
       {/* Fases */}
       <div className="rounded-2xl border border-border bg-card p-6 space-y-2 overflow-visible">
         <h2 className="text-lg font-semibold text-foreground mb-4">Fases</h2>
+
+        <ProductieTimeline fases={data.fases} />
 
         <FaseCollapsible fase="pp" isOpen={openFases['pp'] || false} onToggle={() => toggleFase('pp')}>
           {renderWerkFase('pp')}
