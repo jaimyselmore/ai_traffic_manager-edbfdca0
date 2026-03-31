@@ -1627,6 +1627,82 @@ export default function EllenVoorstel() {
                   })()}
                 </div>
 
+                {/* ── Toevoeg-paneel: verschijnt als je op een lege cel klikt ── */}
+                {editAddPanel && (
+                  <div className="flex-shrink-0 border-t border-primary/30 bg-primary/5 px-6 py-4">
+                    <div className="flex flex-wrap items-start gap-4">
+                      {/* Type-knoppen */}
+                      <div className="flex flex-col gap-1.5">
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Type</p>
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="outline" className="gap-1.5 border-primary/40 hover:bg-primary/10"
+                            onClick={() => handleEditAdd('werkzaamheden')}>
+                            Werkzaamheden
+                          </Button>
+                          <Button size="sm" variant="outline" className="gap-1.5 border-task-extern/50 hover:bg-task-extern/10 text-task-extern"
+                            onClick={() => handleEditAdd('presentatie')}>
+                            Presentatie
+                          </Button>
+                          <Button size="sm" variant="outline" className="gap-1.5 border-task-review/50 hover:bg-task-review/10 text-task-review"
+                            onClick={() => handleEditAdd('review')}>
+                            Interne review
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Duur */}
+                      <div className="flex flex-col gap-1.5">
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Duur</p>
+                        <div className="flex gap-1">
+                          {[1, 2, 4, 8].map(d => (
+                            <button key={d} type="button"
+                              onClick={() => setEditAddDuur(d)}
+                              className={cn(
+                                'h-8 w-10 rounded border text-xs font-medium transition-colors',
+                                editAddDuur === d
+                                  ? 'border-primary bg-primary text-primary-foreground'
+                                  : 'border-border bg-background text-foreground hover:border-primary/50'
+                              )}
+                            >{d}u</button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Personen */}
+                      <div className="flex flex-col gap-1.5 flex-1 min-w-[160px]">
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Voor wie</p>
+                        <div className="flex flex-wrap gap-2">
+                          {medewerkers.map(mw => (
+                            <label key={mw} className={cn(
+                              'flex items-center gap-1.5 rounded border px-2 py-1 text-xs cursor-pointer transition-colors select-none',
+                              editAddPersonen.includes(mw)
+                                ? 'border-primary bg-primary/10 text-primary font-medium'
+                                : 'border-border bg-background text-foreground hover:border-primary/50'
+                            )}>
+                              <input type="checkbox" className="sr-only"
+                                checked={editAddPersonen.includes(mw)}
+                                onChange={e => setEditAddPersonen(prev =>
+                                  e.target.checked ? [...prev, mw] : prev.filter(p => p !== mw)
+                                )}
+                              />
+                              {mw.split(' ')[0]}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Sluit paneel */}
+                      <button type="button" onClick={() => setEditAddPanel(null)}
+                        className="ml-auto self-start text-muted-foreground hover:text-foreground mt-4">
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground mt-2">
+                      Klik een type om toe te voegen — of selecteer meerdere personen voor dezelfde dag.
+                    </p>
+                  </div>
+                )}
+
                 <DialogFooter className="flex-shrink-0 px-6 py-4 border-t border-border">
                   <Button variant="outline" onClick={() => setIsEditModalOpen(false)}>
                     Annuleren
