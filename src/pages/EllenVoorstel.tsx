@@ -621,10 +621,8 @@ export default function EllenVoorstel() {
   };
 
   const handleRequestNewProposal = async () => {
-    if (!feedbackInput.trim()) return;
-
     setIsRequestingNewProposal(true);
-    setEllenMessage('Even kijken, ik pas het voorstel aan...');
+    setEllenMessage('Even kijken, ik maak een nieuw voorstel...');
     const gegevenFeedback = feedbackInput.trim();
 
     try {
@@ -1694,44 +1692,23 @@ export default function EllenVoorstel() {
                   <div className="w-3 h-3 rounded bg-primary/60 border border-dashed border-primary flex-shrink-0"></div>
                   <span>Voorstel</span>
                 </div>
-                <div className="text-[11px] text-muted-foreground hidden sm:flex items-center gap-3">
-                  <span className="flex items-center gap-1">
-                    <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4" /></svg>
-                    Sleep om te verplaatsen
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                    Klik lege cel of persoon om toe te voegen
-                  </span>
-                </div>
               </div>
 
-              {/* Feedback input — takes remaining space */}
-              <div className="flex flex-1 items-center gap-2 min-w-0">
-                <input
-                  type="text"
-                  placeholder="Aanpassen? Bijv. 'Verschuif naar volgende week' of 'Voeg Jakko toe'"
-                  className="flex-1 min-w-0 h-8 px-3 rounded-md border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 placeholder:text-muted-foreground/60"
-                  value={feedbackInput}
-                  onChange={(e) => setFeedbackInput(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' && feedbackInput.trim() && !isRequestingNewProposal) handleRequestNewProposal(); }}
-                  disabled={isRequestingNewProposal}
-                />
-                <Button
-                  onClick={handleRequestNewProposal}
-                  disabled={isRequestingNewProposal || !feedbackInput.trim()}
-                  size="sm"
-                  variant="outline"
-                  className="flex-shrink-0"
-                >
-                  {isRequestingNewProposal ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Send className="h-3.5 w-3.5" />
-                  )}
-                  <span className="ml-1.5">Opnieuw</span>
-                </Button>
-              </div>
+              {/* Opnieuw-knop */}
+              <Button
+                onClick={handleRequestNewProposal}
+                disabled={isRequestingNewProposal}
+                size="sm"
+                variant="outline"
+                className="flex-shrink-0"
+                title="Nieuw voorstel genereren"
+              >
+                {isRequestingNewProposal ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Send className="h-3.5 w-3.5" />
+                )}
+              </Button>
 
               {/* Divider */}
               <div className="w-px h-6 bg-border flex-shrink-0" />
