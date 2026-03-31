@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Loader2, CheckCircle2, XCircle, ArrowLeft, Send, Check, ChevronLeft, ChevronRight, X, Trash2, BookmarkIcon } from 'lucide-react';
+import { Loader2, CheckCircle2, XCircle, ArrowLeft, Send, Check, ChevronLeft, ChevronRight, X, Trash2, BookmarkIcon, Car, Pencil } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,6 +39,8 @@ interface VoorstelTaak {
   start_uur: number;
   duur_uren: number;
   werktype?: string; // concept, uitwerking, productie, extern, review
+  isReistijd?: boolean;       // reistijdblok: niet versleepbaar, eigen stijl
+  isManuallyEdited?: boolean; // handmatig bewerkt, niet overschrijven door AI
 }
 
 const DAG_NAMEN = ['Ma', 'Di', 'Wo', 'Do', 'Vr'];
@@ -181,6 +183,9 @@ export default function EllenVoorstel() {
   const [newTaskDuur, setNewTaskDuur] = useState(2);
   /** Locked = finish-to-start ketening (templatevolgorde), unlocked = onafhankelijke workback */
   const [schedulingMode, setSchedulingMode] = useState<'locked' | 'unlocked'>('locked');
+  /** Handmatige bewerkmodus: expliciete save/cancel flow zodat Ellen niet in de war raakt */
+  const [isEditMode, setIsEditMode] = useState(false);
+  const preEditSnapshot = useRef<VoorstelTaak[]>([]);
   const voorstelGenerated = useRef(false);
 
   // Timeout timer voor als Ellen te lang duurt
@@ -887,6 +892,7 @@ export default function EllenVoorstel() {
       dag_van_week: dayIndex,
       start_uur: hour,
       week_start: currentWeekISO,
+      isManuallyEdited: true,
     };
     setVoorstellen(updated);
     setDraggingTask(null);
@@ -1183,58 +1189,103 @@ export default function EllenVoorstel() {
 
             {/* ── Planning grid — full width ── */}
             <div className="space-y-3">
+              {/* Edit-mode banner */}
+              {isEditMode && (
+                <div className="flex items-center justify-between rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 dark:border-amber-700 dark:bg-amber-950/30">
+                  <div className="flex items-center gap-2 text-sm text-amber-800 dark:text-amber-300">
+                    <Pencil className="h-4 w-4 flex-shrink-0" />
+                    <span>Bewerkingsmodus actief — sleep blokken naar een andere dag of tijd. Ellen ziet handmatige wijzigingen niet.</span>
+                  </div>
+                  <div className="flex items-center gap-2 ml-4">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => {
+                        setVoorstellen(preEditSnapshot.current);
+                        setIsEditMode(false);
+                      }}
+                    >
+                      Annuleren
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => setIsEditMode(false)}
+                    >
+                      Opslaan
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               {/* Week navigation */}
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div className="flex items-center gap-2">
                   <h3 className="text-sm font-semibold text-foreground">Voorgestelde planning</h3>
-                  {/* Edit-mode toggle: locked = templatevolgorde, unlocked = vrij schuiven */}
-                  <button
-                    onClick={() => {
-                      const newMode = schedulingMode === 'locked' ? 'unlocked' : 'locked';
-                      setSchedulingMode(newMode);
-                      // Her-run de scheduler met het nieuwe mode zonder API-call
-                      if (projectInfo && !projectInfo.meetingType && projectInfo.type !== 'meeting') {
-                        (async () => {
-                          const { workloadTaken, ellenPresentatieFases } = buildFrontendSchedule(
-                            projectInfo, selectedWerktype, bestaandeTaken, newMode
-                          );
-                          if (!ellenPresentatieFases) {
-                            setVoorstellen([...workloadTaken, ...buildPresentatieTaken(projectInfo)]);
-                          } else {
-                            // Bewaar huidige ellen-presentatietaken en vervang alleen workload
-                            const presNamen = (projectInfo.fases || [])
-                              .filter((f: any) => f.type === 'presentatie')
-                              .map((f: any) => (f.fase_naam || '').toLowerCase());
-                            const huidigeEllenTaken = voorstellen.filter(t =>
-                              presNamen.some((pn: string) => t.fase_naam?.toLowerCase().includes(pn))
+                  {/* AI-volgorde toggle: alleen zichtbaar buiten bewerkmodus */}
+                  {!isEditMode && (
+                    <button
+                      onClick={() => {
+                        const newMode = schedulingMode === 'locked' ? 'unlocked' : 'locked';
+                        setSchedulingMode(newMode);
+                        if (projectInfo && !projectInfo.meetingType && projectInfo.type !== 'meeting') {
+                          (async () => {
+                            const { workloadTaken, ellenPresentatieFases } = buildFrontendSchedule(
+                              projectInfo, selectedWerktype, bestaandeTaken, newMode
                             );
-                            setVoorstellen([...workloadTaken, ...buildPresentatieTaken(projectInfo), ...huidigeEllenTaken]);
-                          }
-                        })();
-                      }
-                    }}
-                    title={schedulingMode === 'locked'
-                      ? 'Volgorde uit tijdlijn wordt strikt gevolgd — klik om los te koppelen'
-                      : 'Taken mogen los gepland worden — klik om terug naar templatevolgorde'}
-                    className={[
-                      'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-medium transition-colors',
-                      schedulingMode === 'locked'
-                        ? 'border-primary/30 bg-primary/10 text-primary hover:bg-primary/20'
-                        : 'border-amber-300/50 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-950/30 dark:text-amber-400',
-                    ].join(' ')}
-                  >
-                    {schedulingMode === 'locked' ? (
-                      <>
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                        Volgorde vergrendeld
-                      </>
-                    ) : (
-                      <>
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
-                        Vrij schuiven
-                      </>
-                    )}
-                  </button>
+                            if (!ellenPresentatieFases) {
+                              setVoorstellen([...workloadTaken, ...buildPresentatieTaken(projectInfo)]);
+                            } else {
+                              const presNamen = (projectInfo.fases || [])
+                                .filter((f: any) => f.type === 'presentatie')
+                                .map((f: any) => (f.fase_naam || '').toLowerCase());
+                              const huidigeEllenTaken = voorstellen.filter(t =>
+                                presNamen.some((pn: string) => t.fase_naam?.toLowerCase().includes(pn))
+                              );
+                              setVoorstellen([...workloadTaken, ...buildPresentatieTaken(projectInfo), ...huidigeEllenTaken]);
+                            }
+                          })();
+                        }
+                      }}
+                      title={schedulingMode === 'locked'
+                        ? 'AI plant taken in templatevolgorde (finish-to-start) — klik om los te koppelen'
+                        : 'AI plant taken onafhankelijk — klik om terug naar templatevolgorde'}
+                      className={[
+                        'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-medium transition-colors',
+                        schedulingMode === 'locked'
+                          ? 'border-primary/30 bg-primary/10 text-primary hover:bg-primary/20'
+                          : 'border-amber-300/50 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-950/30 dark:text-amber-400',
+                      ].join(' ')}
+                    >
+                      {schedulingMode === 'locked' ? (
+                        <>
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                          Volgorde vergrendeld
+                        </>
+                      ) : (
+                        <>
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
+                          Vrij schuiven
+                        </>
+                      )}
+                    </button>
+                  )}
+                  {/* Bewerken-knop: opent expliciete bewerkingsmodus los van Ellen */}
+                  {!isEditMode && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-6 px-2.5 text-[11px] gap-1.5"
+                      onClick={() => {
+                        preEditSnapshot.current = [...voorstellen];
+                        setIsEditMode(true);
+                      }}
+                    >
+                      <Pencil className="h-3 w-3" />
+                      Bewerken
+                    </Button>
+                  )}
                 </div>
                 <div className="flex items-center gap-1">
                   <Button
@@ -1400,30 +1451,63 @@ export default function EllenVoorstel() {
                                   return (
                                     <div
                                       key={`voorstel-${ti}`}
-                                      draggable
-                                      onDragStart={(e) => handleDragStart(e, taak, taskIndex)}
+                                      draggable={!taak.isReistijd}
+                                      onDragStart={!taak.isReistijd ? (e) => handleDragStart(e, taak, taskIndex) : undefined}
                                       className={cn(
-                                        'absolute left-0.5 right-0.5 rounded px-1.5 py-0.5 text-xs overflow-hidden z-20 cursor-grab active:cursor-grabbing group/task',
-                                        isPresentatie
-                                          ? 'border-2 border-task-extern/70 bg-task-extern/20 text-task-extern'
-                                          : cn('text-white opacity-85 border-2 border-dashed border-white/40', getFaseColor(taak.fase_naam, taak.werktype))
+                                        'absolute left-0.5 right-0.5 rounded px-1.5 py-0.5 text-xs overflow-hidden z-20 group/task',
+                                        taak.isReistijd
+                                          // Reistijdblok: grijs, niet versleepbaar
+                                          ? 'bg-slate-200/80 text-slate-600 border border-slate-300/70 cursor-default dark:bg-slate-700/50 dark:text-slate-300'
+                                          : isPresentatie
+                                            // Presentatie: zelfde solid kleur als werkblokken + badge
+                                            ? cn('text-white border-2 border-white/30 cursor-grab active:cursor-grabbing', getFaseColor(taak.fase_naam, taak.werktype))
+                                            // Werkblok
+                                            : cn('text-white opacity-85 border-2 border-dashed border-white/40 cursor-grab active:cursor-grabbing', getFaseColor(taak.fase_naam, taak.werktype))
                                       )}
                                       style={{ height: `${blockHeight - 2}px`, top: '1px' }}
-                                      title={`${projectInfo?.projectTitel || projectInfo?.klant_naam} • ${taak.fase_naam} • ${taak.duur_uren}u (voorstel)`}
+                                      title={taak.isReistijd
+                                        ? `Reistijd: ${taak.duur_uren * 60} min`
+                                        : `${projectInfo?.projectTitel || projectInfo?.klant_naam} • ${taak.fase_naam} • ${taak.duur_uren}u (voorstel)`}
                                     >
-                                      <div className="truncate font-medium">{isPresentatie ? taak.fase_naam : (projectInfo?.projectTitel || projectInfo?.klant_naam)}</div>
-                                      {!isPresentatie && <div className="truncate text-[10px] opacity-80">{taak.fase_naam}</div>}
-                                      {getWorkloadSubtitle(taak.fase_naam) && (
-                                        <div className="truncate text-[10px] opacity-60 italic">{getWorkloadSubtitle(taak.fase_naam)}</div>
+                                      {taak.isReistijd ? (
+                                        // Reistijdblok inhoud
+                                        <div className="flex items-center gap-1">
+                                          <Car className="h-2.5 w-2.5 flex-shrink-0 opacity-70" />
+                                          <span className="truncate font-medium">Reistijd</span>
+                                          {taak.duur_uren >= 1 && <span className="text-[10px] opacity-70 ml-auto">{taak.duur_uren * 60}m</span>}
+                                        </div>
+                                      ) : isPresentatie ? (
+                                        // Presentatieblok: badge + naam
+                                        <>
+                                          <div className="flex items-center gap-1 min-w-0">
+                                            <span className="inline-flex flex-shrink-0 items-center rounded bg-white/25 px-1 py-px text-[8px] font-bold uppercase tracking-wider">Pres.</span>
+                                            <span className="truncate font-medium leading-tight">{taak.fase_naam}</span>
+                                          </div>
+                                          {taak.duur_uren > 1 && <div className="text-[10px] opacity-70 mt-0.5">{taak.duur_uren}u</div>}
+                                        </>
+                                      ) : (
+                                        // Werkblok
+                                        <>
+                                          <div className="truncate font-medium">{projectInfo?.projectTitel || projectInfo?.klant_naam}</div>
+                                          <div className="truncate text-[10px] opacity-80">{taak.fase_naam}</div>
+                                          {getWorkloadSubtitle(taak.fase_naam) && (
+                                            <div className="truncate text-[10px] opacity-60 italic">{getWorkloadSubtitle(taak.fase_naam)}</div>
+                                          )}
+                                          {taak.duur_uren > 2 && <div className="text-[10px] opacity-70 mt-0.5">{taak.duur_uren}u</div>}
+                                          {taak.isManuallyEdited && (
+                                            <div className="absolute bottom-0.5 left-1 text-[8px] opacity-50 italic">handmatig</div>
+                                          )}
+                                        </>
                                       )}
-                                      {taak.duur_uren > 2 && <div className="text-[10px] opacity-70 mt-0.5">{taak.duur_uren}u</div>}
-                                      <button
-                                        type="button"
-                                        onMouseDown={(e) => { e.stopPropagation(); handleRemoveTask(taskIndex); }}
-                                        className="absolute top-0.5 right-0.5 hidden group-hover/task:flex items-center justify-center h-3.5 w-3.5 rounded-full bg-black/30 hover:bg-black/50 text-white"
-                                      >
-                                        <X className="h-2.5 w-2.5" />
-                                      </button>
+                                      {!taak.isReistijd && (
+                                        <button
+                                          type="button"
+                                          onMouseDown={(e) => { e.stopPropagation(); handleRemoveTask(taskIndex); }}
+                                          className="absolute top-0.5 right-0.5 hidden group-hover/task:flex items-center justify-center h-3.5 w-3.5 rounded-full bg-black/30 hover:bg-black/50 text-white"
+                                        >
+                                          <X className="h-2.5 w-2.5" />
+                                        </button>
+                                      )}
                                     </div>
                                   );
                                 })}
@@ -1800,7 +1884,9 @@ function scheduleBackwards(
   windowStart: string,
   windowEnd: string | null,
   occupiedDays: Map<string, Set<string>>,
-  maxPerDay = 8
+  maxPerDay = 8,
+  /** Gedeeltelijke dag-limieten: datum → max uren op die dag (bijv. ochtend voor presentatie) */
+  partialDayLimits: Map<string, number> = new Map()
 ): VoorstelTaak[] {
   const taken: VoorstelTaak[] = [];
   const used = occupiedDays.get(medewerker) || new Set<string>();
@@ -1828,7 +1914,9 @@ function scheduleBackwards(
   let remaining = totalHours;
   for (const day of candidates) {
     if (remaining <= 0) break;
-    const uren = Math.min(maxPerDay, remaining);
+    // Partiele daglimieten (bijv. alleen ochtend op presentatiedag)
+    const dayMax = partialDayLimits.has(day) ? partialDayLimits.get(day)! : maxPerDay;
+    const uren = Math.min(dayMax, remaining);
     taken.push(dateStrToTask(faseNaam, medewerker, day, 9, uren));
     used.add(day);
     remaining -= uren;
@@ -2053,19 +2141,40 @@ function buildFrontendSchedule(
       ? subtractWorkDays(segmentEnd, 5)
       : segmentEnd;
 
-    // Plan werkfases backward in het venster [effectiveStart, workloadEnd)
+    // ── Ochtendwerk op presentatiedag ──────────────────────────────────────────
+    // Als de presentatie in de middag valt (bijv. 14:00), kunnen medewerkers de
+    // ochtend nog werken. morningHours = presHour - reistijdUren - 9.
+    // adjustedWindowEnd breidt het venster uit tot inclusief de presentatiedag,
+    // maar segPartialLimits beperkt het gebruik op die dag tot morningHours.
+    let adjustedWindowEnd = workloadEnd;
+    const segPartialLimits = new Map<string, number>();
+    if (seg.presentatie?.datumType === 'zelf' && seg.presentatie?.start_datum && seg.presentatie?.tijd) {
+      const presIso = toISODate(seg.presentatie.start_datum);
+      const presHour = parseInt((seg.presentatie.tijd as string).split(':')[0]) || 0;
+      const reistijdMin = (info.reistijd_minuten as number) || 0;
+      const morningHours = Math.floor(Math.max(0, presHour - reistijdMin / 60 - 9));
+      if (presIso && morningHours > 0) {
+        // windowEnd is exclusief: +1 dag om presDate mee te nemen
+        const d = new Date(presIso + 'T00:00:00');
+        d.setDate(d.getDate() + 1);
+        adjustedWindowEnd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        segPartialLimits.set(presIso, morningHours);
+      }
+    }
+
+    // Plan werkfases backward in het venster [effectiveStart, adjustedWindowEnd)
     //
     // locked mode:  verwerk in OMGEKEERDE volgorde zodat de LAATSTE fase de dagen
     //               krijgt die het dichtst bij de presentatie liggen. Na het plannen
     //               van fase i wordt workloadEnd verschoven naar de dag vóór de
     //               vroegste start van fase i (finish-to-start keten).
     // unlocked mode: verwerk in template-volgorde; elke fase plant onafhankelijk
-    //               terug vanuit dezelfde workloadEnd.
+    //               terug vanuit dezelfde adjustedWindowEnd.
     const fasesOrdered = mode === 'locked'
       ? [...seg.werkfases].reverse()
       : seg.werkfases;
 
-    let chainEnd = workloadEnd; // schuift op in locked mode
+    let chainEnd = adjustedWindowEnd; // schuift op in locked mode
 
     for (const werkfase of fasesOrdered) {
       const faseTaken: VoorstelTaak[] = [];
@@ -2074,14 +2183,14 @@ function buildFrontendSchedule(
       if (werkfase.medewerkerDetails?.length > 0) {
         for (const md of werkfase.medewerkerDetails) {
           if (!md.naam || !md.uren) continue;
-          const taken = scheduleBackwards(werkfase.fase_naam, md.naam, md.uren, effectiveStart, chainEnd, occupiedDays)
+          const taken = scheduleBackwards(werkfase.fase_naam, md.naam, md.uren, effectiveStart, chainEnd, occupiedDays, 8, segPartialLimits)
             .map(t => ({ ...t, werktype: wt }));
           faseTaken.push(...taken);
         }
       } else if (werkfase.medewerkers?.length > 0) {
         const totalHours = (werkfase.uren_per_dag || 8) * (werkfase.duur_dagen || 1);
         for (const mwNaam of werkfase.medewerkers) {
-          const taken = scheduleBackwards(werkfase.fase_naam, mwNaam, totalHours, effectiveStart, chainEnd, occupiedDays)
+          const taken = scheduleBackwards(werkfase.fase_naam, mwNaam, totalHours, effectiveStart, chainEnd, occupiedDays, 8, segPartialLimits)
             .map(t => ({ ...t, werktype: wt }));
           faseTaken.push(...taken);
         }
@@ -2221,8 +2330,29 @@ function buildPresentatieTaken(info: any): VoorstelTaak[] {
     }
     const duurUren = p.uren_per_dag || 2;
 
+    // Reistijd: blokkeer de reistijd vóór de presentatie als reistijd_minuten is ingesteld
+    const reistijdMin = (info.reistijd_minuten as number) || 0;
+    const reistijdUren = reistijdMin / 60;
+    const reistijdStart = startUur - reistijdUren;
+
     for (const medewerker of (p.medewerkers || [])) {
       if (!medewerker) continue;
+
+      // Reistijdblok: altijd vóór de presentatie, niet versleepbaar
+      if (reistijdMin > 0 && p.tijd && reistijdStart >= 9) {
+        taken.push({
+          werknemer_naam: medewerker,
+          fase_naam: 'Reistijd',
+          dag_van_week: dagVanWeek,
+          week_start: weekStart,
+          start_uur: reistijdStart,
+          duur_uren: reistijdUren,
+          werktype: 'extern',
+          isReistijd: true,
+        });
+      }
+
+      // Presentatieblok zelf
       taken.push({
         werknemer_naam: medewerker,
         fase_naam: p.fase_naam || 'Presentatie',

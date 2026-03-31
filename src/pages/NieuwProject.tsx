@@ -497,6 +497,7 @@ export default function NieuwProject() {
       startDatum: formData.projectHeader.startDatum,
       deadline: formData.projectHeader.deadline,
       volledigProjectId: formData.projectHeader.volledigProjectId,
+      reistijd_minuten: selectedClient?.reistijd_minuten || 0,
       fases,
       // Nieuwe velden voor meetings
       betrokkenPersonen: betrokkenPersonenNamen,
