@@ -38,6 +38,7 @@ export interface ProductieFasesData {
 interface ProductieFasesProps {
   data: ProductieFasesData;
   onChange: (data: ProductieFasesData) => void;
+  reistijdMinuten?: number; // reistijd van de geselecteerde klant (bij klant = op locatie)
 }
 
 const parseDate = (dateStr: string | undefined): Date | undefined => {
@@ -375,7 +376,7 @@ function PresentatieCollapsible({
 
 // --- Main component ---
 
-export function ProductieFases({ data, onChange }: ProductieFasesProps) {
+export function ProductieFases({ data, onChange, reistijdMinuten = 0 }: ProductieFasesProps) {
   const { data: employees = [] } = useEmployees();
   const [openFases, setOpenFases] = useState<Record<string, boolean>>({});
 
@@ -501,7 +502,10 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
     );
   };
 
-  const renderMeetingFase = (fase: string) => (
+  const renderMeetingFase = (fase: string) => {
+    const locatie = data.fases[fase]?.locatie || 'selmore';
+    const toonReistijd = locatie === 'klant' && reistijdMinuten > 0;
+    return (
     <div className="space-y-4 pt-4">
       <div className="grid grid-cols-2 gap-4">
         <div>
@@ -525,7 +529,7 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
       <div>
         <Label className="text-sm mb-2 block">Locatie</Label>
         <RadioGroup
-          value={data.fases[fase]?.locatie || 'selmore'}
+          value={locatie}
           onValueChange={(value) => updateFase(fase, 'locatie', value)}
           className="flex gap-4"
         >
@@ -538,6 +542,16 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
             <Label htmlFor={`${fase}-klant`} className="text-sm cursor-pointer">Bij klant</Label>
           </div>
         </RadioGroup>
+        {toonReistijd && (
+          <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 rounded-md px-3 py-2 w-fit">
+            <svg className="h-3.5 w-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10l2 1h7l1-1z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 6h4l3 5v4h-2" />
+            </svg>
+            Reistijd: <strong className="text-foreground">{reistijdMinuten} min</strong> heen + {reistijdMinuten} min terug — wordt automatisch ingepland
+          </div>
+        )}
       </div>
       <MedewerkerSelectie
         selectedIds={data.fases[fase]?.medewerkers || []}
@@ -547,6 +561,7 @@ export function ProductieFases({ data, onChange }: ProductieFasesProps) {
       />
     </div>
   );
+  };
 
   return (
     <div className="space-y-6">

@@ -671,6 +671,7 @@ export default function NieuwProject() {
           <ProductieFases
             data={formData.productieFases}
             onChange={(data) => setFormData({ ...formData, productieFases: data })}
+            reistijdMinuten={clients.find(c => c.id === formData.projectHeader.klantId)?.reistijd_minuten || 0}
           />
         )}
       </div>
