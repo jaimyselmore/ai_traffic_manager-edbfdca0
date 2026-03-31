@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Loader2, CheckCircle2, XCircle, ArrowLeft, Send, Check, ChevronLeft, ChevronRight, X, Trash2, BookmarkIcon, Car, Pencil } from 'lucide-react';
+import { Loader2, CheckCircle2, XCircle, ArrowLeft, RefreshCw, Check, ChevronLeft, ChevronRight, X, Trash2, BookmarkIcon, Car, Pencil } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -640,6 +640,56 @@ export default function EllenVoorstel() {
     }));
     setEditVoorstellen(prev => [...prev, ...nieuweBlokken]);
     setEditAddPanel(null);
+  };
+
+  /**
+   * Herschedule werkblokken op ANDERE dagen dan het huidige voorstel.
+   * Presentaties met vaste datum/tijd blijven ongewijzigd.
+   * Geen Ellen API-call — puur deterministische scheduler lokaal.
+   */
+  const handleRetrySchedule = async () => {
+    if (isRequestingNewProposal || !projectInfo) return;
+    setIsRequestingNewProposal(true);
+
+    try {
+      // Splits huidige voorstel: presentaties/reistijd bewaren, werkblokken opnieuw inplannen
+      const vasteBlokken = voorstellen.filter(t => t.werktype === 'extern' || t.isReistijd);
+      const werkBlokken = voorstellen.filter(t => t.werktype !== 'extern' && !t.isReistijd);
+
+      const alleMedewerkers = [...new Set(werkBlokken.map(t => t.werknemer_naam))];
+
+      // Pre-fetch bevestigde taken uit DB (zelfde als generateVoorstel)
+      let bestaandeTakenDb: Array<{ werknemer_naam: string; week_start: string; dag_van_week: number }> = [];
+      if (alleMedewerkers.length > 0) {
+        const startDatum = projectInfo.datum || projectInfo.fases?.[0]?.start_datum || new Date().toISOString().split('T')[0];
+        const eindDatumFetch = toISODate(projectInfo.deadline) || (() => {
+          const d = new Date(); d.setDate(d.getDate() + 120);
+          return d.toISOString().split('T')[0];
+        })();
+        const { data: takenData } = await supabase
+          .from('taken')
+          .select('werknemer_naam, week_start, dag_van_week')
+          .in('werknemer_naam', alleMedewerkers)
+          .gte('week_start', toISODate(startDatum) || startDatum)
+          .lte('week_start', eindDatumFetch)
+          .in('plan_status', ['vast', 'wacht_klant']);
+        bestaandeTakenDb = takenData || [];
+      }
+
+      // Voeg huidige werkblokken toe als "bezet" — forceer nieuwe dagen
+      const gecombineerdBezet = [
+        ...bestaandeTakenDb,
+        ...werkBlokken.map(t => ({ werknemer_naam: t.werknemer_naam, week_start: t.week_start, dag_van_week: t.dag_van_week })),
+      ];
+
+      const { workloadTaken } = buildFrontendSchedule(projectInfo, selectedWerktype, gecombineerdBezet, 'locked');
+      setVoorstellen([...workloadTaken, ...vasteBlokken]);
+    } catch (err) {
+      console.error('Retry schedule error:', err);
+      toast({ title: 'Opnieuw plannen mislukt', description: 'Er ging iets mis. Probeer het nog eens.', variant: 'destructive' });
+    } finally {
+      setIsRequestingNewProposal(false);
+    }
   };
 
   const handleRequestNewProposal = async () => {
@@ -1731,19 +1781,19 @@ export default function EllenVoorstel() {
                 </div>
               </div>
 
-              {/* Opnieuw-knop */}
+              {/* Opnieuw-knop: herplan werkblokken op andere dagen (geen Ellen) */}
               <Button
-                onClick={handleRequestNewProposal}
+                onClick={handleRetrySchedule}
                 disabled={isRequestingNewProposal}
                 size="sm"
                 variant="outline"
                 className="flex-shrink-0"
-                title="Nieuw voorstel genereren"
+                title="Andere dagen plannen"
               >
                 {isRequestingNewProposal ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 ) : (
-                  <Send className="h-3.5 w-3.5" />
+                  <RefreshCw className="h-3.5 w-3.5" />
                 )}
               </Button>
 
