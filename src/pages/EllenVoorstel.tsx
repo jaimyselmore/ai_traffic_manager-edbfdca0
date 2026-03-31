@@ -13,6 +13,13 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { getSessionToken, secureSelect, secureInsert } from '@/lib/data/secureDataClient';
@@ -181,11 +188,11 @@ export default function EllenVoorstel() {
   const [addTaskCell, setAddTaskCell] = useState<{ medewerker: string; dayIndex: number; hour: number } | null>(null);
   const [newTaskNaam, setNewTaskNaam] = useState('');
   const [newTaskDuur, setNewTaskDuur] = useState(2);
-  /** Locked = finish-to-start ketening (templatevolgorde), unlocked = onafhankelijke workback */
-  const [schedulingMode, setSchedulingMode] = useState<'locked' | 'unlocked'>('locked');
-  /** Handmatige bewerkmodus: expliciete save/cancel flow zodat Ellen niet in de war raakt */
-  const [isEditMode, setIsEditMode] = useState(false);
-  const preEditSnapshot = useRef<VoorstelTaak[]>([]);
+  /** Bewerken-modal: aparte state zodat Ellen nooit in de war raakt door handmatige edits */
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editVoorstellen, setEditVoorstellen] = useState<VoorstelTaak[]>([]);
+  const [editSelectedWeekIndex, setEditSelectedWeekIndex] = useState(0);
+  const [editDraggingTask, setEditDraggingTask] = useState<{ task: VoorstelTaak; index: number } | null>(null);
   const voorstelGenerated = useRef(false);
 
   // Timeout timer voor als Ellen te lang duurt
@@ -343,7 +350,7 @@ export default function EllenVoorstel() {
             bestaandeTaken = takenData || [];
           }
 
-          const { workloadTaken, ellenPresentatieFases } = buildFrontendSchedule(projectInfo, selectedWerktype, bestaandeTaken, schedulingMode);
+          const { workloadTaken, ellenPresentatieFases } = buildFrontendSchedule(projectInfo, selectedWerktype, bestaandeTaken, 'locked');
           const fixedPresentatieTaken = buildPresentatieTaken(projectInfo);
 
           if (!ellenPresentatieFases) {
@@ -1189,103 +1196,24 @@ export default function EllenVoorstel() {
 
             {/* ── Planning grid — full width ── */}
             <div className="space-y-3">
-              {/* Edit-mode banner */}
-              {isEditMode && (
-                <div className="flex items-center justify-between rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 dark:border-amber-700 dark:bg-amber-950/30">
-                  <div className="flex items-center gap-2 text-sm text-amber-800 dark:text-amber-300">
-                    <Pencil className="h-4 w-4 flex-shrink-0" />
-                    <span>Bewerkingsmodus actief — sleep blokken naar een andere dag of tijd. Ellen ziet handmatige wijzigingen niet.</span>
-                  </div>
-                  <div className="flex items-center gap-2 ml-4">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-7 text-xs"
-                      onClick={() => {
-                        setVoorstellen(preEditSnapshot.current);
-                        setIsEditMode(false);
-                      }}
-                    >
-                      Annuleren
-                    </Button>
-                    <Button
-                      size="sm"
-                      className="h-7 text-xs"
-                      onClick={() => setIsEditMode(false)}
-                    >
-                      Opslaan
-                    </Button>
-                  </div>
-                </div>
-              )}
-
               {/* Week navigation */}
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div className="flex items-center gap-2">
                   <h3 className="text-sm font-semibold text-foreground">Voorgestelde planning</h3>
-                  {/* AI-volgorde toggle: alleen zichtbaar buiten bewerkmodus */}
-                  {!isEditMode && (
-                    <button
-                      onClick={() => {
-                        const newMode = schedulingMode === 'locked' ? 'unlocked' : 'locked';
-                        setSchedulingMode(newMode);
-                        if (projectInfo && !projectInfo.meetingType && projectInfo.type !== 'meeting') {
-                          (async () => {
-                            const { workloadTaken, ellenPresentatieFases } = buildFrontendSchedule(
-                              projectInfo, selectedWerktype, bestaandeTaken, newMode
-                            );
-                            if (!ellenPresentatieFases) {
-                              setVoorstellen([...workloadTaken, ...buildPresentatieTaken(projectInfo)]);
-                            } else {
-                              const presNamen = (projectInfo.fases || [])
-                                .filter((f: any) => f.type === 'presentatie')
-                                .map((f: any) => (f.fase_naam || '').toLowerCase());
-                              const huidigeEllenTaken = voorstellen.filter(t =>
-                                presNamen.some((pn: string) => t.fase_naam?.toLowerCase().includes(pn))
-                              );
-                              setVoorstellen([...workloadTaken, ...buildPresentatieTaken(projectInfo), ...huidigeEllenTaken]);
-                            }
-                          })();
-                        }
-                      }}
-                      title={schedulingMode === 'locked'
-                        ? 'AI plant taken in templatevolgorde (finish-to-start) — klik om los te koppelen'
-                        : 'AI plant taken onafhankelijk — klik om terug naar templatevolgorde'}
-                      className={[
-                        'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-medium transition-colors',
-                        schedulingMode === 'locked'
-                          ? 'border-primary/30 bg-primary/10 text-primary hover:bg-primary/20'
-                          : 'border-amber-300/50 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-950/30 dark:text-amber-400',
-                      ].join(' ')}
-                    >
-                      {schedulingMode === 'locked' ? (
-                        <>
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                          Volgorde vergrendeld
-                        </>
-                      ) : (
-                        <>
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
-                          Vrij schuiven
-                        </>
-                      )}
-                    </button>
-                  )}
-                  {/* Bewerken-knop: opent expliciete bewerkingsmodus los van Ellen */}
-                  {!isEditMode && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-6 px-2.5 text-[11px] gap-1.5"
-                      onClick={() => {
-                        preEditSnapshot.current = [...voorstellen];
-                        setIsEditMode(true);
-                      }}
-                    >
-                      <Pencil className="h-3 w-3" />
-                      Bewerken
-                    </Button>
-                  )}
+                  {/* Bewerken-knop: opent het bewerkingsscherm als een popup los van Ellen */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-6 px-2.5 text-[11px] gap-1.5"
+                    onClick={() => {
+                      setEditVoorstellen([...voorstellen]);
+                      setEditSelectedWeekIndex(0);
+                      setIsEditModalOpen(true);
+                    }}
+                  >
+                    <Pencil className="h-3 w-3" />
+                    Bewerken
+                  </Button>
                 </div>
                 <div className="flex items-center gap-1">
                   <Button
@@ -1412,12 +1340,8 @@ export default function EllenVoorstel() {
                                   "border-b border-r border-border p-0 relative",
                                   isLunch && 'bg-muted/20',
                                   isDeadlineCol && !isLunch && 'bg-amber-50/60 dark:bg-amber-950/15',
-                                  !isLunch && draggingTask && 'hover:bg-primary/5 cursor-crosshair'
                                 )}
                                 style={{ height: `${CELL_HEIGHT}px` }}
-                                onDragOver={!isLunch ? handleDragOver : undefined}
-                                onDrop={!isLunch ? (e) => handleDrop(e, medewerker, dayIndex, hour) : undefined}
-                                onClick={() => handleCellClick(medewerker, dayIndex, hour)}
                               >
                                 {bestaandeTasks.map((taak, ti) => {
                                   if (!isTaskStart(taak, hour)) return null;
@@ -1451,8 +1375,7 @@ export default function EllenVoorstel() {
                                   return (
                                     <div
                                       key={`voorstel-${ti}`}
-                                      draggable={!taak.isReistijd}
-                                      onDragStart={!taak.isReistijd ? (e) => handleDragStart(e, taak, taskIndex) : undefined}
+                                      draggable={false}
                                       className={cn(
                                         'absolute left-0.5 right-0.5 rounded px-1.5 py-0.5 text-xs overflow-hidden z-20 group/task',
                                         taak.isReistijd
@@ -1499,15 +1422,7 @@ export default function EllenVoorstel() {
                                           )}
                                         </>
                                       )}
-                                      {!taak.isReistijd && (
-                                        <button
-                                          type="button"
-                                          onMouseDown={(e) => { e.stopPropagation(); handleRemoveTask(taskIndex); }}
-                                          className="absolute top-0.5 right-0.5 hidden group-hover/task:flex items-center justify-center h-3.5 w-3.5 rounded-full bg-black/30 hover:bg-black/50 text-white"
-                                        >
-                                          <X className="h-2.5 w-2.5" />
-                                        </button>
-                                      )}
+                                      {/* X-knop alleen zichtbaar in bewerkmodus (modal) */}
                                     </div>
                                   );
                                 })}
@@ -1559,6 +1474,213 @@ export default function EllenVoorstel() {
                 </div>
               )}
             </div>
+
+            {/* ── Bewerken-modal ── */}
+            <Dialog open={isEditModalOpen} onOpenChange={(open) => { if (!open) setIsEditModalOpen(false); }}>
+              <DialogContent className="max-w-[96vw] w-full h-[90vh] flex flex-col p-0 gap-0">
+                <DialogHeader className="flex-shrink-0 px-6 pt-5 pb-4 border-b border-border">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <DialogTitle className="flex items-center gap-2 text-base">
+                        <Pencil className="h-4 w-4 text-primary" />
+                        Planning bewerken
+                      </DialogTitle>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Sleep blokken naar een andere dag of tijd. Wijzigingen zijn alleen zichtbaar na <strong>Opslaan</strong>. Wegklikken gooit wijzigingen weg.
+                      </p>
+                    </div>
+                    {/* Week navigatie in modal */}
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <Button variant="ghost" size="icon" className="h-7 w-7"
+                        disabled={editSelectedWeekIndex === 0}
+                        onClick={() => setEditSelectedWeekIndex(i => i - 1)}>
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <span className="text-sm text-foreground min-w-[200px] text-center">
+                        {(() => {
+                          const ws = allWeeks[editSelectedWeekIndex] || allWeeks[0];
+                          const days = DAG_NAMEN.map((_, i) => { const d = new Date(ws); d.setDate(d.getDate() + i); return d; });
+                          const mo = days[0]; const fr = days[4];
+                          const months = ['jan','feb','mrt','apr','mei','jun','jul','aug','sep','okt','nov','dec'];
+                          return `${mo.getDate()} t/m ${fr.getDate()} ${months[fr.getMonth()]} ${fr.getFullYear()}`;
+                        })()}
+                      </span>
+                      <Button variant="ghost" size="icon" className="h-7 w-7"
+                        disabled={editSelectedWeekIndex >= allWeeks.length - 1}
+                        onClick={() => setEditSelectedWeekIndex(i => i + 1)}>
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                      <span className="text-xs text-muted-foreground tabular-nums">{editSelectedWeekIndex + 1}/{allWeeks.length}</span>
+                    </div>
+                  </div>
+                </DialogHeader>
+
+                {/* Grid scrollable body */}
+                <div className="flex-1 overflow-auto px-6 py-4">
+                  {(() => {
+                    const editWeekStart = allWeeks[editSelectedWeekIndex] || allWeeks[0];
+                    const editWeekISO = `${editWeekStart.getFullYear()}-${String(editWeekStart.getMonth() + 1).padStart(2, '0')}-${String(editWeekStart.getDate()).padStart(2, '0')}`;
+                    const editWeekDates = DAG_NAMEN.map((_, i) => { const d = new Date(editWeekStart); d.setDate(d.getDate() + i); return d; });
+                    const editTasksThisWeek = editVoorstellen.filter(t => t.week_start === editWeekISO);
+                    const editBestaandeThisWeek = bestaandeTaken.filter(t => t.week_start === editWeekISO);
+
+                    const getEditCell = (mw: string, dayIdx: number, hr: number) =>
+                      editVoorstellen.filter(t =>
+                        t.werknemer_naam === mw && t.week_start === editWeekISO &&
+                        t.dag_van_week === dayIdx && hr >= t.start_uur && hr < t.start_uur + t.duur_uren
+                      );
+
+                    if (editTasksThisWeek.length === 0 && editBestaandeThisWeek.length === 0) {
+                      return <div className="flex items-center justify-center py-12 text-muted-foreground text-sm">Geen blokken ingepland in deze week</div>;
+                    }
+
+                    return (
+                      <div className="w-full rounded-lg border border-border bg-card overflow-x-auto">
+                        <table className="w-full border-collapse table-fixed min-w-[640px]">
+                          <thead>
+                            <tr className="bg-muted/40">
+                              <th className="border-b border-r border-border px-3 py-2.5 text-left text-xs font-semibold text-muted-foreground w-40">Medewerker</th>
+                              <th className="border-b border-r border-border px-1 py-2.5 text-center text-[10px] font-semibold text-muted-foreground w-10">Uur</th>
+                              {editWeekDates.map((date, i) => (
+                                <th key={i} className="border-b border-r border-border px-2 py-2.5 text-center text-xs font-semibold text-foreground">
+                                  <div>{DAG_NAMEN[i]}</div>
+                                  <div className="text-[10px] font-normal opacity-60 mt-0.5">{date.getDate()}/{date.getMonth() + 1}</div>
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {medewerkers.map((mw) => (
+                              TIME_SLOTS.map((hour, hourIndex) => (
+                                <tr key={`${mw}-${hour}`} className={cn(hour === 13 && 'bg-muted/20')}>
+                                  {hourIndex === 0 && (
+                                    <td rowSpan={TIME_SLOTS.length} className="bg-card border-b border-r border-border px-3 py-2 align-middle">
+                                      <div className="flex items-center gap-2">
+                                        <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-primary/15 text-[10px] font-semibold text-primary">
+                                          {mw.split(' ').map((n: string) => n[0]).join('').substring(0, 2)}
+                                        </div>
+                                        <div className="font-medium text-foreground text-xs">{mw}</div>
+                                      </div>
+                                    </td>
+                                  )}
+                                  <td className={cn(
+                                    "border-b border-r border-border px-1 py-0 text-center text-[10px] font-medium",
+                                    hour === 13 ? 'bg-muted/20 text-muted-foreground/50' : 'bg-card text-muted-foreground/60'
+                                  )}>
+                                    {hour === 13 ? '—' : `${hour}:00`}
+                                  </td>
+                                  {editWeekDates.map((_, dayIndex) => {
+                                    const cellTasks = getEditCell(mw, dayIndex, hour);
+                                    const isLunch = hour === 13;
+                                    return (
+                                      <td
+                                        key={dayIndex}
+                                        className={cn(
+                                          "border-b border-r border-border p-0 relative",
+                                          isLunch && 'bg-muted/20',
+                                          !isLunch && editDraggingTask && 'hover:bg-primary/5 cursor-crosshair'
+                                        )}
+                                        style={{ height: `${CELL_HEIGHT}px` }}
+                                        onDragOver={!isLunch ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } : undefined}
+                                        onDrop={!isLunch ? (e) => {
+                                          e.preventDefault();
+                                          if (!editDraggingTask) return;
+                                          const updated = [...editVoorstellen];
+                                          updated[editDraggingTask.index] = {
+                                            ...editDraggingTask.task,
+                                            werknemer_naam: mw,
+                                            dag_van_week: dayIndex,
+                                            start_uur: hour,
+                                            week_start: editWeekISO,
+                                            isManuallyEdited: true,
+                                          };
+                                          setEditVoorstellen(updated);
+                                          setEditDraggingTask(null);
+                                        } : undefined}
+                                      >
+                                        {cellTasks.map((taak, ti) => {
+                                          if (hour !== taak.start_uur) return null;
+                                          const editIdx = editVoorstellen.findIndex(t =>
+                                            t.werknemer_naam === taak.werknemer_naam && t.fase_naam === taak.fase_naam &&
+                                            t.week_start === taak.week_start && t.dag_van_week === taak.dag_van_week && t.start_uur === taak.start_uur
+                                          );
+                                          const blockHeight = Math.min(taak.duur_uren, 18 - hour) * CELL_HEIGHT;
+                                          const isPres = presentatieNamenSet.has((taak.fase_naam || '').toLowerCase())
+                                            || taak.fase_naam?.toLowerCase().includes('presentatie')
+                                            || taak.fase_naam?.toLowerCase().includes('meeting');
+                                          return (
+                                            <div
+                                              key={`edit-${ti}`}
+                                              draggable={!taak.isReistijd}
+                                              onDragStart={!taak.isReistijd ? (e) => {
+                                                setEditDraggingTask({ task: taak, index: editIdx });
+                                                e.dataTransfer.effectAllowed = 'move';
+                                              } : undefined}
+                                              className={cn(
+                                                'absolute left-0.5 right-0.5 rounded px-1.5 py-0.5 text-xs overflow-hidden z-20 group/etask',
+                                                taak.isReistijd
+                                                  ? 'bg-slate-200/80 text-slate-600 border border-slate-300/70 cursor-default dark:bg-slate-700/50 dark:text-slate-300'
+                                                  : isPres
+                                                    ? cn('text-white border-2 border-white/30 cursor-grab active:cursor-grabbing', getFaseColor(taak.fase_naam, taak.werktype))
+                                                    : cn('text-white opacity-85 border-2 border-dashed border-white/40 cursor-grab active:cursor-grabbing', getFaseColor(taak.fase_naam, taak.werktype))
+                                              )}
+                                              style={{ height: `${blockHeight - 2}px`, top: '1px' }}
+                                            >
+                                              {taak.isReistijd ? (
+                                                <div className="flex items-center gap-1">
+                                                  <Car className="h-2.5 w-2.5 flex-shrink-0 opacity-70" />
+                                                  <span className="truncate font-medium">Reistijd</span>
+                                                </div>
+                                              ) : isPres ? (
+                                                <div className="flex items-center gap-1 min-w-0">
+                                                  <span className="inline-flex flex-shrink-0 items-center rounded bg-white/25 px-1 py-px text-[8px] font-bold uppercase tracking-wider">Pres.</span>
+                                                  <span className="truncate font-medium leading-tight">{taak.fase_naam}</span>
+                                                </div>
+                                              ) : (
+                                                <>
+                                                  <div className="truncate font-medium">{projectInfo?.projectTitel || projectInfo?.klant_naam}</div>
+                                                  <div className="truncate text-[10px] opacity-80">{taak.fase_naam}</div>
+                                                  {taak.duur_uren > 2 && <div className="text-[10px] opacity-70 mt-0.5">{taak.duur_uren}u</div>}
+                                                </>
+                                              )}
+                                              {!taak.isReistijd && (
+                                                <button
+                                                  type="button"
+                                                  onMouseDown={(e) => { e.stopPropagation(); setEditVoorstellen(prev => prev.filter((_, i) => i !== editIdx)); }}
+                                                  className="absolute top-0.5 right-0.5 hidden group-hover/etask:flex items-center justify-center h-3.5 w-3.5 rounded-full bg-black/30 hover:bg-black/50 text-white"
+                                                >
+                                                  <X className="h-2.5 w-2.5" />
+                                                </button>
+                                              )}
+                                            </div>
+                                          );
+                                        })}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              ))
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                <DialogFooter className="flex-shrink-0 px-6 py-4 border-t border-border">
+                  <Button variant="outline" onClick={() => setIsEditModalOpen(false)}>
+                    Annuleren
+                  </Button>
+                  <Button onClick={() => {
+                    setVoorstellen(editVoorstellen);
+                    setIsEditModalOpen(false);
+                  }}>
+                    Opslaan
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
 
             {/* ── Footer bar: legend · feedback · actions ── */}
             <div className="flex items-center gap-3 pt-4 border-t border-border">
@@ -2338,7 +2460,7 @@ function buildPresentatieTaken(info: any): VoorstelTaak[] {
     for (const medewerker of (p.medewerkers || [])) {
       if (!medewerker) continue;
 
-      // Reistijdblok: altijd vóór de presentatie, niet versleepbaar
+      // Reistijdblok heen: vóór de presentatie (als er nog werktijd is)
       if (reistijdMin > 0 && p.tijd && reistijdStart >= 9) {
         taken.push({
           werknemer_naam: medewerker,
@@ -2362,6 +2484,22 @@ function buildPresentatieTaken(info: any): VoorstelTaak[] {
         duur_uren: duurUren,
         werktype: 'extern',
       });
+
+      // Reistijdblok terug: ná de presentatie als er nog werktijd is (niet einde dag)
+      const meetingEind = startUur + duurUren;
+      const werkdagEind = 17.5;
+      if (reistijdMin > 0 && p.tijd && meetingEind + reistijdUren <= werkdagEind) {
+        taken.push({
+          werknemer_naam: medewerker,
+          fase_naam: 'Reistijd (terug)',
+          dag_van_week: dagVanWeek,
+          week_start: weekStart,
+          start_uur: meetingEind,
+          duur_uren: reistijdUren,
+          werktype: 'extern',
+          isReistijd: true,
+        });
+      }
     }
   }
 
