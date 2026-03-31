@@ -184,7 +184,6 @@ export default function EllenVoorstel() {
   const [secondsElapsed, setSecondsElapsed] = useState(0);
   const [retryCount, setRetryCount] = useState(0); // used in generateVoorstel deps
   const [showExitDialog, setShowExitDialog] = useState(false);
-  const [draggingTask, setDraggingTask] = useState<{ task: VoorstelTaak; index: number } | null>(null);
   const [addTaskCell, setAddTaskCell] = useState<{ medewerker: string; dayIndex: number; hour: number } | null>(null);
   const [newTaskNaam, setNewTaskNaam] = useState('');
   const [newTaskDuur, setNewTaskDuur] = useState(2);
@@ -193,6 +192,9 @@ export default function EllenVoorstel() {
   const [editVoorstellen, setEditVoorstellen] = useState<VoorstelTaak[]>([]);
   const [editSelectedWeekIndex, setEditSelectedWeekIndex] = useState(0);
   const [editDraggingTask, setEditDraggingTask] = useState<{ task: VoorstelTaak; index: number } | null>(null);
+  const [editAddPanel, setEditAddPanel] = useState<{ mw: string; dayIndex: number; editWeekISO: string; hour: number } | null>(null);
+  const [editAddPersonen, setEditAddPersonen] = useState<string[]>([]);
+  const [editAddDuur, setEditAddDuur] = useState(2);
   const voorstelGenerated = useRef(false);
 
   // Timeout timer voor als Ellen te lang duurt
@@ -620,6 +622,26 @@ export default function EllenVoorstel() {
     navigate('/nieuw-project');
   };
 
+  /** Voeg een blok toe in de bewerkmodal voor alle geselecteerde personen */
+  const handleEditAdd = (type: 'werkzaamheden' | 'presentatie' | 'review') => {
+    if (!editAddPanel) return;
+    const { dayIndex, editWeekISO, hour } = editAddPanel;
+    const fase_naam = type === 'presentatie' ? 'Presentatie' : type === 'review' ? 'Interne review' : (projectInfo?.projectTitel || 'Werkzaamheden');
+    const werktype = type === 'review' ? 'review' : type === 'presentatie' ? 'extern' : undefined;
+    const nieuweBlokken: VoorstelTaak[] = editAddPersonen.map(persoon => ({
+      werknemer_naam: persoon,
+      fase_naam,
+      dag_van_week: dayIndex,
+      week_start: editWeekISO,
+      start_uur: hour,
+      duur_uren: editAddDuur,
+      werktype,
+      isManuallyEdited: true,
+    }));
+    setEditVoorstellen(prev => [...prev, ...nieuweBlokken]);
+    setEditAddPanel(null);
+  };
+
   const handleRequestNewProposal = async () => {
     setIsRequestingNewProposal(true);
     setEllenMessage('Even kijken, ik maak een nieuw voorstel...');
@@ -855,63 +877,10 @@ export default function EllenVoorstel() {
     return hour === taak.start_uur;
   };
 
-  // Presentatienamen uit het project (voor kleur + subtitle)
-  const presentatieNamenSet = new Set(
-    (projectInfo?.fases || [])
-      .filter((f: any) => f.type === 'presentatie')
-      .map((f: any) => (f.fase_naam || '').toLowerCase())
-  );
-
-  const getFaseColor = (faseNaam: string, werktype?: string) => {
-    // Presentaties altijd dezelfde kleur (extern/roze)
-    if (presentatieNamenSet.has((faseNaam || '').toLowerCase())) return 'bg-task-extern';
-    // Werktype check
+  const getFaseColor = (_faseNaam: string, werktype?: string) => {
+    // Kleur puur op basis van werktype — nooit op fase_naam string matching
     if (werktype && WERKTYPE_COLORS[werktype]) return WERKTYPE_COLORS[werktype];
-    // Fallback naar fase naam
-    return FASE_COLORS[faseNaam] || FASE_COLORS['Algemeen'];
-  };
-
-  // Haal de gekoppelde presentatienaam op uit een werkzaamheden fase_naam
-  const getWorkloadSubtitle = (faseNaam: string): string | null => {
-    const m = faseNaam.match(/^Werkzaamheden\s*[-–]\s*(.+)$/i);
-    return m ? `→ ${m[1]}` : null;
-  };
-
-  const handleDragStart = (e: React.DragEvent, task: VoorstelTaak, index: number) => {
-    setDraggingTask({ task, index });
-    e.dataTransfer.effectAllowed = 'move';
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-  };
-
-  const handleDrop = (e: React.DragEvent, medewerker: string, dayIndex: number, hour: number) => {
-    e.preventDefault();
-    if (!draggingTask) return;
-    const updated = [...voorstellen];
-    updated[draggingTask.index] = {
-      ...draggingTask.task,
-      werknemer_naam: medewerker,
-      dag_van_week: dayIndex,
-      start_uur: hour,
-      week_start: currentWeekISO,
-      isManuallyEdited: true,
-    };
-    setVoorstellen(updated);
-    setDraggingTask(null);
-  };
-
-  const handleCellClick = (medewerker: string, dayIndex: number, hour: number) => {
-    const voorstelTasks = getVoorstelTasksForCell(medewerker, dayIndex, hour);
-    const bestaandeTasks = getBestaandeTasksForCell(medewerker, dayIndex, hour);
-    if (voorstelTasks.length === 0 && bestaandeTasks.length === 0 && hour !== 13) {
-      const faseNames = [...new Set(voorstellen.map(t => t.fase_naam))];
-      setNewTaskNaam(faseNames[0] || 'Werkzaamheden');
-      setNewTaskDuur(2);
-      setAddTaskCell({ medewerker, dayIndex, hour });
-    }
+    return FASE_COLORS['Algemeen'];
   };
 
   const handleAddTask = () => {
@@ -926,10 +895,6 @@ export default function EllenVoorstel() {
     };
     setVoorstellen([...voorstellen, newTask]);
     setAddTaskCell(null);
-  };
-
-  const handleRemoveTask = (index: number) => {
-    setVoorstellen(voorstellen.filter((_, i) => i !== index));
   };
 
   const handleExitClick = () => {
@@ -1358,18 +1323,9 @@ export default function EllenVoorstel() {
                                   );
                                 })}
                                 {voorstelTasks.map((taak, ti) => {
-                                  const taskIndex = voorstellen.findIndex(t =>
-                                    t.werknemer_naam === taak.werknemer_naam &&
-                                    t.fase_naam === taak.fase_naam &&
-                                    t.week_start === taak.week_start &&
-                                    t.dag_van_week === taak.dag_van_week &&
-                                    t.start_uur === taak.start_uur
-                                  );
                                   if (!isTaskStart(taak, hour)) return null;
                                   const blockHeight = Math.min(taak.duur_uren, 18 - hour) * CELL_HEIGHT;
-                                  const isPresentatie = presentatieNamenSet.has((taak.fase_naam || '').toLowerCase())
-                                    || taak.fase_naam?.toLowerCase().includes('presentatie')
-                                    || taak.fase_naam?.toLowerCase().includes('meeting');
+                                  const isPresentatie = taak.werktype === 'extern' && !taak.isReistijd;
                                   return (
                                     <div
                                       key={`voorstel-${ti}`}
@@ -1410,10 +1366,9 @@ export default function EllenVoorstel() {
                                         // Werkblok
                                         <>
                                           <div className="truncate font-medium">{projectInfo?.projectTitel || projectInfo?.klant_naam}</div>
-                                          <div className="truncate text-[10px] opacity-80">{taak.fase_naam}</div>
-                                          {getWorkloadSubtitle(taak.fase_naam) && (
-                                            <div className="truncate text-[10px] opacity-60 italic">{getWorkloadSubtitle(taak.fase_naam)}</div>
-                                          )}
+                                          <div className="truncate text-[10px] opacity-80">
+                                            {taak.fase_naam.replace(/^(Werkzaamheden)\s*[-–]\s*.+$/i, '$1')}
+                                          </div>
                                           {taak.duur_uren > 2 && <div className="text-[10px] opacity-70 mt-0.5">{taak.duur_uren}u</div>}
                                           {taak.isManuallyEdited && (
                                             <div className="absolute bottom-0.5 left-1 text-[8px] opacity-50 italic">handmatig</div>
@@ -1576,9 +1531,17 @@ export default function EllenVoorstel() {
                                         className={cn(
                                           "border-b border-r border-border p-0 relative",
                                           isLunch && 'bg-muted/20',
-                                          !isLunch && editDraggingTask && 'hover:bg-primary/5 cursor-crosshair'
+                                          !isLunch && editDraggingTask && 'hover:bg-primary/5 cursor-crosshair',
+                                          !isLunch && !editDraggingTask && cellTasks.length === 0 && 'hover:bg-muted/30 cursor-pointer'
                                         )}
                                         style={{ height: `${CELL_HEIGHT}px` }}
+                                        onClick={() => {
+                                          if (!isLunch && !editDraggingTask && cellTasks.length === 0) {
+                                            setEditAddPanel({ mw, dayIndex, editWeekISO, hour });
+                                            setEditAddPersonen([mw]);
+                                            setEditAddDuur(2);
+                                          }
+                                        }}
                                         onDragOver={!isLunch ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } : undefined}
                                         onDrop={!isLunch ? (e) => {
                                           e.preventDefault();
@@ -1603,9 +1566,7 @@ export default function EllenVoorstel() {
                                             t.week_start === taak.week_start && t.dag_van_week === taak.dag_van_week && t.start_uur === taak.start_uur
                                           );
                                           const blockHeight = Math.min(taak.duur_uren, 18 - hour) * CELL_HEIGHT;
-                                          const isPres = presentatieNamenSet.has((taak.fase_naam || '').toLowerCase())
-                                            || taak.fase_naam?.toLowerCase().includes('presentatie')
-                                            || taak.fase_naam?.toLowerCase().includes('meeting');
+                                          const isPres = taak.werktype === 'extern' && !taak.isReistijd;
                                           return (
                                             <div
                                               key={`edit-${ti}`}
