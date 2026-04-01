@@ -41,7 +41,28 @@ serve(async (req) => {
       )
     }
 
-    const werknemerId = state
+    // State can be either a numeric werknemerId (direct flow) or a 64-char hex token (invitation flow)
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+    let werknemerId: string
+    const isInvitationToken = state.length === 64 && /^[a-f0-9]+$/.test(state)
+
+    if (isInvitationToken) {
+      const { data: invitation } = await supabase
+        .from('microsoft_invitations')
+        .select('werknemer_id')
+        .eq('token', state)
+        .single()
+
+      if (!invitation) {
+        return returnErrorPage('Ongeldige uitnodigingslink')
+      }
+      werknemerId = String(invitation.werknemer_id)
+    } else {
+      werknemerId = state
+    }
 
     // Exchange authorization code for tokens
     const clientId = Deno.env.get('MICROSOFT_CLIENT_ID')!
@@ -90,10 +111,6 @@ serve(async (req) => {
     const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString()
 
     // Store tokens in microsoft_tokens table (single source of truth)
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
-
     const { error: tokenError } = await supabase
       .from('microsoft_tokens')
       .upsert({
