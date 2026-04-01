@@ -32,30 +32,29 @@ export function TopBar() {
     ? user.naam.split(' ').filter(Boolean).map(n => n[0]).join('').substring(0, 2).toUpperCase()
     : 'U';
 
-  // Toon alleen voornaam in de knop
   const voornaam = user?.naam ? user.naam.split(' ')[0] : 'Gebruiker';
 
   return (
     <>
-      <header className="flex h-14 items-center justify-end border-b border-border px-6 bg-background">
+      <header className="flex h-12 items-center justify-end border-b border-border px-6 bg-background">
         <div className="flex items-center gap-2">
 
           {/* + Nieuw dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-2 h-9 px-4 rounded-xl border border-border bg-background hover:bg-muted/50 transition-colors text-sm font-medium text-foreground">
-                <Plus className="h-4 w-4" />
+              <button className="flex items-center gap-1.5 h-8 px-3 rounded-lg border border-border bg-background hover:bg-secondary/60 transition-colors text-sm font-medium text-foreground">
+                <Plus className="h-3.5 w-3.5" />
                 Nieuw
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-64 rounded-2xl p-2 shadow-lg border border-border bg-background">
+            <DropdownMenuContent align="end" className="w-56 rounded-lg p-1 shadow-md border border-border">
               {templateItems.map((item) => (
                 <DropdownMenuItem
                   key={item.path}
                   onClick={() => navigate(item.path)}
-                  className="flex items-center gap-4 rounded-xl px-4 py-3.5 text-[15px] cursor-pointer"
+                  className="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm cursor-pointer"
                 >
-                  <item.icon className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                  <item.icon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                   {item.label}
                 </DropdownMenuItem>
               ))}
@@ -65,40 +64,40 @@ export function TopBar() {
           {/* Profile dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-2.5 h-9 pl-1.5 pr-3 rounded-xl border border-border bg-background hover:bg-muted/50 transition-colors">
-                <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+              <button className="flex items-center gap-2 h-8 pl-1.5 pr-2.5 rounded-lg border border-border bg-background hover:bg-secondary/60 transition-colors">
+                <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground">
                   {initials}
                 </div>
                 <span className="text-sm font-medium text-foreground">{voornaam}</span>
                 <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-64 rounded-2xl p-2 shadow-lg border border-border bg-background">
+            <DropdownMenuContent align="end" className="w-52 rounded-lg p-1 shadow-md border border-border">
               <DropdownMenuItem
                 onClick={() => setAccountDialogOpen(true)}
-                className="flex items-center gap-4 rounded-xl px-4 py-3.5 text-[15px] cursor-pointer"
+                className="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm cursor-pointer"
               >
-                <User className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                 Mijn profiel
               </DropdownMenuItem>
 
               {user?.rol?.toLowerCase() === 'admin' && (
                 <DropdownMenuItem
                   onClick={() => navigate('/admin')}
-                  className="flex items-center gap-4 rounded-xl px-4 py-3.5 text-[15px] cursor-pointer"
+                  className="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm cursor-pointer"
                 >
-                  <Settings className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                  <Settings className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                   Instellingen
                 </DropdownMenuItem>
               )}
 
-              <DropdownMenuSeparator className="my-1 mx-2" />
+              <DropdownMenuSeparator className="my-1" />
 
               <DropdownMenuItem
                 onClick={handleLogout}
-                className="flex items-center gap-4 rounded-xl px-4 py-3.5 text-[15px] cursor-pointer text-destructive focus:text-destructive"
+                className="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm cursor-pointer text-destructive focus:text-destructive"
               >
-                <LogOut className="h-5 w-5 flex-shrink-0" />
+                <LogOut className="h-4 w-4 flex-shrink-0" />
                 Uitloggen
               </DropdownMenuItem>
             </DropdownMenuContent>
