@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Settings, LogOut, User, Plus, FolderPlus, RefreshCw, Users, CalendarOff, ChevronDown } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { NotificatieBell } from '@/components/layout/NotificatieBell';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -60,6 +61,9 @@ export function TopBar() {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
+
+          {/* Notificaties */}
+          <NotificatieBell />
 
           {/* Profile dropdown */}
           <DropdownMenu>

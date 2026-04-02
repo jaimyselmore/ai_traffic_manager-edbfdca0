@@ -23,6 +23,7 @@ import {
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { getSessionToken, secureSelect, secureInsert } from '@/lib/data/secureDataClient';
+import { useAuth } from '@/contexts/AuthContext';
 import { saveAanvraag } from '@/components/dashboard/MijnAanvragen';
 import { toast } from '@/hooks/use-toast';
 import { Taak } from '@/lib/data/takenService';
@@ -140,6 +141,7 @@ const FASE_COLORS: Record<string, string> = {
 export default function EllenVoorstel() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
 
   // Support both projectInfo (from NieuwProject) and formData (from Meeting/Verlof)
   const requestType = location.state?.requestType;
@@ -567,7 +569,8 @@ export default function EllenVoorstel() {
           start_uur: taak.start_uur,
           duur_uren: taak.duur_uren,
           plan_status: planStatus,
-          is_hard_lock: isPresentatie, // Presentaties met vaste datum zijn hard locks
+          is_hard_lock: isPresentatie,
+          aangemaakt_door_naam: user?.naam ?? null,
         });
         if (taakErr) {
           console.error('Taak insert fout:', taakErr.message);

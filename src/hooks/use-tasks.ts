@@ -18,6 +18,7 @@ export interface Task {
   duur_uren: number;
   plan_status: 'concept' | 'vast' | 'wacht_klant';
   is_hard_lock: boolean;
+  aangemaakt_door_naam?: string | null;
   // Mapping properties for compatibility with PlannerGrid
   employeeId: string;
   clientName: string;
@@ -89,6 +90,7 @@ export function useTasks(weekStart: Date, employeeName?: string) {
           planStatus: row.plan_status || 'concept',
           projectTitel: row.project_titel,
           faseNaam: row.fase_naam,
+          aangemaakt_door_naam: row.aangemaakt_door_naam ?? null,
         } as Task;
       });
     },

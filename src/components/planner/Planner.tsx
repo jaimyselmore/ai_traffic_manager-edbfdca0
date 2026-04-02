@@ -34,6 +34,7 @@ import { exportToCSV, exportToPDF } from '@/lib/export/planningExport';
 import { secureInsert } from '@/lib/data/secureDataClient';
 import { useQueryClient } from '@tanstack/react-query';
 import type { Employee } from '@/lib/data/types';
+import { useAuth } from '@/contexts/AuthContext';
 
 const STORAGE_KEY = 'planner-visible-employees';
 
@@ -49,6 +50,7 @@ const LEGEND_ITEMS = [
 ];
 
 export function Planner() {
+  const { user } = useAuth();
   const [currentWeekStart, setCurrentWeekStart] = useState(() => getWeekStart(new Date()));
   const currentWeekNumber = getWeekNumber(getWeekStart(new Date()));
   const [selectedClient, setSelectedClient] = useState<string>('all');
@@ -123,6 +125,7 @@ export function Planner() {
         duur_uren: duur,
         plan_status: 'vast',
         is_hard_lock: false,
+        aangemaakt_door_naam: user?.naam ?? null,
       });
       if (error) hasError = true;
     }

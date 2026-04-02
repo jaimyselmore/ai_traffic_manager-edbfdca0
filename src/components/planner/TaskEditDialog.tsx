@@ -38,6 +38,8 @@ import { cn } from '@/lib/utils';
 import type { Task } from '@/hooks/use-tasks';
 import type { Employee } from '@/lib/data/types';
 import { secureSelect } from '@/lib/data/secureDataClient';
+import { useAuth } from '@/contexts/AuthContext';
+import { maakNotificatie } from '@/hooks/use-notificaties';
 
 interface TaskEditDialogProps {
   task: Task | null;
@@ -97,8 +99,10 @@ export function TaskEditDialog({
   onDeleteVerlof,
   onAddToMeeting,
 }: TaskEditDialogProps) {
+  const { user } = useAuth();
   const [projectTasks, setProjectTasks] = useState<Task[]>([]);
   const [editableRows, setEditableRows] = useState<EditableRow[]>([]);
+  const [projectInfo, setProjectInfo] = useState<{ deadline: string; aangemaakt_door_naam: string | null; aantalPresentaties: number } | null>(null);
   const [showDeleteProjectConfirm, setShowDeleteProjectConfirm] = useState(false);
   const [showCompleteProjectConfirm, setShowCompleteProjectConfirm] = useState(false);
   const [showDeleteTaskConfirm, setShowDeleteTaskConfirm] = useState<string | null>(null);
@@ -111,6 +115,29 @@ export function TaskEditDialog({
   const [meetingDag, setMeetingDag] = useState(0);
   const [meetingTimeChanged, setMeetingTimeChanged] = useState(false);
   const [meetingDetails, setMeetingDetails] = useState<{ onderwerp: string; locatie: string | null; type: string } | null>(null);
+
+  // Laad projectinfo (deadline, aangemaakt door, presentaties)
+  useEffect(() => {
+    if (!task || !task.project_id) { setProjectInfo(null); return; }
+    async function loadProjectInfo() {
+      const [projectRes, presentatiesRes] = await Promise.all([
+        secureSelect<any>('projecten', { filters: [{ column: 'id', operator: 'eq', value: task!.project_id! }] }),
+        secureSelect<any>('taken', { filters: [
+          { column: 'project_id', operator: 'eq', value: task!.project_id! },
+          { column: 'werktype', operator: 'eq', value: 'extern' },
+        ]}),
+      ]);
+      const project = projectRes.data?.[0];
+      if (project) {
+        setProjectInfo({
+          deadline: project.deadline,
+          aangemaakt_door_naam: project.aangemaakt_door_naam ?? task!.aangemaakt_door_naam ?? null,
+          aantalPresentaties: (presentatiesRes.data?.length ?? 0),
+        });
+      }
+    }
+    loadProjectInfo();
+  }, [task?.project_id]);
 
   const isVerlofOfZiek = task?.werktype === 'verlof' || task?.werktype === 'ziek';
   const isMeeting = task?.werktype === 'extern';
@@ -335,6 +362,18 @@ export function TaskEditDialog({
       if (row.duur_uren !== original.duur_uren) updates.duur_uren = row.duur_uren;
       if (Object.keys(updates).length > 0) {
         onUpdate(row.id, updates);
+        // Stuur notificatie als een andere gebruiker de planning wijzigt
+        if (user?.naam && row.werknemer_naam !== user.naam) {
+          const dagNamen = ['maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag'];
+          maakNotificatie({
+            voor_gebruiker_naam: row.werknemer_naam,
+            van_gebruiker_naam: user.naam,
+            type: 'planning_gewijzigd',
+            bericht: `${user.naam} heeft jouw planning gewijzigd (${dagNamen[row.dag_van_week] ?? 'dag onbekend'}, ${row.start_uur}:00–${row.start_uur + row.duur_uren}:00)`,
+            taak_id: row.id,
+            project_naam: task?.klant_naam,
+          });
+        }
       }
     });
     setEditableRows((prev) => prev.map((r) => ({ ...r, changed: false })));
@@ -448,6 +487,21 @@ export function TaskEditDialog({
               </div>
             </DialogTitle>
           </DialogHeader>
+
+          {/* Project info balk */}
+          {projectInfo && !isVerlofOfZiek && (
+            <div className="px-4 py-2 border-b border-border bg-muted/30 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+              {projectInfo.aangemaakt_door_naam && (
+                <span>📋 Aangemaakt door <strong className="text-foreground">{projectInfo.aangemaakt_door_naam}</strong></span>
+              )}
+              {projectInfo.deadline && (
+                <span>📅 Deadline <strong className="text-foreground">{new Date(projectInfo.deadline + 'T00:00:00').toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' })}</strong></span>
+              )}
+              {projectInfo.aantalPresentaties > 0 && (
+                <span>🎤 <strong className="text-foreground">{projectInfo.aantalPresentaties}</strong> presentatie{projectInfo.aantalPresentaties !== 1 ? 's' : ''}</span>
+              )}
+            </div>
+          )}
 
           {/* Summary bar */}
           <div className="px-1 py-2 border-b border-border space-y-1.5">
@@ -832,9 +886,21 @@ export function TaskEditDialog({
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => {
                 if (showDeleteTaskConfirm) {
+                  const deletedRow = editableRows.find(r => r.id === showDeleteTaskConfirm);
                   onDelete(showDeleteTaskConfirm);
                   setEditableRows((prev) => prev.filter((r) => r.id !== showDeleteTaskConfirm));
                   setProjectTasks((prev) => prev.filter((t) => t.id !== showDeleteTaskConfirm));
+                  // Notificatie naar betrokken medewerker
+                  if (user?.naam && deletedRow && deletedRow.werknemer_naam !== user.naam) {
+                    maakNotificatie({
+                      voor_gebruiker_naam: deletedRow.werknemer_naam,
+                      van_gebruiker_naam: user.naam,
+                      type: 'planning_verwijderd',
+                      bericht: `${user.naam} heeft een taak van jou verwijderd uit de planning`,
+                      taak_id: deletedRow.id,
+                      project_naam: task?.klant_naam,
+                    });
+                  }
                 }
                 setShowDeleteTaskConfirm(null);
               }}
@@ -930,8 +996,20 @@ export function TaskEditDialog({
                 if (task?.project_id && onDeleteProject) {
                   onDeleteProject(task.project_id);
                 } else if (isMeeting) {
-                  // Meeting without project_id: delete each participant individually
                   editableRows.forEach((row) => onDelete(row.id));
+                }
+                // Notificaties naar alle betrokken medewerkers
+                if (user?.naam) {
+                  const anderenNamen = [...new Set(editableRows.map(r => r.werknemer_naam))].filter(n => n !== user.naam);
+                  anderenNamen.forEach(naam => {
+                    maakNotificatie({
+                      voor_gebruiker_naam: naam,
+                      van_gebruiker_naam: user.naam!,
+                      type: 'planning_verwijderd',
+                      bericht: `${user.naam} heeft de volledige planning van ${task?.klant_naam || 'een project'} verwijderd`,
+                      project_naam: task?.klant_naam,
+                    });
+                  });
                 }
                 onClose();
               }}
