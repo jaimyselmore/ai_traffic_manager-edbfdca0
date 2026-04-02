@@ -423,13 +423,16 @@ export function Planner() {
             {/* Klant */}
             <div className="flex flex-col gap-1">
               <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Klant (optioneel)</label>
-              <input
-                type="text"
+              <select
                 value={addKlant}
                 onChange={e => setAddKlant(e.target.value)}
-                placeholder="Intern"
-                className="h-9 w-full rounded border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary"
-              />
+                className="h-9 w-full rounded border border-border bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value="">Intern</option>
+                {clients.map(client => (
+                  <option key={client.id} value={client.name}>{client.name}</option>
+                ))}
+              </select>
             </div>
             {/* Type */}
             <div className="flex flex-col gap-1">
