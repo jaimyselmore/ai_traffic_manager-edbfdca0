@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Loader2, CheckCircle2, XCircle, ArrowLeft, RefreshCw, Check, ChevronLeft, ChevronRight, X, Trash2, BookmarkIcon, Car, Pencil } from 'lucide-react';
+import { Loader2, CheckCircle2, XCircle, ArrowLeft, RefreshCw, Check, ChevronLeft, ChevronRight, X, Trash2, BookmarkIcon, Car, Pencil, Send } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -192,9 +192,12 @@ export default function EllenVoorstel() {
   const [editVoorstellen, setEditVoorstellen] = useState<VoorstelTaak[]>([]);
   const [editSelectedWeekIndex, setEditSelectedWeekIndex] = useState(0);
   const [editDraggingTask, setEditDraggingTask] = useState<{ task: VoorstelTaak; index: number } | null>(null);
-  const [editAddPanel, setEditAddPanel] = useState<{ mw: string; dayIndex: number; editWeekISO: string; hour: number } | null>(null);
+  const [editAddPanel, setEditAddPanel] = useState<{ mw: string; dayIndex: number; editWeekISO: string; hour: number; popupX: number; popupY: number } | null>(null);
   const [editAddPersonen, setEditAddPersonen] = useState<string[]>([]);
   const [editAddDuur, setEditAddDuur] = useState(2);
+  const [editAddTitel, setEditAddTitel] = useState('');
+  const [editAddType, setEditAddType] = useState<'werkzaamheden' | 'presentatie' | 'review'>('werkzaamheden');
+  const [editResizingTask, setEditResizingTask] = useState<{ index: number; startY: number; originalDuur: number } | null>(null);
   const voorstelGenerated = useRef(false);
 
   // Timeout timer voor als Ellen te lang duurt
@@ -623,10 +626,12 @@ export default function EllenVoorstel() {
   };
 
   /** Voeg een blok toe in de bewerkmodal voor alle geselecteerde personen */
-  const handleEditAdd = (type: 'werkzaamheden' | 'presentatie' | 'review') => {
+  const handleEditAdd = () => {
     if (!editAddPanel) return;
     const { dayIndex, editWeekISO, hour } = editAddPanel;
-    const fase_naam = type === 'presentatie' ? 'Presentatie' : type === 'review' ? 'Interne review' : (projectInfo?.projectTitel || 'Werkzaamheden');
+    const type = editAddType;
+    const defaultNaam = type === 'presentatie' ? 'Presentatie' : type === 'review' ? 'Interne review' : (projectInfo?.projectTitel || 'Werkzaamheden');
+    const fase_naam = editAddTitel.trim() || defaultNaam;
     const werktype = type === 'review' ? 'review' : type === 'presentatie' ? 'extern' : undefined;
     const nieuweBlokken: VoorstelTaak[] = editAddPersonen.map(persoon => ({
       werknemer_naam: persoon,
@@ -640,6 +645,8 @@ export default function EllenVoorstel() {
     }));
     setEditVoorstellen(prev => [...prev, ...nieuweBlokken]);
     setEditAddPanel(null);
+    setEditAddTitel('');
+    setEditAddType('werkzaamheden');
   };
 
   /**
@@ -1519,7 +1526,20 @@ export default function EllenVoorstel() {
                 </DialogHeader>
 
                 {/* Grid scrollable body */}
-                <div className="flex-1 overflow-auto px-6 py-4">
+                <div
+                  className="flex-1 overflow-auto px-6 py-4"
+                  onMouseMove={(e) => {
+                    if (!editResizingTask) return;
+                    const deltaY = e.clientY - editResizingTask.startY;
+                    const deltaUren = Math.round(deltaY / CELL_HEIGHT);
+                    const nieuweDuur = Math.max(1, Math.min(9, editResizingTask.originalDuur + deltaUren));
+                    setEditVoorstellen(prev => prev.map((t, i) =>
+                      i === editResizingTask.index ? { ...t, duur_uren: nieuweDuur, isManuallyEdited: true } : t
+                    ));
+                  }}
+                  onMouseUp={() => setEditResizingTask(null)}
+                  onMouseLeave={() => setEditResizingTask(null)}
+                >
                   {(() => {
                     const editWeekStart = allWeeks[editSelectedWeekIndex] || allWeeks[0];
                     const editWeekISO = `${editWeekStart.getFullYear()}-${String(editWeekStart.getMonth() + 1).padStart(2, '0')}-${String(editWeekStart.getDate()).padStart(2, '0')}`;
@@ -1585,11 +1605,19 @@ export default function EllenVoorstel() {
                                           !isLunch && !editDraggingTask && cellTasks.length === 0 && 'hover:bg-muted/30 cursor-pointer'
                                         )}
                                         style={{ height: `${CELL_HEIGHT}px` }}
-                                        onClick={() => {
+                                        onClick={(e) => {
                                           if (!isLunch && !editDraggingTask && cellTasks.length === 0) {
-                                            setEditAddPanel({ mw, dayIndex, editWeekISO, hour });
+                                            const vwW = window.innerWidth;
+                                            const popupW = 300;
+                                            const rawX = e.clientX + 12;
+                                            const popupX = rawX + popupW > vwW ? vwW - popupW - 8 : rawX;
+                                            const rawY = e.clientY - 20;
+                                            const popupY = rawY < 8 ? 8 : rawY;
+                                            setEditAddPanel({ mw, dayIndex, editWeekISO, hour, popupX, popupY });
                                             setEditAddPersonen([mw]);
                                             setEditAddDuur(2);
+                                            setEditAddTitel('');
+                                            setEditAddType('werkzaamheden');
                                           }
                                         }}
                                         onDragOver={!isLunch ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } : undefined}
@@ -1620,13 +1648,14 @@ export default function EllenVoorstel() {
                                           return (
                                             <div
                                               key={`edit-${ti}`}
-                                              draggable={!taak.isReistijd}
+                                              draggable={!taak.isReistijd && editResizingTask === null}
                                               onDragStart={!taak.isReistijd ? (e) => {
+                                                if (editResizingTask !== null) { e.preventDefault(); return; }
                                                 setEditDraggingTask({ task: taak, index: editIdx });
                                                 e.dataTransfer.effectAllowed = 'move';
                                               } : undefined}
                                               className={cn(
-                                                'absolute left-0.5 right-0.5 rounded px-1.5 py-0.5 text-xs overflow-hidden z-20 group/etask',
+                                                'absolute left-0.5 right-0.5 rounded px-1.5 py-0.5 text-xs overflow-hidden z-20 group/etask select-none',
                                                 taak.isReistijd
                                                   ? 'bg-slate-200/80 text-slate-600 border border-slate-300/70 cursor-default dark:bg-slate-700/50 dark:text-slate-300'
                                                   : isPres
@@ -1661,6 +1690,19 @@ export default function EllenVoorstel() {
                                                   <X className="h-2.5 w-2.5" />
                                                 </button>
                                               )}
+                                              {/* Resize handle onderaan het blok */}
+                                              {!taak.isReistijd && blockHeight > 10 && (
+                                                <div
+                                                  className="absolute bottom-0 left-0 right-0 h-2.5 cursor-s-resize flex items-center justify-center opacity-0 group-hover/etask:opacity-100 transition-opacity"
+                                                  onMouseDown={(e) => {
+                                                    e.stopPropagation();
+                                                    e.preventDefault();
+                                                    setEditResizingTask({ index: editIdx, startY: e.clientY, originalDuur: taak.duur_uren });
+                                                  }}
+                                                >
+                                                  <div className="w-8 h-0.5 rounded bg-white/60" />
+                                                </div>
+                                              )}
                                             </div>
                                           );
                                         })}
@@ -1677,51 +1719,91 @@ export default function EllenVoorstel() {
                   })()}
                 </div>
 
-                {/* ── Toevoeg-paneel: verschijnt als je op een lege cel klikt ── */}
+                {/* Floating popup: verschijnt als je op een lege cel klikt */}
                 {editAddPanel && (
-                  <div className="flex-shrink-0 border-t border-primary/30 bg-primary/5 px-6 py-4">
-                    <div className="flex flex-wrap items-start gap-4">
-                      {/* Type-knoppen */}
-                      <div className="flex flex-col gap-1.5">
-                        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Type</p>
-                        <div className="flex gap-2">
-                          <Button size="sm" variant="outline" className="gap-1.5 border-primary/40 hover:bg-primary/10"
-                            onClick={() => handleEditAdd('werkzaamheden')}>
-                            Werkzaamheden
-                          </Button>
-                          <Button size="sm" variant="outline" className="gap-1.5 border-task-extern/50 hover:bg-task-extern/10 text-task-extern"
-                            onClick={() => handleEditAdd('presentatie')}>
-                            Presentatie
-                          </Button>
-                          <Button size="sm" variant="outline" className="gap-1.5 border-task-review/50 hover:bg-task-review/10 text-task-review"
-                            onClick={() => handleEditAdd('review')}>
-                            Interne review
-                          </Button>
-                        </div>
+                  <div
+                    className="fixed z-50 w-[300px] rounded-xl border border-border bg-card shadow-xl"
+                    style={{ left: editAddPanel.popupX, top: editAddPanel.popupY }}
+                    onMouseDown={(e) => e.stopPropagation()}
+                  >
+                    {/* Popup header */}
+                    <div className="flex items-center justify-between px-4 pt-4 pb-2">
+                      <span className="text-sm font-semibold text-foreground">Blok toevoegen</span>
+                      <button type="button" onClick={() => setEditAddPanel(null)}
+                        className="text-muted-foreground hover:text-foreground">
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+
+                    <div className="px-4 pb-4 flex flex-col gap-3">
+                      {/* Titel */}
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Titel</label>
+                        <input
+                          type="text"
+                          autoFocus
+                          value={editAddTitel}
+                          onChange={e => setEditAddTitel(e.target.value)}
+                          placeholder={editAddType === 'presentatie' ? 'Presentatie' : editAddType === 'review' ? 'Interne review' : (projectInfo?.projectTitel || 'Werkzaamheden')}
+                          className="h-8 w-full rounded border border-border bg-background px-2 text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
                       </div>
 
-                      {/* Duur */}
-                      <div className="flex flex-col gap-1.5">
-                        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Duur</p>
-                        <div className="flex gap-1">
-                          {[1, 2, 4, 8].map(d => (
-                            <button key={d} type="button"
-                              onClick={() => setEditAddDuur(d)}
+                      {/* Type */}
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Type</label>
+                        <div className="flex gap-1.5">
+                          {([
+                            { id: 'werkzaamheden', label: 'Werk', colorClass: 'bg-task-concept' },
+                            { id: 'presentatie', label: 'Presentatie', colorClass: 'bg-task-extern' },
+                            { id: 'review', label: 'Review', colorClass: 'bg-task-review' },
+                          ] as const).map(opt => (
+                            <button key={opt.id} type="button"
+                              onClick={() => setEditAddType(opt.id)}
                               className={cn(
-                                'h-8 w-10 rounded border text-xs font-medium transition-colors',
-                                editAddDuur === d
-                                  ? 'border-primary bg-primary text-primary-foreground'
-                                  : 'border-border bg-background text-foreground hover:border-primary/50'
+                                'flex items-center gap-1.5 rounded border px-2 py-1.5 text-[11px] font-medium transition-colors',
+                                editAddType === opt.id
+                                  ? 'border-primary bg-primary/10 text-primary'
+                                  : 'border-border bg-background text-foreground hover:border-primary/40'
                               )}
-                            >{d}u</button>
+                            >
+                              <span className={cn('h-2.5 w-2.5 rounded-full flex-shrink-0', opt.colorClass)} />
+                              {opt.label}
+                            </button>
                           ))}
                         </div>
                       </div>
 
+                      {/* Tijd + Duur */}
+                      <div className="flex gap-3">
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Starttijd</label>
+                          <div className="h-8 flex items-center rounded border border-border bg-muted/40 px-2 text-xs font-medium text-foreground">
+                            {editAddPanel.hour}:00
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-1 flex-1">
+                          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Duur</label>
+                          <div className="flex gap-1">
+                            {[1, 2, 4, 8].map(d => (
+                              <button key={d} type="button"
+                                onClick={() => setEditAddDuur(d)}
+                                className={cn(
+                                  'flex-1 h-8 rounded border text-xs font-medium transition-colors',
+                                  editAddDuur === d
+                                    ? 'border-primary bg-primary text-primary-foreground'
+                                    : 'border-border bg-background text-foreground hover:border-primary/50'
+                                )}
+                              >{d}u</button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
                       {/* Personen */}
-                      <div className="flex flex-col gap-1.5 flex-1 min-w-[160px]">
-                        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Voor wie</p>
-                        <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Voor wie</label>
+                        <div className="flex flex-wrap gap-1.5">
                           {medewerkers.map(mw => (
                             <label key={mw} className={cn(
                               'flex items-center gap-1.5 rounded border px-2 py-1 text-xs cursor-pointer transition-colors select-none',
@@ -1741,15 +1823,19 @@ export default function EllenVoorstel() {
                         </div>
                       </div>
 
-                      {/* Sluit paneel */}
-                      <button type="button" onClick={() => setEditAddPanel(null)}
-                        className="ml-auto self-start text-muted-foreground hover:text-foreground mt-4">
-                        <X className="h-4 w-4" />
-                      </button>
+                      {/* Buttons */}
+                      <div className="flex gap-2 pt-1">
+                        <Button size="sm" variant="outline" className="flex-1"
+                          onClick={() => setEditAddPanel(null)}>
+                          Annuleren
+                        </Button>
+                        <Button size="sm" className="flex-1"
+                          disabled={editAddPersonen.length === 0}
+                          onClick={handleEditAdd}>
+                          Toevoegen
+                        </Button>
+                      </div>
                     </div>
-                    <p className="text-[10px] text-muted-foreground mt-2">
-                      Klik een type om toe te voegen — of selecteer meerdere personen voor dezelfde dag.
-                    </p>
                   </div>
                 )}
 

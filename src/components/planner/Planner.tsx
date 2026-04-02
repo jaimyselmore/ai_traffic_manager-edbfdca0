@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Maximize2, Download, ZoomIn, ZoomOut, Users, ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react';
+import { Maximize2, Download, ZoomIn, ZoomOut, Users, ChevronLeft, ChevronRight, CalendarDays, Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -18,6 +18,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { cn } from '@/lib/utils';
 
 import { PlannerGrid } from './PlannerGrid';
 import { FullscreenPlanner } from './FullscreenPlanner';
@@ -82,6 +84,51 @@ export function Planner() {
     } else {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       toast({ title: 'Deelnemer toegevoegd', description: `${employee.name} is aan de meeting toegevoegd.` });
+    }
+  };
+
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [addTitel, setAddTitel] = useState('');
+  const [addType, setAddType] = useState<'concept' | 'uitwerking' | 'productie' | 'extern' | 'review'>('concept');
+  const [addDag, setAddDag] = useState(0);
+  const [addStartuur, setAddStartuur] = useState(9);
+  const [addDuur, setAddDuur] = useState(2);
+  const [addMedewerker, setAddMedewerker] = useState('');
+  const [addKlant, setAddKlant] = useState('');
+  const [isAddingBlock, setIsAddingBlock] = useState(false);
+
+  const handleAddBlock = async () => {
+    if (!addMedewerker || !addTitel) return;
+    const emp = employees.find(e => e.name === addMedewerker);
+    const weekStartISO = currentWeekStart.toISOString().split('T')[0];
+    setIsAddingBlock(true);
+    const { error } = await secureInsert('taken', {
+      klant_naam: addKlant || 'Intern',
+      fase_naam: addTitel,
+      werknemer_naam: addMedewerker,
+      werktype: addType,
+      discipline: emp?.role || 'Algemeen',
+      week_start: weekStartISO,
+      dag_van_week: addDag,
+      start_uur: addStartuur,
+      duur_uren: addDuur,
+      plan_status: 'vast',
+      is_hard_lock: false,
+    });
+    setIsAddingBlock(false);
+    if (error) {
+      toast({ title: 'Fout', description: 'Kon blok niet toevoegen.', variant: 'destructive' });
+    } else {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      toast({ title: 'Blok toegevoegd' });
+      setShowAddDialog(false);
+      setAddTitel('');
+      setAddType('concept');
+      setAddDag(0);
+      setAddStartuur(9);
+      setAddDuur(2);
+      setAddMedewerker('');
+      setAddKlant('');
     }
   };
 
@@ -271,6 +318,22 @@ export function Planner() {
 
         <div className="h-5 w-px bg-border shrink-0 hidden md:block" />
 
+        {/* Blok toevoegen */}
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-8 gap-1.5 shrink-0"
+          onClick={() => {
+            setAddMedewerker(filteredEmployees[0]?.name || '');
+            setShowAddDialog(true);
+          }}
+        >
+          <Plus className="h-3.5 w-3.5" />
+          <span className="text-xs">Blok</span>
+        </Button>
+
+        <div className="h-5 w-px bg-border shrink-0 hidden md:block" />
+
         {/* Legend chips */}
         <div className="hidden md:flex items-center gap-x-3 gap-y-1 flex-wrap">
           {LEGEND_ITEMS.map((item) => (
@@ -337,6 +400,133 @@ export function Planner() {
           onZoomChange={setPlannerZoom}
         />
       )}
+
+      {/* Nieuw blok toevoegen */}
+      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Plus className="h-4 w-4 text-primary" />
+              Nieuw blok toevoegen
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 py-2">
+            {/* Titel */}
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Titel</label>
+              <input
+                type="text"
+                autoFocus
+                value={addTitel}
+                onChange={e => setAddTitel(e.target.value)}
+                placeholder="Naam van het blok"
+                className="h-9 w-full rounded border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </div>
+            {/* Klant */}
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Klant (optioneel)</label>
+              <input
+                type="text"
+                value={addKlant}
+                onChange={e => setAddKlant(e.target.value)}
+                placeholder="Intern"
+                className="h-9 w-full rounded border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </div>
+            {/* Type */}
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Type</label>
+              <div className="flex flex-wrap gap-1.5">
+                {([
+                  { id: 'concept', label: 'Concept', color: 'bg-[hsl(var(--task-concept))]' },
+                  { id: 'uitwerking', label: 'Uitwerking', color: 'bg-[hsl(var(--task-uitwerking))]' },
+                  { id: 'productie', label: 'Productie', color: 'bg-[hsl(var(--task-productie))]' },
+                  { id: 'extern', label: 'Extern', color: 'bg-[hsl(var(--task-extern))]' },
+                  { id: 'review', label: 'Review', color: 'bg-[hsl(var(--task-review))]' },
+                ] as const).map(opt => (
+                  <button key={opt.id} type="button"
+                    onClick={() => setAddType(opt.id)}
+                    className={cn(
+                      'flex items-center gap-1.5 rounded border px-2 py-1.5 text-[11px] font-medium transition-colors',
+                      addType === opt.id
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border bg-background text-foreground hover:border-primary/40'
+                    )}
+                  >
+                    <span className={cn('h-2.5 w-2.5 rounded-full flex-shrink-0', opt.color)} />
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {/* Medewerker */}
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Medewerker</label>
+              <select
+                value={addMedewerker}
+                onChange={e => setAddMedewerker(e.target.value)}
+                className="h-9 w-full rounded border border-border bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                {employees.map(emp => <option key={emp.id} value={emp.name}>{emp.name}</option>)}
+              </select>
+            </div>
+            {/* Dag + Tijd */}
+            <div className="flex gap-3">
+              <div className="flex flex-col gap-1 flex-1">
+                <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Dag</label>
+                <select
+                  value={addDag}
+                  onChange={e => setAddDag(Number(e.target.value))}
+                  className="h-9 w-full rounded border border-border bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  {['Maandag','Dinsdag','Woensdag','Donderdag','Vrijdag'].map((d, i) => (
+                    <option key={i} value={i}>{d}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Start</label>
+                <select
+                  value={addStartuur}
+                  onChange={e => setAddStartuur(Number(e.target.value))}
+                  className="h-9 rounded border border-border bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  {[8,9,10,11,12,13,14,15,16,17].map(h => (
+                    <option key={h} value={h}>{h}:00</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            {/* Duur */}
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Duur</label>
+              <div className="flex gap-1.5">
+                {[1, 2, 4, 8].map(d => (
+                  <button key={d} type="button"
+                    onClick={() => setAddDuur(d)}
+                    className={cn(
+                      'flex-1 h-9 rounded border text-sm font-medium transition-colors',
+                      addDuur === d
+                        ? 'border-primary bg-primary text-primary-foreground'
+                        : 'border-border bg-background text-foreground hover:border-primary/50'
+                    )}
+                  >{d}u</button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddDialog(false)}>Annuleren</Button>
+            <Button
+              onClick={handleAddBlock}
+              disabled={!addTitel || !addMedewerker || isAddingBlock}
+            >
+              {isAddingBlock ? 'Toevoegen...' : 'Toevoegen'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Task Edit Dialog */}
       <TaskEditDialog
