@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Loader2, CheckCircle2, XCircle, ArrowLeft, RefreshCw, Check, ChevronLeft, ChevronRight, X, Trash2, BookmarkIcon, Car, Pencil, Send } from 'lucide-react';
+import { Loader2, CheckCircle2, XCircle, ArrowLeft, RefreshCw, Check, ChevronLeft, ChevronRight, ChevronDown, X, Trash2, BookmarkIcon, Car, Pencil, Send } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,6 +21,12 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuCheckboxItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { supabase } from '@/integrations/supabase/client';
 import { getSessionToken, secureSelect, secureInsert } from '@/lib/data/secureDataClient';
 import { useAuth } from '@/contexts/AuthContext';
@@ -194,6 +200,8 @@ export default function EllenVoorstel() {
   const [editDraggingTask, setEditDraggingTask] = useState<{ task: VoorstelTaak; index: number } | null>(null);
   const [editAddPanel, setEditAddPanel] = useState<{ mw: string; dayIndex: number; editWeekISO: string; hour: number; popupX: number; popupY: number } | null>(null);
   const [editAddPersonen, setEditAddPersonen] = useState<string[]>([]);
+  const [editAddVan, setEditAddVan] = useState(9);
+  const [editAddTot, setEditAddTot] = useState(11);
   const [editAddDuur, setEditAddDuur] = useState(2);
   const [editAddTitel, setEditAddTitel] = useState('');
   const [editAddType, setEditAddType] = useState<'werkzaamheden' | 'presentatie' | 'review'>('werkzaamheden');
@@ -484,7 +492,12 @@ export default function EllenVoorstel() {
   }, [projectInfo, retryCount]);
 
   const handleApprove = () => {
-    setFlowState('color-select');
+    if (projectInfo?.projecttype === 'productie') {
+      setSelectedWerktype('productie');
+      setFlowState('client-check');
+    } else {
+      setFlowState('color-select');
+    }
   };
 
   const handleColorSelected = () => {
@@ -636,18 +649,19 @@ export default function EllenVoorstel() {
   /** Voeg een blok toe in de bewerkmodal voor alle geselecteerde personen */
   const handleEditAdd = () => {
     if (!editAddPanel) return;
-    const { dayIndex, editWeekISO, hour } = editAddPanel;
+    const { dayIndex, editWeekISO } = editAddPanel;
     const type = editAddType;
     const defaultNaam = type === 'presentatie' ? 'Presentatie' : type === 'review' ? 'Interne review' : (projectInfo?.projectTitel || 'Werkzaamheden');
     const fase_naam = editAddTitel.trim() || defaultNaam;
     const werktype = type === 'review' ? 'review' : type === 'presentatie' ? 'extern' : undefined;
+    const duur = Math.max(1, editAddTot - editAddVan);
     const nieuweBlokken: VoorstelTaak[] = editAddPersonen.map(persoon => ({
       werknemer_naam: persoon,
       fase_naam,
       dag_van_week: dayIndex,
       week_start: editWeekISO,
-      start_uur: hour,
-      duur_uren: editAddDuur,
+      start_uur: editAddVan,
+      duur_uren: duur,
       werktype,
       isManuallyEdited: true,
     }));
@@ -1623,6 +1637,8 @@ export default function EllenVoorstel() {
                                             const popupY = rawY < 8 ? 8 : rawY;
                                             setEditAddPanel({ mw, dayIndex, editWeekISO, hour, popupX, popupY });
                                             setEditAddPersonen([mw]);
+                                            setEditAddVan(hour);
+                                            setEditAddTot(Math.min(hour + 2, 18));
                                             setEditAddDuur(2);
                                             setEditAddTitel('');
                                             setEditAddType('werkzaamheden');
@@ -1782,53 +1798,71 @@ export default function EllenVoorstel() {
                         </div>
                       </div>
 
-                      {/* Tijd + Duur */}
-                      <div className="flex gap-3">
-                        <div className="flex flex-col gap-1">
-                          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Starttijd</label>
-                          <div className="h-8 flex items-center rounded border border-border bg-muted/40 px-2 text-xs font-medium text-foreground">
-                            {editAddPanel.hour}:00
-                          </div>
+                      {/* Van / Tot */}
+                      <div className="flex gap-2">
+                        <div className="flex flex-col gap-1 flex-1">
+                          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Van</label>
+                          <select
+                            value={editAddVan}
+                            onChange={e => {
+                              const v = Number(e.target.value);
+                              setEditAddVan(v);
+                              if (editAddTot <= v) setEditAddTot(Math.min(v + 1, 20));
+                            }}
+                            className="h-8 w-full rounded border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                          >
+                            {Array.from({ length: 14 }, (_, i) => i + 7).map(h => (
+                              <option key={h} value={h}>{h}:00</option>
+                            ))}
+                          </select>
                         </div>
                         <div className="flex flex-col gap-1 flex-1">
-                          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Duur</label>
-                          <div className="flex gap-1">
-                            {[1, 2, 4, 8].map(d => (
-                              <button key={d} type="button"
-                                onClick={() => setEditAddDuur(d)}
-                                className={cn(
-                                  'flex-1 h-8 rounded border text-xs font-medium transition-colors',
-                                  editAddDuur === d
-                                    ? 'border-primary bg-primary text-primary-foreground'
-                                    : 'border-border bg-background text-foreground hover:border-primary/50'
-                                )}
-                              >{d}u</button>
+                          <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Tot</label>
+                          <select
+                            value={editAddTot}
+                            onChange={e => setEditAddTot(Number(e.target.value))}
+                            className="h-8 w-full rounded border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                          >
+                            {Array.from({ length: 14 }, (_, i) => i + 7).filter(h => h > editAddVan).map(h => (
+                              <option key={h} value={h}>{h}:00</option>
                             ))}
-                          </div>
+                          </select>
                         </div>
                       </div>
 
                       {/* Personen */}
                       <div className="flex flex-col gap-1">
                         <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Voor wie</label>
-                        <div className="flex flex-wrap gap-1.5">
-                          {medewerkers.map(mw => (
-                            <label key={mw} className={cn(
-                              'flex items-center gap-1.5 rounded border px-2 py-1 text-xs cursor-pointer transition-colors select-none',
-                              editAddPersonen.includes(mw)
-                                ? 'border-primary bg-primary/10 text-primary font-medium'
-                                : 'border-border bg-background text-foreground hover:border-primary/50'
-                            )}>
-                              <input type="checkbox" className="sr-only"
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              type="button"
+                              className="flex h-8 w-full items-center justify-between rounded border border-border bg-background px-2 text-xs text-foreground hover:bg-secondary/60 focus:outline-none focus:ring-1 focus:ring-primary"
+                            >
+                              <span className={editAddPersonen.length === 0 ? 'text-muted-foreground' : ''}>
+                                {editAddPersonen.length === 0
+                                  ? 'Selecteer medewerker(s)'
+                                  : editAddPersonen.map(p => p.split(' ')[0]).join(', ')}
+                              </span>
+                              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start" className="w-[268px]">
+                            {medewerkers.map(mw => (
+                              <DropdownMenuCheckboxItem
+                                key={mw}
                                 checked={editAddPersonen.includes(mw)}
-                                onChange={e => setEditAddPersonen(prev =>
-                                  e.target.checked ? [...prev, mw] : prev.filter(p => p !== mw)
-                                )}
-                              />
-                              {mw.split(' ')[0]}
-                            </label>
-                          ))}
-                        </div>
+                                onCheckedChange={checked =>
+                                  setEditAddPersonen(prev =>
+                                    checked ? [...prev, mw] : prev.filter(p => p !== mw)
+                                  )
+                                }
+                              >
+                                {mw}
+                              </DropdownMenuCheckboxItem>
+                            ))}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
 
                       {/* Buttons */}
