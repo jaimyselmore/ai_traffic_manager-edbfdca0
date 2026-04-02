@@ -414,8 +414,12 @@ export function Planner() {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Plus className="h-4 w-4 text-primary" />
-              Nieuw blok toevoegen
+              <Plus className="h-4 w-4 text-primary flex-shrink-0" />
+              <span className="truncate">
+                {addTitel
+                  ? `${addTitel}${addKlant ? ` · ${addKlant}` : ''}`
+                  : 'Nieuw blok toevoegen'}
+              </span>
             </DialogTitle>
           </DialogHeader>
           <div className="flex flex-col gap-3 py-1">
