@@ -479,30 +479,38 @@ export function Planner() {
               </div>
             </div>
 
-            {/* Rij 3: Medewerkers (multi-select chips) + Datum */}
+            {/* Rij 3: Medewerkers (dropdown multi-select) + Datum */}
             <div className="flex gap-3">
               <div className="flex flex-col gap-1 flex-1">
                 <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Medewerkers</label>
-                <div className="flex flex-wrap gap-1.5">
-                  {employees.map(emp => {
-                    const selected = addMedewerkers.includes(emp.name);
-                    return (
-                      <button key={emp.id} type="button"
-                        onClick={() => setAddMedewerkers(prev =>
-                          selected ? prev.filter(n => n !== emp.name) : [...prev, emp.name]
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button type="button" className="h-9 w-full flex items-center justify-between rounded border border-border bg-background px-3 text-sm text-foreground hover:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary">
+                      <span className={addMedewerkers.length === 0 ? 'text-muted-foreground/60' : ''}>
+                        {addMedewerkers.length === 0
+                          ? 'Selecteer medewerkers'
+                          : addMedewerkers.length === 1
+                            ? addMedewerkers[0]
+                            : `${addMedewerkers.length} geselecteerd`}
+                      </span>
+                      <svg className="h-4 w-4 opacity-50 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-52 max-h-64 overflow-y-auto">
+                    {employees.map(emp => (
+                      <DropdownMenuCheckboxItem
+                        key={emp.id}
+                        checked={addMedewerkers.includes(emp.name)}
+                        onCheckedChange={(checked) => setAddMedewerkers(prev =>
+                          checked ? [...prev, emp.name] : prev.filter(n => n !== emp.name)
                         )}
-                        className={cn(
-                          'rounded border px-2 py-1 text-xs font-medium transition-colors',
-                          selected
-                            ? 'border-primary bg-primary/10 text-primary'
-                            : 'border-border bg-background text-foreground hover:border-primary/40'
-                        )}
+                        onSelect={e => e.preventDefault()}
                       >
-                        {emp.name.split(' ')[0]}
-                      </button>
-                    );
-                  })}
-                </div>
+                        {emp.name}
+                      </DropdownMenuCheckboxItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
               <div className="flex flex-col gap-1 w-44">
                 <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Datum</label>
