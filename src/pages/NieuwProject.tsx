@@ -198,7 +198,7 @@ export default function NieuwProject() {
       datum: new Date().toISOString(),
       projectType: formData.projectType,
       storageKey: conceptKey,
-    });
+    }, formData);
     toast({
       title: 'Concept opgeslagen',
       description: 'Je kunt het terugvinden bij "Mijn aanvragen" op het dashboard.',
@@ -297,7 +297,7 @@ export default function NieuwProject() {
       datum: new Date().toISOString(),
       projectType: formData.projectType,
       storageKey: templateKey,
-    });
+    }, formData);
 
     // Build fases array based on project type
     const fases: any[] = [];

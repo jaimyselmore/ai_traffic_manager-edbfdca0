@@ -16,6 +16,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { secureSelect, secureDelete } from '@/lib/data/secureDataClient';
+import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
 
@@ -64,7 +65,42 @@ export function getAanvragenLijst(): SavedAanvraag[] {
   }
 }
 
-export function saveAanvraag(aanvraag: SavedAanvraag) {
+/** Sync één aanvraag + optionele form_data naar Supabase (fire-and-forget) */
+async function syncToSupabase(aanvraag: SavedAanvraag, formData?: unknown) {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    await (supabase as any).from('user_aanvragen').upsert({
+      id: aanvraag.id,
+      user_id: user.id,
+      type: aanvraag.type,
+      status: aanvraag.status,
+      titel: aanvraag.titel,
+      klant: aanvraag.klant ?? null,
+      datum: aanvraag.datum,
+      project_type: aanvraag.projectType ?? null,
+      error_message: aanvraag.errorMessage ?? null,
+      project_info: aanvraag.projectInfo ?? null,
+      form_data: formData ?? null,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'id' });
+  } catch (e) {
+    console.warn('Supabase aanvraag sync mislukt:', e);
+  }
+}
+
+/** Verwijder aanvraag uit Supabase (fire-and-forget) */
+async function deleteFromSupabase(id: string) {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    await (supabase as any).from('user_aanvragen').delete().eq('id', id).eq('user_id', user.id);
+  } catch (e) {
+    console.warn('Supabase aanvraag verwijderen mislukt:', e);
+  }
+}
+
+export function saveAanvraag(aanvraag: SavedAanvraag, formData?: unknown) {
   const lijst = getAanvragenLijst();
   const existingIndex = lijst.findIndex(a => a.id === aanvraag.id);
   if (existingIndex >= 0) {
@@ -73,6 +109,8 @@ export function saveAanvraag(aanvraag: SavedAanvraag) {
     lijst.unshift(aanvraag);
   }
   localStorage.setItem(STORAGE_KEY, JSON.stringify(lijst));
+  // Sync naar Supabase (niet-blokkerend)
+  syncToSupabase(aanvraag, formData);
 }
 
 export function removeAanvraag(id: string) {
@@ -84,6 +122,8 @@ export function removeAanvraag(id: string) {
   }
   const filtered = lijst.filter(a => a.id !== id);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
+  // Verwijder ook uit Supabase
+  deleteFromSupabase(id);
 }
 
 export function MijnAanvragen() {
@@ -94,7 +134,57 @@ export function MijnAanvragen() {
   const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
+    // Direct tonen vanuit localStorage (snel)
     setAanvragen(getAanvragenLijst());
+
+    // Daarna ophalen uit Supabase en mergen (account-breed)
+    async function loadFromSupabase() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data, error } = await (supabase as any)
+          .from('user_aanvragen')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('datum', { ascending: false });
+
+        if (error || !data || data.length === 0) return;
+
+        // Sync Supabase records naar localStorage
+        const lijst = getAanvragenLijst();
+        for (const row of data) {
+          const aanvraag: SavedAanvraag = {
+            id: row.id,
+            type: row.type,
+            status: row.status,
+            titel: row.titel,
+            klant: row.klant,
+            datum: row.datum,
+            projectType: row.project_type,
+            storageKey: row.id,
+            errorMessage: row.error_message,
+            projectInfo: row.project_info,
+          };
+          // Sla form_data op als localStorage-entry zodat het formulier het kan laden
+          if (row.form_data) {
+            localStorage.setItem(row.id, JSON.stringify(row.form_data));
+          }
+          const idx = lijst.findIndex(a => a.id === aanvraag.id);
+          if (idx >= 0) {
+            lijst[idx] = { ...lijst[idx], ...aanvraag };
+          } else {
+            lijst.unshift(aanvraag);
+          }
+        }
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(lijst));
+        setAanvragen(getAanvragenLijst());
+      } catch (e) {
+        console.warn('Laden aanvragen uit Supabase mislukt:', e);
+      }
+    }
+
+    loadFromSupabase();
   }, []);
 
   const concepten = aanvragen.filter(a => a.status === 'concept');
@@ -221,12 +311,30 @@ export function MijnAanvragen() {
         aanvraag.status === 'wacht_klant' && 'border-amber-200 bg-amber-50/50 hover:bg-amber-100/50',
         !['geplaatst', 'mislukt', 'wacht_klant'].includes(aanvraag.status) && 'border-border bg-card hover:bg-accent/50'
       )}
-      onClick={() => {
-        // Restore the form data from the linked storage key (for both concept and ingediend)
+      onClick={async () => {
         if (aanvraag.storageKey) {
-          const savedData = localStorage.getItem(aanvraag.storageKey);
+          let savedData = localStorage.getItem(aanvraag.storageKey);
+          // Als niet lokaal beschikbaar, probeer uit Supabase
+          if (!savedData) {
+            try {
+              const { data: { user } } = await supabase.auth.getUser();
+              if (user) {
+                const { data } = await (supabase as any)
+                  .from('user_aanvragen')
+                  .select('form_data')
+                  .eq('id', aanvraag.id)
+                  .eq('user_id', user.id)
+                  .single();
+                if (data?.form_data) {
+                  savedData = JSON.stringify(data.form_data);
+                  localStorage.setItem(aanvraag.storageKey, savedData);
+                }
+              }
+            } catch {
+              // stil falen
+            }
+          }
           if (savedData) {
-            // Set the main storage key so the form loads this data
             const mainKey = TYPE_STORAGE_KEYS[aanvraag.type];
             if (mainKey) {
               localStorage.setItem(mainKey, savedData);
@@ -269,18 +377,32 @@ export function MijnAanvragen() {
             variant="ghost"
             size="icon"
             className="h-8 w-8 text-amber-600 hover:text-amber-700 hover:bg-amber-100"
-            onClick={(e) => {
+            onClick={async (e) => {
               e.stopPropagation();
-              // Retry: navigeer naar ellen-voorstel met projectInfo of open template
               if (aanvraag.projectInfo) {
                 navigate('/ellen-voorstel', { state: { projectInfo: aanvraag.projectInfo } });
               } else if (aanvraag.storageKey) {
-                const savedData = localStorage.getItem(aanvraag.storageKey);
+                let savedData = localStorage.getItem(aanvraag.storageKey);
+                if (!savedData) {
+                  try {
+                    const { data: { user } } = await supabase.auth.getUser();
+                    if (user) {
+                      const { data } = await (supabase as any)
+                        .from('user_aanvragen')
+                        .select('form_data')
+                        .eq('id', aanvraag.id)
+                        .eq('user_id', user.id)
+                        .single();
+                      if (data?.form_data) {
+                        savedData = JSON.stringify(data.form_data);
+                        localStorage.setItem(aanvraag.storageKey, savedData);
+                      }
+                    }
+                  } catch { /* stil falen */ }
+                }
                 if (savedData) {
                   const mainKey = TYPE_STORAGE_KEYS[aanvraag.type];
-                  if (mainKey) {
-                    localStorage.setItem(mainKey, savedData);
-                  }
+                  if (mainKey) localStorage.setItem(mainKey, savedData);
                 }
                 navigate(TYPE_ROUTES[aanvraag.type] || '/');
               }
