@@ -318,22 +318,6 @@ export function Planner() {
 
         <div className="h-5 w-px bg-border shrink-0 hidden md:block" />
 
-        {/* Blok toevoegen */}
-        <Button
-          size="sm"
-          variant="outline"
-          className="h-8 gap-1.5 shrink-0"
-          onClick={() => {
-            setAddMedewerker(filteredEmployees[0]?.name || '');
-            setShowAddDialog(true);
-          }}
-        >
-          <Plus className="h-3.5 w-3.5" />
-          <span className="text-xs">Blok</span>
-        </Button>
-
-        <div className="h-5 w-px bg-border shrink-0 hidden md:block" />
-
         {/* Legend chips */}
         <div className="hidden md:flex items-center gap-x-3 gap-y-1 flex-wrap">
           {LEGEND_ITEMS.map((item) => (
@@ -360,7 +344,7 @@ export function Planner() {
 
         <div className="h-5 w-px bg-border shrink-0" />
 
-        {/* Download + Fullscreen */}
+        {/* Download + Blok toevoegen + Fullscreen */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -372,6 +356,19 @@ export function Planner() {
             <DropdownMenuItem onClick={handleDownloadCSV}>Deze week als CSV</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          title="Blok toevoegen"
+          onClick={() => {
+            setAddMedewerker(filteredEmployees[0]?.name || '');
+            setShowAddDialog(true);
+          }}
+        >
+          <Plus className="h-4 w-4" />
+        </Button>
 
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setIsFullscreen(true)}>
           <Maximize2 className="h-4 w-4" />
