@@ -35,8 +35,6 @@ const WERKTYPE_OPTIONS = [
   { id: 'concept', label: 'Conceptontwikkeling', color: 'bg-task-concept', description: 'Brainstorm, ideeën, eerste concepten' },
   { id: 'uitwerking', label: 'Conceptuitwerking', color: 'bg-task-uitwerking', description: 'Uitwerken van goedgekeurd concept' },
   { id: 'productie', label: 'Productie', color: 'bg-task-productie', description: 'Shoot, opnames, productiedagen' },
-  { id: 'extern', label: 'Meeting met klant', color: 'bg-task-extern', description: 'Presentatie, call of meeting met klant' },
-  { id: 'review', label: 'Interne review', color: 'bg-task-review', description: 'Team-update, interne meeting of review' },
 ];
 
 interface VoorstelTaak {
@@ -512,14 +510,13 @@ export default function EllenVoorstel() {
       // Use volledigProjectId from form if available, otherwise generate
       const projectNummer = formData?.projectHeader?.volledigProjectId || `P-${Date.now().toString().slice(-6)}`;
 
-      // 1. Zoek klant
+      // 1. Zoek klant (niet-blokkerend: als niet gevonden, ga door zonder klant_id)
       const { data: klanten } = await secureSelect<{ id: string }>('klanten', {
         columns: 'id',
         filters: [{ column: 'naam', operator: 'ilike', value: `%${projectInfo.klant_naam}%` }],
         limit: 1,
       });
-      const klantId = klanten?.[0]?.id;
-      if (!klantId) throw new Error(`Klant "${projectInfo.klant_naam}" niet gevonden`);
+      const klantId = klanten?.[0]?.id ?? null;
 
       // 2. Maak project aan
       const { data: projectResult, error: projectErr } = await secureInsert<{ id: string; projectnummer: string }>('projecten', {
@@ -527,10 +524,11 @@ export default function EllenVoorstel() {
         projectnummer: projectNummer,
         omschrijving: projectInfo.projectnaam || projectInfo.klant_naam,
         projecttype: projectInfo.projecttype || 'algemeen',
-        deadline: projectInfo.deadline,
+        deadline: projectInfo.deadline || new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         status: 'concept',
         datum_aanvraag: new Date().toISOString().split('T')[0],
         volgnummer: Date.now() % 10000,
+        aangemaakt_door_naam: user?.naam ?? null,
       });
       if (projectErr) throw new Error(`Kon project niet aanmaken: ${projectErr.message}`);
       const project = Array.isArray(projectResult) ? projectResult[0] : projectResult;
@@ -606,18 +604,25 @@ export default function EllenVoorstel() {
       console.error('Planning opslaan fout:', err);
       const errorMsg = err instanceof Error ? err.message : 'Er ging iets mis bij het aanmaken';
 
-      // Sla de mislukte aanvraag op zodat de gebruiker het kan herproberen
-      saveAanvraag({
-        id: `project-mislukt-${Date.now()}`,
-        type: 'nieuw-project',
-        status: 'mislukt',
-        titel: projectInfo?.projectnaam || projectInfo?.klant_naam || 'Project',
-        klant: projectInfo?.klant_naam,
-        datum: new Date().toISOString(),
-        projectType: projectInfo?.projecttype,
-        errorMessage: errorMsg,
-        projectInfo: projectInfo,
-      });
+      // Sla automatisch op als concept zodat niks verloren gaat
+      const conceptId = `concept-data-${Date.now()}`;
+      const conceptData = { projectInfo, voorstellen, selectedWerktype };
+      localStorage.setItem(conceptId, JSON.stringify(conceptData));
+      saveAanvraag(
+        {
+          id: conceptId,
+          type: 'nieuw-project',
+          status: 'concept',
+          titel: projectInfo?.projectnaam || projectInfo?.klant_naam || 'Project',
+          klant: projectInfo?.klant_naam,
+          datum: new Date().toISOString(),
+          projectType: projectInfo?.projecttype,
+          storageKey: conceptId,
+          errorMessage: errorMsg,
+          projectInfo: { ...projectInfo, voorstellen, selectedWerktype },
+        },
+        conceptData
+      );
 
       setFlowState('error');
       setErrorMessage(errorMsg);
@@ -2020,9 +2025,12 @@ export default function EllenVoorstel() {
               <h2 className="text-xl font-semibold text-foreground">Er ging iets mis</h2>
               <p className="text-muted-foreground text-sm max-w-md">{errorMessage}</p>
             </div>
+            <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800 px-4 py-3 text-sm text-amber-800 dark:text-amber-300 max-w-sm text-center">
+              ✅ Je planning is automatisch opgeslagen als concept. Terug te vinden bij <strong>Mijn aanvragen</strong> op het dashboard.
+            </div>
             <div className="flex gap-3">
-              <Button variant="outline" onClick={() => navigate('/nieuw-project')}>
-                Terug naar formulier
+              <Button variant="outline" onClick={() => navigate('/')}>
+                Naar dashboard
               </Button>
               <Button onClick={retryGeneration}>
                 Opnieuw proberen
