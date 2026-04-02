@@ -93,48 +93,52 @@ export function Planner() {
   const [addDatum, setAddDatum] = useState('');
   const [addVan, setAddVan] = useState(9);
   const [addTot, setAddTot] = useState(11);
-  const [addMedewerker, setAddMedewerker] = useState('');
+  const [addMedewerkers, setAddMedewerkers] = useState<string[]>([]);
   const [addKlant, setAddKlant] = useState('');
   const [isAddingBlock, setIsAddingBlock] = useState(false);
 
   const handleAddBlock = async () => {
-    if (!addMedewerker || !addTitel || !addDatum) return;
-    const emp = employees.find(e => e.name === addMedewerker);
+    if (addMedewerkers.length === 0 || !addTitel || !addDatum) return;
     // Bereken week_start (maandag) en dag_van_week uit de gekozen datum
     const gekozenDatum = new Date(addDatum + 'T00:00:00');
-    const dagVdWeek = gekozenDatum.getDay(); // 0=zo, 1=ma..5=vr
-    const dagIndex = dagVdWeek === 0 ? 4 : dagVdWeek - 1; // 0=ma, 4=vr
+    const dagVdWeek = gekozenDatum.getDay();
+    const dagIndex = dagVdWeek === 0 ? 4 : dagVdWeek - 1;
     const weekStart = new Date(gekozenDatum);
     weekStart.setDate(gekozenDatum.getDate() - (dagVdWeek === 0 ? 6 : dagVdWeek - 1));
     const weekStartISO = weekStart.toISOString().split('T')[0];
     const duur = Math.max(1, addTot - addVan);
     setIsAddingBlock(true);
-    const { error } = await secureInsert('taken', {
-      klant_naam: addKlant || 'Intern',
-      fase_naam: addTitel,
-      werknemer_naam: addMedewerker,
-      werktype: addType,
-      discipline: emp?.role || 'Algemeen',
-      week_start: weekStartISO,
-      dag_van_week: dagIndex,
-      start_uur: addVan,
-      duur_uren: duur,
-      plan_status: 'vast',
-      is_hard_lock: false,
-    });
+    let hasError = false;
+    for (const naam of addMedewerkers) {
+      const emp = employees.find(e => e.name === naam);
+      const { error } = await secureInsert('taken', {
+        klant_naam: addKlant || 'Intern',
+        fase_naam: addTitel,
+        werknemer_naam: naam,
+        werktype: addType,
+        discipline: emp?.role || 'Algemeen',
+        week_start: weekStartISO,
+        dag_van_week: dagIndex,
+        start_uur: addVan,
+        duur_uren: duur,
+        plan_status: 'vast',
+        is_hard_lock: false,
+      });
+      if (error) hasError = true;
+    }
     setIsAddingBlock(false);
-    if (error) {
-      toast({ title: 'Fout', description: 'Kon blok niet toevoegen.', variant: 'destructive' });
+    if (hasError) {
+      toast({ title: 'Fout', description: 'Eén of meer blokken konden niet worden toegevoegd.', variant: 'destructive' });
     } else {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      toast({ title: 'Blok toegevoegd' });
+      toast({ title: `${addMedewerkers.length} blok${addMedewerkers.length > 1 ? 'ken' : ''} toegevoegd` });
       setShowAddDialog(false);
       setAddTitel('');
       setAddType('concept');
       setAddDatum('');
       setAddVan(9);
       setAddTot(11);
-      setAddMedewerker('');
+      setAddMedewerkers([]);
       setAddKlant('');
     }
   };
@@ -370,7 +374,7 @@ export function Planner() {
           className="h-8 w-8"
           title="Blok toevoegen"
           onClick={() => {
-            setAddMedewerker(filteredEmployees[0]?.name || '');
+            setAddMedewerkers([]);
             setShowAddDialog(true);
           }}
         >
@@ -471,19 +475,32 @@ export function Planner() {
               </div>
             </div>
 
-            {/* Rij 3: Medewerker + Datum */}
+            {/* Rij 3: Medewerkers (multi-select chips) + Datum */}
             <div className="flex gap-3">
               <div className="flex flex-col gap-1 flex-1">
-                <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Medewerker</label>
-                <select
-                  value={addMedewerker}
-                  onChange={e => setAddMedewerker(e.target.value)}
-                  className="h-9 w-full rounded border border-border bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                >
-                  {employees.map(emp => <option key={emp.id} value={emp.name}>{emp.name}</option>)}
-                </select>
+                <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Medewerkers</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {employees.map(emp => {
+                    const selected = addMedewerkers.includes(emp.name);
+                    return (
+                      <button key={emp.id} type="button"
+                        onClick={() => setAddMedewerkers(prev =>
+                          selected ? prev.filter(n => n !== emp.name) : [...prev, emp.name]
+                        )}
+                        className={cn(
+                          'rounded border px-2 py-1 text-xs font-medium transition-colors',
+                          selected
+                            ? 'border-primary bg-primary/10 text-primary'
+                            : 'border-border bg-background text-foreground hover:border-primary/40'
+                        )}
+                      >
+                        {emp.name.split(' ')[0]}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              <div className="flex flex-col gap-1 flex-1">
+              <div className="flex flex-col gap-1 w-44">
                 <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Datum</label>
                 <input
                   type="date"
@@ -536,7 +553,7 @@ export function Planner() {
             <Button variant="outline" onClick={() => setShowAddDialog(false)}>Annuleren</Button>
             <Button
               onClick={handleAddBlock}
-              disabled={!addTitel || !addMedewerker || !addDatum || addTot <= addVan || isAddingBlock}
+              disabled={!addTitel || addMedewerkers.length === 0 || !addDatum || addTot <= addVan || isAddingBlock}
             >
               {isAddingBlock ? 'Toevoegen...' : 'Toevoegen'}
             </Button>
