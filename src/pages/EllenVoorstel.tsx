@@ -494,7 +494,7 @@ export default function EllenVoorstel() {
   const handleApprove = () => {
     if (projectInfo?.projecttype === 'productie') {
       setSelectedWerktype('productie');
-      setFlowState('client-check');
+      handleClientApprovalNeeded(false, 'productie');
     } else {
       setFlowState('color-select');
     }
@@ -504,14 +504,14 @@ export default function EllenVoorstel() {
     setFlowState('client-check');
   };
 
-  const handleClientApprovalNeeded = async (needsClientApproval: boolean) => {
+  const handleClientApprovalNeeded = async (needsClientApproval: boolean, werktypeOverride?: string) => {
     setFlowState('placing');
     try {
       const sessionToken = getSessionToken();
       if (!sessionToken) throw new Error('Niet ingelogd');
 
       const planStatus = needsClientApproval ? 'wacht_klant' : 'vast';
-      const werktype = selectedWerktype;
+      const werktype = werktypeOverride ?? selectedWerktype;
       const werktypeLabels: Record<string, string> = {
         concept: 'Conceptontwikkeling',
         uitwerking: 'Conceptuitwerking',
