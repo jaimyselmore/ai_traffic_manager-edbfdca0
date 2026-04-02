@@ -37,7 +37,7 @@ import {
 import { cn } from '@/lib/utils';
 import type { Task } from '@/hooks/use-tasks';
 import type { Employee } from '@/lib/data/types';
-import { secureSelect } from '@/lib/data/secureDataClient';
+import { secureSelect, secureUpdate } from '@/lib/data/secureDataClient';
 import { useAuth } from '@/contexts/AuthContext';
 import { maakNotificatie } from '@/hooks/use-notificaties';
 
@@ -140,7 +140,7 @@ export function TaskEditDialog({
   }, [task?.project_id]);
 
   const isVerlofOfZiek = task?.werktype === 'verlof' || task?.werktype === 'ziek';
-  const isMeeting = task?.werktype === 'extern';
+  const isMeeting = task?.werktype === 'extern' || task?.werktype === 'review';
 
   // Initialize meeting time/day when task changes
   useEffect(() => {
@@ -151,14 +151,30 @@ export function TaskEditDialog({
     setMeetingTimeChanged(false);
   }, [task?.id]);
 
-  const handleSaveMeetingTime = () => {
+  const handleSaveMeetingTime = async () => {
     const startDecimal = timeStrToDecimal(meetingStartTime);
     const endDecimal = timeStrToDecimal(meetingEndTime);
-    const dur = Math.round((endDecimal - startDecimal) * 4) / 4; // round to quarter-hour
+    const dur = Math.round((endDecimal - startDecimal) * 4) / 4;
     if (dur <= 0) return;
-    editableRows.forEach((row) => {
-      onUpdate(row.id, { start_uur: startDecimal, duur_uren: dur, dag_van_week: meetingDag });
-    });
+
+    const updates = { start_uur: startDecimal, duur_uren: dur, dag_van_week: meetingDag };
+
+    if (task?.project_id && isMeeting) {
+      // Bulk update: alle deelnemers van deze meeting in één keer
+      await secureUpdate('taken', updates, [
+        { column: 'project_id', operator: 'eq', value: task.project_id },
+        { column: 'fase_naam', operator: 'eq', value: task.fase_naam },
+        { column: 'werktype', operator: 'eq', value: task.werktype },
+        { column: 'week_start', operator: 'eq', value: task.week_start },
+        { column: 'dag_van_week', operator: 'eq', value: task.dag_van_week },
+      ]);
+      // Lokale state bijwerken
+      setEditableRows(prev => prev.map(r => ({ ...r, ...updates })));
+    } else {
+      editableRows.forEach((row) => {
+        onUpdate(row.id, updates);
+      });
+    }
     setMeetingTimeChanged(false);
   };
 
@@ -269,13 +285,23 @@ export function TaskEditDialog({
               } as Task;
             });
             // Voor meeting-taken: toon alleen deelnemers van DEZE specifieke meeting-instantie
-            const relevantTasks = isMeeting
-              ? mapped.filter(t =>
-                  t.werktype === 'extern' &&
-                  t.week_start === task!.week_start &&
-                  t.dag_van_week === task!.dag_van_week
-                )
-              : mapped;
+            // Dedupliceer op werknemer_naam zodat elke deelnemer maar één keer verschijnt
+            let relevantTasks: Task[];
+            if (isMeeting) {
+              const seen = new Set<string>();
+              relevantTasks = mapped.filter(t => {
+                if (
+                  t.werktype !== 'extern' ||
+                  t.week_start !== task!.week_start ||
+                  t.dag_van_week !== task!.dag_van_week
+                ) return false;
+                if (seen.has(t.werknemer_naam)) return false;
+                seen.add(t.werknemer_naam);
+                return true;
+              });
+            } else {
+              relevantTasks = mapped;
+            }
             setProjectTasks(relevantTasks);
           } else {
             setProjectTasks(allWeekTasks.filter((t) => t.project_id === task!.project_id));

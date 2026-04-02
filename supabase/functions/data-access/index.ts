@@ -359,7 +359,7 @@ Deno.serve(async (req) => {
           );
         }
 
-        // Get old value for audit log
+        // Get old value for audit log (use limit(1) to support bulk updates with multiple matching rows)
         // deno-lint-ignore no-explicit-any
         let selectQuery: any = supabase.from(table).select('*');
         for (const filter of filters as Filter[]) {
@@ -367,7 +367,8 @@ Deno.serve(async (req) => {
             selectQuery = selectQuery.eq(filter.column, filter.value);
           }
         }
-        const { data: oldData } = await selectQuery.single();
+        const { data: oldDataArr } = await selectQuery.limit(1);
+        const oldData = Array.isArray(oldDataArr) ? oldDataArr[0] ?? null : oldDataArr ?? null;
 
         // Check hard lock
         if (oldData?.is_hard_lock && oldData?.created_by !== session.sub) {

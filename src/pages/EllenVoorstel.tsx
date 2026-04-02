@@ -352,15 +352,19 @@ export default function EllenVoorstel() {
               d.setDate(d.getDate() + 120);
               return d.toISOString().split('T')[0];
             })();
-            // Alleen 'vast' en 'wacht_klant' tellen als bezet — concepts/templates worden genegeerd
+            // Alleen hard-locked taken (presentaties, verlof, ziek) tellen als bezet.
+            // Andere accounts hun werkzaamheden (concept/uitwerking/productie) blokkeren NIET —
+            // Ellen mag die verschuiven bij multi-account planning.
             const { data: takenData } = await supabase
               .from('taken')
-              .select('werknemer_naam, week_start, dag_van_week')
+              .select('werknemer_naam, week_start, dag_van_week, is_hard_lock, werktype')
               .in('werknemer_naam', alleMedewerkers)
               .gte('week_start', toISODate(startDatum) || startDatum)
               .lte('week_start', eindDatumFetch)
               .in('plan_status', ['vast', 'wacht_klant']);
-            bestaandeTaken = takenData || [];
+            bestaandeTaken = (takenData || []).filter(t =>
+              t.is_hard_lock || t.werktype === 'verlof' || t.werktype === 'ziek'
+            );
           }
 
           const { workloadTaken, ellenPresentatieFases } = buildFrontendSchedule(projectInfo, selectedWerktype, bestaandeTaken, 'locked');
@@ -694,12 +698,14 @@ export default function EllenVoorstel() {
         })();
         const { data: takenData } = await supabase
           .from('taken')
-          .select('werknemer_naam, week_start, dag_van_week')
+          .select('werknemer_naam, week_start, dag_van_week, is_hard_lock, werktype')
           .in('werknemer_naam', alleMedewerkers)
           .gte('week_start', toISODate(startDatum) || startDatum)
           .lte('week_start', eindDatumFetch)
           .in('plan_status', ['vast', 'wacht_klant']);
-        bestaandeTakenDb = takenData || [];
+        bestaandeTakenDb = (takenData || []).filter(t =>
+          t.is_hard_lock || t.werktype === 'verlof' || t.werktype === 'ziek'
+        );
       }
 
       // Voeg huidige werkblokken toe als "bezet" — forceer nieuwe dagen
