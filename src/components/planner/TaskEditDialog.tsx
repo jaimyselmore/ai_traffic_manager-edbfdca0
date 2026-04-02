@@ -268,7 +268,15 @@ export function TaskEditDialog({
                 faseNaam: row.fase_naam,
               } as Task;
             });
-            setProjectTasks(mapped);
+            // Voor meeting-taken: toon alleen deelnemers van DEZE specifieke meeting-instantie
+            const relevantTasks = isMeeting
+              ? mapped.filter(t =>
+                  t.werktype === 'extern' &&
+                  t.week_start === task!.week_start &&
+                  t.dag_van_week === task!.dag_van_week
+                )
+              : mapped;
+            setProjectTasks(relevantTasks);
           } else {
             setProjectTasks(allWeekTasks.filter((t) => t.project_id === task!.project_id));
           }

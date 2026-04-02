@@ -556,15 +556,16 @@ export default function EllenVoorstel() {
       let aantalGeplaatst = 0;
       const fouten: string[] = [];
       for (const taak of voorstellen) {
-        // Check of dit een presentatie is (match op fase_naam)
-        const isPresentatie = presentatieNamen.some((pn: string) =>
-          taak.fase_naam?.toLowerCase().includes(pn) ||
-          pn?.includes(taak.fase_naam?.toLowerCase() || '')
-        ) || taak.fase_naam?.toLowerCase().includes('presentatie') ||
-           taak.fase_naam?.toLowerCase().includes('meeting');
+        // Gebruik taak.werktype als het expliciet is ingesteld (preset door scheduler of handmatig).
+        // Alleen als werktype ontbreekt, vallen we terug op fase_naam heuristiek.
+        const explicitWerktype = taak.werktype;
+        const isPresentatie = explicitWerktype != null
+          ? explicitWerktype === 'extern'
+          : (taak.fase_naam?.toLowerCase().includes('presentatie') ||
+             taak.fase_naam?.toLowerCase().includes('meeting'));
 
-        // Bepaal werktype: presentaties krijgen 'extern', werkzaamheden de geselecteerde kleur
-        const taakWerktype = isPresentatie ? 'extern' : werktype;
+        // Bepaal werktype: presentaties/reistijd krijgen 'extern', werkzaamheden de geselecteerde kleur
+        const taakWerktype = isPresentatie ? 'extern' : (explicitWerktype ?? werktype);
         const taakFaseLabel = isPresentatie ? 'Meeting met klant' : faseLabel;
 
         const { error: taakErr } = await secureInsert('taken', {

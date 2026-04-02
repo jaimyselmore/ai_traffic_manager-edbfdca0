@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { Car } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Task } from '@/hooks/use-tasks';
 import type { Employee } from '@/lib/data/types';
@@ -146,39 +147,56 @@ export function PlannerGrid({ weekStart, employees, tasks, compact = false, onTa
                         const isWachtKlant = (task.planStatus as string) === 'wacht_klant';
                         const isDoorzichtig = isConcept || isWachtKlant;
 
+                        const isReistijd = task.faseNaam?.startsWith('Reistijd') || task.fase_naam?.startsWith('Reistijd');
                         return (
                           <div
                             key={task.id}
                             className={cn(
-                              'absolute left-0.5 right-0.5 rounded px-1.5 py-0.5 text-xs text-white overflow-hidden cursor-pointer hover:opacity-90 hover:ring-2 hover:ring-primary/50 transition-all z-20',
-                              taskColors[task.type],
-                              isDoorzichtig && 'opacity-50',
-                              isWachtKlant && 'border-2 border-dashed border-white/50'
+                              'absolute left-0.5 right-0.5 rounded px-1.5 py-0.5 text-xs overflow-hidden z-20 transition-all',
+                              isReistijd
+                                ? 'bg-slate-200/80 text-slate-600 border border-slate-300/70 cursor-default dark:bg-slate-700/50 dark:text-slate-300'
+                                : cn(
+                                    'text-white cursor-pointer hover:opacity-90 hover:ring-2 hover:ring-primary/50',
+                                    taskColors[task.type],
+                                    isDoorzichtig && 'opacity-50',
+                                    isWachtKlant && 'border-2 border-dashed border-white/50'
+                                  )
                             )}
                             style={{
                               top: '1px',
                               height: `${taskHeight}px`,
                               minHeight: `${cellHeight - 4}px`
                             }}
-                            title={`${task.projectTitel || getClientName(task)} - ${getTaskLabel(task.type)}${isConcept ? ' (concept)' : ''}${isWachtKlant ? ' (wacht op klant)' : ''}\n${task.startTime} - ${task.endTime}${task.faseNaam ? `\nFase: ${task.faseNaam}` : ''}`}
-                            onClick={(e) => { e.stopPropagation(); onTaskClick?.(task); }}
+                            title={isReistijd
+                              ? `${task.faseNaam || task.fase_naam}: ${task.duur_uren * 60} min`
+                              : `${task.projectTitel || getClientName(task)} - ${getTaskLabel(task.type)}${isConcept ? ' (concept)' : ''}${isWachtKlant ? ' (wacht op klant)' : ''}\n${task.startTime} - ${task.endTime}${task.faseNaam ? `\nFase: ${task.faseNaam}` : ''}`}
+                            onClick={(e) => { e.stopPropagation(); if (!isReistijd) onTaskClick?.(task); }}
                           >
-                            <div className="truncate font-medium">
-                              {task.projectTitel ? (
-                                compact ? task.projectTitel.substring(0, 8) : task.projectTitel
-                              ) : (
-                                compact ? getClientName(task).substring(0, 4) : getClientName(task)
-                              )}
-                            </div>
-                            {!compact && duration > 1 && (
-                              <div className="truncate opacity-80 text-[10px]">
-                                {task.faseNaam || getTaskLabel(task.type)}
+                            {isReistijd ? (
+                              <div className="flex items-center gap-1">
+                                <Car className="h-2.5 w-2.5 flex-shrink-0 opacity-70" />
+                                {!compact && <span className="truncate text-[10px]">{task.faseNaam || task.fase_naam}</span>}
                               </div>
-                            )}
-                            {duration > 2 && (
-                              <div className="truncate opacity-70 text-[10px] mt-1">
-                                {task.startTime} - {task.endTime}
-                              </div>
+                            ) : (
+                              <>
+                                <div className="truncate font-medium">
+                                  {task.projectTitel ? (
+                                    compact ? task.projectTitel.substring(0, 8) : task.projectTitel
+                                  ) : (
+                                    compact ? getClientName(task).substring(0, 4) : getClientName(task)
+                                  )}
+                                </div>
+                                {!compact && duration > 1 && (
+                                  <div className="truncate opacity-80 text-[10px]">
+                                    {task.faseNaam || getTaskLabel(task.type)}
+                                  </div>
+                                )}
+                                {duration > 2 && (
+                                  <div className="truncate opacity-70 text-[10px] mt-1">
+                                    {task.startTime} - {task.endTime}
+                                  </div>
+                                )}
+                              </>
                             )}
                           </div>
                         );
