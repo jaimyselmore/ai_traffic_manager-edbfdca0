@@ -811,10 +811,16 @@ export default function EllenVoorstel() {
       endDate = lastWeek;
     }
 
-    // Generate all Monday dates from first to end
+    // Normalize endDate to the Monday of its week so the deadline week is always included
+    const endMonday = new Date(endDate);
+    const endDow = endMonday.getDay();
+    if (endDow === 0) endMonday.setDate(endMonday.getDate() - 6); // Sunday → previous Monday
+    else if (endDow !== 1) endMonday.setDate(endMonday.getDate() - (endDow - 1)); // any weekday → Monday
+
+    // Generate all Monday dates from first to end (inclusive of deadline week)
     const weeks: Date[] = [];
     const current = new Date(firstWeek);
-    while (current <= endDate) {
+    while (current <= endMonday) {
       weeks.push(new Date(current));
       current.setDate(current.getDate() + 7);
     }
@@ -878,7 +884,12 @@ export default function EllenVoorstel() {
     if (!dl) return null;
     const p = parseDatumParts(dl);
     if (!p) return null;
-    return new Date(p.year, p.month, p.day);
+    const d = new Date(p.year, p.month, p.day);
+    // Als deadline op weekend valt: toon vrijdag ervoor als deadline-kolom
+    const dow = d.getDay();
+    if (dow === 6) d.setDate(d.getDate() - 1); // zaterdag → vrijdag
+    if (dow === 0) d.setDate(d.getDate() - 2); // zondag → vrijdag
+    return d;
   }, [projectInfo?.deadline]);
 
   // Totaal ingeplande uren per medewerker (voor blauwe kaart)

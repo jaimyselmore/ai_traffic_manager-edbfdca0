@@ -15,10 +15,19 @@ import { format, parse, isValid } from 'date-fns';
 // Helper functions voor datum conversie
 const parseDate = (dateStr: string | undefined): Date | undefined => {
   if (!dateStr) return undefined;
-  // Try ISO format first (YYYY-MM-DD from date inputs)
-  const isoDate = new Date(dateStr);
-  if (isValid(isoDate)) return isoDate;
-  // Try dd-MM-yyyy format
+  // Parse manually to avoid UTC→local timezone shift (new Date('2026-04-07') = UTC midnight = NL 22:00 previous day)
+  const parts = dateStr.split('-');
+  if (parts.length === 3) {
+    if (parts[0].length === 4) {
+      // yyyy-MM-dd
+      const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+      if (isValid(d)) return d;
+    } else if (parts[2].length === 4) {
+      // dd-MM-yyyy
+      const d = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+      if (isValid(d)) return d;
+    }
+  }
   const parsed = parse(dateStr, 'dd-MM-yyyy', new Date());
   return isValid(parsed) ? parsed : undefined;
 };
