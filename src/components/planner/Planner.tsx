@@ -90,17 +90,24 @@ export function Planner() {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [addTitel, setAddTitel] = useState('');
   const [addType, setAddType] = useState<'concept' | 'uitwerking' | 'productie' | 'extern' | 'review'>('concept');
-  const [addDag, setAddDag] = useState(0);
-  const [addStartuur, setAddStartuur] = useState(9);
-  const [addDuur, setAddDuur] = useState(2);
+  const [addDatum, setAddDatum] = useState('');
+  const [addVan, setAddVan] = useState(9);
+  const [addTot, setAddTot] = useState(11);
   const [addMedewerker, setAddMedewerker] = useState('');
   const [addKlant, setAddKlant] = useState('');
   const [isAddingBlock, setIsAddingBlock] = useState(false);
 
   const handleAddBlock = async () => {
-    if (!addMedewerker || !addTitel) return;
+    if (!addMedewerker || !addTitel || !addDatum) return;
     const emp = employees.find(e => e.name === addMedewerker);
-    const weekStartISO = currentWeekStart.toISOString().split('T')[0];
+    // Bereken week_start (maandag) en dag_van_week uit de gekozen datum
+    const gekozenDatum = new Date(addDatum + 'T00:00:00');
+    const dagVdWeek = gekozenDatum.getDay(); // 0=zo, 1=ma..5=vr
+    const dagIndex = dagVdWeek === 0 ? 4 : dagVdWeek - 1; // 0=ma, 4=vr
+    const weekStart = new Date(gekozenDatum);
+    weekStart.setDate(gekozenDatum.getDate() - (dagVdWeek === 0 ? 6 : dagVdWeek - 1));
+    const weekStartISO = weekStart.toISOString().split('T')[0];
+    const duur = Math.max(1, addTot - addVan);
     setIsAddingBlock(true);
     const { error } = await secureInsert('taken', {
       klant_naam: addKlant || 'Intern',
@@ -109,9 +116,9 @@ export function Planner() {
       werktype: addType,
       discipline: emp?.role || 'Algemeen',
       week_start: weekStartISO,
-      dag_van_week: addDag,
-      start_uur: addStartuur,
-      duur_uren: addDuur,
+      dag_van_week: dagIndex,
+      start_uur: addVan,
+      duur_uren: duur,
       plan_status: 'vast',
       is_hard_lock: false,
     });
@@ -124,9 +131,9 @@ export function Planner() {
       setShowAddDialog(false);
       setAddTitel('');
       setAddType('concept');
-      setAddDag(0);
-      setAddStartuur(9);
-      setAddDuur(2);
+      setAddDatum('');
+      setAddVan(9);
+      setAddTot(11);
       setAddMedewerker('');
       setAddKlant('');
     }
@@ -400,127 +407,136 @@ export function Planner() {
 
       {/* Nieuw blok toevoegen */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Plus className="h-4 w-4 text-primary" />
               Nieuw blok toevoegen
             </DialogTitle>
           </DialogHeader>
-          <div className="flex flex-col gap-3 py-2">
-            {/* Titel */}
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Titel</label>
-              <input
-                type="text"
-                autoFocus
-                value={addTitel}
-                onChange={e => setAddTitel(e.target.value)}
-                placeholder="Naam van het blok"
-                className="h-9 w-full rounded border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary"
-              />
+          <div className="flex flex-col gap-3 py-1">
+
+            {/* Rij 1: Titel + Klant */}
+            <div className="flex gap-3">
+              <div className="flex flex-col gap-1 flex-1">
+                <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Titel</label>
+                <input
+                  type="text"
+                  autoFocus
+                  value={addTitel}
+                  onChange={e => setAddTitel(e.target.value)}
+                  placeholder="Naam van het blok"
+                  className="h-9 w-full rounded border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+              <div className="flex flex-col gap-1 w-44">
+                <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Klant</label>
+                <select
+                  value={addKlant}
+                  onChange={e => setAddKlant(e.target.value)}
+                  className="h-9 w-full rounded border border-border bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="">Intern</option>
+                  {clients.map(client => (
+                    <option key={client.id} value={client.name}>{client.name}</option>
+                  ))}
+                </select>
+              </div>
             </div>
-            {/* Klant */}
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Klant (optioneel)</label>
-              <select
-                value={addKlant}
-                onChange={e => setAddKlant(e.target.value)}
-                className="h-9 w-full rounded border border-border bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-              >
-                <option value="">Intern</option>
-                {clients.map(client => (
-                  <option key={client.id} value={client.name}>{client.name}</option>
-                ))}
-              </select>
-            </div>
-            {/* Type */}
+
+            {/* Rij 2: Type (compact, één rij) */}
             <div className="flex flex-col gap-1">
               <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Type</label>
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex gap-1.5">
                 {([
-                  { id: 'concept', label: 'Concept', color: 'bg-[hsl(var(--task-concept))]' },
+                  { id: 'concept',    label: 'Concept',    color: 'bg-[hsl(var(--task-concept))]' },
                   { id: 'uitwerking', label: 'Uitwerking', color: 'bg-[hsl(var(--task-uitwerking))]' },
-                  { id: 'productie', label: 'Productie', color: 'bg-[hsl(var(--task-productie))]' },
-                  { id: 'extern', label: 'Extern', color: 'bg-[hsl(var(--task-extern))]' },
-                  { id: 'review', label: 'Review', color: 'bg-[hsl(var(--task-review))]' },
+                  { id: 'productie',  label: 'Productie',  color: 'bg-[hsl(var(--task-productie))]' },
+                  { id: 'extern',     label: 'Extern',     color: 'bg-[hsl(var(--task-extern))]' },
+                  { id: 'review',     label: 'Review',     color: 'bg-[hsl(var(--task-review))]' },
                 ] as const).map(opt => (
                   <button key={opt.id} type="button"
                     onClick={() => setAddType(opt.id)}
                     className={cn(
-                      'flex items-center gap-1.5 rounded border px-2 py-1.5 text-[11px] font-medium transition-colors',
+                      'flex items-center gap-1 rounded border px-2 py-1 text-xs font-medium transition-colors flex-1 justify-center',
                       addType === opt.id
                         ? 'border-primary bg-primary/10 text-primary'
                         : 'border-border bg-background text-foreground hover:border-primary/40'
                     )}
                   >
-                    <span className={cn('h-2.5 w-2.5 rounded-full flex-shrink-0', opt.color)} />
+                    <span className={cn('h-2 w-2 rounded-full flex-shrink-0', opt.color)} />
                     {opt.label}
                   </button>
                 ))}
               </div>
             </div>
-            {/* Medewerker */}
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Medewerker</label>
-              <select
-                value={addMedewerker}
-                onChange={e => setAddMedewerker(e.target.value)}
-                className="h-9 w-full rounded border border-border bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-              >
-                {employees.map(emp => <option key={emp.id} value={emp.name}>{emp.name}</option>)}
-              </select>
-            </div>
-            {/* Dag + Tijd */}
+
+            {/* Rij 3: Medewerker + Datum */}
             <div className="flex gap-3">
               <div className="flex flex-col gap-1 flex-1">
-                <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Dag</label>
+                <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Medewerker</label>
                 <select
-                  value={addDag}
-                  onChange={e => setAddDag(Number(e.target.value))}
+                  value={addMedewerker}
+                  onChange={e => setAddMedewerker(e.target.value)}
                   className="h-9 w-full rounded border border-border bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                 >
-                  {['Maandag','Dinsdag','Woensdag','Donderdag','Vrijdag'].map((d, i) => (
-                    <option key={i} value={i}>{d}</option>
-                  ))}
+                  {employees.map(emp => <option key={emp.id} value={emp.name}>{emp.name}</option>)}
                 </select>
               </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Start</label>
+              <div className="flex flex-col gap-1 flex-1">
+                <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Datum</label>
+                <input
+                  type="date"
+                  value={addDatum}
+                  onChange={e => setAddDatum(e.target.value)}
+                  className="h-9 w-full rounded border border-border bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+            </div>
+
+            {/* Rij 4: Van + Tot */}
+            <div className="flex gap-3">
+              <div className="flex flex-col gap-1 flex-1">
+                <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Van</label>
                 <select
-                  value={addStartuur}
-                  onChange={e => setAddStartuur(Number(e.target.value))}
-                  className="h-9 rounded border border-border bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  value={addVan}
+                  onChange={e => {
+                    const v = Number(e.target.value);
+                    setAddVan(v);
+                    if (addTot <= v) setAddTot(v + 1);
+                  }}
+                  className="h-9 w-full rounded border border-border bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                 >
-                  {[8,9,10,11,12,13,14,15,16,17].map(h => (
+                  {[7,8,9,10,11,12,13,14,15,16,17].map(h => (
                     <option key={h} value={h}>{h}:00</option>
                   ))}
                 </select>
               </div>
-            </div>
-            {/* Duur */}
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Duur</label>
-              <div className="flex gap-1.5">
-                {[1, 2, 4, 8].map(d => (
-                  <button key={d} type="button"
-                    onClick={() => setAddDuur(d)}
-                    className={cn(
-                      'flex-1 h-9 rounded border text-sm font-medium transition-colors',
-                      addDuur === d
-                        ? 'border-primary bg-primary text-primary-foreground'
-                        : 'border-border bg-background text-foreground hover:border-primary/50'
-                    )}
-                  >{d}u</button>
-                ))}
+              <div className="flex flex-col gap-1 flex-1">
+                <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Tot</label>
+                <select
+                  value={addTot}
+                  onChange={e => setAddTot(Number(e.target.value))}
+                  className="h-9 w-full rounded border border-border bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  {[8,9,10,11,12,13,14,15,16,17,18].filter(h => h > addVan).map(h => (
+                    <option key={h} value={h}>{h}:00</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex flex-col gap-1 justify-end">
+                <span className="h-9 flex items-center text-xs text-muted-foreground px-1 whitespace-nowrap">
+                  {addTot > addVan ? `${addTot - addVan}u` : '—'}
+                </span>
               </div>
             </div>
+
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAddDialog(false)}>Annuleren</Button>
             <Button
               onClick={handleAddBlock}
-              disabled={!addTitel || !addMedewerker || isAddingBlock}
+              disabled={!addTitel || !addMedewerker || !addDatum || addTot <= addVan || isAddingBlock}
             >
               {isAddingBlock ? 'Toevoegen...' : 'Toevoegen'}
             </Button>
