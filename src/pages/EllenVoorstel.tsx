@@ -34,7 +34,7 @@ import { saveAanvraag } from '@/components/dashboard/MijnAanvragen';
 import { toast } from '@/hooks/use-toast';
 import { Taak } from '@/lib/data/takenService';
 
-type FlowState = 'ellen-working' | 'voorstel' | 'color-select' | 'client-check' | 'placing' | 'done' | 'error';
+type FlowState = 'ellen-working' | 'wachten' | 'voorstel' | 'color-select' | 'client-check' | 'placing' | 'done' | 'error';
 
 // Werktype bepaalt de kleur in de planner
 const WERKTYPE_OPTIONS = [
@@ -142,6 +142,40 @@ const FASE_COLORS: Record<string, string> = {
   'Algemeen': 'bg-task-concept',
 };
 
+// ─── Planning Lock helpers ────────────────────────────────────────────────────
+// Zorgt dat Ellen maar één template tegelijk verwerkt. Andere accounts wachten
+// automatisch en krijgen de beurt zodra de lock vrijkomt.
+const LOCK_ID = 'ellen_planning';
+const LOCK_DURATION_MS = 3 * 60 * 1000; // 3 minuten max per planning
+
+async function acquirePlanningLock(userName: string): Promise<boolean> {
+  // Verwijder verlopen locks
+  await supabase.from('planning_locks').delete().lt('verloopt_op', new Date().toISOString());
+  // Probeer de lock te pakken (PRIMARY KEY conflict = al bezet)
+  const { error } = await supabase.from('planning_locks').insert({
+    id: LOCK_ID,
+    locked_by: userName,
+    verloopt_op: new Date(Date.now() + LOCK_DURATION_MS).toISOString(),
+  });
+  return !error;
+}
+
+async function releasePlanningLock(): Promise<void> {
+  await supabase.from('planning_locks').delete().eq('id', LOCK_ID);
+}
+
+async function getPlanningLockHolder(): Promise<string | null> {
+  const { data } = await supabase
+    .from('planning_locks')
+    .select('locked_by, verloopt_op')
+    .eq('id', LOCK_ID)
+    .maybeSingle();
+  if (!data) return null;
+  if (new Date(data.verloopt_op) < new Date()) return null; // verlopen = vrij
+  return data.locked_by;
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 export default function EllenVoorstel() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -206,6 +240,7 @@ export default function EllenVoorstel() {
   const [editAddTitel, setEditAddTitel] = useState('');
   const [editAddType, setEditAddType] = useState<'werkzaamheden' | 'presentatie' | 'review'>('werkzaamheden');
   const [editResizingTask, setEditResizingTask] = useState<{ index: number; startY: number; originalDuur: number } | null>(null);
+  const [waitingForUser, setWaitingForUser] = useState<string | null>(null);
   const voorstelGenerated = useRef(false);
 
   // Timeout timer voor als Ellen te lang duurt
@@ -238,6 +273,27 @@ export default function EllenVoorstel() {
     setErrorMessage('');
     setRetryCount(prev => prev + 1);
   };
+
+  // Verwijder de lock bij unmount (navigeer weg / sluit tab)
+  useEffect(() => {
+    return () => { releasePlanningLock(); };
+  }, []);
+
+  // Pollen als we wachten: zodra de lock vrij is, automatisch verder
+  useEffect(() => {
+    if (flowState !== 'wachten') return;
+    const poll = setInterval(async () => {
+      const holder = await getPlanningLockHolder();
+      if (!holder) {
+        setWaitingForUser(null);
+        retryGeneration();
+      } else {
+        setWaitingForUser(holder);
+      }
+    }, 5000);
+    return () => clearInterval(poll);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flowState]);
 
   // Load existing tasks for relevant medewerkers and weeks
   useEffect(() => {
@@ -313,6 +369,24 @@ export default function EllenVoorstel() {
         setErrorMessage('Je bent niet ingelogd.');
         return;
       }
+
+      // ── Wachtrij-check: maar 1 template tegelijk ─────────────────────────────
+      const lockHolder = await getPlanningLockHolder();
+      if (lockHolder) {
+        setWaitingForUser(lockHolder);
+        setFlowState('wachten');
+        voorstelGenerated.current = false;
+        return;
+      }
+      const acquired = await acquirePlanningLock(user?.naam || 'Onbekend');
+      if (!acquired) {
+        const holder2 = await getPlanningLockHolder();
+        setWaitingForUser(holder2 || 'een collega');
+        setFlowState('wachten');
+        voorstelGenerated.current = false;
+        return;
+      }
+      // ─────────────────────────────────────────────────────────────────────────
 
       try {
         // Collect medewerkers and period for pre-fetching
@@ -486,6 +560,9 @@ export default function EllenVoorstel() {
           setErrorMessage(`Er ging iets mis: ${err?.message || 'Onbekende fout'}.\n\nProbeer opnieuw of ga terug naar het formulier.`);
         }
         setFlowState('error');
+      } finally {
+        // Lock altijd vrijgeven zodra we klaar zijn (succes of fout)
+        releasePlanningLock();
       }
     };
 
@@ -1196,6 +1273,39 @@ export default function EllenVoorstel() {
                 Annuleren
               </Button>
             )}
+          </div>
+        )}
+
+        {/* Wachten: iemand anders is bezig, auto-retry zodra lock vrij is */}
+        {flowState === 'wachten' && (
+          <div className="flex flex-col items-center justify-center py-20">
+            <div className="relative mb-8">
+              <div className="w-20 h-20 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center text-amber-600 dark:text-amber-400 ring-1 ring-amber-200 dark:ring-amber-800">
+                <Loader2 className="h-10 w-10 animate-spin" />
+              </div>
+            </div>
+            <h2 className="text-lg font-semibold text-foreground mb-2">Even geduld...</h2>
+            <p className="text-sm text-muted-foreground text-center max-w-xs mb-1">
+              {waitingForUser
+                ? <><span className="font-medium text-foreground">{waitingForUser}</span> is bezig met een planning.</>
+                : <>Een collega is bezig met een planning.</>
+              }
+            </p>
+            <p className="text-xs text-muted-foreground text-center max-w-xs mb-8">
+              Je bent automatisch aan de beurt zodra die klaar is.
+            </p>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              <span>Elke 5 seconden opnieuw controleren...</span>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="mt-8 text-muted-foreground cursor-pointer"
+              onClick={() => navigate('/nieuw-project')}
+            >
+              Annuleren
+            </Button>
           </div>
         )}
 
