@@ -2,12 +2,12 @@ import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { supabase } from '@/integrations/supabase/client';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { CheckCircle2, XCircle, Loader2, Pencil, Check, X } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { getMedewerkers } from '@/lib/data/adminService';
+import { secureUpdate } from '@/lib/data/secureDataClient';
 
 interface MedewerkerStatus {
   werknemer_id: number;
@@ -59,14 +59,11 @@ export function MicrosoftKoppelingTab() {
     }
 
     try {
-      const { error } = await supabase.functions.invoke('data-access', {
-        body: {
-          table: 'medewerkers',
-          action: 'update',
-          id: werknemerId,
-          data: { microsoft_email: email || null },
-        },
-      });
+      const { error } = await secureUpdate(
+        'medewerkers',
+        { microsoft_email: email || null },
+        [{ column: 'werknemer_id', operator: 'eq', value: werknemerId }]
+      );
 
       if (error) {
         setMessage('Fout bij opslaan e-mail');
