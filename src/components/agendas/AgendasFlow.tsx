@@ -1,5 +1,4 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -10,21 +9,13 @@ import {
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
-import { mockClients, generateMockTasks, Task } from '@/lib/mockData';
 import { getWeekStart, getWeekNumber, formatDateRange } from '@/lib/helpers/dateHelpers';
 import { TaskLegend } from '@/components/planner/TaskLegend';
-import { Loader2, CheckCircle2, XCircle, Link, Unlink, Construction, Settings } from 'lucide-react';
+import { Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { useEmployees } from '@/hooks/use-employees';
 import type { Employee } from '@/lib/data/types';
 import { supabase } from '@/integrations/supabase/client';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-
-interface MicrosoftStatus {
-  connected: boolean;
-  connectedAt?: string;
-}
+import { secureSelect } from '@/lib/data/secureDataClient';
 
 const dayNames = ['Ma', 'Di', 'Wo', 'Do', 'Vr'];
 const timeSlots = [9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
@@ -38,55 +29,34 @@ const taskColors: Record<string, string> = {
   optie: 'bg-task-optie',
 };
 
-// Mock current agenda events (existing calendar items)
+const dagNaarIndex: Record<string, number> = {
+  maandag: 0,
+  dinsdag: 1,
+  woensdag: 2,
+  donderdag: 3,
+  vrijdag: 4,
+};
+
 interface AgendaEvent {
   id: string;
   title: string;
   date: string;
-  startTime: string;
-  endTime: string;
+  startTime: string | null;
+  endTime: string | null;
+  isAllDay?: boolean;
 }
 
-const generateMockAgendaEvents = (weekStart: Date, employeeId: string): AgendaEvent[] => {
-  const events: AgendaEvent[] = [];
-  const eventTypes = ['Vergadering', 'Klantgesprek', 'Teamoverleg', 'Review', 'Stand-up', 'Workshop'];
-  
-  for (let day = 0; day < 5; day++) {
-    const date = new Date(weekStart);
-    date.setDate(date.getDate() + day);
-    const dateStr = date.toISOString().split('T')[0];
-    
-    // Add 0-2 events per day
-    const numEvents = Math.floor(Math.random() * 3);
-    const usedSlots: { start: number; end: number }[] = [];
-    
-    for (let i = 0; i < numEvents; i++) {
-      let startHour = 9 + Math.floor(Math.random() * 7);
-      if (startHour === 13) startHour = 14; // Skip lunch
-      const duration = Math.floor(Math.random() * 2) + 1;
-      const endHour = Math.min(startHour + duration, 18);
-      
-      const hasOverlap = usedSlots.some(
-        slot => !(endHour <= slot.start || startHour >= slot.end)
-      );
-      
-      if (!hasOverlap && startHour < 18) {
-        usedSlots.push({ start: startHour, end: endHour });
-        events.push({
-          id: `agenda-${employeeId}-${dateStr}-${i}`,
-          title: eventTypes[Math.floor(Math.random() * eventTypes.length)],
-          date: dateStr,
-          startTime: `${startHour.toString().padStart(2, '0')}:00`,
-          endTime: `${endHour.toString().padStart(2, '0')}:00`,
-        });
-      }
-    }
-  }
-  
-  return events;
-};
+interface PlanTask {
+  id: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  type: string;
+  clientName: string;
+  employeeId: string;
+}
 
-// Confirmation Modal Component
+// Confirmation Modal
 interface ConfirmModalProps {
   isOpen: boolean;
   title: string;
@@ -98,40 +68,23 @@ interface ConfirmModalProps {
   onCancel: () => void;
 }
 
-function ConfirmModal({ 
-  isOpen, 
-  title, 
-  description, 
-  confirmLabel, 
-  cancelLabel,
-  variant,
-  onConfirm, 
-  onCancel 
-}: ConfirmModalProps) {
+function ConfirmModal({ isOpen, title, description, confirmLabel, cancelLabel, variant, onConfirm, onCancel }: ConfirmModalProps) {
   if (!isOpen) return null;
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="bg-card rounded-xl shadow-lg max-w-md w-full mx-4 p-6 border border-border">
         <h2 className="text-lg font-semibold text-foreground mb-2">{title}</h2>
         <p className="text-sm text-muted-foreground mb-6">{description}</p>
         <div className="flex justify-end gap-3">
-          <Button variant="outline" onClick={onCancel}>
-            {cancelLabel}
-          </Button>
-          <Button 
-            variant={variant === 'destructive' ? 'destructive' : 'default'} 
-            onClick={onConfirm}
-          >
-            {confirmLabel}
-          </Button>
+          <Button variant="outline" onClick={onCancel}>{cancelLabel}</Button>
+          <Button variant={variant === 'destructive' ? 'destructive' : 'default'} onClick={onConfirm}>{confirmLabel}</Button>
         </div>
       </div>
     </div>
   );
 }
 
-// Ellen Popup Modal Component
+// Ellen Popup Modal
 type EllenStatus = 'idle' | 'busy' | 'success' | 'error';
 type EllenAction = 'add' | 'delete';
 
@@ -154,19 +107,13 @@ function EllenPopup({ isOpen, status, action, onClose, onRetry, onCancel }: Elle
           bgClass: 'bg-card',
           icon: (
             <div className="relative">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary text-primary-foreground text-lg font-semibold">
-                AI
-              </div>
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary text-primary-foreground text-lg font-semibold">AI</div>
               <Loader2 className="absolute -top-1 -right-1 h-6 w-6 animate-spin text-primary" />
             </div>
           ),
           title: 'Ellen is aan het werk',
           description: 'Ellen verwerkt je actie. Even geduld…',
-          actions: (
-            <Button variant="outline" onClick={onCancel}>
-              Actie annuleren
-            </Button>
-          ),
+          actions: <Button variant="outline" onClick={onCancel}>Actie annuleren</Button>,
         };
       case 'success':
         return {
@@ -176,15 +123,9 @@ function EllenPopup({ isOpen, status, action, onClose, onRetry, onCancel }: Elle
               <CheckCircle2 className="h-8 w-8" />
             </div>
           ),
-          title: action === 'delete' 
-            ? 'Afspraken verwijderd uit de agenda' 
-            : 'Planning toegevoegd aan de agenda',
-          description: 'De actie is succesvol uitgevoerd. Je kunt de agenda opnieuw openen om de wijzigingen te zien.',
-          actions: (
-            <Button onClick={onClose}>
-              Terug naar agenda's
-            </Button>
-          ),
+          title: action === 'delete' ? 'Afspraken verwijderd uit de agenda' : 'Planning toegevoegd aan de agenda',
+          description: 'De actie is succesvol uitgevoerd.',
+          actions: <Button onClick={onClose}>Terug naar agenda's</Button>,
         };
       case 'error':
         return {
@@ -198,12 +139,8 @@ function EllenPopup({ isOpen, status, action, onClose, onRetry, onCancel }: Elle
           description: 'Ellen kon de actie niet uitvoeren. Probeer het later opnieuw.',
           actions: (
             <div className="flex gap-3">
-              <Button variant="outline" onClick={onClose}>
-                Terug naar agenda's
-              </Button>
-              <Button onClick={onRetry}>
-                Opnieuw proberen
-              </Button>
+              <Button variant="outline" onClick={onClose}>Terug naar agenda's</Button>
+              <Button onClick={onRetry}>Opnieuw proberen</Button>
             </div>
           ),
         };
@@ -217,171 +154,135 @@ function EllenPopup({ isOpen, status, action, onClose, onRetry, onCancel }: Elle
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className={cn(
-        "rounded-xl shadow-lg max-w-md w-full mx-4 p-8 border border-border text-center",
-        content.bgClass
-      )}>
-        <div className="flex justify-center mb-4">
-          {content.icon}
-        </div>
+      <div className={cn('rounded-xl shadow-lg max-w-md w-full mx-4 p-8 border border-border text-center', content.bgClass)}>
+        <div className="flex justify-center mb-4">{content.icon}</div>
         <h2 className="text-xl font-semibold text-foreground mb-2">{content.title}</h2>
         <p className="text-sm text-muted-foreground mb-6">{content.description}</p>
-        <div className="flex justify-center">
-          {content.actions}
-        </div>
+        <div className="flex justify-center">{content.actions}</div>
       </div>
     </div>
   );
 }
 
 export function AgendasFlow() {
-  const navigate = useNavigate();
-
-  // Feature flag - set to true when Microsoft integration is ready
-  const isFeatureReady = false;
   const [currentWeekStart, setCurrentWeekStart] = useState(() => getWeekStart(new Date()));
-  const currentWeekNumber = getWeekNumber(getWeekStart(new Date())); // The actual current week
+  const currentWeekNumber = getWeekNumber(getWeekStart(new Date()));
   const [selectedEmployee, setSelectedEmployee] = useState<string>('');
   const [showPlanner, setShowPlanner] = useState(false);
 
-  // Medewerkers uit Supabase (zelfde bron als Planner)
   const { data: employees = [], isLoading: isLoadingEmployees } = useEmployees();
 
-  // Microsoft connection states
-  const [msStatus, setMsStatus] = useState<MicrosoftStatus | null>(null);
+  // Microsoft status (email configured = connected)
+  const [msConnected, setMsConnected] = useState<boolean | null>(null);
   const [msLoading, setMsLoading] = useState(false);
-  const [msMessage, setMsMessage] = useState('');
 
-  // Get werknemerId for selected employee (from database)
   const selectedEmployeeData = useMemo(() => {
     return employees.find((emp) => emp.id === selectedEmployee);
   }, [employees, selectedEmployee]);
 
-  // Check Microsoft connection status when employee is selected
-  const checkMicrosoftStatus = async (werknemerId: string) => {
-    setMsLoading(true);
-    setMsStatus(null);
-    try {
-      const { data, error } = await supabase.functions.invoke('microsoft-status', {
-        body: { werknemerId }
-      });
-      if (error) {
-        console.error('Failed to check Microsoft status:', error);
-      } else {
-        setMsStatus(data);
-      }
-    } catch (error) {
-      console.error('Error checking Microsoft status:', error);
-    } finally {
-      setMsLoading(false);
-    }
-  };
+  // Real calendar events from Microsoft
+  const [calendarEvents, setCalendarEvents] = useState<AgendaEvent[]>([]);
+  const [calendarLoading, setCalendarLoading] = useState(false);
+
+  // Real planning tasks from database
+  const [realTasks, setRealTasks] = useState<PlanTask[]>([]);
+  const [tasksLoading, setTasksLoading] = useState(false);
 
   // Check Microsoft status when employee changes
   useEffect(() => {
-    if (selectedEmployee && selectedEmployeeData) {
-      // Use werknemer_id from database (the numeric ID)
-      const werknemerId = selectedEmployeeData.id;
-      checkMicrosoftStatus(werknemerId);
-    } else {
-      setMsStatus(null);
+    if (!selectedEmployee || !selectedEmployeeData) {
+      setMsConnected(null);
+      return;
     }
+    setMsLoading(true);
+    supabase.functions.invoke('microsoft-status', {
+      body: { werknemerId: selectedEmployee },
+    }).then(({ data, error }) => {
+      if (!error && data) setMsConnected(!!data.connected);
+      setMsLoading(false);
+    });
   }, [selectedEmployee, selectedEmployeeData]);
 
-  // Re-check Microsoft status when user returns to this tab (after OAuth in new tab)
+  // Fetch real Microsoft calendar events when planner is shown
   useEffect(() => {
-    const handleFocus = () => {
-      if (selectedEmployee) {
-        // Check if there's a localStorage flag from the OAuth callback
-        const connectedKey = `microsoft_connected_${selectedEmployee}`;
-        const connectedTime = localStorage.getItem(connectedKey);
-        if (connectedTime) {
-          localStorage.removeItem(connectedKey);
-          setMsMessage('Microsoft account succesvol gekoppeld!');
-          checkMicrosoftStatus(selectedEmployee);
-        }
-      }
-    };
-
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
-  }, [selectedEmployee]);
-
-  const handleConnectMicrosoft = () => {
-    if (!selectedEmployee) return;
-    // Open in new tab to avoid iframe restrictions (Lovable runs in iframe)
-    // Microsoft blocks login.microsoftonline.com from loading in iframes
-    const loginUrl = `${SUPABASE_URL}/functions/v1/microsoft-login/${selectedEmployee}`;
-    window.open(loginUrl, '_blank');
-  };
-
-  const handleDisconnectMicrosoft = async () => {
-    if (!selectedEmployee) return;
-    setMsLoading(true);
-    try {
-      const { error } = await supabase.functions.invoke('microsoft-disconnect', {
-        body: { werknemerId: selectedEmployee }
-      });
-      if (error) {
-        setMsMessage('Fout bij ontkoppelen');
-      } else {
-        setMsMessage('Microsoft account ontkoppeld');
-        checkMicrosoftStatus(selectedEmployee);
-      }
-    } catch (error) {
-      console.error('Error disconnecting Microsoft:', error);
-      setMsMessage('Fout bij ontkoppelen');
-    } finally {
-      setMsLoading(false);
+    if (!showPlanner || !selectedEmployeeData) {
+      setCalendarEvents([]);
+      return;
     }
-  };
-  
+    setCalendarLoading(true);
+    const weekStartStr = currentWeekStart.toISOString().split('T')[0];
+    supabase.functions.invoke('get-calendar-events', {
+      body: { werknemerId: selectedEmployee, weekStart: weekStartStr },
+    }).then(({ data, error }) => {
+      if (!error && data?.events) setCalendarEvents(data.events);
+      else setCalendarEvents([]);
+      setCalendarLoading(false);
+    });
+  }, [showPlanner, selectedEmployee, selectedEmployeeData, currentWeekStart]);
+
+  // Fetch real planning tasks from database
+  useEffect(() => {
+    if (!showPlanner || !selectedEmployeeData) {
+      setRealTasks([]);
+      return;
+    }
+    setTasksLoading(true);
+    const weekStartStr = currentWeekStart.toISOString().split('T')[0];
+    secureSelect<any>('taken', {
+      filters: [
+        { column: 'werknemer_naam', operator: 'eq', value: selectedEmployeeData.name },
+        { column: 'week_start', operator: 'eq', value: weekStartStr },
+      ],
+    }).then(({ data }) => {
+      if (data) {
+        const transformed: PlanTask[] = (data as any[]).flatMap((taak) => {
+          const dagIndex = dagNaarIndex[taak.dag_van_week];
+          if (dagIndex === undefined) return [];
+          const date = new Date(currentWeekStart);
+          date.setDate(date.getDate() + dagIndex);
+          const dateStr = date.toISOString().split('T')[0];
+          const startHour = taak.start_uur ?? 9;
+          const duur = taak.duur_uren ?? 1;
+          return [{
+            id: taak.id,
+            date: dateStr,
+            startTime: `${startHour.toString().padStart(2, '0')}:00`,
+            endTime: `${Math.min(startHour + duur, 18).toString().padStart(2, '0')}:00`,
+            type: taak.plan_status || 'concept',
+            clientName: taak.klant_naam || taak.werktype || 'Taak',
+            employeeId: selectedEmployee,
+          }];
+        });
+        setRealTasks(transformed);
+      }
+      setTasksLoading(false);
+    });
+  }, [showPlanner, selectedEmployee, selectedEmployeeData, currentWeekStart]);
+
   // Selection states for Huidige agenda
   const [isSelectingCurrent, setIsSelectingCurrent] = useState(false);
   const [selectedAgendaEvents, setSelectedAgendaEvents] = useState<Set<string>>(new Set());
-  
+
   // Selection states for Nieuwe planning
   const [isSelectingNew, setIsSelectingNew] = useState(false);
   const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set());
-  
+
   // View options
   const [showCurrentAgenda, setShowCurrentAgenda] = useState(true);
   const [showNewPlanning, setShowNewPlanning] = useState(true);
   const [validationMessage, setValidationMessage] = useState('');
 
   // Modal states
-  const [confirmModal, setConfirmModal] = useState<{
-    isOpen: boolean;
-    type: 'delete' | 'add';
-  }>({ isOpen: false, type: 'add' });
-  
-  const [ellenPopup, setEllenPopup] = useState<{
-    isOpen: boolean;
-    status: EllenStatus;
-    action: EllenAction;
-  }>({ isOpen: false, status: 'idle', action: 'add' });
+  const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; type: 'delete' | 'add' }>({ isOpen: false, type: 'add' });
+  const [ellenPopup, setEllenPopup] = useState<{ isOpen: boolean; status: EllenStatus; action: EllenAction }>({ isOpen: false, status: 'idle', action: 'add' });
 
   const weekNumber = getWeekNumber(currentWeekStart);
   const dateRange = formatDateRange(currentWeekStart);
 
-  const tasks = useMemo(() => generateMockTasks(currentWeekStart), [currentWeekStart]);
-  
-  const agendaEvents = useMemo(() => {
-    if (!selectedEmployee) return [];
-    return generateMockAgendaEvents(currentWeekStart, selectedEmployee);
-  }, [currentWeekStart, selectedEmployee]);
-
-  const filteredTasks = useMemo(() => {
-    if (!selectedEmployee) return [];
-    return tasks.filter((task) => task.employeeId === selectedEmployee);
-  }, [tasks, selectedEmployee]);
-
-  // Als de geselecteerde medewerker niet meer bestaat (bijv. verwijderd), reset selectie.
+  // Reset employee if removed
   useEffect(() => {
-    if (!selectedEmployee) return;
-    if (employees.length === 0) return;
-    const exists = employees.some((e) => e.id === selectedEmployee);
-    if (!exists) setSelectedEmployee('');
+    if (!selectedEmployee || employees.length === 0) return;
+    if (!employees.some((e) => e.id === selectedEmployee)) setSelectedEmployee('');
   }, [employees, selectedEmployee]);
 
   // Ensure at least one view is selected
@@ -398,7 +299,6 @@ export function AgendasFlow() {
   const handleShowPlanner = () => {
     if (selectedEmployee) {
       setShowPlanner(true);
-      // Reset all selection states
       setIsSelectingCurrent(false);
       setIsSelectingNew(false);
       setSelectedAgendaEvents(new Set());
@@ -406,94 +306,56 @@ export function AgendasFlow() {
     }
   };
 
-  // Huidige agenda selection handlers
   const toggleCurrentSelectionMode = () => {
-    if (isSelectingCurrent) {
-      setSelectedAgendaEvents(new Set());
-    }
+    if (isSelectingCurrent) setSelectedAgendaEvents(new Set());
     setIsSelectingCurrent(!isSelectingCurrent);
   };
 
   const toggleAgendaEventSelection = (eventId: string) => {
     if (!isSelectingCurrent) return;
     const newSelection = new Set(selectedAgendaEvents);
-    if (newSelection.has(eventId)) {
-      newSelection.delete(eventId);
-    } else {
-      newSelection.add(eventId);
-    }
+    newSelection.has(eventId) ? newSelection.delete(eventId) : newSelection.add(eventId);
     setSelectedAgendaEvents(newSelection);
   };
 
-  const selectAllAgendaEvents = () => {
-    const allIds = new Set(agendaEvents.map(e => e.id));
-    setSelectedAgendaEvents(allIds);
-  };
+  const selectAllAgendaEvents = () => setSelectedAgendaEvents(new Set(calendarEvents.map(e => e.id)));
 
   const handleDeleteAgendaEvents = () => {
     if (selectedAgendaEvents.size === 0) return;
     setConfirmModal({ isOpen: true, type: 'delete' });
   };
 
-  // Nieuwe planning selection handlers
   const toggleNewSelectionMode = () => {
-    if (isSelectingNew) {
-      setSelectedTasks(new Set());
-    }
+    if (isSelectingNew) setSelectedTasks(new Set());
     setIsSelectingNew(!isSelectingNew);
   };
 
   const toggleTaskSelection = (taskId: string) => {
     if (!isSelectingNew) return;
     const newSelection = new Set(selectedTasks);
-    if (newSelection.has(taskId)) {
-      newSelection.delete(taskId);
-    } else {
-      newSelection.add(taskId);
-    }
+    newSelection.has(taskId) ? newSelection.delete(taskId) : newSelection.add(taskId);
     setSelectedTasks(newSelection);
   };
 
-  const selectAllTasks = () => {
-    const allIds = new Set(filteredTasks.map(t => t.id));
-    setSelectedTasks(allIds);
-  };
+  const selectAllTasks = () => setSelectedTasks(new Set(realTasks.map(t => t.id)));
 
   const handleAddToAgenda = () => {
     if (selectedTasks.size === 0) return;
     setConfirmModal({ isOpen: true, type: 'add' });
   };
 
-  // Confirm modal handlers
   const handleConfirmAction = () => {
     const actionType = confirmModal.type;
     setConfirmModal({ isOpen: false, type: 'add' });
-    
-    // Open Ellen popup in busy state
-    setEllenPopup({ 
-      isOpen: true, 
-      status: 'busy', 
-      action: actionType === 'delete' ? 'delete' : 'add' 
-    });
-
-    // Simulate processing (2 seconds, then random success/error)
+    setEllenPopup({ isOpen: true, status: 'busy', action: actionType === 'delete' ? 'delete' : 'add' });
     setTimeout(() => {
-      const isSuccess = Math.random() > 0.3; // 70% success rate
-      setEllenPopup(prev => ({
-        ...prev,
-        status: isSuccess ? 'success' : 'error'
-      }));
+      const isSuccess = Math.random() > 0.3;
+      setEllenPopup(prev => ({ ...prev, status: isSuccess ? 'success' : 'error' }));
     }, 2000);
   };
 
-  const handleCancelConfirm = () => {
-    setConfirmModal({ isOpen: false, type: 'add' });
-  };
-
-  // Ellen popup handlers
   const handleEllenClose = () => {
     setEllenPopup({ isOpen: false, status: 'idle', action: 'add' });
-    // Reset all states and go back to initial state
     setShowPlanner(false);
     setSelectedEmployee('');
     setIsSelectingCurrent(false);
@@ -503,19 +365,11 @@ export function AgendasFlow() {
   };
 
   const handleEllenRetry = () => {
-    // Retry the action
     setEllenPopup(prev => ({ ...prev, status: 'busy' }));
     setTimeout(() => {
       const isSuccess = Math.random() > 0.3;
-      setEllenPopup(prev => ({
-        ...prev,
-        status: isSuccess ? 'success' : 'error'
-      }));
+      setEllenPopup(prev => ({ ...prev, status: isSuccess ? 'success' : 'error' }));
     }, 2000);
-  };
-
-  const handleEllenCancel = () => {
-    setEllenPopup({ isOpen: false, status: 'idle', action: 'add' });
   };
 
   const goToWeek = (week: number) => {
@@ -527,58 +381,14 @@ export function AgendasFlow() {
     setCurrentWeekStart(targetDate);
   };
 
-  // Show "in development" page when feature is not ready
-  if (!isFeatureReady) {
-    return (
-      <div className="space-y-8">
-        {/* In Development Notice */}
-        <div className="max-w-2xl">
-          <Alert className="border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30">
-            <Construction className="h-5 w-5 text-amber-600" />
-            <AlertDescription className="ml-2">
-              <div className="space-y-3">
-                <p className="font-medium text-amber-800 dark:text-amber-200">
-                  Deze functie is nog in ontwikkeling
-                </p>
-                <p className="text-sm text-amber-700 dark:text-amber-300">
-                  We werken aan de integratie met Microsoft 365. Zodra dit klaar is kun je hier:
-                </p>
-                <ul className="text-sm text-amber-700 dark:text-amber-300 list-disc list-inside space-y-1">
-                  <li>Beschikbaarheid van medewerkers ophalen uit hun Outlook agenda</li>
-                  <li>Planningsblokken direct in Microsoft agenda's plaatsen</li>
-                  <li>Agenda's synchroniseren met Ellen</li>
-                </ul>
-                <div className="pt-2 flex items-center gap-2">
-                  <Settings className="h-4 w-4 text-amber-600" />
-                  <p className="text-sm text-amber-700 dark:text-amber-300">
-                    <strong>Admin:</strong> Je kunt alvast Microsoft accounts koppelen via{' '}
-                    <button
-                      onClick={() => navigate('/admin')}
-                      className="underline hover:text-amber-900 dark:hover:text-amber-100"
-                    >
-                      Instellingen → Agenda's
-                    </button>
-                  </p>
-                </div>
-              </div>
-            </AlertDescription>
-          </Alert>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-8">
       {/* Selection card + Legend row */}
       <div className="flex items-start gap-6 mb-6">
-        {/* Week + Medewerker + Options + Toon planner card - LEFT */}
+        {/* Controls card */}
         <div className="shrink-0">
           <div className="rounded-xl border border-border bg-card px-4 py-4 shadow-sm flex flex-col gap-3">
-            <Select 
-              value={weekNumber.toString()} 
-              onValueChange={(v) => goToWeek(parseInt(v))}
-            >
+            <Select value={weekNumber.toString()} onValueChange={(v) => goToWeek(parseInt(v))}>
               <SelectTrigger className="w-[200px]">
                 <SelectValue>
                   {weekNumber === currentWeekNumber ? 'Huidige week' : `Week ${weekNumber}`}
@@ -586,9 +396,7 @@ export function AgendasFlow() {
               </SelectTrigger>
               <SelectContent>
                 {Array.from({ length: 52 }, (_, i) => i + 1).map((week) => (
-                  <SelectItem key={week} value={week.toString()}>
-                    Week {week}
-                  </SelectItem>
+                  <SelectItem key={week} value={week.toString()}>Week {week}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -599,155 +407,83 @@ export function AgendasFlow() {
               </SelectTrigger>
               <SelectContent>
                 {employees.map((emp) => (
-                  <SelectItem key={emp.id} value={emp.id}>
-                    {emp.name}
-                  </SelectItem>
+                  <SelectItem key={emp.id} value={emp.id}>{emp.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
 
-            {/* Microsoft connection status */}
+            {/* Microsoft status */}
             {selectedEmployee && (
               <div className="pt-2 border-t border-border mt-2">
-                {msMessage && (
-                  <div className="mb-2 p-2 rounded-lg bg-blue-50 dark:bg-blue-950/30 text-blue-900 dark:text-blue-100 text-xs">
-                    {msMessage}
-                  </div>
-                )}
-
                 {msLoading ? (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Loader2 className="h-4 w-4 animate-spin" />
                     <span>Status ophalen...</span>
                   </div>
-                ) : msStatus ? (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      {msStatus.connected ? (
-                        <>
-                          <CheckCircle2 className="h-4 w-4 text-green-500" />
-                          <span className="text-xs font-medium text-green-700 dark:text-green-400">Microsoft gekoppeld</span>
-                        </>
-                      ) : (
-                        <>
-                          <XCircle className="h-4 w-4 text-red-500" />
-                          <span className="text-xs font-medium text-red-700 dark:text-red-400">Niet gekoppeld</span>
-                        </>
-                      )}
-                    </div>
-                    <div>
-                      {msStatus.connected ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-full text-xs h-7"
-                          onClick={handleDisconnectMicrosoft}
-                          disabled={msLoading}
-                        >
-                          <Unlink className="h-3 w-3 mr-1" />
-                          Ontkoppelen
-                        </Button>
-                      ) : (
-                        <Button
-                          size="sm"
-                          className="w-full text-xs h-7"
-                          onClick={handleConnectMicrosoft}
-                          disabled={msLoading}
-                        >
-                          <Link className="h-3 w-3 mr-1" />
-                          Microsoft koppelen
-                        </Button>
-                      )}
-                    </div>
+                ) : msConnected !== null ? (
+                  <div className="flex items-center gap-2">
+                    {msConnected ? (
+                      <>
+                        <CheckCircle2 className="h-4 w-4 text-green-500" />
+                        <span className="text-xs font-medium text-green-700 dark:text-green-400">Microsoft agenda gekoppeld</span>
+                      </>
+                    ) : (
+                      <>
+                        <XCircle className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-xs text-muted-foreground">Geen agenda gekoppeld — stel in via Admin</span>
+                      </>
+                    )}
                   </div>
-                ) : (
-                  <p className="text-xs text-muted-foreground">Status niet beschikbaar</p>
-                )}
+                ) : null}
               </div>
             )}
 
-            {/* View options - only show after employee is selected */}
+            {/* View options */}
             {selectedEmployee && (
               <div className="flex items-center gap-6 pt-2 border-t border-border mt-2">
                 <div className="flex items-center space-x-2">
-                  <Checkbox 
-                    id="currentAgenda" 
-                    checked={showCurrentAgenda}
-                    onCheckedChange={(checked) => setShowCurrentAgenda(checked === true)}
-                  />
-                  <label htmlFor="currentAgenda" className="text-sm font-medium leading-none cursor-pointer">
-                    Huidige agenda
-                  </label>
+                  <Checkbox id="currentAgenda" checked={showCurrentAgenda} onCheckedChange={(c) => setShowCurrentAgenda(c === true)} />
+                  <label htmlFor="currentAgenda" className="text-sm font-medium leading-none cursor-pointer">Huidige agenda</label>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <Checkbox 
-                    id="newPlanning" 
-                    checked={showNewPlanning}
-                    onCheckedChange={(checked) => setShowNewPlanning(checked === true)}
-                  />
-                  <label htmlFor="newPlanning" className="text-sm font-medium leading-none cursor-pointer">
-                    Nieuwe planning
-                  </label>
+                  <Checkbox id="newPlanning" checked={showNewPlanning} onCheckedChange={(c) => setShowNewPlanning(c === true)} />
+                  <label htmlFor="newPlanning" className="text-sm font-medium leading-none cursor-pointer">Nieuwe planning</label>
                 </div>
               </div>
             )}
-            {validationMessage && (
-              <p className="text-xs text-amber-600 mt-2">{validationMessage}</p>
-            )}
+            {validationMessage && <p className="text-xs text-amber-600 mt-2">{validationMessage}</p>}
 
-            {/* Show planner button */}
-            <Button 
-              className="w-full mt-3" 
-              disabled={!selectedEmployee}
-              onClick={handleShowPlanner}
-            >
+            <Button className="w-full mt-3" disabled={!selectedEmployee} onClick={handleShowPlanner}>
               Toon planner
             </Button>
           </div>
         </div>
 
-        {/* Legend card - RIGHT, only visible when planner is shown and Nieuwe planning is checked */}
+        {/* Legend */}
         {showPlanner && showNewPlanning && (
-          <div className="shrink-0">
-            <TaskLegend />
-          </div>
+          <div className="shrink-0"><TaskLegend /></div>
         )}
       </div>
 
-      {/* Planner views for selected employee */}
+      {/* Planner views */}
       {showPlanner && selectedEmployeeData && (
         <>
-          {/* Current Agenda view */}
+          {/* Huidige agenda */}
           {showCurrentAgenda && (
             <div className="mb-6">
-              {/* Header with selection controls */}
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-base font-semibold text-foreground">Huidige agenda</h2>
+                <h2 className="text-base font-semibold text-foreground">
+                  Huidige agenda
+                  {calendarLoading && <Loader2 className="inline ml-2 h-4 w-4 animate-spin text-muted-foreground" />}
+                </h2>
                 <div className="flex items-center gap-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={toggleCurrentSelectionMode}
-                  >
+                  <Button variant="outline" size="sm" onClick={toggleCurrentSelectionMode}>
                     {isSelectingCurrent ? 'Selectie annuleren' : 'Selecteren'}
                   </Button>
                   {isSelectingCurrent && (
                     <>
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        onClick={selectAllAgendaEvents}
-                      >
-                        Alles selecteren
-                      </Button>
-                      <Button 
-                        variant="destructive" 
-                        size="sm"
-                        disabled={selectedAgendaEvents.size === 0}
-                        onClick={handleDeleteAgendaEvents}
-                      >
-                        Verwijderen
-                      </Button>
+                      <Button variant="ghost" size="sm" onClick={selectAllAgendaEvents}>Alles selecteren</Button>
+                      <Button variant="destructive" size="sm" disabled={selectedAgendaEvents.size === 0} onClick={handleDeleteAgendaEvents}>Verwijderen</Button>
                     </>
                   )}
                 </div>
@@ -756,7 +492,8 @@ export function AgendasFlow() {
                 <AgendaGrid
                   weekStart={currentWeekStart}
                   employee={selectedEmployeeData}
-                  events={agendaEvents}
+                  events={calendarEvents}
+                  loading={calendarLoading}
                   selectionMode={isSelectingCurrent}
                   selectedEvents={selectedAgendaEvents}
                   onEventClick={toggleAgendaEventSelection}
@@ -765,36 +502,22 @@ export function AgendasFlow() {
             </div>
           )}
 
-          {/* New Planning view */}
+          {/* Nieuwe planning */}
           {showNewPlanning && (
             <div className="mb-6">
-              {/* Header with selection controls */}
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-base font-semibold text-foreground">Nieuwe planning</h2>
+                <h2 className="text-base font-semibold text-foreground">
+                  Nieuwe planning
+                  {tasksLoading && <Loader2 className="inline ml-2 h-4 w-4 animate-spin text-muted-foreground" />}
+                </h2>
                 <div className="flex items-center gap-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={toggleNewSelectionMode}
-                  >
+                  <Button variant="outline" size="sm" onClick={toggleNewSelectionMode}>
                     {isSelectingNew ? 'Selectie annuleren' : 'Selecteren'}
                   </Button>
                   {isSelectingNew && (
                     <>
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        onClick={selectAllTasks}
-                      >
-                        Alles selecteren
-                      </Button>
-                      <Button 
-                        size="sm"
-                        disabled={selectedTasks.size === 0}
-                        onClick={handleAddToAgenda}
-                      >
-                        Toevoegen
-                      </Button>
+                      <Button variant="ghost" size="sm" onClick={selectAllTasks}>Alles selecteren</Button>
+                      <Button size="sm" disabled={selectedTasks.size === 0} onClick={handleAddToAgenda}>Toevoegen</Button>
                     </>
                   )}
                 </div>
@@ -803,7 +526,8 @@ export function AgendasFlow() {
                 <PlanningGrid
                   weekStart={currentWeekStart}
                   employee={selectedEmployeeData}
-                  tasks={filteredTasks}
+                  tasks={realTasks}
+                  loading={tasksLoading}
                   selectionMode={isSelectingNew}
                   selectedTasks={selectedTasks}
                   onTaskClick={toggleTaskSelection}
@@ -814,46 +538,41 @@ export function AgendasFlow() {
         </>
       )}
 
-      {/* Confirmation Modal */}
       <ConfirmModal
         isOpen={confirmModal.isOpen}
-        title={confirmModal.type === 'delete' 
-          ? 'Weet je zeker dat je deze afspraken wilt verwijderen?' 
-          : 'Weet je zeker dat je deze planning wilt toevoegen?'}
-        description={confirmModal.type === 'delete'
-          ? 'Deze afspraken worden uit de agenda verwijderd. Dit kan niet ongedaan worden gemaakt.'
-          : 'De geselecteerde planningsblokken worden toegevoegd aan de agenda.'}
+        title={confirmModal.type === 'delete' ? 'Weet je zeker dat je deze afspraken wilt verwijderen?' : 'Weet je zeker dat je deze planning wilt toevoegen?'}
+        description={confirmModal.type === 'delete' ? 'Deze afspraken worden uit de agenda verwijderd. Dit kan niet ongedaan worden gemaakt.' : 'De geselecteerde planningsblokken worden toegevoegd aan de agenda.'}
         confirmLabel={confirmModal.type === 'delete' ? 'Ja, verwijderen' : 'Ja, toevoegen'}
         cancelLabel="Annuleren"
         variant={confirmModal.type === 'delete' ? 'destructive' : 'default'}
         onConfirm={handleConfirmAction}
-        onCancel={handleCancelConfirm}
+        onCancel={() => setConfirmModal({ isOpen: false, type: 'add' })}
       />
 
-      {/* Ellen Popup Modal */}
       <EllenPopup
         isOpen={ellenPopup.isOpen}
         status={ellenPopup.status}
         action={ellenPopup.action}
         onClose={handleEllenClose}
         onRetry={handleEllenRetry}
-        onCancel={handleEllenCancel}
+        onCancel={() => setEllenPopup({ isOpen: false, status: 'idle', action: 'add' })}
       />
     </div>
   );
 }
 
-// Agenda Grid - shows current calendar events with selection support
+// Agenda Grid
 interface AgendaGridProps {
   weekStart: Date;
   employee: Employee;
   events: AgendaEvent[];
+  loading: boolean;
   selectionMode: boolean;
   selectedEvents: Set<string>;
   onEventClick: (eventId: string) => void;
 }
 
-function AgendaGrid({ weekStart, employee, events, selectionMode, selectedEvents, onEventClick }: AgendaGridProps) {
+function AgendaGrid({ weekStart, employee, events, loading, selectionMode, selectedEvents, onEventClick }: AgendaGridProps) {
   const weekDates = useMemo(() => {
     return dayNames.map((_, index) => {
       const date = new Date(weekStart);
@@ -865,134 +584,99 @@ function AgendaGrid({ weekStart, employee, events, selectionMode, selectedEvents
   const getEventsForCell = (date: Date, hour: number) => {
     const dateStr = date.toISOString().split('T')[0];
     return events.filter((event) => {
-      if (event.date !== dateStr) return false;
+      if (event.date !== dateStr || !event.startTime || !event.endTime) return false;
       const startHour = parseInt(event.startTime.split(':')[0]);
       const endHour = parseInt(event.endTime.split(':')[0]);
       return hour >= startHour && hour < endHour;
     });
   };
 
-  const getEventStart = (event: AgendaEvent, hour: number) => {
-    const startHour = parseInt(event.startTime.split(':')[0]);
-    return hour === startHour;
-  };
-
   return (
     <div className="rounded-lg border border-border bg-card">
-      <table className="w-full border-collapse table-fixed">
-        <thead>
-          <tr className="bg-secondary">
-            <th className="sticky left-0 z-10 bg-secondary border-b border-r border-border px-4 py-3 text-left text-sm font-medium text-muted-foreground w-48">
-              Medewerker
-            </th>
-            <th className="sticky left-48 z-10 bg-secondary border-b border-r border-border px-2 py-3 text-center text-xs font-medium text-muted-foreground w-14">
-              Uur
-            </th>
-            {weekDates.map((date, index) => (
-              <th
-                key={index}
-                className="border-b border-r border-border px-2 py-3 text-center text-sm font-medium text-foreground"
-              >
-                <div>{dayNames[index]}</div>
-                <div className="text-xs text-muted-foreground">
-                  {date.getDate()}/{date.getMonth() + 1}
-                </div>
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {timeSlots.map((hour, hourIndex) => (
-            <tr key={`${employee.id}-${hour}`} className={cn(
-              hour === 13 && 'bg-task-lunch/30'
-            )}>
-              {hourIndex === 0 && (
-                <td 
-                  rowSpan={timeSlots.length}
-                  className="sticky left-0 z-10 bg-card border-b border-r border-border px-4 py-2 align-top"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-500 text-xs font-medium text-white">
-                      {employee.name.split(' ').map(n => n[0]).join('')}
-                    </div>
-                    <div>
-                      <div className="font-medium text-foreground text-sm">{employee.name}</div>
-                      <div className="text-xs text-muted-foreground">{employee.role}</div>
-                    </div>
-                  </div>
-                </td>
-              )}
-              <td className={cn(
-                "sticky left-48 z-10 border-b border-r border-border px-2 py-1 text-center text-xs font-medium",
-                hour === 13 ? 'bg-task-lunch/30 text-muted-foreground' : 'bg-card text-muted-foreground'
-              )}>
-                {hour === 13 ? 'Lunch' : `${hour.toString().padStart(2, '0')}:00`}
-              </td>
-              {weekDates.map((date, dayIndex) => {
-                const cellEvents = getEventsForCell(date, hour);
-                const isLunchHour = hour === 13;
-                
-                return (
-                  <td
-                    key={dayIndex}
-                    className={cn(
-                      "border-b border-r border-border p-0.5",
-                      isLunchHour && 'bg-task-lunch/30'
-                    )}
-                    style={{ height: '32px' }}
-                  >
-                    {cellEvents.map((event) => {
-                      const isStart = getEventStart(event, hour);
-                      if (!isStart) return null;
-                      
-                      const isSelected = selectedEvents.has(event.id);
-                      
-                      return (
-                        <div
-                          key={event.id}
-                          onClick={() => onEventClick(event.id)}
-                          className={cn(
-                            "rounded px-1.5 py-0.5 text-xs text-white overflow-hidden h-full bg-slate-500 transition-all",
-                            selectionMode && 'cursor-pointer hover:ring-2 hover:ring-primary',
-                            isSelected && 'ring-2 ring-blue-500 ring-offset-1'
-                          )}
-                          title={`${event.title}\n${event.startTime} - ${event.endTime}`}
-                        >
-                          <div className="truncate font-medium">
-                            {event.title}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </td>
-                );
-              })}
+      {loading && events.length === 0 ? (
+        <div className="flex items-center justify-center py-12 text-muted-foreground text-sm gap-2">
+          <Loader2 className="h-4 w-4 animate-spin" /> Agenda ophalen uit Microsoft…
+        </div>
+      ) : !loading && events.length === 0 ? (
+        <div className="flex items-center justify-center py-12 text-muted-foreground text-sm">
+          Geen agenda-items gevonden voor deze week
+        </div>
+      ) : (
+        <table className="w-full border-collapse table-fixed">
+          <thead>
+            <tr className="bg-secondary">
+              <th className="sticky left-0 z-10 bg-secondary border-b border-r border-border px-4 py-3 text-left text-sm font-medium text-muted-foreground w-48">Medewerker</th>
+              <th className="sticky left-48 z-10 bg-secondary border-b border-r border-border px-2 py-3 text-center text-xs font-medium text-muted-foreground w-14">Uur</th>
+              {weekDates.map((date, index) => (
+                <th key={index} className="border-b border-r border-border px-2 py-3 text-center text-sm font-medium text-foreground">
+                  <div>{dayNames[index]}</div>
+                  <div className="text-xs text-muted-foreground">{date.getDate()}/{date.getMonth() + 1}</div>
+                </th>
+              ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {timeSlots.map((hour, hourIndex) => (
+              <tr key={`${employee.id}-${hour}`} className={cn(hour === 13 && 'bg-task-lunch/30')}>
+                {hourIndex === 0 && (
+                  <td rowSpan={timeSlots.length} className="sticky left-0 z-10 bg-card border-b border-r border-border px-4 py-2 align-top">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-500 text-xs font-medium text-white">
+                        {employee.name.split(' ').map(n => n[0]).join('')}
+                      </div>
+                      <div>
+                        <div className="font-medium text-foreground text-sm">{employee.name}</div>
+                        <div className="text-xs text-muted-foreground">{employee.role}</div>
+                      </div>
+                    </div>
+                  </td>
+                )}
+                <td className={cn('sticky left-48 z-10 border-b border-r border-border px-2 py-1 text-center text-xs font-medium', hour === 13 ? 'bg-task-lunch/30 text-muted-foreground' : 'bg-card text-muted-foreground')}>
+                  {hour === 13 ? 'Lunch' : `${hour.toString().padStart(2, '0')}:00`}
+                </td>
+                {weekDates.map((date, dayIndex) => {
+                  const cellEvents = getEventsForCell(date, hour);
+                  return (
+                    <td key={dayIndex} className={cn('border-b border-r border-border p-0.5', hour === 13 && 'bg-task-lunch/30')} style={{ height: '32px' }}>
+                      {cellEvents.map((event) => {
+                        const startHour = event.startTime ? parseInt(event.startTime.split(':')[0]) : hour;
+                        if (hour !== startHour) return null;
+                        const isSelected = selectedEvents.has(event.id);
+                        return (
+                          <div
+                            key={event.id}
+                            onClick={() => onEventClick(event.id)}
+                            className={cn('rounded px-1.5 py-0.5 text-xs text-white overflow-hidden h-full bg-slate-500 transition-all', selectionMode && 'cursor-pointer hover:ring-2 hover:ring-primary', isSelected && 'ring-2 ring-blue-500 ring-offset-1')}
+                            title={`${event.title}\n${event.startTime} - ${event.endTime}`}
+                          >
+                            <div className="truncate font-medium">{event.title}</div>
+                          </div>
+                        );
+                      })}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }
 
-// Planning Grid - shows new planning with task colors and selection
+// Planning Grid
 interface PlanningGridProps {
   weekStart: Date;
   employee: Employee;
-  tasks: Task[];
+  tasks: PlanTask[];
+  loading: boolean;
   selectionMode: boolean;
   selectedTasks: Set<string>;
   onTaskClick: (taskId: string) => void;
 }
 
-function PlanningGrid({ 
-  weekStart, 
-  employee, 
-  tasks, 
-  selectionMode,
-  selectedTasks,
-  onTaskClick 
-}: PlanningGridProps) {
+function PlanningGrid({ weekStart, employee, tasks, loading, selectionMode, selectedTasks, onTaskClick }: PlanningGridProps) {
   const weekDates = useMemo(() => {
     return dayNames.map((_, index) => {
       const date = new Date(weekStart);
@@ -1011,125 +695,85 @@ function PlanningGrid({
     });
   };
 
-  const getTaskStart = (task: Task, hour: number) => {
-    const startHour = parseInt(task.startTime.split(':')[0]);
-    return hour === startHour;
-  };
-
-  const getClientName = (clientId: string) => {
-    return mockClients.find(c => c.id === clientId)?.name || '';
-  };
-
   const getTaskLabel = (type: string) => {
     const labels: Record<string, string> = {
-      concept: 'Concept',
-      review: 'Review',
-      uitwerking: 'Uitwerking',
-      productie: 'Productie',
-      extern: 'Extern',
-      optie: 'Optie',
+      concept: 'Concept', review: 'Review', uitwerking: 'Uitwerking',
+      productie: 'Productie', extern: 'Extern', optie: 'Optie',
     };
     return labels[type] || type;
   };
 
   return (
     <div className="rounded-lg border border-border bg-card">
-      <table className="w-full border-collapse table-fixed">
-        <thead>
-          <tr className="bg-secondary">
-            <th className="sticky left-0 z-10 bg-secondary border-b border-r border-border px-4 py-3 text-left text-sm font-medium text-muted-foreground w-48">
-              Medewerker
-            </th>
-            <th className="sticky left-48 z-10 bg-secondary border-b border-r border-border px-2 py-3 text-center text-xs font-medium text-muted-foreground w-14">
-              Uur
-            </th>
-            {weekDates.map((date, index) => (
-              <th
-                key={index}
-                className="border-b border-r border-border px-2 py-3 text-center text-sm font-medium text-foreground"
-              >
-                <div>{dayNames[index]}</div>
-                <div className="text-xs text-muted-foreground">
-                  {date.getDate()}/{date.getMonth() + 1}
-                </div>
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {timeSlots.map((hour, hourIndex) => (
-            <tr key={`${employee.id}-${hour}`} className={cn(
-              hour === 13 && 'bg-task-lunch/30'
-            )}>
-              {hourIndex === 0 && (
-                <td 
-                  rowSpan={timeSlots.length}
-                  className="sticky left-0 z-10 bg-card border-b border-r border-border px-4 py-2 align-top"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
-                      {employee.name.split(' ').map(n => n[0]).join('')}
-                    </div>
-                    <div>
-                      <div className="font-medium text-foreground text-sm">{employee.name}</div>
-                      <div className="text-xs text-muted-foreground">{employee.role}</div>
-                    </div>
-                  </div>
-                </td>
-              )}
-              <td className={cn(
-                "sticky left-48 z-10 border-b border-r border-border px-2 py-1 text-center text-xs font-medium",
-                hour === 13 ? 'bg-task-lunch/30 text-muted-foreground' : 'bg-card text-muted-foreground'
-              )}>
-                {hour === 13 ? 'Lunch' : `${hour.toString().padStart(2, '0')}:00`}
-              </td>
-              {weekDates.map((date, dayIndex) => {
-                const cellTasks = getTasksForCell(date, hour);
-                const isLunchHour = hour === 13;
-                
-                return (
-                  <td
-                    key={dayIndex}
-                    className={cn(
-                      "border-b border-r border-border p-0.5",
-                      isLunchHour && 'bg-task-lunch/30'
-                    )}
-                    style={{ height: '32px' }}
-                  >
-                    {cellTasks.map((task) => {
-                      const isStart = getTaskStart(task, hour);
-                      if (!isStart) return null;
-                      
-                      const isSelected = selectedTasks.has(task.id);
-                      
-                      return (
-                        <div
-                          key={task.id}
-                          onClick={() => onTaskClick(task.id)}
-                          className={cn(
-                            'rounded px-1.5 py-0.5 text-xs text-white overflow-hidden transition-all h-full',
-                            taskColors[task.type],
-                            selectionMode && 'cursor-pointer hover:ring-2 hover:ring-primary',
-                            isSelected && 'ring-2 ring-blue-500 ring-offset-1'
-                          )}
-                          title={`${getClientName(task.clientId)} - ${getTaskLabel(task.type)}\n${task.startTime} - ${task.endTime}`}
-                        >
-                          <div className="truncate font-medium">
-                            {getClientName(task.clientId)}
-                          </div>
-                          <div className="truncate opacity-80 text-[10px]">
-                            {getTaskLabel(task.type)}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </td>
-                );
-              })}
+      {loading && tasks.length === 0 ? (
+        <div className="flex items-center justify-center py-12 text-muted-foreground text-sm gap-2">
+          <Loader2 className="h-4 w-4 animate-spin" /> Planning ophalen…
+        </div>
+      ) : !loading && tasks.length === 0 ? (
+        <div className="flex items-center justify-center py-12 text-muted-foreground text-sm">
+          Geen geplande taken voor deze medewerker in week {getWeekNumber(weekStart)}
+        </div>
+      ) : (
+        <table className="w-full border-collapse table-fixed">
+          <thead>
+            <tr className="bg-secondary">
+              <th className="sticky left-0 z-10 bg-secondary border-b border-r border-border px-4 py-3 text-left text-sm font-medium text-muted-foreground w-48">Medewerker</th>
+              <th className="sticky left-48 z-10 bg-secondary border-b border-r border-border px-2 py-3 text-center text-xs font-medium text-muted-foreground w-14">Uur</th>
+              {weekDates.map((date, index) => (
+                <th key={index} className="border-b border-r border-border px-2 py-3 text-center text-sm font-medium text-foreground">
+                  <div>{dayNames[index]}</div>
+                  <div className="text-xs text-muted-foreground">{date.getDate()}/{date.getMonth() + 1}</div>
+                </th>
+              ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {timeSlots.map((hour, hourIndex) => (
+              <tr key={`${employee.id}-${hour}`} className={cn(hour === 13 && 'bg-task-lunch/30')}>
+                {hourIndex === 0 && (
+                  <td rowSpan={timeSlots.length} className="sticky left-0 z-10 bg-card border-b border-r border-border px-4 py-2 align-top">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
+                        {employee.name.split(' ').map(n => n[0]).join('')}
+                      </div>
+                      <div>
+                        <div className="font-medium text-foreground text-sm">{employee.name}</div>
+                        <div className="text-xs text-muted-foreground">{employee.role}</div>
+                      </div>
+                    </div>
+                  </td>
+                )}
+                <td className={cn('sticky left-48 z-10 border-b border-r border-border px-2 py-1 text-center text-xs font-medium', hour === 13 ? 'bg-task-lunch/30 text-muted-foreground' : 'bg-card text-muted-foreground')}>
+                  {hour === 13 ? 'Lunch' : `${hour.toString().padStart(2, '0')}:00`}
+                </td>
+                {weekDates.map((date, dayIndex) => {
+                  const cellTasks = getTasksForCell(date, hour);
+                  return (
+                    <td key={dayIndex} className={cn('border-b border-r border-border p-0.5', hour === 13 && 'bg-task-lunch/30')} style={{ height: '32px' }}>
+                      {cellTasks.map((task) => {
+                        const startHour = parseInt(task.startTime.split(':')[0]);
+                        if (hour !== startHour) return null;
+                        const isSelected = selectedTasks.has(task.id);
+                        return (
+                          <div
+                            key={task.id}
+                            onClick={() => onTaskClick(task.id)}
+                            className={cn('rounded px-1.5 py-0.5 text-xs text-white overflow-hidden transition-all h-full', taskColors[task.type] || 'bg-task-concept', selectionMode && 'cursor-pointer hover:ring-2 hover:ring-primary', isSelected && 'ring-2 ring-blue-500 ring-offset-1')}
+                            title={`${task.clientName} - ${getTaskLabel(task.type)}\n${task.startTime} - ${task.endTime}`}
+                          >
+                            <div className="truncate font-medium">{task.clientName}</div>
+                            <div className="truncate opacity-80 text-[10px]">{getTaskLabel(task.type)}</div>
+                          </div>
+                        );
+                      })}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }
