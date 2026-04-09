@@ -90,7 +90,7 @@ const TABLE_COLUMNS: Record<string, string[]> = {
   'meetings & presentaties': ['id', 'project_id', 'datum', 'start_tijd', 'eind_tijd', 'onderwerp', 'type', 'locatie', 'deelnemers', 'is_hard_lock', 'status', 'created_by', 'created_at', 'updated_at'],
   beschikbaarheid_medewerkers: ['id', 'werknemer_naam', 'type', 'start_datum', 'eind_datum', 'reden', 'status', 'created_by', 'created_at', 'updated_at'],
   wijzigingsverzoeken: ['id', 'project_id', 'type_wijziging', 'beschrijving', 'impact', 'nieuwe_deadline', 'extra_uren', 'betrokken_mensen', 'status', 'created_by', 'created_at', 'updated_at'],
-  notificaties: ['id', 'type', 'titel', 'beschrijving', 'klant_naam', 'project_nummer', 'voor_werknemer', 'deadline', 'severity', 'aantal', 'is_done', 'created_at', 'updated_at'],
+  notificaties: ['id', 'voor_gebruiker_naam', 'van_gebruiker_naam', 'type', 'bericht', 'taak_id', 'project_naam', 'gelezen', 'created_at', 'updated_at'],
   audit_log: ['id', 'user_id', 'entiteit_type', 'entiteit_id', 'actie', 'oude_waarde', 'nieuwe_waarde', 'ip_address', 'created_at'],
   planning_regels: ['regel_id', 'titel_kort', 'voorwaarde_kort', 'actie_kort', 'categorie', 'ernst', 'max_per_dag', 'parameters', 'created_at', 'updated_at'],
   ellen_regels: ['id', 'categorie', 'prioriteit', 'regel', 'rationale', 'actief', 'created_at'],

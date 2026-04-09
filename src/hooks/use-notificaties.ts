@@ -49,17 +49,25 @@ export function useNotificaties(gebruikerNaam: string | undefined) {
   const ongelezen = notificaties.filter(n => !n.gelezen).length;
 
   const markeerGelezen = async (id: string) => {
-    await (supabase as any).from('notificaties').update({ gelezen: true }).eq('id', id);
+    await supabase.functions.invoke('data-access', {
+      body: { table: 'notificaties', action: 'update', id, data: { gelezen: true } },
+    });
     setNotificaties(prev => prev.map(n => n.id === id ? { ...n, gelezen: true } : n));
   };
 
   const markeerAllesGelezen = async () => {
     if (!gebruikerNaam) return;
-    await (supabase as any)
-      .from('notificaties')
-      .update({ gelezen: true })
-      .eq('voor_gebruiker_naam', gebruikerNaam)
-      .eq('gelezen', false);
+    await supabase.functions.invoke('data-access', {
+      body: {
+        table: 'notificaties',
+        action: 'update',
+        filters: [
+          { column: 'voor_gebruiker_naam', operator: 'eq', value: gebruikerNaam },
+          { column: 'gelezen', operator: 'eq', value: false },
+        ],
+        data: { gelezen: true },
+      },
+    });
     setNotificaties(prev => prev.map(n => ({ ...n, gelezen: true })));
   };
 
