@@ -130,11 +130,13 @@ function AgendaGrid({ weekStart, employee, events, loading, error, onRetry, sele
       return d;
     }), [weekStart]);
 
+  const parseHour = (t: string) => parseInt(t.substring(0, 2), 10);
+
   const getEventsForCell = (date: Date, hour: number) => {
     const dateStr = date.toISOString().split('T')[0];
     return events.filter(ev => {
       if (ev.date !== dateStr || !ev.startTime || !ev.endTime) return false;
-      return hour >= parseInt(ev.startTime) && hour < parseInt(ev.endTime);
+      return hour >= parseHour(ev.startTime) && hour < parseHour(ev.endTime);
     });
   };
 
@@ -192,7 +194,7 @@ function AgendaGrid({ weekStart, employee, events, loading, error, onRetry, sele
                     hour === 12 && 'bg-muted/20',
                   )}>
                     {cellEvents.map(ev => {
-                      const startH = ev.startTime ? parseInt(ev.startTime) : hour;
+                      const startH = ev.startTime ? parseHour(ev.startTime) : hour;
                       if (hour !== startH) return null;
                       const isSelected = selectedEvents.has(ev.id);
                       return (
@@ -241,10 +243,12 @@ function PlanningGrid({ weekStart, employee, tasks, loading, selectionMode, sele
       return d;
     }), [weekStart]);
 
+  const parseHour = (t: string) => parseInt(t.substring(0, 2), 10);
+
   const getTasksForCell = (date: Date, hour: number) =>
     tasks.filter(t => {
       if (t.date !== date.toISOString().split('T')[0]) return false;
-      return hour >= parseInt(t.startTime) && hour < parseInt(t.endTime);
+      return hour >= parseHour(t.startTime) && hour < parseHour(t.endTime);
     });
 
   const taskLabel: Record<string, string> = {
@@ -294,7 +298,7 @@ function PlanningGrid({ weekStart, employee, tasks, loading, selectionMode, sele
                     hour === 12 && 'bg-muted/20',
                   )}>
                     {cellTasks.map(task => {
-                      if (hour !== parseInt(task.startTime)) return null;
+                      if (hour !== parseHour(task.startTime)) return null;
                       const isSelected = selectedTasks.has(task.id);
                       return (
                         <div
