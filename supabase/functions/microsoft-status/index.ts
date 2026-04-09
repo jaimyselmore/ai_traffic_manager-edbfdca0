@@ -13,55 +13,45 @@ serve(async (req) => {
   }
 
   try {
-    // Get werknemerId from request body
     const { werknemerId } = await req.json()
 
     if (!werknemerId) {
       return new Response(
-        JSON.stringify({ error: 'werknemerId is required' }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
+        JSON.stringify({ error: 'werknemerId is verplicht' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    )
 
-    // Check if token exists in microsoft_tokens table (single source of truth)
+    // Met client credentials flow: verbonden = microsoft_email is ingesteld
     const { data, error } = await supabase
-      .from('microsoft_tokens')
-      .select('created_at, token_expires_at')
+      .from('medewerkers')
+      .select('microsoft_email, updated_at')
       .eq('werknemer_id', parseInt(werknemerId))
       .maybeSingle()
 
-    if (error) {
-      throw error
-    }
+    if (error) throw error
 
-    // Connected if a token record exists
-    const connected = data !== null
+    const connected = !!(data?.microsoft_email)
 
     return new Response(
       JSON.stringify({
         connected,
-        connectedAt: data?.created_at || null,
+        microsoftEmail: data?.microsoft_email || null,
+        connectedAt: connected ? data?.updated_at : null,
       }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
+
   } catch (error: any) {
-    console.error('Error checking Microsoft status:', error)
+    console.error('Fout bij controleren Microsoft status:', error)
     return new Response(
-      JSON.stringify({ error: 'Failed to check connection status', details: error.message }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
+      JSON.stringify({ error: 'Kon verbindingsstatus niet ophalen', details: error.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 })
