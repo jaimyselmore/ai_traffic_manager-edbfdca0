@@ -10,7 +10,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { getWeekStart, getWeekNumber, formatDateRange } from '@/lib/helpers/dateHelpers';
+import { getWeekStart, getWeekNumber, formatDateRange, toLocalDateString } from '@/lib/helpers/dateHelpers';
 import {
   ChevronLeft,
   ChevronRight,
@@ -36,7 +36,6 @@ const dagNaarIndex: Record<string, number> = {
 };
 
 const dayNames = ['Ma', 'Di', 'Wo', 'Do', 'Vr'];
-const timeSlots = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
 
 const taskColors: Record<string, string> = {
   concept: 'bg-[hsl(var(--task-concept))]',
@@ -108,6 +107,148 @@ function EmptyState({ icon: Icon, title, description }: {
   );
 }
 
+// ── Calendar layout constants ─────────────────────────────────────────────────
+
+const ROW_HEIGHT = 48; // px per hour
+const GRID_START = 8;  // first visible hour
+const GRID_END = 19;   // exclusive (shows up to 18:xx)
+const TOTAL_HEIGHT = (GRID_END - GRID_START) * ROW_HEIGHT;
+const TIME_COL_WIDTH = 56; // px
+
+/** Parse "HH:MM" → total minutes */
+const parseMinutes = (t: string): number => {
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + (m || 0);
+};
+
+/** Assign non-overlapping columns to events and return layout info */
+function layoutEvents<T extends { startTime: string | null; endTime: string | null; id: string }>(
+  items: T[]
+): Array<{ item: T; col: number; colCount: number }> {
+  if (items.length === 0) return [];
+  const sorted = [...items].sort(
+    (a, b) => parseMinutes(a.startTime ?? '08:00') - parseMinutes(b.startTime ?? '08:00')
+  );
+  const cols: { item: T; col: number; endMin: number }[] = [];
+  const colEnds: number[] = [];
+
+  for (const item of sorted) {
+    const start = parseMinutes(item.startTime ?? '08:00');
+    const end = parseMinutes(item.endTime ?? '09:00');
+    let col = 0;
+    while (col < colEnds.length && colEnds[col] > start) col++;
+    colEnds[col] = end;
+    cols.push({ item, col, endMin: end });
+  }
+
+  return cols.map(({ item, col, endMin }) => {
+    const start = parseMinutes(item.startTime ?? '08:00');
+    const overlapping = cols.filter(
+      o => parseMinutes(o.item.startTime ?? '08:00') < endMin && o.endMin > start
+    );
+    const colCount = Math.max(...overlapping.map(o => o.col)) + 1;
+    return { item, col, colCount };
+  });
+}
+
+/** Shared calendar column layout (time column + 5 day columns) */
+function CalendarLayout({
+  weekDates,
+  renderDayContent,
+  allDayRow,
+}: {
+  weekDates: Date[];
+  renderDayContent: (date: Date, di: number) => React.ReactNode;
+  allDayRow?: (date: Date, di: number) => React.ReactNode;
+}) {
+  const hours = Array.from({ length: GRID_END - GRID_START }, (_, i) => GRID_START + i);
+
+  return (
+    <div className="rounded-lg border border-border bg-card overflow-auto">
+      <div style={{ minWidth: 640 }}>
+        {/* Column headers */}
+        <div
+          className="grid border-b border-border bg-secondary/60"
+          style={{ gridTemplateColumns: `${TIME_COL_WIDTH}px repeat(5, 1fr)` }}
+        >
+          <div className="px-2 py-2.5" />
+          {weekDates.map((date, i) => (
+            <div
+              key={i}
+              className="border-l border-border px-3 py-2.5 text-center text-xs font-medium text-foreground"
+            >
+              <span className="font-semibold">{dayNames[i]}</span>
+              <span className="ml-1 font-normal text-muted-foreground">
+                {date.getDate()}/{date.getMonth() + 1}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* All-day row (optional) */}
+        {allDayRow && (
+          <div
+            className="grid border-b border-border"
+            style={{ gridTemplateColumns: `${TIME_COL_WIDTH}px repeat(5, 1fr)` }}
+          >
+            <div className="px-2 flex items-center justify-end text-[10px] text-muted-foreground pr-2 py-1">
+              all-day
+            </div>
+            {weekDates.map((date, di) => (
+              <div key={di} className="border-l border-border px-1 py-1 min-h-[28px]">
+                {allDayRow(date, di)}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Time grid */}
+        <div
+          className="grid"
+          style={{
+            gridTemplateColumns: `${TIME_COL_WIDTH}px repeat(5, 1fr)`,
+            height: TOTAL_HEIGHT,
+          }}
+        >
+          {/* Time labels */}
+          <div className="relative border-r border-border">
+            {hours.map(h => (
+              <div
+                key={h}
+                className="absolute right-2 text-[10px] text-muted-foreground select-none"
+                style={{ top: (h - GRID_START) * ROW_HEIGHT - 7 }}
+              >
+                {h}:00
+              </div>
+            ))}
+          </div>
+
+          {/* Day columns */}
+          {weekDates.map((date, di) => (
+            <div key={di} className="border-l border-border relative">
+              {/* Hour grid lines */}
+              {hours.map(h => (
+                <div
+                  key={h}
+                  className="absolute w-full border-t border-border/40 pointer-events-none"
+                  style={{ top: (h - GRID_START) * ROW_HEIGHT }}
+                />
+              ))}
+              {/* Noon highlight */}
+              <div
+                className="absolute w-full border-t border-border pointer-events-none"
+                style={{ top: (12 - GRID_START) * ROW_HEIGHT }}
+              />
+              {/* Content */}
+              {renderDayContent(date, di)}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Agenda Grid ──────────────────────────────────────────────────────────────
 
 interface AgendaGridProps {
@@ -130,15 +271,17 @@ function AgendaGrid({ weekStart, employee, events, loading, error, onRetry, sele
       return d;
     }), [weekStart]);
 
-  const parseHour = (t: string) => parseInt(t.substring(0, 2), 10);
-
-  const getEventsForCell = (date: Date, hour: number) => {
-    const dateStr = date.toISOString().split('T')[0];
-    return events.filter(ev => {
-      if (ev.date !== dateStr || !ev.startTime || !ev.endTime) return false;
-      return hour >= parseHour(ev.startTime) && hour < parseHour(ev.endTime);
-    });
+  const getTimedEventsForDay = (date: Date) => {
+    const dateStr = toLocalDateString(date);
+    return events.filter(ev => ev.date === dateStr && !ev.isAllDay && !!ev.startTime && !!ev.endTime);
   };
+
+  const getAllDayEventsForDay = (date: Date) => {
+    const dateStr = toLocalDateString(date);
+    return events.filter(ev => ev.date === dateStr && (ev.isAllDay || (!ev.startTime && !ev.endTime)));
+  };
+
+  const hasAllDay = weekDates.some(d => getAllDayEventsForDay(d).length > 0);
 
   if (loading) return <SkeletonGrid />;
 
@@ -165,61 +308,61 @@ function AgendaGrid({ weekStart, employee, events, loading, error, onRetry, sele
   }
 
   return (
-    <div className="rounded-lg border border-border bg-card overflow-auto">
-      <table className="w-full border-collapse" style={{ minWidth: 600 }}>
-        <thead>
-          <tr className="bg-secondary/60">
-            <th className="sticky left-0 z-10 bg-secondary/60 w-14 border-b border-r border-border px-2 py-2.5 text-center text-xs font-medium text-muted-foreground">
-              Uur
-            </th>
-            {weekDates.map((date, i) => (
-              <th key={i} className="border-b border-r border-border px-3 py-2.5 text-center text-xs font-medium text-foreground last:border-r-0">
-                <span className="font-semibold">{dayNames[i]}</span>
-                <span className="ml-1 font-normal text-muted-foreground">{date.getDate()}/{date.getMonth() + 1}</span>
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {timeSlots.map((hour) => (
-            <tr key={hour} className={cn('group', hour === 12 && 'bg-muted/20')}>
-              <td className="sticky left-0 z-10 bg-card border-b border-r border-border px-2 py-0 text-center text-[11px] text-muted-foreground w-14 h-8 group-hover:bg-secondary/30 transition-colors">
-                {hour === 12 ? '12:00' : `${hour}:00`}
-              </td>
-              {weekDates.map((date, di) => {
-                const cellEvents = getEventsForCell(date, hour);
-                return (
-                  <td key={di} className={cn(
-                    'border-b border-r border-border p-0.5 last:border-r-0 h-8 align-top',
-                    hour === 12 && 'bg-muted/20',
-                  )}>
-                    {cellEvents.map(ev => {
-                      const startH = ev.startTime ? parseHour(ev.startTime) : hour;
-                      if (hour !== startH) return null;
-                      const isSelected = selectedEvents.has(ev.id);
-                      return (
-                        <div
-                          key={ev.id}
-                          onClick={() => onEventClick(ev.id)}
-                          className={cn(
-                            'rounded px-1.5 py-0.5 text-[11px] font-medium text-white bg-slate-500 overflow-hidden transition-all h-full leading-tight',
-                            selectionMode && 'cursor-pointer hover:ring-2 hover:ring-primary ring-offset-1',
-                            isSelected && 'ring-2 ring-blue-500 ring-offset-1',
-                          )}
-                          title={`${ev.title}${ev.location ? ` · ${ev.location}` : ''}\n${ev.startTime} – ${ev.endTime}`}
-                        >
-                          <div className="truncate">{ev.title}</div>
-                        </div>
-                      );
-                    })}
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <CalendarLayout
+      weekDates={weekDates}
+      allDayRow={hasAllDay ? (date) => {
+        const allDay = getAllDayEventsForDay(date);
+        return allDay.map(ev => (
+          <div key={ev.id} className="rounded px-1.5 py-0.5 text-[10px] font-medium text-white bg-slate-400 truncate mb-0.5">
+            {ev.title}
+          </div>
+        ));
+      } : undefined}
+      renderDayContent={(date) => {
+        const dayEvents = getTimedEventsForDay(date);
+        const laid = layoutEvents(dayEvents);
+        return laid.map(({ item: ev, col, colCount }) => {
+          const startMin = parseMinutes(ev.startTime!);
+          const endMin = parseMinutes(ev.endTime!);
+          const clampedStart = Math.max(startMin, GRID_START * 60);
+          const clampedEnd = Math.min(endMin, GRID_END * 60);
+          const top = ((clampedStart - GRID_START * 60) / 60) * ROW_HEIGHT;
+          const height = Math.max(((clampedEnd - clampedStart) / 60) * ROW_HEIGHT - 2, 20);
+          const widthPct = 100 / colCount;
+          const isSelected = selectedEvents.has(ev.id);
+          const showTime = height >= 32;
+          const showLocation = height >= 52 && ev.location;
+
+          return (
+            <div
+              key={ev.id}
+              onClick={() => onEventClick(ev.id)}
+              className={cn(
+                'absolute rounded px-1.5 py-1 text-[11px] font-medium text-white bg-slate-500 overflow-hidden transition-all leading-tight cursor-default',
+                selectionMode && 'cursor-pointer hover:ring-2 hover:ring-primary ring-offset-1',
+                isSelected && 'ring-2 ring-blue-500 ring-offset-1',
+              )}
+              style={{
+                top: top + 1,
+                height,
+                left: `calc(${col * widthPct}% + 2px)`,
+                width: `calc(${widthPct}% - 4px)`,
+                zIndex: 10,
+              }}
+              title={`${ev.title}${ev.location ? ` · ${ev.location}` : ''}\n${ev.startTime} – ${ev.endTime}`}
+            >
+              {showTime && (
+                <div className="text-[10px] opacity-75 mb-0.5">{ev.startTime}</div>
+              )}
+              <div className="truncate font-semibold">{ev.title}</div>
+              {showLocation && (
+                <div className="truncate text-[10px] opacity-70">{ev.location}</div>
+              )}
+            </div>
+          );
+        });
+      }}
+    />
   );
 }
 
@@ -243,17 +386,14 @@ function PlanningGrid({ weekStart, employee, tasks, loading, selectionMode, sele
       return d;
     }), [weekStart]);
 
-  const parseHour = (t: string) => parseInt(t.substring(0, 2), 10);
-
-  const getTasksForCell = (date: Date, hour: number) =>
-    tasks.filter(t => {
-      if (t.date !== date.toISOString().split('T')[0]) return false;
-      return hour >= parseHour(t.startTime) && hour < parseHour(t.endTime);
-    });
-
   const taskLabel: Record<string, string> = {
     concept: 'Concept', review: 'Review', uitwerking: 'Uitwerking',
     productie: 'Productie', extern: 'Extern', optie: 'Optie',
+  };
+
+  const getTasksForDay = (date: Date) => {
+    const dateStr = toLocalDateString(date);
+    return tasks.filter(t => t.date === dateStr);
   };
 
   if (loading) return <SkeletonGrid />;
@@ -269,62 +409,50 @@ function PlanningGrid({ weekStart, employee, tasks, loading, selectionMode, sele
   }
 
   return (
-    <div className="rounded-lg border border-border bg-card overflow-auto">
-      <table className="w-full border-collapse" style={{ minWidth: 600 }}>
-        <thead>
-          <tr className="bg-secondary/60">
-            <th className="sticky left-0 z-10 bg-secondary/60 w-14 border-b border-r border-border px-2 py-2.5 text-center text-xs font-medium text-muted-foreground">
-              Uur
-            </th>
-            {weekDates.map((date, i) => (
-              <th key={i} className="border-b border-r border-border px-3 py-2.5 text-center text-xs font-medium text-foreground last:border-r-0">
-                <span className="font-semibold">{dayNames[i]}</span>
-                <span className="ml-1 font-normal text-muted-foreground">{date.getDate()}/{date.getMonth() + 1}</span>
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {timeSlots.map((hour) => (
-            <tr key={hour} className={cn('group', hour === 12 && 'bg-muted/20')}>
-              <td className="sticky left-0 z-10 bg-card border-b border-r border-border px-2 py-0 text-center text-[11px] text-muted-foreground w-14 h-8 group-hover:bg-secondary/30 transition-colors">
-                {hour === 12 ? '12:00' : `${hour}:00`}
-              </td>
-              {weekDates.map((date, di) => {
-                const cellTasks = getTasksForCell(date, hour);
-                return (
-                  <td key={di} className={cn(
-                    'border-b border-r border-border p-0.5 last:border-r-0 h-8 align-top',
-                    hour === 12 && 'bg-muted/20',
-                  )}>
-                    {cellTasks.map(task => {
-                      if (hour !== parseHour(task.startTime)) return null;
-                      const isSelected = selectedTasks.has(task.id);
-                      return (
-                        <div
-                          key={task.id}
-                          onClick={() => onTaskClick(task.id)}
-                          className={cn(
-                            'rounded px-1.5 py-0.5 text-[11px] text-white overflow-hidden transition-all h-full leading-tight',
-                            taskColors[task.type] || 'bg-[hsl(var(--task-concept))]',
-                            selectionMode && 'cursor-pointer hover:ring-2 hover:ring-primary ring-offset-1',
-                            isSelected && 'ring-2 ring-blue-500 ring-offset-1',
-                          )}
-                          title={`${task.clientName} · ${taskLabel[task.type] || task.type}\n${task.startTime} – ${task.endTime}`}
-                        >
-                          <div className="truncate font-medium">{task.clientName}</div>
-                          <div className="truncate opacity-80 text-[10px]">{taskLabel[task.type] || task.type}</div>
-                        </div>
-                      );
-                    })}
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <CalendarLayout
+      weekDates={weekDates}
+      renderDayContent={(date) => {
+        const dayTasks = getTasksForDay(date);
+        const laid = layoutEvents(dayTasks);
+        return laid.map(({ item: task, col, colCount }) => {
+          const startMin = parseMinutes(task.startTime);
+          const endMin = parseMinutes(task.endTime);
+          const clampedStart = Math.max(startMin, GRID_START * 60);
+          const clampedEnd = Math.min(endMin, GRID_END * 60);
+          const top = ((clampedStart - GRID_START * 60) / 60) * ROW_HEIGHT;
+          const height = Math.max(((clampedEnd - clampedStart) / 60) * ROW_HEIGHT - 2, 20);
+          const widthPct = 100 / colCount;
+          const isSelected = selectedTasks.has(task.id);
+          const showLabel = height >= 38;
+
+          return (
+            <div
+              key={task.id}
+              onClick={() => onTaskClick(task.id)}
+              className={cn(
+                'absolute rounded px-1.5 py-1 text-[11px] text-white overflow-hidden transition-all leading-tight cursor-default',
+                taskColors[task.type] || 'bg-[hsl(var(--task-concept))]',
+                selectionMode && 'cursor-pointer hover:ring-2 hover:ring-primary ring-offset-1',
+                isSelected && 'ring-2 ring-blue-500 ring-offset-1',
+              )}
+              style={{
+                top: top + 1,
+                height,
+                left: `calc(${col * widthPct}% + 2px)`,
+                width: `calc(${widthPct}% - 4px)`,
+                zIndex: 10,
+              }}
+              title={`${task.clientName} · ${taskLabel[task.type] || task.type}\n${task.startTime} – ${task.endTime}`}
+            >
+              <div className="truncate font-semibold">{task.clientName}</div>
+              {showLabel && (
+                <div className="truncate text-[10px] opacity-80">{taskLabel[task.type] || task.type}</div>
+              )}
+            </div>
+          );
+        });
+      }}
+    />
   );
 }
 
@@ -527,7 +655,7 @@ export function AgendasFlow() {
     if (!selectedEmployee) return;
     setCalendarLoading(true);
     setCalendarError(null);
-    const weekStartStr = currentWeekStart.toISOString().split('T')[0];
+    const weekStartStr = toLocalDateString(currentWeekStart);
     supabase.functions.invoke('get-calendar-events', {
       body: { werknemerId: selectedEmployee, weekStart: weekStartStr },
     }).then(({ data, error }) => {
@@ -545,7 +673,7 @@ export function AgendasFlow() {
   const fetchPlanningTasks = () => {
     if (!selectedEmployeeData) return;
     setTasksLoading(true);
-    const weekStartStr = currentWeekStart.toISOString().split('T')[0];
+    const weekStartStr = toLocalDateString(currentWeekStart);
     secureSelect<any>('taken', {
       filters: [
         { column: 'werknemer_naam', operator: 'eq', value: selectedEmployeeData.name },
@@ -558,7 +686,7 @@ export function AgendasFlow() {
           if (dagIndex === undefined) return [];
           const date = new Date(currentWeekStart);
           date.setDate(date.getDate() + dagIndex);
-          const dateStr = date.toISOString().split('T')[0];
+          const dateStr = toLocalDateString(date);
           const startH = taak.start_uur ?? 9;
           const duur = taak.duur_uren ?? 1;
           return [{
@@ -616,8 +744,6 @@ export function AgendasFlow() {
       return next;
     });
   };
-
-  const hasData = selectedEmployee && (calendarEvents.length > 0 || realTasks.length > 0);
 
   return (
     <div className="space-y-5">

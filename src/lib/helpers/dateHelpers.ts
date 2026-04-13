@@ -165,6 +165,13 @@ export function formatDateRange(weekStart: Date): string {
 }
 
 /**
+ * Format a Date as a local YYYY-MM-DD string (timezone-safe, no UTC shift)
+ */
+export function toLocalDateString(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+/**
  * Get the end of the week (Sunday) for a given week start
  */
 export function getWeekEnd(weekStart: Date): Date {
