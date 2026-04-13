@@ -146,7 +146,7 @@ const FASE_COLORS: Record<string, string> = {
 // Zorgt dat Ellen maar één template tegelijk verwerkt. Andere accounts wachten
 // automatisch en krijgen de beurt zodra de lock vrijkomt.
 const LOCK_ID = 'ellen_planning';
-const LOCK_DURATION_MS = 3 * 60 * 1000; // 3 minuten max per planning
+const LOCK_DURATION_MS = 90 * 1000; // 90 seconden max per planning
 
 async function acquirePlanningLock(userName: string): Promise<boolean> {
   // Verwijder verlopen locks
@@ -241,6 +241,7 @@ export default function EllenVoorstel() {
   const [editAddType, setEditAddType] = useState<'werkzaamheden' | 'presentatie' | 'review'>('werkzaamheden');
   const [editResizingTask, setEditResizingTask] = useState<{ index: number; startY: number; originalDuur: number } | null>(null);
   const [waitingForUser, setWaitingForUser] = useState<string | null>(null);
+  const [showForceButton, setShowForceButton] = useState(false);
   const voorstelGenerated = useRef(false);
 
   // Timeout timer voor als Ellen te lang duurt
@@ -282,8 +283,9 @@ export default function EllenVoorstel() {
   // Realtime wachtrij: zodra de lock verwijderd wordt, automatisch verder (geen polling)
   useEffect(() => {
     if (flowState !== 'wachten') return;
+    setShowForceButton(false);
 
-    // Eén initiële check om de huidige houder te tonen
+    // Eén initiële check: misschien is de lock al verlopen
     getPlanningLockHolder().then(holder => {
       if (!holder) { setWaitingForUser(null); retryGeneration(); return; }
       setWaitingForUser(holder);
@@ -298,14 +300,18 @@ export default function EllenVoorstel() {
       })
       .subscribe();
 
-    // Veiligheidsfallback: check zodra de lock sowieso verlopen is (3 min + 5 sec)
+    // Na 30 sec: toon "Toch verdergaan" knop (voor vastgelopen locks)
+    const forceTimer = setTimeout(() => setShowForceButton(true), 30000);
+
+    // Automatisch verder zodra de lock verloopt (90 sec + 3 sec buffer)
     const fallback = setTimeout(async () => {
       const holder = await getPlanningLockHolder();
       if (!holder) { setWaitingForUser(null); retryGeneration(); }
-    }, LOCK_DURATION_MS + 5000);
+    }, LOCK_DURATION_MS + 3000);
 
     return () => {
       supabase.removeChannel(channel);
+      clearTimeout(forceTimer);
       clearTimeout(fallback);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1310,14 +1316,29 @@ export default function EllenVoorstel() {
             <p className="text-xs text-muted-foreground text-center max-w-xs mb-8">
               Je bent automatisch aan de beurt zodra die klaar is.
             </p>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground mb-6">
               <Loader2 className="h-3 w-3 animate-spin" />
-              <span>Verbonden — je wordt automatisch doorgestuurd.</span>
+              <span>Wacht op melding via realtime verbinding…</span>
             </div>
+            {showForceButton && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="mb-3"
+                onClick={async () => {
+                  await supabase.from('planning_locks').delete().eq('id', LOCK_ID);
+                  setShowForceButton(false);
+                  setWaitingForUser(null);
+                  retryGeneration();
+                }}
+              >
+                Toch verdergaan (lock opruimen)
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="sm"
-              className="mt-8 text-muted-foreground cursor-pointer"
+              className="text-muted-foreground cursor-pointer"
               onClick={() => navigate('/nieuw-project')}
             >
               Annuleren
