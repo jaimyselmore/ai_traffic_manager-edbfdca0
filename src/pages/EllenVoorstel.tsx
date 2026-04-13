@@ -149,9 +149,11 @@ const LOCK_ID = 'ellen_planning';
 const LOCK_DURATION_MS = 90 * 1000; // 90 seconden max per planning
 
 async function acquirePlanningLock(userName: string): Promise<boolean> {
-  // Verwijder verlopen locks
-  await supabase.from('planning_locks').delete().lt('verloopt_op', new Date().toISOString());
-  // Probeer de lock te pakken (PRIMARY KEY conflict = al bezet)
+  // Verwijder verlopen locks én eigen locks van vorige sessie (zelfde gebruiker blokkeert zichzelf niet)
+  await supabase.from('planning_locks').delete().or(
+    `verloopt_op.lt.${new Date().toISOString()},locked_by.eq.${userName}`
+  );
+  // Probeer de lock te pakken (PRIMARY KEY conflict = al bezet door iemand anders)
   const { error } = await supabase.from('planning_locks').insert({
     id: LOCK_ID,
     locked_by: userName,
