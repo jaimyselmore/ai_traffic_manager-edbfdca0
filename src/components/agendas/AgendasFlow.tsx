@@ -216,7 +216,7 @@ function CalendarLayout({
               <div
                 key={h}
                 className="absolute right-2 text-[10px] text-muted-foreground select-none"
-                style={{ top: (h - GRID_START) * ROW_HEIGHT - 7 }}
+                style={{ top: h === GRID_START ? 2 : (h - GRID_START) * ROW_HEIGHT - 7 }}
               >
                 {h}:00
               </div>
@@ -627,6 +627,10 @@ export function AgendasFlow() {
   const [isSelectingPlanning, setIsSelectingPlanning] = useState(false);
   const [selectedPlanTasks, setSelectedPlanTasks] = useState<Set<string>>(new Set());
 
+  // Push planning to calendar
+  const [isPushing, setIsPushing] = useState(false);
+  const [pushResult, setPushResult] = useState<{ succeeded: number; failed: number } | null>(null);
+
   const weekNumber = getWeekNumber(currentWeekStart);
   const isCurrentWeek = currentWeekStart.toDateString() === todayWeekStart.toDateString();
   const dateRange = formatDateRange(currentWeekStart);
@@ -743,6 +747,29 @@ export function AgendasFlow() {
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
+  };
+
+  const handlePushToCalendar = async () => {
+    if (!selectedEmployee || selectedPlanTasks.size === 0 || isPushing) return;
+    setIsPushing(true);
+    setPushResult(null);
+    try {
+      const { data, error } = await supabase.functions.invoke('add-planning-to-calendar', {
+        body: { werknemerId: selectedEmployee, taakIds: Array.from(selectedPlanTasks) },
+      });
+      if (error || data?.error) throw new Error(data?.error || error?.message || 'Onbekende fout');
+      setPushResult({ succeeded: data.succeeded ?? 0, failed: data.failed ?? 0 });
+      setIsSelectingPlanning(false);
+      setSelectedPlanTasks(new Set());
+      // Refresh calendar to show the new events
+      setTimeout(fetchCalendarEvents, 800);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Onbekende fout';
+      setPushResult({ succeeded: 0, failed: selectedPlanTasks.size });
+      console.error('Push naar agenda mislukt:', msg);
+    } finally {
+      setIsPushing(false);
+    }
   };
 
   return (
@@ -902,10 +929,27 @@ export function AgendasFlow() {
                     <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => setSelectedPlanTasks(new Set(realTasks.map(t => t.id)))}>
                       Alles
                     </Button>
-                    <Button size="sm" className="h-8 text-xs" disabled={selectedPlanTasks.size === 0}>
-                      Toevoegen aan agenda ({selectedPlanTasks.size})
+                    <Button
+                      size="sm"
+                      className="h-8 text-xs"
+                      disabled={selectedPlanTasks.size === 0 || isPushing}
+                      onClick={handlePushToCalendar}
+                    >
+                      {isPushing
+                        ? <><Loader2 className="h-3 w-3 mr-1.5 animate-spin" />Toevoegen…</>
+                        : `Toevoegen aan agenda (${selectedPlanTasks.size})`
+                      }
                     </Button>
                   </>
+                )}
+                {pushResult && !isSelectingPlanning && (
+                  <span className={cn(
+                    'text-xs font-medium',
+                    pushResult.failed === 0 ? 'text-green-600' : 'text-amber-600'
+                  )}>
+                    {pushResult.succeeded > 0 && `✓ ${pushResult.succeeded} toegevoegd`}
+                    {pushResult.failed > 0 && ` · ${pushResult.failed} mislukt`}
+                  </span>
                 )}
               </div>
             )}
