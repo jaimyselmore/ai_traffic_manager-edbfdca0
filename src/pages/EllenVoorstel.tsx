@@ -279,19 +279,35 @@ export default function EllenVoorstel() {
     return () => { releasePlanningLock(); };
   }, []);
 
-  // Pollen als we wachten: zodra de lock vrij is, automatisch verder
+  // Realtime wachtrij: zodra de lock verwijderd wordt, automatisch verder (geen polling)
   useEffect(() => {
     if (flowState !== 'wachten') return;
-    const poll = setInterval(async () => {
+
+    // Eén initiële check om de huidige houder te tonen
+    getPlanningLockHolder().then(holder => {
+      if (!holder) { setWaitingForUser(null); retryGeneration(); return; }
+      setWaitingForUser(holder);
+    });
+
+    // Websocket-abonnement op DELETE van de lock rij
+    const channel = supabase
+      .channel('planning-lock-watch')
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'planning_locks' }, async () => {
+        const holder = await getPlanningLockHolder();
+        if (!holder) { setWaitingForUser(null); retryGeneration(); }
+      })
+      .subscribe();
+
+    // Veiligheidsfallback: check zodra de lock sowieso verlopen is (3 min + 5 sec)
+    const fallback = setTimeout(async () => {
       const holder = await getPlanningLockHolder();
-      if (!holder) {
-        setWaitingForUser(null);
-        retryGeneration();
-      } else {
-        setWaitingForUser(holder);
-      }
-    }, 5000);
-    return () => clearInterval(poll);
+      if (!holder) { setWaitingForUser(null); retryGeneration(); }
+    }, LOCK_DURATION_MS + 5000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearTimeout(fallback);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flowState]);
 
@@ -1296,7 +1312,7 @@ export default function EllenVoorstel() {
             </p>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <Loader2 className="h-3 w-3 animate-spin" />
-              <span>Elke 5 seconden opnieuw controleren...</span>
+              <span>Verbonden — je wordt automatisch doorgestuurd.</span>
             </div>
             <Button
               variant="ghost"
