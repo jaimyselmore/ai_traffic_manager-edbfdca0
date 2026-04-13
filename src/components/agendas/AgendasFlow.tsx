@@ -23,6 +23,14 @@ import {
   Sparkles,
   Send,
   AlertCircle,
+  X,
+  Pencil,
+  MapPin,
+  User,
+  Users,
+  ExternalLink,
+  Check,
+  Clock,
 } from 'lucide-react';
 import { useEmployees } from '@/hooks/use-employees';
 import type { Employee } from '@/lib/data/types';
@@ -103,6 +111,283 @@ function EmptyState({ icon: Icon, title, description }: {
         <p className="text-sm font-medium text-foreground">{title}</p>
         <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
       </div>
+    </div>
+  );
+}
+
+// ── Event Detail Types ────────────────────────────────────────────────────────
+
+interface AgendaEventDetail {
+  id: string;
+  title: string;
+  start: string | null;
+  end: string | null;
+  isAllDay: boolean;
+  location: string | null;
+  webLink: string | null;
+  organizer: { name: string; email: string };
+  attendees: Array<{ name: string; email: string; status: string; type: string }>;
+  body: string;
+  categories: string[];
+}
+
+// ── Event Detail Panel ────────────────────────────────────────────────────────
+
+const statusIcon = (status: string) => {
+  if (status === 'accepted') return <Check className="h-3 w-3 text-green-500" />;
+  if (status === 'declined') return <X className="h-3 w-3 text-red-400" />;
+  if (status === 'tentative') return <Clock className="h-3 w-3 text-amber-400" />;
+  return <span className="h-3 w-3 rounded-full border border-muted-foreground/40 inline-block" />;
+};
+
+const statusLabel: Record<string, string> = {
+  accepted: 'Geaccepteerd', declined: 'Geweigerd', tentative: 'Misschien', none: 'Geen reactie',
+};
+
+function formatEventTime(start: string | null, end: string | null, isAllDay: boolean): string {
+  if (isAllDay) return 'Hele dag';
+  if (!start) return '';
+  const d = new Date(start);
+  const dayNames = ['zo', 'ma', 'di', 'wo', 'do', 'vr', 'za'];
+  const day = `${dayNames[d.getDay()]} ${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`;
+  const startT = start.substring(11, 16);
+  const endT = end ? end.substring(11, 16) : '';
+  return `${day}  ${startT}${endT ? ` – ${endT}` : ''}`;
+}
+
+interface EventDetailPanelProps {
+  detail: AgendaEventDetail | null;
+  loading: boolean;
+  werknemerId: string;
+  onClose: () => void;
+  onSaved: () => void;
+}
+
+function EventDetailPanel({ detail, loading, werknemerId, onClose, onSaved }: EventDetailPanelProps) {
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+
+  // Edit form state
+  const [editTitle, setEditTitle] = useState('');
+  const [editStart, setEditStart] = useState('');
+  const [editEnd, setEditEnd] = useState('');
+  const [editLocation, setEditLocation] = useState('');
+  const [editBody, setEditBody] = useState('');
+
+  useEffect(() => {
+    if (detail) {
+      setEditTitle(detail.title);
+      setEditStart(detail.start ? detail.start.substring(0, 16) : '');
+      setEditEnd(detail.end ? detail.end.substring(0, 16) : '');
+      setEditLocation(detail.location || '');
+      setEditBody(detail.body || '');
+      setEditing(false);
+      setSaveError('');
+    }
+  }, [detail?.id]);
+
+  const handleSave = async () => {
+    if (!detail) return;
+    setSaving(true);
+    setSaveError('');
+    try {
+      const { data, error } = await supabase.functions.invoke('update-calendar-event', {
+        body: {
+          werknemerId,
+          eventId: detail.id,
+          updates: {
+            subject: editTitle,
+            startDateTime: editStart ? editStart + ':00' : undefined,
+            endDateTime: editEnd ? editEnd + ':00' : undefined,
+            location: editLocation,
+            body: editBody,
+          },
+        },
+      });
+      if (error || data?.error) throw new Error(data?.error || error?.message);
+      setEditing(false);
+      onSaved();
+    } catch (e: unknown) {
+      setSaveError(e instanceof Error ? e.message : 'Opslaan mislukt');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed right-0 top-0 h-full w-[380px] max-w-full z-50 flex flex-col bg-card border-l border-border shadow-xl transition-transform">
+      {/* Header */}
+      <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
+        <span className="text-sm font-semibold text-foreground">Afspraakdetails</span>
+        <div className="flex items-center gap-2">
+          {detail && !editing && (
+            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setEditing(true)} title="Bewerken">
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+          )}
+          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+        {loading && (
+          <div className="flex items-center justify-center py-16 gap-2 text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            <span className="text-sm">Laden…</span>
+          </div>
+        )}
+
+        {!loading && detail && !editing && (
+          <>
+            {/* Title + time */}
+            <div>
+              <h2 className="text-base font-semibold text-foreground leading-snug mb-1.5">{detail.title}</h2>
+              <div className="flex items-start gap-2 text-sm text-muted-foreground">
+                <Clock className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                <span>{formatEventTime(detail.start, detail.end, detail.isAllDay)}</span>
+              </div>
+              {detail.location && (
+                <div className="flex items-start gap-2 text-sm text-muted-foreground mt-1.5">
+                  <MapPin className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                  <span>{detail.location}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Organizer */}
+            <div>
+              <div className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">Organisator</div>
+              <div className="flex items-center gap-2.5">
+                <div className="h-7 w-7 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-semibold shrink-0">
+                  {detail.organizer.name.charAt(0).toUpperCase() || <User className="h-3.5 w-3.5" />}
+                </div>
+                <div>
+                  <div className="text-sm font-medium text-foreground">{detail.organizer.name || '—'}</div>
+                  <div className="text-[11px] text-muted-foreground">{detail.organizer.email}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Attendees */}
+            {detail.attendees.length > 0 && (
+              <div>
+                <div className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide flex items-center gap-1.5">
+                  <Users className="h-3.5 w-3.5" />
+                  Deelnemers ({detail.attendees.length})
+                </div>
+                <div className="space-y-2">
+                  {detail.attendees.map((a, i) => (
+                    <div key={i} className="flex items-center gap-2.5">
+                      <div className="h-6 w-6 rounded-full bg-secondary text-muted-foreground flex items-center justify-center text-[10px] font-semibold shrink-0">
+                        {a.name.charAt(0).toUpperCase() || '?'}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm text-foreground truncate">{a.name || a.email}</div>
+                        <div className="text-[10px] text-muted-foreground truncate">{a.email}</div>
+                      </div>
+                      <div className="flex items-center gap-1 text-[10px] text-muted-foreground shrink-0" title={statusLabel[a.status] || a.status}>
+                        {statusIcon(a.status)}
+                        <span className="hidden sm:inline">{statusLabel[a.status] || a.status}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Body */}
+            {detail.body && (
+              <div>
+                <div className="text-xs font-medium text-muted-foreground mb-1.5 uppercase tracking-wide">Beschrijving</div>
+                <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap line-clamp-6">{detail.body}</p>
+              </div>
+            )}
+
+            {/* Open in Outlook */}
+            {detail.webLink && (
+              <a
+                href={detail.webLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-xs text-primary hover:underline"
+              >
+                <ExternalLink className="h-3 w-3" />
+                Openen in Outlook
+              </a>
+            )}
+          </>
+        )}
+
+        {/* Edit form */}
+        {!loading && detail && editing && (
+          <div className="space-y-4">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground block mb-1">Titel</label>
+              <input
+                type="text"
+                value={editTitle}
+                onChange={e => setEditTitle(e.target.value)}
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">Begintijd</label>
+                <input
+                  type="datetime-local"
+                  value={editStart}
+                  onChange={e => setEditStart(e.target.value)}
+                  className="w-full rounded-md border border-border bg-background px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">Eindtijd</label>
+                <input
+                  type="datetime-local"
+                  value={editEnd}
+                  onChange={e => setEditEnd(e.target.value)}
+                  className="w-full rounded-md border border-border bg-background px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground block mb-1">Locatie</label>
+              <input
+                type="text"
+                value={editLocation}
+                onChange={e => setEditLocation(e.target.value)}
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground block mb-1">Beschrijving</label>
+              <textarea
+                value={editBody}
+                onChange={e => setEditBody(e.target.value)}
+                rows={4}
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+              />
+            </div>
+            {saveError && <p className="text-xs text-destructive">{saveError}</p>}
+          </div>
+        )}
+      </div>
+
+      {/* Edit footer */}
+      {editing && (
+        <div className="shrink-0 px-5 py-3 border-t border-border flex gap-2 bg-card">
+          <Button size="sm" onClick={handleSave} disabled={saving} className="flex-1">
+            {saving ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Opslaan…</> : 'Opslaan'}
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => { setEditing(false); setSaveError(''); }}>
+            Annuleren
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
@@ -261,9 +546,10 @@ interface AgendaGridProps {
   selectionMode: boolean;
   selectedEvents: Set<string>;
   onEventClick: (id: string) => void;
+  onEventDetail: (id: string) => void;
 }
 
-function AgendaGrid({ weekStart, employee, events, loading, error, onRetry, selectionMode, selectedEvents, onEventClick }: AgendaGridProps) {
+function AgendaGrid({ weekStart, employee, events, loading, error, onRetry, selectionMode, selectedEvents, onEventClick, onEventDetail }: AgendaGridProps) {
   const weekDates = useMemo(() =>
     dayNames.map((_, i) => {
       const d = new Date(weekStart);
@@ -336,10 +622,10 @@ function AgendaGrid({ weekStart, employee, events, loading, error, onRetry, sele
           return (
             <div
               key={ev.id}
-              onClick={() => onEventClick(ev.id)}
+              onClick={() => selectionMode ? onEventClick(ev.id) : onEventDetail(ev.id)}
               className={cn(
-                'absolute rounded px-1.5 py-1 text-[11px] font-medium text-white bg-slate-500 overflow-hidden transition-all leading-tight cursor-default',
-                selectionMode && 'cursor-pointer hover:ring-2 hover:ring-primary ring-offset-1',
+                'absolute rounded px-1.5 py-1 text-[11px] font-medium text-white bg-slate-500 overflow-hidden transition-all leading-tight cursor-pointer hover:brightness-110',
+                selectionMode && 'hover:ring-2 hover:ring-primary ring-offset-1',
                 isSelected && 'ring-2 ring-blue-500 ring-offset-1',
               )}
               style={{
@@ -631,6 +917,11 @@ export function AgendasFlow() {
   const [isPushing, setIsPushing] = useState(false);
   const [pushResult, setPushResult] = useState<{ succeeded: number; failed: number } | null>(null);
 
+  // Event detail panel
+  const [detailEventId, setDetailEventId] = useState<string | null>(null);
+  const [detailData, setDetailData] = useState<AgendaEventDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+
   const weekNumber = getWeekNumber(currentWeekStart);
   const isCurrentWeek = currentWeekStart.toDateString() === todayWeekStart.toDateString();
   const dateRange = formatDateRange(currentWeekStart);
@@ -747,6 +1038,19 @@ export function AgendasFlow() {
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
+  };
+
+  const handleEventDetail = async (eventId: string) => {
+    setDetailEventId(eventId);
+    setDetailData(null);
+    setDetailLoading(true);
+    const { data, error } = await supabase.functions.invoke('get-event-details', {
+      body: { werknemerId: selectedEmployee, eventId },
+    });
+    if (!error && data && !data.error) {
+      setDetailData(data as AgendaEventDetail);
+    }
+    setDetailLoading(false);
   };
 
   const handlePushToCalendar = async () => {
@@ -966,6 +1270,7 @@ export function AgendasFlow() {
               selectionMode={isSelectingAgenda}
               selectedEvents={selectedAgendaEvents}
               onEventClick={toggleAgendaEvent}
+              onEventDetail={handleEventDetail}
             />
           </TabsContent>
 
@@ -993,5 +1298,22 @@ export function AgendasFlow() {
         />
       )}
     </div>
+
+    {/* ── Event detail panel ── */}
+    {detailEventId && (
+      <>
+        <div
+          className="fixed inset-0 z-40 bg-black/20"
+          onClick={() => { setDetailEventId(null); setDetailData(null); }}
+        />
+        <EventDetailPanel
+          detail={detailData}
+          loading={detailLoading}
+          werknemerId={selectedEmployee}
+          onClose={() => { setDetailEventId(null); setDetailData(null); }}
+          onSaved={() => { fetchCalendarEvents(); setDetailEventId(null); setDetailData(null); }}
+        />
+      </>
+    )}
   );
 }
