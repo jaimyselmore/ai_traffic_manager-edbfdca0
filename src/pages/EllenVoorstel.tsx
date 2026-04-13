@@ -116,12 +116,6 @@ function RobotFaceInline({ happy, size = 40 }: { happy?: boolean; size?: number 
 const TIME_SLOTS = [9, 10, 11, 12, 13, 14, 15, 16, 17]; // Werkdag 09:00 tot 18:00, zonder 18:00 rij
 const CELL_HEIGHT = 28; // px per hour cell
 
-const WORKFLOW_STEPS = [
-  { label: 'Aanvraag analyseren', duration: 1200 },
-  { label: 'Beschikbaarheid checken', duration: 1500 },
-  { label: 'Planningsregels toepassen', duration: 1000 },
-  { label: 'Voorstel samenstellen', duration: 800 },
-];
 
 // Werktype colors - match de planner kleuren
 const WERKTYPE_COLORS: Record<string, string> = {
@@ -212,9 +206,7 @@ export default function EllenVoorstel() {
   const [voorstellen, setVoorstellen] = useState<VoorstelTaak[]>([]);
   const [, setEllenMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
-  const [activeStep, setActiveStep] = useState(0);
-  const [completedSteps, setCompletedSteps] = useState<number[]>([]);
-  const [selectedWeekIndex, setSelectedWeekIndex] = useState(0);
+const [selectedWeekIndex, setSelectedWeekIndex] = useState(0);
   const [selectedWerktype, setSelectedWerktype] = useState<string>('concept');
   const [feedbackInput, setFeedbackInput] = useState('');
   const [isRequestingNewProposal, setIsRequestingNewProposal] = useState(false);
@@ -271,8 +263,6 @@ export default function EllenVoorstel() {
     setFlowState('ellen-working');
     setWorkingTooLong(false);
     setSecondsElapsed(0);
-    setActiveStep(0);
-    setCompletedSteps([]);
     setErrorMessage('');
     setRetryCount(prev => prev + 1);
   };
@@ -353,28 +343,7 @@ export default function EllenVoorstel() {
     loadBestaandeTaken();
   }, [voorstellen]);
 
-  // Workflow step animation
-  useEffect(() => {
-    if (flowState !== 'ellen-working') return;
-
-    let totalDelay = 0;
-    const timers: ReturnType<typeof setTimeout>[] = [];
-
-    WORKFLOW_STEPS.forEach((step, i) => {
-      // Activate step
-      timers.push(setTimeout(() => setActiveStep(i), totalDelay));
-      totalDelay += step.duration;
-      // Complete step
-      timers.push(setTimeout(() => {
-        setCompletedSteps(prev => [...prev, i]);
-      }, totalDelay));
-      totalDelay += 200;
-    });
-
-    return () => timers.forEach(clearTimeout);
-  }, [flowState]);
-
-  // Generate voorstel after workflow steps complete
+  // Generate voorstel
   useEffect(() => {
     if (!projectInfo) {
       setFlowState('error');

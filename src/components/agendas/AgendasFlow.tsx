@@ -1077,6 +1077,7 @@ export function AgendasFlow() {
   };
 
   return (
+    <>
     <div className="space-y-5">
 
       {/* ── Toolbar ── */}
@@ -1315,5 +1316,6 @@ export function AgendasFlow() {
         />
       </>
     )}
+    </>
   );
 }
