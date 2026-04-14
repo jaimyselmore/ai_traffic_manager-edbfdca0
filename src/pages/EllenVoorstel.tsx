@@ -143,10 +143,14 @@ const LOCK_ID = 'ellen_planning';
 const LOCK_DURATION_MS = 90 * 1000; // 90 seconden max per planning
 
 async function acquirePlanningLock(userName: string): Promise<boolean> {
-  // Verwijder verlopen locks én eigen locks van vorige sessie (zelfde gebruiker blokkeert zichzelf niet)
-  await supabase.from('planning_locks').delete().or(
-    `verloopt_op.lt.${new Date().toISOString()},locked_by.eq.${userName}`
-  );
+  // Verwijder verlopen locks (twee losse deletes i.p.v. .or() — .or() breekt bij namen met spaties)
+  await supabase.from('planning_locks')
+    .delete()
+    .lt('verloopt_op', new Date().toISOString());
+  // Verwijder eigen lock van vorige sessie (zelfde gebruiker blokkeert zichzelf niet)
+  await supabase.from('planning_locks')
+    .delete()
+    .eq('locked_by', userName);
   // Probeer de lock te pakken (PRIMARY KEY conflict = al bezet door iemand anders)
   const { error } = await supabase.from('planning_locks').insert({
     id: LOCK_ID,
@@ -364,20 +368,36 @@ const [selectedWeekIndex, setSelectedWeekIndex] = useState(0);
       }
 
       // ── Wachtrij-check: maar 1 template tegelijk ─────────────────────────────
+      const myName = user?.naam || 'Onbekend';
       const lockHolder = await getPlanningLockHolder();
-      if (lockHolder) {
+      // Alleen wachten als een ANDERE gebruiker de lock heeft (niet eigen vorige sessie)
+      if (lockHolder && lockHolder !== myName) {
         setWaitingForUser(lockHolder);
         setFlowState('wachten');
         voorstelGenerated.current = false;
         return;
       }
-      const acquired = await acquirePlanningLock(user?.naam || 'Onbekend');
+      // acquirePlanningLock ruimt eigen oude lock op en plaatst een nieuwe
+      const acquired = await acquirePlanningLock(myName);
       if (!acquired) {
         const holder2 = await getPlanningLockHolder();
-        setWaitingForUser(holder2 || 'een collega');
-        setFlowState('wachten');
-        voorstelGenerated.current = false;
-        return;
+        // Nogmaals check: als het toch onze eigen lock is, gewoon doorgaan
+        if (!holder2 || holder2 === myName) {
+          // Probeer nog één keer na een korte pauze
+          await new Promise(r => setTimeout(r, 500));
+          const retried = await acquirePlanningLock(myName);
+          if (!retried) {
+            setWaitingForUser('een collega');
+            setFlowState('wachten');
+            voorstelGenerated.current = false;
+            return;
+          }
+        } else {
+          setWaitingForUser(holder2);
+          setFlowState('wachten');
+          voorstelGenerated.current = false;
+          return;
+        }
       }
       // ─────────────────────────────────────────────────────────────────────────
 
