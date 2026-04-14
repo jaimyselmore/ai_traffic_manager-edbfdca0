@@ -140,18 +140,18 @@ const FASE_COLORS: Record<string, string> = {
 // Zorgt dat Ellen maar één template tegelijk verwerkt. Andere accounts wachten
 // automatisch en krijgen de beurt zodra de lock vrijkomt.
 const LOCK_ID = 'ellen_planning';
-const LOCK_DURATION_MS = 90 * 1000; // 90 seconden max per planning
+const LOCK_DURATION_MS = 45 * 1000; // 45 seconden max per planning
 
 async function acquirePlanningLock(userName: string): Promise<boolean> {
-  // Verwijder verlopen locks (twee losse deletes i.p.v. .or() — .or() breekt bij namen met spaties)
-  await supabase.from('planning_locks')
-    .delete()
-    .lt('verloopt_op', new Date().toISOString());
-  // Verwijder eigen lock van vorige sessie (zelfde gebruiker blokkeert zichzelf niet)
-  await supabase.from('planning_locks')
-    .delete()
-    .eq('locked_by', userName);
-  // Probeer de lock te pakken (PRIMARY KEY conflict = al bezet door iemand anders)
+  const now = new Date().toISOString();
+  // 1. Verwijder verlopen locks
+  await supabase.from('planning_locks').delete().lt('verloopt_op', now);
+  // 2. Verwijder eigen lock van vorige sessie
+  await supabase.from('planning_locks').delete().eq('locked_by', userName);
+  // 3. Verwijder locks van anonieme/onbekende sessies (locked_by = 'Onbekend' of null)
+  await supabase.from('planning_locks').delete().eq('locked_by', 'Onbekend');
+  await supabase.from('planning_locks').delete().is('locked_by', null);
+  // 4. Probeer de lock te pakken (PRIMARY KEY conflict = al bezet door iemand anders)
   const { error } = await supabase.from('planning_locks').insert({
     id: LOCK_ID,
     locked_by: userName,
