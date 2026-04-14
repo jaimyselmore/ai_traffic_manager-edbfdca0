@@ -160,8 +160,16 @@ async function acquirePlanningLock(userName: string): Promise<boolean> {
   return !error;
 }
 
-async function releasePlanningLock(): Promise<void> {
-  await supabase.from('planning_locks').delete().eq('id', LOCK_ID);
+async function releasePlanningLock(userName?: string): Promise<void> {
+  if (userName) {
+    // Verwijder alleen onze eigen lock (voorkomt dat we iemand anders' lock verwijderen)
+    await supabase.from('planning_locks')
+      .delete()
+      .eq('id', LOCK_ID)
+      .eq('locked_by', userName);
+  } else {
+    await supabase.from('planning_locks').delete().eq('id', LOCK_ID);
+  }
 }
 
 async function getPlanningLockHolder(): Promise<string | null> {
@@ -271,44 +279,47 @@ const [selectedWeekIndex, setSelectedWeekIndex] = useState(0);
     setRetryCount(prev => prev + 1);
   };
 
-  // Verwijder de lock bij unmount (navigeer weg / sluit tab)
+  // Verwijder de lock bij unmount (navigeer weg / sluit tab) — alleen eigen lock
+  const userNameRef = useRef(user?.naam || 'Onbekend');
+  useEffect(() => { userNameRef.current = user?.naam || 'Onbekend'; }, [user?.naam]);
   useEffect(() => {
-    return () => { releasePlanningLock(); };
+    return () => { releasePlanningLock(userNameRef.current); };
   }, []);
 
-  // Realtime wachtrij: zodra de lock verwijderd wordt, automatisch verder (geen polling)
+  // Wachtrij: poll elke 3 seconden of de lock vrij is
   useEffect(() => {
     if (flowState !== 'wachten') return;
     setShowForceButton(false);
 
-    // Eén initiële check: misschien is de lock al verlopen
-    getPlanningLockHolder().then(holder => {
-      if (!holder) { setWaitingForUser(null); retryGeneration(); return; }
-      setWaitingForUser(holder);
-    });
+    let cancelled = false;
 
-    // Websocket-abonnement op DELETE van de lock rij
-    const channel = supabase
-      .channel('planning-lock-watch')
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'planning_locks' }, async () => {
-        const holder = await getPlanningLockHolder();
-        if (!holder) { setWaitingForUser(null); retryGeneration(); }
-      })
-      .subscribe();
+    const checkLock = async () => {
+      if (cancelled) return;
+      const holder = await getPlanningLockHolder();
+      if (cancelled) return;
+      if (!holder) {
+        setWaitingForUser(null);
+        retryGeneration();
+      } else {
+        setWaitingForUser(holder);
+      }
+    };
 
-    // Na 30 sec: toon "Toch verdergaan" knop (voor vastgelopen locks)
+    // Initiële check (met kleine vertraging om te voorkomen dat we onze eigen
+    // DELETE-events van acquirePlanningLock als "vrij" interpreteren)
+    const initialTimer = setTimeout(checkLock, 500);
+
+    // Poll elke 3 seconden
+    const pollInterval = setInterval(checkLock, 3000);
+
+    // Na 30 sec: toon "Toch verdergaan" knop
     const forceTimer = setTimeout(() => setShowForceButton(true), 30000);
 
-    // Automatisch verder zodra de lock verloopt (90 sec + 3 sec buffer)
-    const fallback = setTimeout(async () => {
-      const holder = await getPlanningLockHolder();
-      if (!holder) { setWaitingForUser(null); retryGeneration(); }
-    }, LOCK_DURATION_MS + 3000);
-
     return () => {
-      supabase.removeChannel(channel);
+      cancelled = true;
+      clearTimeout(initialTimer);
+      clearInterval(pollInterval);
       clearTimeout(forceTimer);
-      clearTimeout(fallback);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flowState]);
@@ -574,8 +585,8 @@ const [selectedWeekIndex, setSelectedWeekIndex] = useState(0);
         }
         setFlowState('error');
       } finally {
-        // Lock altijd vrijgeven zodra we klaar zijn (succes of fout)
-        releasePlanningLock();
+        // Lock altijd vrijgeven zodra we klaar zijn (succes of fout) — alleen eigen lock
+        releasePlanningLock(myName);
       }
     };
 
