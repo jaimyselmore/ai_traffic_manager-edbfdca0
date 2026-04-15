@@ -23,6 +23,7 @@ const formatDate = (date: Date | undefined): string => {
 };
 
 export interface WorkloadMedewerker {
+  id: string; // uniek per entry (staat toe dat dezelfde medewerker meerdere keren verschijnt)
   medewerkerId: string;
   uren: number; // Totaal aantal uren voor deze medewerker
 }
@@ -44,6 +45,7 @@ export interface PresentatieMoment {
   datumType: 'ellen' | 'zelf';
   datum?: string;
   tijd?: string;
+  eindTijd?: string;
   locatie: 'selmore' | 'klant' | '';
   teamIds: string[];
   workload: Workload;
@@ -173,8 +175,8 @@ function WorkloadTabelProd({
   colorMap: Record<string, number>;
   allEmployees: { id: string; name: string; role?: string }[];
   onReorder: (medewerkers: WorkloadMedewerker[]) => void;
-  onUpdate: (medewerkerId: string, uren: number) => void;
-  onRemove: (medewerkerId: string) => void;
+  onUpdate: (entryId: string, uren: number) => void;
+  onRemove: (entryId: string) => void;
   onAdd: (empId: string) => void;
 }) {
   const dragIndex = useRef<number | null>(null);
@@ -232,7 +234,7 @@ function WorkloadTabelProd({
             const showBottom = dropTarget?.index === i && dropTarget.pos === 'bottom';
             return (
               <div
-                key={wm.medewerkerId}
+                key={wm.id}
                 draggable
                 onDragStart={(e) => handleDragStart(e, i)}
                 onDragOver={(e) => handleDragOver(e, i)}
@@ -273,7 +275,7 @@ function WorkloadTabelProd({
                     value={wm.uren === 0 ? '' : wm.uren}
                     onChange={(e) => {
                       const val = e.target.value;
-                      if (val === '' || /^\d*\.?\d*$/.test(val)) onUpdate(wm.medewerkerId, val === '' ? 0 : parseFloat(val));
+                      if (val === '' || /^\d*\.?\d*$/.test(val)) onUpdate(wm.id, val === '' ? 0 : parseFloat(val));
                     }}
                     placeholder="0"
                     className="h-8 text-sm text-center cursor-text"
@@ -282,7 +284,7 @@ function WorkloadTabelProd({
                   />
                   <button
                     type="button"
-                    onClick={(e) => { e.stopPropagation(); onRemove(wm.medewerkerId); }}
+                    onClick={(e) => { e.stopPropagation(); onRemove(wm.id); }}
                     className="p-1.5 hover:bg-destructive/10 hover:text-destructive rounded transition-colors cursor-pointer"
                     onMouseDown={(e) => e.stopPropagation()}
                   >
@@ -298,7 +300,7 @@ function WorkloadTabelProd({
         <p className="text-sm text-muted-foreground mb-3">Nog geen medewerkers toegevoegd</p>
       )}
       <MemberAddDropdown
-        currentIds={medewerkers.map(m => m.medewerkerId)}
+        currentIds={[]}
         employees={allEmployees}
         onAdd={onAdd}
       />
@@ -335,7 +337,7 @@ export function AlgemeenFases({ data, onChange }: AlgemeenFasesProps) {
         teamIds: [...p.teamIds, empId],
         workload: {
           ...p.workload,
-          medewerkers: [...p.workload.medewerkers, { medewerkerId: empId, uren: 16 }]
+          medewerkers: [...p.workload.medewerkers, { id: crypto.randomUUID(), medewerkerId: empId, uren: 16 }]
         }
       }));
     }
@@ -350,6 +352,7 @@ export function AlgemeenFases({ data, onChange }: AlgemeenFasesProps) {
   // Voeg nieuwe presentatie toe
   const addPresentatie = () => {
     const workloadMedewerkers: WorkloadMedewerker[] = data.projectTeamIds.map(id => ({
+      id: crypto.randomUUID(),
       medewerkerId: id,
       uren: 16,
     }));
@@ -400,8 +403,8 @@ export function AlgemeenFases({ data, onChange }: AlgemeenFasesProps) {
     updatePresentatie(presentatieId, 'teamIds', newTeamIds);
   };
 
-  // Workload functies
-  const updateWorkloadMedewerker = (presentatieId: string, medewerkerId: string, uren: number) => {
+  // Workload functies — update via entryId (uniek per rij, zodat duplicaten los te bewerken zijn)
+  const updateWorkloadMedewerker = (presentatieId: string, entryId: string, uren: number) => {
     onChange({
       ...data,
       presentaties: data.presentaties.map(p =>
@@ -411,7 +414,7 @@ export function AlgemeenFases({ data, onChange }: AlgemeenFasesProps) {
               workload: {
                 ...p.workload,
                 medewerkers: p.workload.medewerkers.map(m =>
-                  m.medewerkerId === medewerkerId ? { ...m, uren } : m
+                  m.id === entryId ? { ...m, uren } : m
                 )
               }
             }
@@ -421,9 +424,7 @@ export function AlgemeenFases({ data, onChange }: AlgemeenFasesProps) {
   };
 
   const addWorkloadMedewerker = (presentatieId: string, empId: string) => {
-    const presentatie = data.presentaties.find(p => p.id === presentatieId);
-    if (!presentatie || presentatie.workload.medewerkers.some(m => m.medewerkerId === empId)) return;
-
+    // Duplicaten zijn toegestaan (zelfde persoon kan meerdere werkblokken hebben)
     onChange({
       ...data,
       presentaties: data.presentaties.map(p =>
@@ -432,7 +433,7 @@ export function AlgemeenFases({ data, onChange }: AlgemeenFasesProps) {
               ...p,
               workload: {
                 ...p.workload,
-                medewerkers: [...p.workload.medewerkers, { medewerkerId: empId, uren: 16 }]
+                medewerkers: [...p.workload.medewerkers, { id: crypto.randomUUID(), medewerkerId: empId, uren: 16 }]
               }
             }
           : p
@@ -449,7 +450,7 @@ export function AlgemeenFases({ data, onChange }: AlgemeenFasesProps) {
     });
   };
 
-  const removeWorkloadMedewerker = (presentatieId: string, medewerkerId: string) => {
+  const removeWorkloadMedewerker = (presentatieId: string, entryId: string) => {
     onChange({
       ...data,
       presentaties: data.presentaties.map(p =>
@@ -458,7 +459,7 @@ export function AlgemeenFases({ data, onChange }: AlgemeenFasesProps) {
               ...p,
               workload: {
                 ...p.workload,
-                medewerkers: p.workload.medewerkers.filter(m => m.medewerkerId !== medewerkerId)
+                medewerkers: p.workload.medewerkers.filter(m => m.id !== entryId)
               }
             }
           : p
@@ -470,25 +471,24 @@ export function AlgemeenFases({ data, onChange }: AlgemeenFasesProps) {
     if (data.slotfase) {
       onChange({ ...data, slotfase: undefined });
     } else {
-      const medewerkers: WorkloadMedewerker[] = data.projectTeamIds.map(id => ({ medewerkerId: id, uren: 0 }));
+      const medewerkers: WorkloadMedewerker[] = data.projectTeamIds.map(id => ({ id: crypto.randomUUID(), medewerkerId: id, uren: 0 }));
       onChange({ ...data, slotfase: { medewerkers } });
     }
   };
 
-  const updateSlotfaseMedewerker = (medewerkerId: string, uren: number) => {
+  const updateSlotfaseMedewerker = (entryId: string, uren: number) => {
     onChange({
       ...data,
-      slotfase: { medewerkers: (data.slotfase?.medewerkers || []).map(m => m.medewerkerId === medewerkerId ? { ...m, uren } : m) }
+      slotfase: { medewerkers: (data.slotfase?.medewerkers || []).map(m => m.id === entryId ? { ...m, uren } : m) }
     });
   };
 
   const addSlotfaseMedewerker = (empId: string) => {
-    if (data.slotfase?.medewerkers.some(m => m.medewerkerId === empId)) return;
-    onChange({ ...data, slotfase: { medewerkers: [...(data.slotfase?.medewerkers || []), { medewerkerId: empId, uren: 0 }] } });
+    onChange({ ...data, slotfase: { medewerkers: [...(data.slotfase?.medewerkers || []), { id: crypto.randomUUID(), medewerkerId: empId, uren: 0 }] } });
   };
 
-  const removeSlotfaseMedewerker = (medewerkerId: string) => {
-    onChange({ ...data, slotfase: { medewerkers: (data.slotfase?.medewerkers || []).filter(m => m.medewerkerId !== medewerkerId) } });
+  const removeSlotfaseMedewerker = (entryId: string) => {
+    onChange({ ...data, slotfase: { medewerkers: (data.slotfase?.medewerkers || []).filter(m => m.id !== entryId) } });
   };
 
   const reorderSlotfaseMedewerkers = (medewerkers: WorkloadMedewerker[]) => {
@@ -647,7 +647,7 @@ export function AlgemeenFases({ data, onChange }: AlgemeenFasesProps) {
                 </div>
               </RadioGroup>
               {presentatie.datumType === 'zelf' && (
-                <div className="grid grid-cols-2 gap-4 mt-3">
+                <div className="grid grid-cols-3 gap-4 mt-3">
                   <div>
                     <Label className="text-xs text-muted-foreground">Datum</Label>
                     <DatePicker
@@ -657,11 +657,20 @@ export function AlgemeenFases({ data, onChange }: AlgemeenFasesProps) {
                     />
                   </div>
                   <div>
-                    <Label className="text-xs text-muted-foreground">Tijd</Label>
+                    <Label className="text-xs text-muted-foreground">Starttijd</Label>
                     <Input
                       type="time"
                       value={presentatie.tijd || ''}
                       onChange={(e) => updatePresentatie(presentatie.id, 'tijd', e.target.value)}
+                      className="h-10"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Eindtijd</Label>
+                    <Input
+                      type="time"
+                      value={presentatie.eindTijd || ''}
+                      onChange={(e) => updatePresentatie(presentatie.id, 'eindTijd', e.target.value)}
                       className="h-10"
                     />
                   </div>

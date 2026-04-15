@@ -341,7 +341,7 @@ export function MijnAanvragen() {
             }
           }
         }
-        navigate(TYPE_ROUTES[aanvraag.type] || '/');
+        navigate(TYPE_ROUTES[aanvraag.type] || '/', { state: { loadConcept: true } });
       }}
     >
       <div className="flex items-center gap-3 min-w-0">
@@ -404,7 +404,7 @@ export function MijnAanvragen() {
                   const mainKey = TYPE_STORAGE_KEYS[aanvraag.type];
                   if (mainKey) localStorage.setItem(mainKey, savedData);
                 }
-                navigate(TYPE_ROUTES[aanvraag.type] || '/');
+                navigate(TYPE_ROUTES[aanvraag.type] || '/', { state: { loadConcept: true } });
               }
             }}
             title="Opnieuw proberen"

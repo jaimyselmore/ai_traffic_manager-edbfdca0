@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Save, X, Trash2, BookmarkIcon, ArrowLeft } from 'lucide-react';
 import {
   AlertDialog,
@@ -103,74 +103,81 @@ const emptyFormData: NieuwProjectFormData = {
   productieFases: emptyProductieFasesData,
 };
 
+// Defined outside the component so it can be used in the useState lazy initializer
+// (which runs before any hooks inside the component body)
+function hydrateStoredFormData(stored: string): NieuwProjectFormData {
+  // NOTE: localStorage can contain older shapes; do a deep-ish merge so nested
+  // arrays/objects never become undefined (prevents `.map()` runtime crashes).
+  let parsed: Partial<NieuwProjectFormData> = {};
+  try {
+    parsed = JSON.parse(stored) as Partial<NieuwProjectFormData>;
+  } catch {
+    return emptyFormData;
+  }
+
+  return {
+    ...emptyFormData,
+    ...parsed,
+    isInternProject: parsed.isInternProject ?? false,
+    projectHeader: {
+      ...emptyProjectHeaderData,
+      ...(parsed.projectHeader ?? {}),
+    },
+    algemeen: {
+      ...emptyAlgemeenData,
+      ...(parsed.algemeen ?? {}),
+      medewerkerAllocaties: (parsed.algemeen?.medewerkerAllocaties ?? []) as MedewerkerAllocatie[],
+      teamAllocaties: (parsed.algemeen?.teamAllocaties ?? []) as TeamAllocatie[],
+      betrokkenPersonen: (parsed.algemeen?.betrokkenPersonen ?? []) as string[],
+      meetings: (parsed.algemeen?.meetings ?? []) as MeetingData[],
+    },
+    algemeenFases: {
+      ...emptyAlgemeenFasesData,
+      ...(parsed.algemeenFases ?? {}),
+      projectTeamIds: (parsed.algemeenFases?.projectTeamIds ?? []) as string[],
+      // Ensure presentaties have workload structure and datumType
+      presentaties: (parsed.algemeenFases?.presentaties ?? []).map((p: any) => ({
+        ...p,
+        datumType: p.datumType ?? (p.datum ? 'zelf' : 'ellen'),
+        workload: p.workload ?? { medewerkers: [] },
+      })),
+    },
+    betrokkenTeam: {
+      ...emptyBetrokkenTeamData,
+      ...(parsed.betrokkenTeam ?? {}),
+    },
+    productieFases: {
+      ...emptyProductieFasesData,
+      ...(parsed.productieFases ?? {}),
+      projectTeamIds: (parsed.productieFases?.projectTeamIds ?? []) as string[],
+      // `fases` is a nested object inside ProductieFasesData.
+      // Ensure it exists even if older stored data misses it.
+      fases: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ...(emptyProductieFasesData as any).fases,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ...((parsed.productieFases as any)?.fases ?? {}),
+      },
+    } as ProductieFasesData,
+  };
+}
+
 export default function NieuwProject() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   const { data: clients = [] } = useClients();
   const { data: employees = [] } = useEmployees();
 
-  const hydrateStoredFormData = (stored: string): NieuwProjectFormData => {
-    // NOTE: localStorage can contain older shapes; do a deep-ish merge so nested
-    // arrays/objects never become undefined (prevents `.map()` runtime crashes).
-    let parsed: Partial<NieuwProjectFormData> = {};
-    try {
-      parsed = JSON.parse(stored) as Partial<NieuwProjectFormData>;
-    } catch {
-      return emptyFormData;
-    }
-
-    return {
-      ...emptyFormData,
-      ...parsed,
-      isInternProject: parsed.isInternProject ?? false,
-      projectHeader: {
-        ...emptyProjectHeaderData,
-        ...(parsed.projectHeader ?? {}),
-      },
-      algemeen: {
-        ...emptyAlgemeenData,
-        ...(parsed.algemeen ?? {}),
-        medewerkerAllocaties: (parsed.algemeen?.medewerkerAllocaties ?? []) as MedewerkerAllocatie[],
-        teamAllocaties: (parsed.algemeen?.teamAllocaties ?? []) as TeamAllocatie[],
-        betrokkenPersonen: (parsed.algemeen?.betrokkenPersonen ?? []) as string[],
-        meetings: (parsed.algemeen?.meetings ?? []) as MeetingData[],
-      },
-      algemeenFases: {
-        ...emptyAlgemeenFasesData,
-        ...(parsed.algemeenFases ?? {}),
-        projectTeamIds: (parsed.algemeenFases?.projectTeamIds ?? []) as string[],
-        // Ensure presentaties have workload structure and datumType
-        presentaties: (parsed.algemeenFases?.presentaties ?? []).map((p: any) => ({
-          ...p,
-          datumType: p.datumType ?? (p.datum ? 'zelf' : 'ellen'),
-          workload: p.workload ?? { medewerkers: [] },
-        })),
-      },
-      betrokkenTeam: {
-        ...emptyBetrokkenTeamData,
-        ...(parsed.betrokkenTeam ?? {}),
-      },
-      productieFases: {
-        ...emptyProductieFasesData,
-        ...(parsed.productieFases ?? {}),
-        projectTeamIds: (parsed.productieFases?.projectTeamIds ?? []) as string[],
-        // `fases` is a nested object inside ProductieFasesData.
-        // Ensure it exists even if older stored data misses it.
-        fases: {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          ...(emptyProductieFasesData as any).fases,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          ...((parsed.productieFases as any)?.fases ?? {}),
-        },
-      } as ProductieFasesData,
-    };
-  };
-
   const [formData, setFormData] = useState<NieuwProjectFormData>(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      return hydrateStoredFormData(stored);
+    // Only load previous data when explicitly navigating to load a concept.
+    // Fresh visits (via nav menu, dashboard button, etc.) always start empty.
+    if ((location.state as any)?.loadConcept) {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) return hydrateStoredFormData(stored);
     }
+    // Fresh visit: clear any stale autosave so the next autosave starts clean
+    localStorage.removeItem(STORAGE_KEY);
     return emptyFormData;
   });
 
