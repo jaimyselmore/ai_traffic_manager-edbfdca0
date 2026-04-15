@@ -143,26 +143,31 @@ const LOCK_ID = 'ellen_planning';
 const LOCK_DURATION_MS = 45 * 1000; // 45 seconden max per planning
 
 async function acquirePlanningLock(userName: string): Promise<boolean> {
-  const now = new Date().toISOString();
-  // 1. Verwijder verlopen locks
-  await supabase.from('planning_locks').delete().lt('verloopt_op', now);
-  // 2. Verwijder eigen lock van vorige sessie
-  await supabase.from('planning_locks').delete().eq('locked_by', userName);
-  // 3. Verwijder locks van anonieme/onbekende sessies (locked_by = 'Onbekend' of null)
-  await supabase.from('planning_locks').delete().eq('locked_by', 'Onbekend');
-  await supabase.from('planning_locks').delete().is('locked_by', null);
-  // 4. Probeer de lock te pakken (PRIMARY KEY conflict = al bezet door iemand anders)
-  const { error } = await supabase.from('planning_locks').insert({
+  // 1. Check of iemand anders een GELDIGE (niet-verlopen) lock heeft
+  const currentHolder = await getPlanningLockHolder();
+  if (currentHolder && currentHolder !== userName) {
+    return false; // Iemand anders is actief bezig
+  }
+
+  // 2. UPSERT in plaats van INSERT — werkt ook als er al een (verlopen/eigen) rij is.
+  //    INSERT zou falen met PRIMARY KEY conflict als de rij nooit verwijderd kon worden.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase.from('planning_locks') as any).upsert({
     id: LOCK_ID,
     locked_by: userName,
     verloopt_op: new Date(Date.now() + LOCK_DURATION_MS).toISOString(),
-  });
-  return !error;
+  }, { onConflict: 'id' });
+
+  if (error) return false;
+
+  // 3. Korte pauze + verificatie: als twee gebruikers gelijktijdig upserten wint de laatste.
+  await new Promise(r => setTimeout(r, 150));
+  const verified = await getPlanningLockHolder();
+  return verified === userName;
 }
 
 async function releasePlanningLock(userName?: string): Promise<void> {
   if (userName) {
-    // Verwijder alleen onze eigen lock (voorkomt dat we iemand anders' lock verwijderen)
     await supabase.from('planning_locks')
       .delete()
       .eq('id', LOCK_ID)
@@ -170,6 +175,7 @@ async function releasePlanningLock(userName?: string): Promise<void> {
   } else {
     await supabase.from('planning_locks').delete().eq('id', LOCK_ID);
   }
+  // Als DELETE faalt (RLS) is dat OK: de volgende UPSERT overschrijft de verlopen rij
 }
 
 async function getPlanningLockHolder(): Promise<string | null> {
@@ -380,35 +386,13 @@ const [selectedWeekIndex, setSelectedWeekIndex] = useState(0);
 
       // ── Wachtrij-check: maar 1 template tegelijk ─────────────────────────────
       const myName = user?.naam || 'Onbekend';
-      const lockHolder = await getPlanningLockHolder();
-      // Alleen wachten als een ANDERE gebruiker de lock heeft (niet eigen vorige sessie)
-      if (lockHolder && lockHolder !== myName) {
-        setWaitingForUser(lockHolder);
+      const acquired = await acquirePlanningLock(myName);
+      if (!acquired) {
+        const holder = await getPlanningLockHolder();
+        setWaitingForUser(holder && holder !== myName ? holder : 'een collega');
         setFlowState('wachten');
         voorstelGenerated.current = false;
         return;
-      }
-      // acquirePlanningLock ruimt eigen oude lock op en plaatst een nieuwe
-      const acquired = await acquirePlanningLock(myName);
-      if (!acquired) {
-        const holder2 = await getPlanningLockHolder();
-        // Nogmaals check: als het toch onze eigen lock is, gewoon doorgaan
-        if (!holder2 || holder2 === myName) {
-          // Probeer nog één keer na een korte pauze
-          await new Promise(r => setTimeout(r, 500));
-          const retried = await acquirePlanningLock(myName);
-          if (!retried) {
-            setWaitingForUser('een collega');
-            setFlowState('wachten');
-            voorstelGenerated.current = false;
-            return;
-          }
-        } else {
-          setWaitingForUser(holder2);
-          setFlowState('wachten');
-          voorstelGenerated.current = false;
-          return;
-        }
       }
       // ─────────────────────────────────────────────────────────────────────────
 
