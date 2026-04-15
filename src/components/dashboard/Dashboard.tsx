@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle2, Clock, Eye, Bell, FolderOpen, Plus, FileEdit, Users, CalendarOff, Archive, X } from 'lucide-react';
+import { CheckCircle2, Clock, Eye, Bell, FolderOpen, Plus, FileEdit, Users, CalendarOff, Archive, X, CalendarDays, Briefcase, User, FileText, Hash, ExternalLink } from 'lucide-react';
 import { StatCard } from './StatCard';
 import { RequestBlock } from './RequestBlock';
 import { MijnAanvragen } from './MijnAanvragen';
@@ -8,6 +8,7 @@ import { WachtOpGoedkeuring, getWachtKlantCount } from './WachtOpGoedkeuring';
 import { getWeekNumber, getWeekStart, formatDateRange } from '@/lib/helpers/dateHelpers';
 import { useUpcomingDeadlines, useActiveProjects, useInterneReviews, useWijzigingsverzoeken, useAfgerondeProjecten } from '@/lib/data';
 import { useAuth } from '@/contexts/AuthContext';
+import { ActiveProject } from '@/lib/data/dataService';
 
 interface DashboardProps {
   selectedEmployeeId: string;
@@ -26,6 +27,7 @@ export function Dashboard({ selectedEmployeeId: _selectedEmployeeId }: Dashboard
 
   const [wachtKlantCount, setWachtKlantCount] = useState(0);
   const [activePanel, setActivePanel] = useState<PanelType>(null);
+  const [selectedProject, setSelectedProject] = useState<ActiveProject | null>(null);
 
   // Load wacht_klant count
   useEffect(() => {
@@ -185,7 +187,7 @@ export function Dashboard({ selectedEmployeeId: _selectedEmployeeId }: Dashboard
                 {activeProjects.map((project) => (
                   <div
                     key={project.id}
-                    onClick={() => navigate(`/planner?project=${project.id}`)}
+                    onClick={() => setSelectedProject(project)}
                     className="rounded-lg border bg-card p-3 cursor-pointer hover:bg-accent/50 transition-colors"
                   >
                     <div className="flex items-center justify-between">
@@ -396,6 +398,153 @@ export function Dashboard({ selectedEmployeeId: _selectedEmployeeId }: Dashboard
         <h2 className="mb-6 text-xl font-semibold text-foreground">Mijn aanvragen</h2>
         <MijnAanvragen />
       </div>
+
+      {/* Project detail modal */}
+      {selectedProject && (
+        <ProjectDetailModal
+          project={selectedProject}
+          onClose={() => setSelectedProject(null)}
+          onOpenInPlanner={() => {
+            setSelectedProject(null);
+            navigate(`/planner?project=${selectedProject.id}`);
+          }}
+        />
+      )}
     </div>
   );
+}
+
+// ── Project detail modal ──────────────────────────────────────────────────────
+
+function ProjectDetailModal({
+  project,
+  onClose,
+  onOpenInPlanner,
+}: {
+  project: ActiveProject;
+  onClose: () => void;
+  onOpenInPlanner: () => void;
+}) {
+  const statusLabel: Record<string, string> = {
+    actief: 'Actief',
+    in_behandeling: 'In behandeling',
+    concept: 'Concept',
+    wacht_klant: 'Wacht op klant',
+    afgerond: 'Afgerond',
+  };
+  const statusColor: Record<string, string> = {
+    actief: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+    in_behandeling: 'bg-blue-100 text-blue-700 border-blue-200',
+    concept: 'bg-slate-100 text-slate-600 border-slate-200',
+    wacht_klant: 'bg-amber-100 text-amber-700 border-amber-200',
+    afgerond: 'bg-purple-100 text-purple-700 border-purple-200',
+  };
+
+  const fmt = (iso: string | null) =>
+    iso ? new Date(iso).toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' }) : '—';
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px]"
+        onClick={onClose}
+      />
+
+      {/* Modal */}
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+        <div
+          className="relative w-full max-w-lg bg-background rounded-2xl shadow-2xl border border-border pointer-events-auto overflow-hidden"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="flex items-start justify-between gap-4 px-6 pt-6 pb-4 border-b border-border">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-mono text-muted-foreground bg-muted px-2 py-0.5 rounded">
+                  #{project.projectnummer}
+                </span>
+                {project.status && (
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${statusColor[project.status] ?? 'bg-slate-100 text-slate-600 border-slate-200'}`}>
+                    {statusLabel[project.status] ?? project.status}
+                  </span>
+                )}
+              </div>
+              <h2 className="mt-2 text-lg font-semibold text-foreground leading-tight">
+                {project.klant_naam}
+              </h2>
+              {project.omschrijving && (
+                <p className="mt-1 text-sm text-muted-foreground">{project.omschrijving}</p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="shrink-0 p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* Details grid */}
+          <div className="px-6 py-4 space-y-3">
+            <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+              <DetailRow icon={User} label="Aangemaakt door" value={project.aangemaakt_door_naam || '—'} />
+              <DetailRow icon={Briefcase} label="Projecttype" value={project.projecttype ? capitalize(project.projecttype) : '—'} />
+              <DetailRow icon={CalendarDays} label="Aanvraagdatum" value={fmt(project.datum_aanvraag)} />
+              <DetailRow icon={CalendarDays} label="Deadline" value={fmt(project.deadline)} />
+              <DetailRow icon={Hash} label="Ingeplande taken" value={String(project.takenCount)} />
+            </div>
+
+            {project.opmerkingen && (
+              <div className="mt-3 pt-3 border-t border-border">
+                <div className="flex items-start gap-2">
+                  <FileText className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">Opmerkingen</p>
+                    <p className="text-sm text-foreground whitespace-pre-line">{project.opmerkingen}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-border bg-muted/30">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-muted"
+            >
+              Sluiten
+            </button>
+            <button
+              type="button"
+              onClick={onOpenInPlanner}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              Bekijk in planner
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function DetailRow({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string }) {
+  return (
+    <div className="flex items-start gap-2">
+      <Icon className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
+      <div>
+        <p className="text-xs text-muted-foreground">{label}</p>
+        <p className="text-sm font-medium text-foreground">{value}</p>
+      </div>
+    </div>
+  );
+}
+
+function capitalize(str: string) {
+  return str.charAt(0).toUpperCase() + str.slice(1);
 }

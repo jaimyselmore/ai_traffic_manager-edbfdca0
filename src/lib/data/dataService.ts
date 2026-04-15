@@ -75,6 +75,9 @@ interface ProjectRow {
   datum_aanvraag: string
   deadline: string
   status: string | null
+  aangemaakt_door_naam?: string | null
+  created_at?: string | null
+  opmerkingen?: string | null
 }
 
 interface TaakRow {
@@ -663,6 +666,11 @@ export interface ActiveProject {
   deadline: string
   status: string
   takenCount: number
+  aangemaakt_door_naam: string | null
+  datum_aanvraag: string | null
+  opmerkingen: string | null
+  projecttype: string | null
+  created_at: string | null
 }
 
 export interface AfgerondProject {
@@ -831,6 +839,11 @@ export async function getActiveProjects(): Promise<ActiveProject[]> {
       deadline: projectDetail?.deadline || '',
       status: projectDetail?.status || 'actief',
       takenCount: taakInfo.count,
+      aangemaakt_door_naam: projectDetail?.aangemaakt_door_naam ?? null,
+      datum_aanvraag: projectDetail?.datum_aanvraag ?? null,
+      opmerkingen: projectDetail?.opmerkingen ?? null,
+      projecttype: projectDetail?.projecttype ?? null,
+      created_at: projectDetail?.created_at ?? null,
     })
   }
 
