@@ -143,6 +143,12 @@ Deno.serve(async (req) => {
       if (!klant) return new Response(JSON.stringify({ success: false, message: `Klant "${planning.klant_naam}" niet gevonden` }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
       const projectNummer = planning.project_nummer || `P-${Date.now().toString().slice(-6)}`;
+      const werktype = gekozenWerktype || 'concept';
+
+      // Check of concept-taken al bestaan (direct opgeslagen door plan_project engine)
+      const { data: bestaandeConcept } = await supabase.from('taken')
+        .select('id').eq('project_nummer', projectNummer).eq('plan_status', 'concept').limit(1);
+
       const { data: project, error: projectErr } = await supabase.from('projecten').insert({
         klant_id: klant.id, projectnummer: projectNummer,
         omschrijving: planning.project_omschrijving || planning.klant_naam,
@@ -151,27 +157,48 @@ Deno.serve(async (req) => {
       }).select('id, projectnummer').single();
       if (projectErr || !project) return new Response(JSON.stringify({ success: false, message: 'Kon project niet aanmaken' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
-      const werktype = gekozenWerktype || 'concept';
-      const werktypeLabels: Record<string, string> = { concept: 'Conceptontwikkeling', uitwerking: 'Conceptuitwerking', productie: 'Productie', extern: 'Meeting met klant', review: 'Interne review' };
-      const faseLabel = werktypeLabels[werktype] || werktype;
       let aantalGeplaatst = 0;
 
-      for (const taak of planning.taken) {
-        const { error: taakErr } = await supabase.from('taken').insert({
-          project_id: project.id, werknemer_naam: taak.werknemer_naam, klant_naam: planning.klant_naam,
-          project_nummer: project.projectnummer, fase_naam: faseLabel, werktype,
-          discipline: taak.discipline || 'Algemeen',
-          week_start: taak.week_start,
-          dag_van_week: typeof taak.dag_van_week === 'number' ? taak.dag_van_week : 0,
-          start_uur: typeof taak.start_uur === 'number' ? taak.start_uur : 9,
-          duur_uren: typeof taak.duur_uren === 'number' ? taak.duur_uren : 8,
-          plan_status: gekozenPlanStatus, is_hard_lock: false,
-        });
-        if (taakErr) console.error('Taak insert error:', taakErr.message);
-        else aantalGeplaatst++;
+      if (bestaandeConcept?.length) {
+        // Concept-taken bestaan al — koppel project_id en update status/werktype
+        const { error: updateErr } = await supabase.from('taken')
+          .update({ project_id: project.id, plan_status: gekozenPlanStatus, werktype })
+          .eq('project_nummer', projectNummer)
+          .eq('plan_status', 'concept');
+        if (updateErr) console.error('Update concept-taken fout:', updateErr.message);
+        aantalGeplaatst = planning.taken.length;
+      } else {
+        // Fallback: geen concept-taken (bijv. template-route) — insert nieuw
+        const werktypeLabels: Record<string, string> = { concept: 'Conceptontwikkeling', uitwerking: 'Conceptuitwerking', productie: 'Productie', extern: 'Meeting met klant', review: 'Interne review' };
+        const faseLabel = werktypeLabels[werktype] || werktype;
+        for (const taak of planning.taken) {
+          const { error: taakErr } = await supabase.from('taken').insert({
+            project_id: project.id, werknemer_naam: taak.werknemer_naam, klant_naam: planning.klant_naam,
+            project_nummer: project.projectnummer, fase_naam: faseLabel, werktype,
+            discipline: taak.discipline || 'Algemeen',
+            week_start: taak.week_start,
+            dag_van_week: typeof taak.dag_van_week === 'number' ? taak.dag_van_week : 0,
+            start_uur: typeof taak.start_uur === 'number' ? taak.start_uur : 9,
+            duur_uren: typeof taak.duur_uren === 'number' ? taak.duur_uren : 8,
+            plan_status: gekozenPlanStatus, is_hard_lock: false,
+          });
+          if (taakErr) console.error('Taak insert error:', taakErr.message);
+          else aantalGeplaatst++;
+        }
       }
 
-      return new Response(JSON.stringify({ success: true, message: `Planning "${project.projectnummer}" aangemaakt met ${aantalGeplaatst} blokken`, project_id: project.id, project_nummer: project.projectnummer, aantal_blokken: aantalGeplaatst }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ success: true, message: `Planning "${project.projectnummer}" bevestigd met ${aantalGeplaatst} blokken`, project_id: project.id, project_nummer: project.projectnummer, aantal_blokken: aantalGeplaatst }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    if (actie === 'afwijzen_planning') {
+      const { project_nummer } = body;
+      if (!project_nummer) {
+        return new Response(JSON.stringify({ success: false, message: 'project_nummer is verplicht' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      const { error: delErr } = await supabase.from('taken')
+        .delete().eq('project_nummer', project_nummer).eq('plan_status', 'concept');
+      if (delErr) return new Response(JSON.stringify({ success: false, message: `Verwijderen mislukt: ${delErr.message}` }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ success: true, message: 'Concept-planning verwijderd' }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     // 4. Direct plan modus (vanuit template formulier — bypass AI)

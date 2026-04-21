@@ -72,8 +72,16 @@ export function buildPlanPrompt(
 MODUS: PROJECT PLANNING
 Roep plan_project aan met de fases in de juiste volgorde.
 
+STAP 0 — Check de huidige planning ALTIJD eerst (VERPLICHT)
+Roep check_beschikbaarheid aan voor de betrokken medewerkers, voor de verwachte periode (vandaag t/m deadline).
+Analyseer de uitkomst: hoeveel uren zijn al ingepland? Zijn er verlofperiodes?
+SCHUIF zelf op basis hiervan — vraag de gebruiker NIET om een andere datum.
+Als een medewerker in de komende weken vol zit → begin die medewerker later.
+Als er overlap dreigt met een bestaand project → verschuif de nieuwe planning zodat de medewerker niet dubbelgeboekt raakt.
+Meld in één zin wat je hebt verschoven en waarom.
+
 STAP 1 — Capaciteit beoordelen
-Kijk naar de PRE-LOADED data: bestaande taken per medewerker, verlofperiodes, deadlines van andere projecten. Medewerker met veel bestaande taken of een eerdere deadline heeft voorrang. Noteer conflicten.
+Kijk naar de check_beschikbaarheid resultaten én eventuele PRE-LOADED data: bestaande taken per medewerker, verlofperiodes, deadlines van andere projecten. Medewerker met veel bestaande taken of een eerdere deadline heeft voorrang. Noteer conflicten.
 
 STAP 2 — plan_project aanroepen
 Fases komen in volgorde — de engine ketent ze automatisch:

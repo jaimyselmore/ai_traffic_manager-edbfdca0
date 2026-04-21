@@ -341,7 +341,23 @@ Kun je een aangepast voorstel maken?`;
     }
   }, [sessieId]);
 
-  const handleRejectPlanning = useCallback((planning: PlanningVoorstel) => {
+  const handleRejectPlanning = useCallback(async (planning: PlanningVoorstel) => {
+    const sessionToken = getSessionToken();
+
+    // Verwijder concept-taken uit DB zodat de engine geen spookblokken ziet
+    if (sessionToken && planning.project_nummer) {
+      try {
+        await supabase.functions.invoke('ellen-chat', {
+          headers: { Authorization: `Bearer ${sessionToken}` },
+          body: {
+            sessie_id: sessieId,
+            actie: 'afwijzen_planning',
+            project_nummer: planning.project_nummer,
+          },
+        });
+      } catch { /* ignore — UI flow gaat gewoon door */ }
+    }
+
     setRecentProposal({ type: 'planning', data: planning });
     setMessages(prev => prev.map(msg =>
       msg.planningVoorstel?.project_nummer === planning.project_nummer
@@ -351,9 +367,9 @@ Kun je een aangepast voorstel maken?`;
     setMessages(prev => [...prev, {
       id: Date.now().toString(),
       role: 'ellen',
-      content: 'Oké, planning geannuleerd. Wat wil je anders?',
+      content: 'Oké, planning afgewezen. Wat wil je anders?',
     }]);
-  }, []);
+  }, [sessieId]);
 
   const handleSaveFeedback = useCallback(async (scope: 'regels' | 'project' | 'ignore') => {
     if (!feedbackToSave || scope === 'ignore') {

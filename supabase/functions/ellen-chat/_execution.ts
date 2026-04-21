@@ -382,11 +382,20 @@ export async function executeTool(
             while (dagenGepland < fase.duur_dagen && maxIteraties-- > 0) {
               while (isWeekend(huidigeDatum)) huidigeDatum.setDate(huidigeDatum.getDate() + 1);
               if (faseDeadline && huidigeDatum >= new Date(faseDeadline + 'T00:00:00')) { warnings.push(`${fase.fase_naam}: Niet alle dagen passen voor deadline`); break; }
-              let geplandDezeRonde = false;
-              for (const mw of fase.medewerkers) {
-                if (planBlok(mw, huidigeDatum, fase, isMeeting)) geplandDezeRonde = true;
+              // Alle medewerkers moeten op dezelfde dag kunnen — anders telt de dag niet.
+              // Zo voorkom je dat één medewerker op dag X ingepland wordt en een ander niet.
+              const kanAlleDezedag = fase.medewerkers.every(mw => {
+                if (heeftVerlofSync(planCtx, mw, huidigeDatum)) return false;
+                if (isParttimeDagSync(planCtx, mw, huidigeDatum)) return false;
+                const slot = isMeeting
+                  ? vindMeetingSlotSync(planCtx, config, mw, huidigeDatum, fase.uren_per_dag || 8)
+                  : vindEersteVrijeSlotSync(planCtx, config, mw, huidigeDatum, fase.uren_per_dag || 8);
+                return slot !== null;
+              });
+              if (kanAlleDezedag) {
+                for (const mw of fase.medewerkers) planBlok(mw, huidigeDatum, fase, isMeeting);
+                dagenGepland++;
               }
-              if (geplandDezeRonde) dagenGepland++;
               huidigeDatum.setDate(huidigeDatum.getDate() + 1);
             }
             // Cursor vooruit zetten zodat de volgende fase hier verder gaat
@@ -405,6 +414,29 @@ export async function executeTool(
         if (reasoning) samenvatting = `Ellen's redenering:\n${reasoning}\n\nPlanning:${samenvatting}`;
         if (warnings.length) samenvatting += '\n\nLet op:\n' + warnings.map(w => `- ${w}`).join('\n');
         if (klant.planning_instructies) samenvatting += `\n\nKlant instructies (${klant.naam}):\n${klant.planning_instructies}`;
+
+        // ── DIRECT OPSLAAN ALS CONCEPT IN DB ─────────────────────────────────────
+        // Concept-taken zijn direct zichtbaar voor de engine bij volgende planningen.
+        // Zo worden overlappen met onbevestigde planningen ook gedetecteerd.
+        if (taken.length > 0) {
+          const conceptInserts = taken.map(taak => ({
+            project_id: null,
+            werknemer_naam: taak.werknemer_naam,
+            klant_naam: klant.naam,
+            project_nummer: projectNummer,
+            fase_naam: taak.fase_naam,
+            werktype: taak.werktype,
+            discipline: taak.discipline,
+            week_start: taak.week_start,
+            dag_van_week: taak.dag_van_week,
+            start_uur: taak.start_uur,
+            duur_uren: taak.duur_uren,
+            plan_status: 'concept',
+            is_hard_lock: false,
+          }));
+          const { error: conceptErr } = await supabase.from('taken').insert(conceptInserts);
+          if (conceptErr) console.error('Concept-taken opslaan mislukt:', conceptErr.message);
+        }
 
         return JSON.stringify({
           type: 'planning_voorstel', klant_naam: klant.naam, klant_id: klant.id,
